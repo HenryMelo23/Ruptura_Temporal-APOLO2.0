@@ -75,6 +75,8 @@ tempo_fim_mensagem = 0
 # Nossa ponte de dados (Dicionário simples, sem frescura)
 dados_ia_umbra = {"estado": "Aguardando...", "pesos": {}}
 
+#####################################################################APOLO1######################################################################################################
+
 app = Flask(__name__)
 CORS(app) # Permite que o navegador acesse os dados sem bloqueio de segurança
 
@@ -148,7 +150,7 @@ def registrar_batalha(duracao_segundos, vencedor, hp_restante, exploracao, acert
     
     with open(arquivo_historico, "w") as f:
         json.dump(historico, f, indent=4)
-
+###########################################################################################################################################################################
 
 def gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem):
     largura_mapa_int, altura_mapa_int, largura_personagem_int, altura_personagem_int=map(int,(largura_mapa, altura_mapa, largura_personagem, altura_personagem))
@@ -294,6 +296,8 @@ def determinar_frames_petro(posicao_petro, posicao_inimigo):
     else:
         return 'stop_petro'  # Petro está na mesma posição do inimigo
 
+
+#####################################################################APOLO1######################################################################################################
 def atualizar_posicao_personagem(keys, joystick):#APOLO
     global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento
     global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_timer, teleporte_duration, teleporte_index
@@ -371,7 +375,7 @@ def atualizar_posicao_personagem(keys, joystick):#APOLO
         cooldown_dash = False
 
     return direcao_atual
-
+##########################################################################################################################################################################
 def criar_disparo():
         return {"rect": pygame.Rect(pos_x_personagem, pos_y_personagem, largura_disparo, altura_disparo),"direcao": ultima_tecla_movimento }
 
@@ -529,166 +533,7 @@ reducao_cooldown_umbra = 1.0
 resistencia_umbra = 0.0
 bonus_cura_sifon = 1.0
 
-def injetar_build_endgame(qtd_cartas_jogador=30):
-    global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico
-    global roubo_de_vida, quantidade_roubo_vida, vida_maxima, vida, trembo
-    global tempo_cooldown_dash, Resistencia, Poison_Active, Dano_Veneno_Acumulado
-    global Executa_inimigo, Ultimo_Estalo, Tempo_cura, porcentagem_cura
-    global Petro_active, vida_petro, vida_maxima_petro, dano_petro, petro_evolucao
-    global xp_petro, Resistencia_petro, Chance_Sorte, inimigos_eliminados
-    
-    global vida_maxima_umbra, vida_umbra
-    global multiplicador_dano_umbra, reducao_cooldown_umbra, resistencia_umbra, bonus_cura_sifon
 
-    import os
-    import json
-    import random
-    import collections
-
-    inimigos_eliminados = 3000
-    vida_base = 25000
-    fator_carnificina = inimigos_eliminados * 25
-    
-    # Umbra projetada para resistir a 24 segundos de disparos perfeitos 
-    # (Com esquivas e transições, a luta real durará entre 45 e 70 segundos)
-    vida_maxima_umbra = int(vida_base + fator_carnificina)
-
-    cartas_disponiveis = [
-        "Speed Boost", "Porção", "Disparo crescente", "Trembo", 
-        "Tempestade", "Cura", "Speed Atack", "Teleporte", 
-        "Petro", "Defesa", "Sorte"
-    ]
-
-    pesos = {c: 10 for c in cartas_disponiveis}
-
-    if os.path.exists("historico_batalhas.json"):
-        try:
-            with open("historico_batalhas.json", "r") as f:
-                historico = json.load(f)
-                if historico and historico[-1].get("vencedor") == "Umbra":
-                    if historico[-1].get("hp_restante", 0) > 375000:
-                        pesos["Disparo crescente"] += 50
-                        pesos["Speed Atack"] += 40
-                    else:
-                        pesos["Cura"] += 50
-                        pesos["Defesa"] += 40
-        except:
-            pass
-
-    escolhas_apolo = []
-    opcoes = list(pesos.keys())
-
-    # --- PROGRESSÃO DO APOLO ---
-    for _ in range(qtd_cartas_jogador):
-        if escolhas_apolo.count("Petro") >= 5: pesos["Petro"] = 0
-        if escolhas_apolo.count("Trembo") >= 1: pesos["Trembo"] = 0
-        if escolhas_apolo.count("Cura") >= 10: pesos["Cura"] = 0
-
-        lista_pesos = [pesos[op] for op in opcoes]
-        carta = random.choices(opcoes, weights=lista_pesos, k=1)[0]
-        escolhas_apolo.append(carta)
-        
-        if carta == "Speed Boost":
-            # Aceleração controlada: valor base menor, escala a cada 200 abates
-            velocidade_personagem += 0.02 + (inimigos_eliminados // 200) * 0.002
-            
-        elif carta == "Porção":
-            # O aumento de vida escala com o massacre, acompanhado de uma cura passiva de 30% do máximo
-            aumento_vida = 250 + (inimigos_eliminados // 50) * 8
-            vida_maxima += aumento_vida
-            vida += int(vida_maxima * 0.30)
-            vida_petro += int(vida_maxima_petro * 0.25)
-            if vida_petro > vida_maxima_petro: vida_maxima_petro = vida_petro
-            
-        elif carta == "Disparo crescente":
-            # Dano puro e escalável, sem romper a integridade nos primeiros níveis
-            dano_person_hit += 15 + (inimigos_eliminados // 50) * 1.5
-            
-        elif carta == "Trembo":
-            trembo = True
-            # Decaimento exponencial imposto ao tempo, somatória milimétrica para a porcentagem
-            Tempo_cura = max(800, int(Tempo_cura * 0.90))
-            porcentagem_cura += 0.002 + (inimigos_eliminados // 300) * 0.0005
-            
-        elif carta == "Tempestade":
-            # Foco massivo em chance crítica, acompanhado de dano auxiliar contínuo
-            dano_person_hit += 5 + (inimigos_eliminados // 100) * 1
-            chance_critico += 0.01 + (inimigos_eliminados // 300) * 0.002
-            
-        elif carta == "Cura":
-            # Roubo de vida deve ser estritamente fracionário para evitar a imortalidade precoce
-            roubo_de_vida += 0.005 + (inimigos_eliminados // 500) * 0.001
-            quantidade_roubo_vida += 0.005 + (inimigos_eliminados // 500) * 0.001
-            
-        elif carta == "Speed Atack":
-            # Redução percentual impecável, cortando 12% do tempo restante a cada compra
-            intervalo_disparo = max(50, int(intervalo_disparo * 0.88))
-            
-        elif carta == "Teleporte":
-            # Redução percentual dinâmica: quanto mais inimigos mortos, mais o cooldown encolhe
-            reducao = 0.95 - min(0.15, (inimigos_eliminados // 1000) * 0.02)
-            tempo_cooldown_dash = max(0.4, tempo_cooldown_dash * reducao)
-            
-        elif carta == "Petro":
-            Petro_active = True
-            # Dano base equilibrado, escalada constante para a entidade
-            dano_petro += 8 + (inimigos_eliminados // 80) * 2
-            if 0 < petro_evolucao <= 8:
-                xp_petro = "nivel_1"
-                petro_evolucao += 4
-            elif 8 < petro_evolucao <= 16:
-                xp_petro = "nivel_2"
-                vida_maxima_petro += 600
-                petro_evolucao += 4
-            elif petro_evolucao > 16:
-                xp_petro = "nivel_3"
-                vida_maxima_petro += 1200
-                Resistencia_petro += 12
-                dano_petro += 150
-            if vida_petro < vida_maxima_petro: vida_petro += int(vida_maxima_petro * 0.40)
-            if vida_petro > vida_maxima_petro: vida_maxima_petro = vida_petro
-            
-        elif carta == "Defesa":
-            # Cap de defesa preservado em 60%, ganhos progressivos por resistência
-            Resistencia = min(60, Resistencia + 1.5 + (inimigos_eliminados // 200) * 0.25)
-            
-        elif carta == "Sorte":
-            Chance_Sorte += 0.01 + (inimigos_eliminados // 400) * 0.002
-    # --- O ESPELHO CORROMPIDO (CARTAS DA UMBRA) ---
-    qtd_cartas_umbra = qtd_cartas_jogador // 2
-    cartas_umbra = [
-        "Essência Obscura", 
-        "Projétil Devastador", 
-        "Frenesi Temporal", 
-        "Armadura de Matéria Escura", 
-        "Sifão Aprimorado"
-    ]
-
-    registro_umbra = []
-    for _ in range(qtd_cartas_umbra):
-        carta_u = random.choice(cartas_umbra)
-        registro_umbra.append(carta_u)
-        if carta_u == "Essência Obscura":
-            vida_maxima_umbra += 6000 
-        elif carta_u == "Projétil Devastador":
-            multiplicador_dano_umbra += 0.18 
-        elif carta_u == "Frenesi Temporal":
-            reducao_cooldown_umbra *= 0.92 
-        elif carta_u == "Armadura de Matéria Escura":
-            resistencia_umbra += 6.5 
-        elif carta_u == "Sifão Aprimorado":
-            bonus_cura_sifon += 0.25
-
-    vida = vida_maxima
-    vida_umbra = vida_maxima_umbra
-
-    print("\n" + "="*50)
-    print(f"MUTAÇÃO APOLO: {collections.Counter(escolhas_apolo)}")
-    print(f"MUTAÇÃO UMBRA: {collections.Counter(registro_umbra)}")
-    print("="*50 + "\n")
-
-# Invoca a mutação absoluta
-injetar_build_endgame(qtd_cartas_jogador=30)
 
 tempo_parado_person = pygame.time.get_ticks()  
 boss_atingido_por_onda = pygame.time.get_ticks()
@@ -710,6 +555,8 @@ moedas_soltadas = []
 
 modo_ia_treino = True
 
+#####################################################################APOLO1######################################################################################################
+
 class AgenteApolo:
     def __init__(self):
         self.direcao_x = 0
@@ -724,28 +571,32 @@ class AgenteApolo:
         self.vida_boss_anterior = 0
         self.arquivo_memoria = "apolo_memoria.json"
         self.taxa_exploracao = 0.20 # Caos inicial
+        
+        # --- SISTEMA DE FLUIDEZ MOTORA ---
+        self.tempo_ultima_decisao = 0
+        self.delay_movimento = 250 # Mantém a direção escolhida por 250ms para não tremer
+        
         self.carregar_memoria()
         self.atualizar_foco_progressivo()
 
     def carregar_memoria(self):
         if os.path.exists(self.arquivo_memoria):
-            with open(self.arquivo_memoria, "r") as f:
-                self.q_table = json.load(f)
+            try:
+                with open(self.arquivo_memoria, "r") as f:
+                    self.q_table = json.load(f)
+            except: pass
 
     def salvar_memoria(self):
         with open(self.arquivo_memoria, "w") as f:
             json.dump(self.q_table, f)
 
     def atualizar_foco_progressivo(self):
-        # O Foco Progressivo (Epsilon Decay) é calculado com base na geração atual
         try:
             if os.path.exists("historico_batalhas.json"):
                 with open("historico_batalhas.json", "r") as f:
                     geracoes = len(json.load(f))
-                # Decaimento exponencial: o caos diminui a cada geração, travando no mínimo de 1%
                 self.taxa_exploracao = max(0.01, 0.20 * (0.985 ** geracoes))
-        except:
-            pass
+        except: pass
 
     def obter_estado(self, pos_p, boss_hitbox, projeteis_boss, cds):
         perigo = 0
@@ -757,60 +608,67 @@ class AgenteApolo:
         dist_boss = 2
         if boss_hitbox:
             d = math.hypot(boss_hitbox.centerx - pos_p[0], boss_hitbox.centery - pos_p[1])
-            if d < 200: 
-                dist_boss = 0
-            elif d < 400: 
-                dist_boss = 1
+            if d < 200: dist_boss = 0
+            elif d < 400: dist_boss = 1
 
         margem = 150
         parede_x = 1 if (pos_p[0] < margem or pos_p[0] > largura_mapa - margem) else 0
         parede_y = 1 if (pos_p[1] < margem or pos_p[1] > altura_mapa - margem) else 0
         
         posicao_parede = 0
-        if parede_x == 1 and parede_y == 1:
-            posicao_parede = 2
-        elif parede_x == 1 or parede_y == 1:
-            posicao_parede = 1
+        if parede_x == 1 and parede_y == 1: posicao_parede = 2
+        elif parede_x == 1 or parede_y == 1: posicao_parede = 1
 
         return f"{dist_boss}_{perigo}_{cds['teleporte']}_{posicao_parede}"
 
     def pensar(self, pos_p, boss_hitbox, projeteis_boss, cds, vida_jogador, vida_boss):
+        import pygame
+        agora = pygame.time.get_ticks()
+
+        # Gatilho e Mira não sofrem delay. Apolo atira de forma implacável em tempo real.
+        self.mouse_simulado[0] = False
+        if boss_hitbox:
+            self.alvo_x, self.alvo_y = boss_hitbox.center
+            if cds["disparo"] == False:
+                self.mouse_simulado[0] = True
+
+        # Sensor de Pânico: Se houver um projétil a menos de 120 pixels, quebra a trava de movimento
+        perigo_imediato = any(math.hypot(p["rect"].centerx - pos_p[0], p["rect"].centery - pos_p[1]) < 120 for p in projeteis_boss)
+
+        # Se não há perigo, Apolo mantém a direção que escolheu para andar de forma fluida
+        if not perigo_imediato and (agora - self.tempo_ultima_decisao < self.delay_movimento):
+            return
+
+        self.tempo_ultima_decisao = agora
         self.direcao_x = 0
         self.direcao_y = 0
-        self.mouse_simulado = [False, False, False]
 
+        # --- AVALIAÇÃO DA Q-TABLE ---
         recompensa = 0
-        
         dist_minima_projetil = 999
         for p in projeteis_boss:
             d = math.hypot(p["rect"].centerx - pos_p[0], p["rect"].centery - pos_p[1])
-            if d < dist_minima_projetil:
-                dist_minima_projetil = d
+            if d < dist_minima_projetil: dist_minima_projetil = d
         
         if dist_minima_projetil < 150:
             recompensa -= (150 - dist_minima_projetil) * 0.1
 
         if self.vida_jogador_anterior > 0:
-            if vida_jogador < self.vida_jogador_anterior:
-                recompensa -= 20 
-            if vida_boss < self.vida_boss_anterior:
-                recompensa += 15 
+            if vida_jogador < self.vida_jogador_anterior: recompensa -= 20 
+            if vida_boss < self.vida_boss_anterior: recompensa += 15 
 
         self.vida_jogador_anterior = vida_jogador
         self.vida_boss_anterior = vida_boss
 
         estado_atual = self.obter_estado(pos_p, boss_hitbox, projeteis_boss, cds)
 
-        if self.estado_anterior not in self.q_table:
-            self.q_table[self.estado_anterior] = [0.0, 0.0, 0.0, 0.0]
-        if estado_atual not in self.q_table:
-            self.q_table[estado_atual] = [0.0, 0.0, 0.0, 0.0]
+        if self.estado_anterior not in self.q_table: self.q_table[self.estado_anterior] = [0.0, 0.0, 0.0, 0.0]
+        if estado_atual not in self.q_table: self.q_table[estado_atual] = [0.0, 0.0, 0.0, 0.0]
 
         q_antigo = self.q_table[self.estado_anterior][self.acao_anterior]
         max_q_novo = max(self.q_table[estado_atual])
         self.q_table[self.estado_anterior][self.acao_anterior] = q_antigo + 0.2 * (recompensa + 0.9 * max_q_novo - q_antigo)
 
-        acao = 0
         if random.random() < self.taxa_exploracao:
             acao = random.choice([0, 1, 2, 3])
         else:
@@ -819,24 +677,20 @@ class AgenteApolo:
         self.estado_anterior = estado_atual
         self.acao_anterior = acao
 
-        if boss_hitbox:
-            self.alvo_x, self.alvo_y = boss_hitbox.center
-            if cds["disparo"] == False:
-                self.mouse_simulado[0] = True
-
-        if acao == 0:
+        # --- EXECUÇÃO MOTORA ---
+        if acao == 0: # Aproximar
             if boss_hitbox:
                 if abs(boss_hitbox.centerx - pos_p[0]) > abs(boss_hitbox.centery - pos_p[1]):
                     self.direcao_x = -1 if boss_hitbox.centerx > pos_p[0] else 1
                 else:
                     self.direcao_y = -1 if boss_hitbox.centery > pos_p[1] else 1
-        elif acao == 1:
+        elif acao == 1: # Afastar
             if boss_hitbox:
                 if abs(boss_hitbox.centerx - pos_p[0]) > abs(boss_hitbox.centery - pos_p[1]):
                     self.direcao_x = 1 if boss_hitbox.centerx > pos_p[0] else -1
                 else:
                     self.direcao_y = 1 if boss_hitbox.centery > pos_p[1] else -1
-        elif acao == 2:
+        elif acao == 2: # Desviar (Evasiva)
             for p in projeteis_boss:
                 if math.hypot(p["rect"].centerx - pos_p[0], p["rect"].centery - pos_p[1]) < 120:
                     if abs(p["rect"].centerx - pos_p[0]) > abs(p["rect"].centery - pos_p[1]):
@@ -844,7 +698,7 @@ class AgenteApolo:
                     else:
                         self.direcao_y = 1 if p["rect"].y < pos_p[1] else -1
                     break
-        elif acao == 3:
+        elif acao == 3: # Centralizar (Fugir das bordas)
             centro_x, centro_y = largura_mapa // 2, altura_mapa // 2
             if abs(centro_x - pos_p[0]) > abs(centro_y - pos_p[1]):
                 self.direcao_x = 1 if centro_x > pos_p[0] else -1
@@ -852,6 +706,217 @@ class AgenteApolo:
                 self.direcao_y = 1 if centro_y > pos_p[1] else -1
 
 apolo = AgenteApolo()
+
+# =====================================================================
+# NÚCLEO DE APRENDIZADO DE CARTAS (APOLO)
+# =====================================================================
+import collections
+import os
+import json
+import random
+
+cartas_compradas_apolo_global = []
+
+def carregar_memoria_cartas():
+    arquivo = "memoria_cartas_apolo.json"
+    pesos_base = {
+        "Speed Boost": 10.0, "Porção": 10.0, "Disparo crescente": 10.0, "Trembo": 10.0, 
+        "Tempestade": 10.0, "Cura": 10.0, "Speed Atack": 10.0, "Teleporte": 10.0, 
+        "Petro": 10.0, "Defesa": 10.0, "Sorte": 10.0, "Poison": 10.0, "Coletora": 10.0, "Mercenaria": 10.0
+    }
+    if os.path.exists(arquivo):
+        try:
+            with open(arquivo, "r") as f:
+                pesos_salvos = json.load(f)
+                for k, v in pesos_salvos.items():
+                    pesos_base[k] = v
+        except: pass
+    return pesos_base
+
+def salvar_memoria_cartas(pesos):
+    with open("memoria_cartas_apolo.json", "w") as f:
+        json.dump(pesos, f, indent=4)
+
+def recompensar_cartas(cartas_usadas, venceu):
+    pesos = carregar_memoria_cartas()
+    for carta in cartas_usadas:
+        if carta in pesos:
+            if venceu:
+                pesos[carta] += 1.5  # Reforço positivo agressivo
+            else:
+                pesos[carta] = max(2.0, pesos[carta] - 0.3) # Punição tática, garantindo um piso mínimo
+    salvar_memoria_cartas(pesos)
+
+def inteligencia_escolha_cartas_apolo(qtd):
+    pesos = carregar_memoria_cartas()
+    estrategia_foco = False
+    carta_foco = ""
+    try:
+        if os.path.exists("historico_batalhas.json"):
+            with open("historico_batalhas.json", "r") as f:
+                historico = json.load(f)
+                if len(historico) >= 3:
+                    derrotas = sum(1 for h in historico[-3:] if h.get("vencedor") == "Umbra")
+                    if derrotas >= 2: estrategia_foco = True
+
+                if historico:
+                    ultima_luta = historico[-1]
+                    vencedor = ultima_luta.get("vencedor", "Desconhecido")
+                    hp_rest = ultima_luta.get("hp_restante", 0)
+                    if vencedor == "Umbra":
+                        if hp_rest > 375000:
+                            if estrategia_foco:
+                                pesos["Disparo crescente"] *= 1.5; carta_foco = "Poder de Fogo Absoluto"
+                            else:
+                                pesos["Disparo crescente"] *= 1.2; pesos["Speed Atack"] *= 1.2
+                        else:
+                            if estrategia_foco:
+                                pesos["Cura"] *= 1.5; carta_foco = "Imortalidade Sanguínea"
+                            else:
+                                pesos["Cura"] *= 1.2; pesos["Defesa"] *= 1.2
+    except: pass
+
+    escolhas = []
+    opcoes = list(pesos.keys())
+    for _ in range(qtd):
+        if escolhas.count("Petro") >= 5: pesos["Petro"] = 0
+        if escolhas.count("Trembo") >= 1: pesos["Trembo"] = 0
+        if escolhas.count("Cura") >= 10: pesos["Cura"] = 0
+        if escolhas.count("Defesa") >= 10: pesos["Defesa"] = 0
+        if escolhas.count("Speed Boost") >= 8: pesos["Speed Boost"] = 0
+        if escolhas.count("Porção") >= 10: pesos["Porção"] = 0
+        if escolhas.count("Tempestade") >= 12: pesos["Tempestade"] = 0
+        if escolhas.count("Disparo crescente") >= 15: pesos["Disparo crescente"] = 0
+        
+        p_lista = [pesos[op] for op in opcoes]
+        escolhida = random.choices(opcoes, weights=p_lista, k=1)[0]
+        escolhas.append(escolhida)
+
+    contagem = collections.Counter(escolhas)
+    print("\n" + "="*50)
+    print(f"🧠 MUTAÇÃO ESTRATÉGICA DE APOLO ({qtd} Cartas)")
+    if estrategia_foco: print(f"DIRETRIZ DE FOCO: {carta_foco}")
+    for carta, q in sorted(contagem.items(), key=lambda x: x[1], reverse=True): print(f"[{q}x] {carta}")
+    print("="*50)
+    return escolhas
+
+def injetar_build_endgame(qtd_cartas_jogador=30):
+    global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico
+    global roubo_de_vida, quantidade_roubo_vida, vida_maxima, vida, trembo
+    global tempo_cooldown_dash, Resistencia, Poison_Active, Dano_Veneno_Acumulado
+    global Executa_inimigo, Ultimo_Estalo, Tempo_cura, porcentagem_cura
+    global Petro_active, vida_petro, vida_maxima_petro, dano_petro, petro_evolucao
+    global xp_petro, Resistencia_petro, Chance_Sorte, inimigos_eliminados
+    
+    global vida_maxima_umbra, vida_umbra
+    global multiplicador_dano_umbra, reducao_cooldown_umbra, resistencia_umbra, bonus_cura_sifon
+    global cartas_compradas_apolo_global
+
+    inimigos_eliminados = 3000
+
+    # --- PROGRESSÃO DO APOLO ---
+    cartas_inteligentes = inteligencia_escolha_cartas_apolo(qtd_cartas_jogador)
+    cartas_compradas_apolo_global = cartas_inteligentes
+
+    for carta in cartas_inteligentes:
+        if carta == "Speed Boost":
+            velocidade_personagem += 0.02 + (inimigos_eliminados // 200) * 0.002
+        elif carta == "Porção":
+            aumento_vida = 250 + (inimigos_eliminados // 50) * 8
+            vida_maxima += aumento_vida
+            vida += int(vida_maxima * 0.30)
+            vida_petro += int(vida_maxima_petro * 0.25)
+            if vida_petro > vida_maxima_petro: vida_maxima_petro = vida_petro
+        elif carta == "Disparo crescente":
+            dano_person_hit += 15 + (inimigos_eliminados // 50) * 1.5
+        elif carta == "Trembo":
+            trembo = True
+            Tempo_cura = max(800, int(Tempo_cura * 0.90))
+            porcentagem_cura += 0.002 + (inimigos_eliminados // 300) * 0.0005
+        elif carta == "Tempestade":
+            dano_person_hit += 5 + (inimigos_eliminados // 100) * 1
+            chance_critico += 0.01 + (inimigos_eliminados // 300) * 0.002
+        elif carta == "Cura":
+            roubo_de_vida += 0.010 + (inimigos_eliminados // 500) * 0.001
+            quantidade_roubo_vida += 0.02 + (inimigos_eliminados // 500) * 0.001
+        elif carta == "Speed Atack":
+            intervalo_disparo = max(50, int(intervalo_disparo * 0.88))
+        elif carta == "Teleporte":
+            reducao = 0.95 - min(0.15, (inimigos_eliminados // 1000) * 0.02)
+            tempo_cooldown_dash = max(0.4, tempo_cooldown_dash * reducao)
+        elif carta == "Petro":
+            Petro_active = True
+            dano_petro += 8 + (inimigos_eliminados // 80) * 2
+            if 0 < petro_evolucao <= 8:
+                xp_petro = "nivel_1"
+                petro_evolucao += 4
+            elif 8 < petro_evolucao <= 16:
+                xp_petro = "nivel_2"
+                vida_maxima_petro += 600
+                petro_evolucao += 4
+            elif petro_evolucao > 16:
+                xp_petro = "nivel_3"
+                vida_maxima_petro += 1200
+                Resistencia_petro += 12
+                dano_petro += 150
+            if vida_petro < vida_maxima_petro: vida_petro += int(vida_maxima_petro * 0.40)
+            if vida_petro > vida_maxima_petro: vida_maxima_petro = vida_petro
+        elif carta == "Defesa":
+            Resistencia = min(60, Resistencia + 1.5 + (inimigos_eliminados // 200) * 0.25)
+        elif carta == "Sorte":
+            Chance_Sorte += 0.01 + (inimigos_eliminados // 400) * 0.002
+        elif carta == "Poison":
+            Poison_Active = True
+            Dano_Veneno_Acumulado += 0.05
+        elif carta == "Coletora":
+            Executa_inimigo += 0.005
+            Ultimo_Estalo = True
+        elif carta == "Mercenaria":
+            Mercenaria_Active = True
+
+    # --- ESCALONAMENTO DINÂMICO DA UMBRA ---
+    ataques_por_segundo = 1000 / max(50, intervalo_disparo)
+    multiplicador_critico = 1 + (chance_critico * 2.0)
+    dps_teorico_apolo = dano_person_hit * ataques_por_segundo * multiplicador_critico
+    
+    vida_maxima_umbra = int(25000 + (dps_teorico_apolo * 24) + (inimigos_eliminados * 25))
+
+    # --- O ESPELHO CORROMPIDO (CARTAS DA UMBRA) ---
+    qtd_cartas_umbra = qtd_cartas_jogador // 2
+    cartas_umbra = [
+        "Essência Obscura", 
+        "Projétil Devastador", 
+        "Frenesi Temporal", 
+        "Armadura de Matéria Escura", 
+        "Sifão Aprimorado"
+    ]
+
+    registro_umbra = []
+    for _ in range(qtd_cartas_umbra):
+        carta_u = random.choice(cartas_umbra)
+        registro_umbra.append(carta_u)
+        if carta_u == "Essência Obscura":
+            vida_maxima_umbra = int(vida_maxima_umbra * 0.65) 
+        elif carta_u == "Projétil Devastador":
+            multiplicador_dano_umbra += 0.18 
+        elif carta_u == "Frenesi Temporal":
+            reducao_cooldown_umbra *= 0.92 
+        elif carta_u == "Armadura de Matéria Escura":
+            resistencia_umbra += 6.5 
+        elif carta_u == "Sifão Aprimorado":
+            bonus_cura_sifon += 0.25
+
+    vida = vida_maxima
+    vida_umbra = vida_maxima_umbra
+
+    print(f"\n[ 💀 UMBRA ] - {qtd_cartas_umbra} Cartas Sorteadas (Caos Puro)")
+    for carta_u, qtd in sorted(collections.Counter(registro_umbra).items(), key=lambda x: x[1], reverse=True):
+        print(f" -> [{qtd}x] {carta_u}")
+    print("="*50 + "\n")
+
+# Invoca a mutação absoluta
+injetar_build_endgame(qtd_cartas_jogador=50)
+###################################################################################################################################################################################################
 # Geração de coordenadas estocásticas para o início do embate
 pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem)
 pos_x_petro= pos_x_personagem + largura_personagem + 4
@@ -1231,7 +1296,7 @@ while running:
             if estado_atual_ia.get('parede_ativa'):
                 if agora - estado_atual_ia.get('ultimo_tick_cura', 0) >= 600:
                     # Reduzimos para 2% para permitir o counter-play tático
-                    valor_cura = vida_maxima_umbra * 0.02 
+                    valor_cura = (vida_maxima_umbra-vida_umbra) * 0.10
                     
                     # A cura não pode ultrapassar o limite máximo
                     vida_umbra = min(vida_maxima_umbra, vida_umbra + valor_cura)
@@ -1447,8 +1512,24 @@ while running:
             hitbox_player = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
             for p in estado_atual_ia['projeteis']:
                 if p["rect"].colliderect(hitbox_player):
-                    vida -= 450
-                    memoria_umbra.treinar(1.5) # Recompensa alta por acerto tático
+                    dano_bruto = (450 + (inimigos_eliminados * 0.30)) * multiplicador_dano_umbra
+                    dano_recebido = int(dano_bruto - Resistencia)
+                    
+                    if dano_recebido < 0: 
+                        dano_recebido = 0
+                        
+                    if aurea == "Impulsiva": 
+                        eliminacoes_consecutivas_impulsiva = 0 
+                        
+                    if escudo_devota_ativo:
+                        escudo_devota_ativo = False
+                    else:
+                        vida -= dano_recebido
+                        eliminacoes_consecutivas = 0
+                        bonus_pontuacao = 0
+                        piscando_vida = True
+                        
+                    memoria_umbra.treinar(1.5)
                     estado_atual_ia['projeteis'].remove(p)
 
             miasma = estado_atual_ia.get('miasma_ativo')
