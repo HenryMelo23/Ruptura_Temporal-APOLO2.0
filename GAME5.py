@@ -831,14 +831,14 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
             dano_person_hit += 15 + (inimigos_eliminados // 50) * 1.5
         elif carta == "Trembo":
             trembo = True
-            Tempo_cura = max(800, int(Tempo_cura * 0.90))
-            porcentagem_cura += 0.002 + (inimigos_eliminados // 300) * 0.0005
+            Tempo_cura = max(500, int(Tempo_cura * 0.85)) # Em 10 cartas, o tick cai para próximo de 0.5s
+            porcentagem_cura += 0.005 + (inimigos_eliminados // 400) * 0.001 # Garante uma base inicial mais forte (0.5%)
         elif carta == "Tempestade":
             dano_person_hit += 5 + (inimigos_eliminados // 100) * 1
             chance_critico += 0.01 + (inimigos_eliminados // 300) * 0.002
         elif carta == "Cura":
-            roubo_de_vida += 0.055 + (inimigos_eliminados // 500) * 0.001
-            quantidade_roubo_vida += 0.25 + (inimigos_eliminados // 500) * 0.001
+            roubo_de_vida += 0.10 + (inimigos_eliminados // 500) * 0.001
+            quantidade_roubo_vida += 0.30 + (inimigos_eliminados // 500) * 0.001
         elif carta == "Speed Atack":
             intervalo_disparo = max(50, int(intervalo_disparo * 0.88))
         elif carta == "Teleporte":
@@ -862,7 +862,7 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
             if vida_petro < vida_maxima_petro: vida_petro += int(vida_maxima_petro * 0.40)
             if vida_petro > vida_maxima_petro: vida_maxima_petro = vida_petro
         elif carta == "Defesa":
-            Resistencia = min(60, Resistencia + 1.5 + (inimigos_eliminados // 200) * 0.25)
+            Resistencia = min(60, Resistencia + 2 + (inimigos_eliminados // 200) * 0.25)
         elif carta == "Sorte":
             Chance_Sorte += 0.01 + (inimigos_eliminados // 400) * 0.002
         elif carta == "Poison":
@@ -1253,7 +1253,11 @@ while running:
             'vida_atual': vida_umbra,
             'vida_max': vida_maxima_umbra,
             'erros': erros_player_contagem,
-            'mapa_atual': mapa_atual_path
+            'mapa_atual': mapa_atual_path,
+            'p_roubo_chance': roubo_de_vida,
+            'p_roubo_qtd': quantidade_roubo_vida,
+            'p_trembo': trembo,
+            'p_intervalo_disparo': intervalo_disparo,
         }
         # No exato frame em que a luta começa, resetamos os timers para o 'agora' atual
         if luta_iniciada and not estado_atual_ia.get('timers_sincronizados'):
@@ -1296,7 +1300,7 @@ while running:
             if estado_atual_ia.get('parede_ativa'):
                 if agora - estado_atual_ia.get('ultimo_tick_cura', 0) >= 600:
                     # Reduzimos para 2% para permitir o counter-play tático
-                    valor_cura = (vida_maxima_umbra-vida_umbra) * 0.10
+                    valor_cura = (vida_maxima_umbra-vida_umbra) * 0.01
                     
                     # A cura não pode ultrapassar o limite máximo
                     vida_umbra = min(vida_maxima_umbra, vida_umbra + valor_cura)
@@ -1525,7 +1529,6 @@ while running:
                         escudo_devota_ativo = False
                     else:
                         vida -= dano_recebido
-                        print(dano_recebido)
                         eliminacoes_consecutivas = 0
                         bonus_pontuacao = 0
                         piscando_vida = True
@@ -1616,6 +1619,400 @@ while running:
             elif not estado_atual_ia.get('prisao_ativa'):
                 velocidade_personagem = velocidade_personagem_base
 
+            # --- RENDERIZAÇÃO E FÍSICA DO CAMINHO DE ESPINHOS (FASE 6) ---
+            caminho = estado_atual_ia.get('caminho_espinhos')
+            if caminho:
+                tempo_decorrido = agora - caminho['tempo_inicio']
+                origem = caminho['origem']
+                angulo = caminho['angulo']
+                comp_total = caminho['comprimento']
+                
+                # ==========================================================
+                # GESTÃO DE ESTADO E FASES DA ARMADILHA
+                # ==========================================================
+                if caminho['fase'] == 'crescimento':
+                    # Fase 1: O caule avança até o limite. Inofensivo e fino.
+                    progresso = min(1.0, tempo_decorrido / caminho['duracao_crescimento'])
+                    comp_atual = comp_total * progresso
+                    largura_atual = 10 
+                    
+                    if tempo_decorrido >= caminho['duracao_crescimento']:
+                        caminho['fase'] = 'expansao'
+                        caminho['tempo_inicio_expansao'] = agora
+
+                elif caminho['fase'] == 'expansao':
+                    # Fase 2: O caule desabrocha para os lados. Altamente letal.
+                    tempo_exp = agora - caminho['tempo_inicio_expansao']
+                    progresso = min(1.0, tempo_exp / caminho['duracao_expansao'])
+                    comp_atual = comp_total
+                    largura_atual = 10 + (caminho['largura_maxima'] - 10) * progresso
+                    
+                    if tempo_exp >= caminho['duracao_expansao']:
+                        estado_atual_ia['caminho_espinhos'] = None 
+
+                elif caminho['fase'] == 'recolhimento':
+                    # Fase 3: A armadilha fisgou o jogador. Animação de tortura.
+                    comp_atual = comp_total
+                    largura_atual = 15 # Contração visual imediata
+                    
+                    if 'alvo_puxao' in caminho:
+                        alvo_px, alvo_py = caminho['alvo_puxao']
+                        
+                        # Interpolação Linear: aproxima a personagem do centro 15% a cada frame
+                        pos_x_personagem += (alvo_px - pos_x_personagem) * 0.15
+                        pos_y_personagem += (alvo_py - pos_y_personagem) * 0.15
+                        
+                        # Renderiza raízes dinâmicas amarrando a personagem
+                        cx = int(pos_x_personagem + largura_personagem / 2)
+                        cy = int(pos_y_personagem + altura_personagem / 2)
+                        for j in range(4):
+                            # Rotação em espiral convergente para o centro
+                            ang_raiz = (agora * 0.02) + (j * math.pi / 2)
+                            raio_raiz = max(0, 45 - (agora - caminho['tempo_inicio_recolhimento']) * 0.08)
+                            
+                            rx = cx + math.cos(ang_raiz) * raio_raiz
+                            ry = cy + math.sin(ang_raiz) * raio_raiz
+                            
+                            # Desenha os tentáculos espessos e as farpas
+                            pygame.draw.line(tela, (20, 60, 20), (cx, cy), (rx, ry), 5)
+                            pygame.draw.circle(tela, (180, 200, 120), (int(rx), int(ry)), 3)
+                    
+                    if agora - caminho['tempo_inicio_recolhimento'] >= 600:
+                        estado_atual_ia['caminho_espinhos'] = None
+
+                # ==========================================================
+                # RENDERIZAÇÃO BOTÂNICA PROCEDURAL E COLISÃO VETORIAL
+                # ==========================================================
+                if estado_atual_ia.get('caminho_espinhos'):
+                    dx_comp = math.cos(angulo) * comp_atual
+                    dy_comp = math.sin(angulo) * comp_atual
+                    fim_x = origem[0] + dx_comp
+                    fim_y = origem[1] + dy_comp
+                    
+                    cor_caule_principal = (20, 60, 20)      # Verde escuro e putrefato
+                    cor_caule_secundario = (34, 90, 34)     # Verde mais vivo
+                    cor_espinho = (180, 200, 120)           # Verde-claro/amarelado afiado
+                    cor_flor = (220, 30, 30)                # Vermelho sangue (flores da coroa)
+                    
+                    pontos_caule_1 = []
+                    pontos_caule_2 = []
+                    
+                    # Resolvemos a renderização a cada 15 pixels de distância ao longo da reta
+                    num_segmentos = max(2, int(comp_atual / 15)) 
+                    
+                    for i in range(num_segmentos + 1):
+                        dist = min(i * 15, comp_atual)
+                        base_x = origem[0] + math.cos(angulo) * dist
+                        base_y = origem[1] + math.sin(angulo) * dist
+                        
+                        # A oscilação faz os caules se contorcerem (Ondas Senoidais)
+                        mod_fase = 0.1 if caminho['fase'] == 'recolhimento' else 1.0
+                        wobble_1 = math.sin(i * 0.5 + (agora * 0.003)) * (largura_atual * 0.35) * mod_fase
+                        wobble_2 = math.cos(i * 0.7 - (agora * 0.002)) * (largura_atual * 0.35) * mod_fase
+                        
+                        dx_perp = math.cos(angulo + math.pi/2)
+                        dy_perp = math.sin(angulo + math.pi/2)
+                        
+                        pontos_caule_1.append((base_x + dx_perp * wobble_1, base_y + dy_perp * wobble_1))
+                        pontos_caule_2.append((base_x + dx_perp * wobble_2, base_y + dy_perp * wobble_2))
+
+                    # Renderiza caules, espinhos e flores procedurais
+                    if len(pontos_caule_1) > 1:
+                        for i in range(1, len(pontos_caule_1)):
+                            p_ant1, p_atu1 = pontos_caule_1[i-1], pontos_caule_1[i]
+                            p_ant2, p_atu2 = pontos_caule_2[i-1], pontos_caule_2[i]
+                            
+                            # Espessura afunila até a ponta do caminho
+                            espessura = max(2, int((largura_atual * 0.15) * (1.0 - (i / num_segmentos))))
+                            
+                            # Sombras e Caules entrelaçados
+                            pygame.draw.line(tela, (10, 20, 10), (p_ant1[0]+2, p_ant1[1]+2), (p_atu1[0]+2, p_atu1[1]+2), espessura)
+                            pygame.draw.line(tela, cor_caule_principal, p_ant1, p_atu1, espessura)
+                            pygame.draw.line(tela, cor_caule_secundario, p_ant2, p_atu2, max(1, espessura - 1))
+                            
+                            # Pseudo-aleatoriedade com Hash (Garante geometria fixa sem piscar)
+                            hash_val = (i * 37) % 100 
+                            
+                            # Renderiza Espinhos Afiados
+                            if hash_val < 35 and caminho['fase'] != 'recolhimento':
+                                dir_espinho = 1 if hash_val < 17 else -1
+                                ang_espinho = angulo + (math.pi/2.5 * dir_espinho) + math.sin(agora*0.005 + i)*0.3
+                                tam_espinho = 8 + (largura_atual * 0.15)
+                                
+                                ponta_x = p_atu1[0] + math.cos(ang_espinho) * tam_espinho
+                                ponta_y = p_atu1[1] + math.sin(ang_espinho) * tam_espinho
+                                
+                                base1_x = p_atu1[0] + math.cos(ang_espinho + 1.2) * espessura
+                                base1_y = p_atu1[1] + math.sin(ang_espinho + 1.2) * espessura
+                                base2_x = p_atu1[0] + math.cos(ang_espinho - 1.2) * espessura
+                                base2_y = p_atu1[1] + math.sin(ang_espinho - 1.2) * espessura
+                                
+                                pygame.draw.polygon(tela, cor_espinho, [(ponta_x, ponta_y), (base1_x, base1_y), (base2_x, base2_y)])
+
+                            # Renderiza flores desabrochando apenas na Expansão
+                            if caminho['fase'] == 'expansao' and 40 <= hash_val < 55:
+                                pulso_flor = abs(math.sin(agora * 0.003 + i)) * 3
+                                pygame.draw.circle(tela, cor_flor, (int(p_atu2[0]), int(p_atu2[1])), int(2 + pulso_flor))
+                                pygame.draw.circle(tela, (255, 200, 100), (int(p_atu2[0]), int(p_atu2[1])), 1) # Miolo amarelo
+                    
+                    # --------------------------------------------------------
+                    # FÍSICA E COLISÃO (CUIDADO: ATIVA SOMENTE NA EXPANSÃO)
+                    # --------------------------------------------------------
+                    if caminho['fase'] == 'expansao':
+                        px_centro = personagem_rect.centerx
+                        py_centro = personagem_rect.centery
+                        
+                        vetor_linha_x = fim_x - origem[0]
+                        vetor_linha_y = fim_y - origem[1]
+                        vetor_ponto_x = px_centro - origem[0]
+                        vetor_ponto_y = py_centro - origem[1]
+                        
+                        len_sq = vetor_linha_x**2 + vetor_linha_y**2
+                        param = (vetor_ponto_x * vetor_linha_x + vetor_ponto_y * vetor_linha_y) / len_sq if len_sq > 0 else -1
+                            
+                        if param < 0:
+                            ponto_prox_x, ponto_prox_y = origem[0], origem[1]
+                        elif param > 1:
+                            ponto_prox_x, ponto_prox_y = fim_x, fim_y
+                        else:
+                            ponto_prox_x = origem[0] + param * vetor_linha_x
+                            ponto_prox_y = origem[1] + param * vetor_linha_y
+                            
+                        dist_ao_centro_linha = math.hypot(px_centro - ponto_prox_x, py_centro - ponto_prox_y)
+                        
+                        # O Puxão Magnético e o Castigo das Lâminas de Sangue
+                        if dist_ao_centro_linha <= largura_atual / 2:
+                            caminho['fase'] = 'recolhimento'
+                            caminho['tempo_inicio_recolhimento'] = agora
+                            
+                            # 1. Trava o alvo geométrico para o puxão
+                            caminho['alvo_puxao'] = (ponto_prox_x - (largura_personagem / 2), ponto_prox_y - (altura_personagem / 2))
+                            
+                            # 2. Paralisa a personagem cortando o input motor por 600ms
+                            estado_atual_ia['fim_stun'] = agora + 600 
+                            
+                            # 3. Aplica o Sangramento e o Corta-Cura
+                            vida -= 85
+                            player_hemorragia_ativa = True
+                            tempo_fim_hemorragia = agora + 6000 
+                            penalidade_cura_percentual = 0.85 # Aniquila 85% de toda a cura
+                            
+                            efeitos_texto.append({
+                                "texto": "SANGRAMENTO FATAL!",
+                                "x": pos_x_personagem + random.randint(-20, 20),
+                                "y": pos_y_personagem - 40,
+                                "tempo_inicio": agora,
+                                "cor": (255, 0, 0)
+                            })
+
+            # --- RENDERIZAÇÃO E FÍSICA DO LASER DE SOBRECARGA (FASE 7) ---
+            laser = estado_atual_ia.get('laser_ativo')
+            if laser:
+
+                pos_x_umbra = (largura_mapa // 2) - (largura_boss // 2)
+                pos_y_umbra = (altura_mapa // 2) - (altura_boss // 2)
+
+                tempo_laser = agora - laser['tempo_inicio']
+                origem_laser = (pos_x_umbra + largura_boss // 2, pos_y_umbra + altura_boss // 2)
+                rodada = laser['rodada']
+                
+                if laser['fase'] == 'carregando':
+                    # Esfera condensando energia térmica (Cresce mais rápido nas últimas rodadas)
+                    progresso_carga = min(1.0, tempo_laser / laser['duracao_carga'])
+                    raio_esfera = progresso_carga * (50 + (rodada * 10))
+                    pulso = abs(math.sin(agora * 0.01)) * 10
+                    
+                    pygame.draw.circle(tela, (150, 0, 0), origem_laser, int(raio_esfera + pulso), 2)
+                    pygame.draw.circle(tela, (255, 30, 30), origem_laser, int(raio_esfera * 0.7))
+                    pygame.draw.circle(tela, (255, 255, 255), origem_laser, int(raio_esfera * 0.3))
+                    
+                    # Desenha linhas guias finas mostrando onde os raios vão nascer (aviso)
+                    if progresso_carga > 0.5:
+                        num_f_aviso = 1 if rodada == 1 else (2 if rodada == 2 else (4 if rodada == 3 else 6))
+                        for i in range(num_f_aviso):
+                            ang_aviso = i * ((math.pi * 2) / num_f_aviso)
+                            f_av_x = origem_laser[0] + math.cos(ang_aviso) * 2500
+                            f_av_y = origem_laser[1] + math.sin(ang_aviso) * 2500
+                            pygame.draw.line(tela, (100, 0, 0), origem_laser, (f_av_x, f_av_y), 1)
+
+                    if tempo_laser >= laser['duracao_carga']:
+                        laser['fase'] = 'disparando'
+                        laser['tempo_inicio_disparo'] = agora
+                        
+                elif laser['fase'] == 'disparando':
+                    t_disp = agora - laser['tempo_inicio_disparo']
+                    progresso = min(1.0, t_disp / laser['duracao_disparo'])
+                    
+                    # ====================================================================
+                    # CONFIGURADOR DE ESTÁGIOS DA MÁQUINA DE MORTE
+                    # ====================================================================
+                    if rodada == 1:
+                        num_feixes = 1
+                        sentido = 1
+                        giro_total = math.pi * 2 # 360º
+                        esp = [65, 35, 15, 6]
+                        hitbox_r = 38
+                    elif rodada == 2:
+                        num_feixes = 2
+                        sentido = -1
+                        giro_total = math.pi * 2 # 360º cada braço, girando ao contrário
+                        esp = [65, 35, 15, 6]
+                        hitbox_r = 38
+                    elif rodada == 3:
+                        num_feixes = 4
+                        sentido = 1
+                        giro_total = math.pi * 0.8 # Gira lento (144º em 4s), criando um labirinto
+                        esp = [65, 35, 15, 6]
+                        hitbox_r = 38
+                    else: # Rodada 4
+                        num_feixes = 6
+                        sentido = -1
+                        giro_total = math.pi * 0.8 # Gira lento ao contrário
+                        esp = [30, 16, 6, 2]       # Feixes super finos
+                        hitbox_r = 16
+                        
+                    angulo_base = giro_total * progresso * sentido
+                    tomou_dano_neste_frame = False
+
+                    for i in range(num_feixes):
+                        # Defasagem espalha os feixes uniformemente em 360º
+                        angulo_atual = angulo_base + i * ((math.pi * 2) / num_feixes)
+                        
+                        comp_laser = 2500 
+                        fim_x = origem_laser[0] + math.cos(angulo_atual) * comp_laser
+                        fim_y = origem_laser[1] + math.sin(angulo_atual) * comp_laser
+                        
+                        tremor = math.sin(agora * 0.05) * 6 if rodada < 4 else math.sin(agora * 0.08) * 3
+                        
+                        # Camadas do Plasma
+                        pygame.draw.line(tela, (120, 0, 0), origem_laser, (fim_x, fim_y), int(esp[0] + tremor))
+                        pygame.draw.line(tela, (220, 10, 10), origem_laser, (fim_x, fim_y), int(esp[1] + tremor))
+                        pygame.draw.line(tela, (255, 120, 0), origem_laser, (fim_x, fim_y), int(esp[2] + tremor/2))
+                        pygame.draw.line(tela, (255, 255, 255), origem_laser, (fim_x, fim_y), esp[3])
+                        
+                        # Partículas (Faiscas limitadas para o estágio 4 não fritar o FPS)
+                        qtd_particulas = 6 if rodada < 4 else 2
+                        for _ in range(qtd_particulas):
+                            dist_faisca = random.uniform(50, 1200)
+                            desvio = random.uniform(-esp[0]/2, esp[0]/2)
+                            f_x = origem_laser[0] + math.cos(angulo_atual) * dist_faisca + math.cos(angulo_atual+math.pi/2)*desvio
+                            f_y = origem_laser[1] + math.sin(angulo_atual) * dist_faisca + math.sin(angulo_atual+math.pi/2)*desvio
+                            tamanho_faisca = random.randint(2, 5) if rodada < 4 else random.randint(1, 3)
+                            cor_faisca = random.choice([(255, 50, 50), (255, 150, 0), (255, 255, 255)])
+                            pygame.draw.circle(tela, cor_faisca, (int(f_x), int(f_y)), tamanho_faisca)
+
+                        # Matemática de Colisão
+                        px_c, py_c = personagem_rect.center
+                        
+                        numerador = abs((fim_y - origem_laser[1])*px_c - (fim_x - origem_laser[0])*py_c + fim_x*origem_laser[1] - fim_y*origem_laser[0])
+                        denominador = math.hypot(fim_y - origem_laser[1], fim_x - origem_laser[0])
+                        dist_linha = numerador / denominador if denominador > 0 else 9999
+                        
+                        dot_product = (px_c - origem_laser[0]) * math.cos(angulo_atual) + (py_c - origem_laser[1]) * math.sin(angulo_atual)
+                        
+                        if dist_linha <= hitbox_r and dot_product > 0:
+                            tomou_dano_neste_frame = True
+                            
+                    # Processa o dano apenas 1 vez por frame, com cooldown absoluto de 150ms
+                    if tomou_dano_neste_frame:
+                        if agora - estado_atual_ia.get('ultimo_dano_laser', 0) > 150: 
+                            vida -= 95
+                            
+                            # Matemática de Combustão Progressiva
+                            if player_em_chamas and agora < tempo_fim_chamas:
+                                multiplicador_chamas += 1
+                            else:
+                                multiplicador_chamas = 1
+                                
+                            player_em_chamas = True
+                            tempo_fim_chamas = agora + 4000
+                            
+                            efeitos_texto.append({
+                                "texto": f"INCINERADO! (x{multiplicador_chamas})",
+                                "x": pos_x_personagem + random.randint(-20, 20),
+                                "y": pos_y_personagem - 50,
+                                "tempo_inicio": agora,
+                                "cor": (255, 80, 0)
+                            })
+                            memoria_umbra.treinar(3.0) 
+                            estado_atual_ia['ultimo_dano_laser'] = agora
+                            
+                    
+                    if t_disp >= laser['duracao_disparo']:
+                        if laser['rodada'] < 4:
+                            laser['rodada'] += 1
+                            laser['fase'] = 'carregando'
+                            laser['tempo_inicio'] = agora
+                        else:
+                            estado_atual_ia['laser_ativo'] = None
+            if player_em_chamas:
+                if agora > tempo_fim_chamas:
+                    player_em_chamas = False
+                    multiplicador_chamas = 0
+                else:
+                    # Aplica 2% da vida ATUAL por tick de 1 segundo, multiplicado pelas cargas
+                    if agora - ultimo_tick_chamas >= 1000:
+                        dano_chamas = vida * (0.02 * multiplicador_chamas)
+                        vida -= dano_chamas
+                        ultimo_tick_chamas = agora
+                        
+                        efeitos_texto.append({
+                            "texto": f"-{int(dano_chamas)}",
+                            "x": pos_x_personagem + random.randint(-15, 15),
+                            "y": pos_y_personagem - 30,
+                            "tempo_inicio": agora,
+                            "cor": (255, 100, 0)
+                        })
+                    
+                    # Gerador de Brasas (Caindo e esfriando)
+                    if random.random() < 0.4:
+                        particulas_fogo_player.append({
+                            "tipo": "brasa",
+                            "x": pos_x_personagem + random.randint(0, int(largura_personagem)),
+                            "y": pos_y_personagem + random.randint(0, int(altura_personagem)),
+                            "vx": random.uniform(-1, 1),
+                            "vy": random.uniform(1, 3.5), 
+                            "vida": 255,
+                            "tamanho": random.randint(3, 6)
+                        })
+                    # Gerador de Fumaça (Subindo e expandindo)
+                    if random.random() < 0.3:
+                        particulas_fogo_player.append({
+                            "tipo": "fumaca",
+                            "x": pos_x_personagem + random.randint(0, int(largura_personagem)),
+                            "y": pos_y_personagem - 10,
+                            "vx": random.uniform(-0.8, 0.8),
+                            "vy": random.uniform(-2.5, -1), 
+                            "vida": 255,
+                            "tamanho": random.randint(5, 12)
+                        })
+
+            # Renderizador Físico das Partículas
+            for p in particulas_fogo_player[:]:
+                if p["tipo"] == "brasa":
+                    p["x"] += p["vx"]
+                    p["y"] += p["vy"]
+                    p["vida"] -= 8
+                    p["tamanho"] = max(0.1, p["tamanho"] - 0.15)
+                    
+                    if p["vida"] <= 0 or p["tamanho"] <= 0.1:
+                        particulas_fogo_player.remove(p)
+                    else:
+                        # Transição térmica: Laranja incandescente -> Cinza frio (chão)
+                        cor_brasa = (255, int(p["vida"]), 0) if p["vida"] > 100 else (100, 100, 100)
+                        pygame.draw.circle(tela, cor_brasa, (int(p["x"]), int(p["y"])), int(p["tamanho"]))
+                
+                elif p["tipo"] == "fumaca":
+                    p["x"] += p["vx"]
+                    p["y"] += p["vy"]
+                    p["vida"] -= 6
+                    p["tamanho"] += 0.25
+                    
+                    if p["vida"] <= 0:
+                        particulas_fogo_player.remove(p)
+                    else:
+                        cinza = int(p["vida"] * 0.4)
+                        pygame.draw.circle(tela, (cinza, cinza, cinza), (int(p["x"]), int(p["y"])), int(p["tamanho"]))
 
             # Renderização Final da Barra de Vida da Boss
             mostrar_vida_boss = True
@@ -1696,6 +2093,23 @@ while running:
                     dano_final *= 0.75
                     cor_feedback = (0, 200, 255) # Azul de Escudo
 
+                # O Escudo de Atrito (Reduz dano em 70% e carrega a fúria)
+                if estado_atual_ia.get('dimensao_ativa') == "atrito":
+                    dano_final *= 0.3
+                    estado_atual_ia['carga_atrito'] = estado_atual_ia.get('carga_atrito', 0) + 8
+                    
+                    if estado_atual_ia['carga_atrito'] >= 100 and not estado_atual_ia.get('laser_ativo'):
+                        pos_x_umbra = (largura_mapa // 2) - (largura_boss // 2)
+                        pos_y_umbra = (altura_mapa // 2) - (altura_boss // 2)
+                        
+                        estado_atual_ia['laser_ativo'] = {
+                            'tempo_inicio': agora,
+                            'fase': 'carregando',
+                            'rodada': 1,              # Inicia na Rodada 1
+                            'duracao_carga': 1500,    # 1.5s de carga entre cada estágio
+                            'duracao_disparo': 4000   # 4s atirando por estágio
+                        }
+                        estado_atual_ia['carga_atrito'] = 0
                 # Aplicação de Dano e Treino
                 if vida_umbra > 0:
                     vida_umbra -= dano_final
@@ -1704,7 +2118,14 @@ while running:
                     if random.random() <= chance_critico:
                         punicao -= 2.0  # Punição extra por dano crítico (falha tática grave)
                     if random.random() < roubo_de_vida:
-                        vida = min(vida_maxima, vida + quantidade_roubo_vida)
+                        cura_base = quantidade_roubo_vida
+                        
+                        # A Lâmina do Corta-Cura
+                        if player_hemorragia_ativa and agora < tempo_fim_hemorragia:
+                            cura_base *= (1.0 - penalidade_cura_percentual)
+
+                        vida = min(vida_maxima, vida + cura_base)
+
                     
                     
                     if inicio_transicao_mapa == 0 or (agora - inicio_transicao_mapa) >= 8000:
@@ -1751,11 +2172,35 @@ while running:
 
                     memoria_umbra.treinar(punicao, prioridade=True)
                     
+                    # Gatilho do Veneno
                     if not boss_envenenado and Poison_Active:
                         boss_envenenado = True
+                        # O dano escala com a vida MÁXIMA da Umbra e o seu acúmulo de cartas
                         dano_por_tick_veneno_boss = vida_maxima_umbra * (Dano_Veneno_Acumulado / 100)
+                        tempo_inicio_veneno_boss = agora
                         ultimo_tick_veneno_boss = agora
+                # --- CORROSÃO: DANO CONTÍNUO DE VENENO ---
+                if boss_envenenado:
+                    # Aplica o tick de dano a cada 500 milissegundos
+                    if agora - ultimo_tick_veneno_boss >= 500:
+                        vida_umbra -= dano_por_tick_veneno_boss
+                        ultimo_tick_veneno_boss = agora
+                        
+                        # Feedback Visual (Verde Tóxico integrado ao sistema de partículas)
+                        efeitos_texto.append({
+                            "texto": f"-{int(dano_por_tick_veneno_boss)}",
+                            "x": hitbox_boss5.centerx + random.randint(-30, 30),
+                            "y": hitbox_boss5.top - random.randint(10, 30),
+                            "tempo_inicio": agora,
+                            "cor": (50, 255, 50) # Verde vibrante
+                        })
+                        
+                        # Punição sensorial na rede neural: A Umbra odeia o dano contínuo
+                        memoria_umbra.treinar(-0.8)
 
+                    # Verifica se o efeito do veneno passou
+                    if agora - tempo_inicio_veneno_boss >= duracao_veneno_boss:
+                        boss_envenenado = False
                 # Feedback Visual e Limpeza
                 efeitos_texto.append({
                     "texto": f"-{int(dano_final)}",
@@ -1816,7 +2261,13 @@ while running:
         pos_y_segundo_personagem = pos_y_personagem
         tela.blit(frames_animacao_trembo[direcao_atual][frame_atual], (pos_x_segundo_personagem, pos_y_segundo_personagem))
     if trembo and tempo_atual - tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima:
-        vida = min(vida_maxima, vida + (vida_maxima * porcentagem_cura))
+        cura_trembo = vida_maxima * porcentagem_cura
+        
+        # Mantendo a interceptação do Corta-Cura (Fase 6)
+        if player_hemorragia_ativa and tempo_atual < tempo_fim_hemorragia:
+            cura_trembo *= (1.0 - penalidade_cura_percentual)
+            
+        vida = min(vida_maxima, vida + cura_trembo)
         tempo_ultima_regeneracao = tempo_atual
     
 

@@ -18,6 +18,8 @@ mapa_path2 = "Sprites/Fase2.png"
 mapa_path3 = "Sprites/Fase3.png"
 mapa_path4 = "Sprites/Fase4.png"
 mapa_path5 = "Sprites/Fase5-1.png"
+mapa_path6 = "Sprites/Fase6.png"
+mapa_path7 = "Sprites/Fase7.png"
 python = sys.executable
 cooldown_ativo_img = pygame.transform.scale(pygame.image.load("Sprites/cooldown2.png"), (50, 50))
 cooldown_concluido_img = pygame.transform.scale(pygame.image.load("Sprites/cooldown.png"), (50, 50))
@@ -374,8 +376,6 @@ duracao_incendio_vanguarda = 5000  # 5 segundos
 
 ########################################## BOSS 5 (GEO-UMBRA)
 # --- MEMÓRIA PERSISTENTE DA GEO-UMBRA (REVISADA) ---
-
-
 direcao_boss = 'stop'
 estado_atual_ia = {
     'ultimo_ataque': 0, 
@@ -397,17 +397,22 @@ estado_atual_ia = {
     'parede_ativa': False,
     'ultimo_parede': 0, 
     'ultimo_tick_cura': 0,
-    
-    # --- NOVAS CHAVES DE NAVEGAÇÃO AUTÔNOMA ---
     'alvo_ia': (largura_mapa // 2, altura_mapa // 2), # Inicia olhando para o centro
     'ultimo_alvo_tempo': 0,
     'vel_x': 0,
     'vel_y': 0
 }
-mapas_disponiveis = [ mapa_path1, mapa_path2, mapa_path3, mapa_path4]
+mapas_disponiveis = [ mapa_path1, mapa_path2, mapa_path3, mapa_path4, mapa_path6, mapa_path7]
 trauma_umbra_acumulado = 0
-
-# --- SISTEMA DE PARTÍCULAS DO VÓRTICE DE GELO (FASE 2) ---
+# Sistema de Hemorragia (Fase 6)
+player_hemorragia_ativa = False
+tempo_fim_hemorragia = 0
+penalidade_cura_percentual = 0.0
+player_em_chamas = False
+tempo_fim_chamas = 0
+multiplicador_chamas = 0
+ultimo_tick_chamas = 0
+particulas_fogo_player = []
 # Criação de superfícies pré-renderizadas para performance (flocos de neve)
 floco_superficie = pygame.Surface((4, 4), pygame.SRCALPHA)
 pygame.draw.circle(floco_superficie, (255, 255, 255, 230), (2, 2), 2)
@@ -440,7 +445,6 @@ tamanho_bloco_transicao = 40
 estado_atual_ia['parede_ativa'] = False
 estado_atual_ia['ultimo_sifon_fim'] = 0  # Crucial para o cooldown tático
 historico_posicao_player = [] 
-# Vida base da Umbra
 vida_base_umbra = 25000
 fator_escalonamento = (dano_person_hit *0.10) # proporção
 vida_maxima_umbra = vida_base_umbra + (1 + fator_escalonamento)

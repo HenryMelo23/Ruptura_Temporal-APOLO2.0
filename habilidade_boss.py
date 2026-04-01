@@ -187,6 +187,33 @@ def node_ataque_direcionado(agora, estado_ia, bx, by, px, py, historico_player, 
         })
         estado_ia['ultimo_attack'] = agora
 
+
+def node_caminho_espinhos(agora, estado_ia, bx, by, px, py, historico_player):
+    """Evoca um trilho linear que se alarga gradualmente e engole o jogador ao toque."""
+    alvo_x, alvo_y = px, py
+    
+    if len(historico_player) >= 3:
+        vx_p = px - historico_player[-3][0]
+        vy_p = py - historico_player[-3][1]
+        alvo_x = px + (vx_p * 12)
+        alvo_y = py + (vy_p * 12)
+
+    dx = alvo_x - bx
+    dy = alvo_y - by
+    angulo = math.atan2(dy, dx)
+    
+    estado_ia['caminho_espinhos'] = {
+        'origem': (bx + 30, by + 30),
+        'angulo': angulo,
+        'comprimento': 1500, # Atravessa a arena inteira
+        'largura_maxima': 220,
+        'tempo_inicio': agora,
+        'fase': 'crescimento',
+        'duracao_crescimento': 3500,
+        'duracao_expansao': 2000
+    }
+    estado_ia['ultimo_espinhos'] = agora
+
 # --- NÓDULOS DE PENSAMENTO (AÇÕES DO GRAFO) ---
 
 def node_furia(agora, estado_ia, hitbox_centro, centro_mapa, boss_pos):
@@ -324,7 +351,22 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
     px, py = player_pos[0], player_pos[1]
     centro_mapa = estado_ia['centro_mapa']
     
+    # CÁLCULO DE AMEAÇA DE CURA
+    roubo_chance = config_boss.get('p_roubo_chance', 0.0)
+    roubo_qtd = config_boss.get('p_roubo_qtd', 0.0)
+    tem_trembo = config_boss.get('p_trembo', False)
+    
+    # Matemática: 5% de chance de curar 25% da vida = Índice 1.25.
+    indice_sustento = (roubo_chance * roubo_qtd) * 100 
+    
+    # Se o índice for maior que 1.0 (cura massiva) ou tiver regeneração passiva:
+    player_imortal = indice_sustento >= 1.0 or tem_trembo
+
     # --- 1. HIERARQUIA DE ESTADO ATIVO ---
+
+
+    
+
     if estado_ia.get('parede_ativa'):
         node_sifon(agora, estado_ia, boss_pos, centro_mapa)
         return estado_ia
@@ -370,6 +412,9 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         pesos["TRANSMUTAR"] = 3.5
         if estado_ia.get('dano_recente', 0) > 300:
             pesos["TRANSMUTAR"] = 8.0
+        # Se o player cura muito, a prioridade máxima é cortar a cura!
+        if player_imortal:
+            pesos["TRANSMUTAR"] = 25.0
         
 
     if config_boss.get('mapa_atual') == "Sprites/Fase1.png":
@@ -379,14 +424,12 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
                 pesos["VORTICE"] = 6.0
             else:
                 pesos["VORTICE"] = 2.0
- 
     if config_boss.get('mapa_atual') == "Sprites/Fase2.png":
         if agora - estado_ia.get('ultimo_prisao', 0) >= 9000:
             if len(historico_player) >= 2 and math.hypot(px - historico_player[-2][0], py - historico_player[-2][1]) > 1.0:
                 pesos["PRISAO"] = 5.0
             else:
                 pesos["PRISAO"] = 2.5
-      
     if config_boss.get('mapa_atual') == "Sprites/Fase3.png":
         if agora - estado_ia.get('ultimo_miasma', 0) >= 10000:
             if estado_ia.get('dano_recente', 0) > 200:
@@ -396,10 +439,20 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
     if config_boss.get('mapa_atual') == "Sprites/Fase4.png":
         if agora - estado_ia.get('ultimo_descarga', 0) >= 11000:
             pesos["DESCARGA_ELETRICA"] = 8.5
+    if config_boss.get('mapa_atual') == "Sprites/Fase6.png":
+        if agora - estado_ia.get('ultimo_espinhos', 0) >= 8000:
+            pesos["CAMINHO_ESPINHOS"] = 12.0
+            if estado_ia.get('dano_recente', 0) < 50:
+                pesos["CAMINHO_ESPINHOS"] = 18.0
         
 
     # --- 3. RESOLUÇÃO E EXECUÇÃO ---
     decisao = max(pesos, key=pesos.get)
+
+    if estado_ia.get('laser_ativo'):
+        decisao = "NENHUMA"
+    else:
+        decisao = max(pesos, key=pesos.get) if max(pesos.values()) > 0 else "NENHUMA"
 
     acoes_simultaneas = []
     if estado_ia.get('parede_ativa'): acoes_simultaneas.append("SIFON")
@@ -407,6 +460,7 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
     if estado_ia.get('miasma_ativo'): acoes_simultaneas.append("MIASMA")
     if estado_ia.get('prisao_ativa'): acoes_simultaneas.append("PRISAO")
     if estado_ia.get('fase_tele', 'espera') != 'espera': acoes_simultaneas.append("TELEPORTE")
+    if estado_ia.get('caminho_espinhos'): acoes_simultaneas.append("CAMINHO_ESPINHOS")
     
     if decisao not in acoes_simultaneas:
         acoes_simultaneas.append(decisao)
@@ -426,7 +480,7 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         estado_ia['primeira_transmutacao_feita'] = True
         estado_ia['dano_recente'] = 0 
         estado_ia['tempo_inicio_dimensao'] = agora
-        estado_ia['duracao_dimensao'] = 24000
+        estado_ia['duracao_dimensao'] = 30000
         
         estado_ia['ultimo_vortice'] = agora
         estado_ia['ultimo_prisao'] = agora
@@ -435,19 +489,49 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         
         vida_p = config_boss.get('vida_atual', 1600) / config_boss.get('vida_max', 1600)
         
-        if dist_p < 250:
-            estado_ia['mapa_alvo'] = "Sprites/Fase3.png"
-            estado_ia['dimensao_ativa'] = "necrose"
-        elif len(historico_player) > 5 and math.hypot(px - historico_player[-5][0], py - historico_player[-5][1]) > 15:
-            estado_ia['mapa_alvo'] = "Sprites/Fase2.png"
-            estado_ia['dimensao_ativa'] = "gravidade"
-        elif vida_p > 0.6: 
-            estado_ia['mapa_alvo'] = "Sprites/Fase4.png"
-            estado_ia['dimensao_ativa'] = "ressonancia"
-        else:
-            estado_ia['mapa_alvo'] = "Sprites/Fase1.png"
-            estado_ia['dimensao_ativa'] = "vortice"
+
+        ultima_dim = estado_ia.get('ultima_dimensao_usada', None)
+        candidatos = []
+        
+        intervalo_tiro = config_boss.get('p_intervalo_disparo', 350)
+        
+     
+        if intervalo_tiro <= 180 and ultima_dim != "atrito":
+            candidatos.append(("Sprites/Fase7.png", "atrito", 150)) 
+        
+        if player_imortal and ultima_dim != "hemorragia":
+            candidatos.append(("Sprites/Fase6.png", "hemorragia", 100))
+
+        if player_imortal and ultima_dim != "hemorragia":
+            candidatos.append(("Sprites/Fase6.png", "hemorragia", 100)) # Prioridade Máxima
             
+        if dist_p < 250 and ultima_dim != "necrose":
+            candidatos.append(("Sprites/Fase3.png", "necrose", 80))
+            
+        if len(historico_player) > 5 and math.hypot(px - historico_player[-5][0], py - historico_player[-5][1]) > 15 and ultima_dim != "gravidade":
+            candidatos.append(("Sprites/Fase2.png", "gravidade", 60))
+            
+        if vida_p > 0.6 and ultima_dim != "ressonancia":
+            candidatos.append(("Sprites/Fase4.png", "ressonancia", 40))
+            
+        if ultima_dim != "vortice":
+            candidatos.append(("Sprites/Fase1.png", "vortice", 20))
+            
+        # Fallback de segurança absoluta
+        if not candidatos:
+            candidatos.append(("Sprites/Fase1.png", "vortice", 0))
+            
+        # Ordena a lista do maior peso para o menor e escolhe o topo
+        candidatos.sort(key=lambda x: x[2], reverse=True)
+        escolha_final = candidatos[0]
+        
+        estado_ia['mapa_alvo'] = escolha_final[0]
+        estado_ia['dimensao_ativa'] = escolha_final[1]
+        
+        
+        estado_ia['ultima_dimensao_usada'] = escolha_final[1] 
+
+        
         vec_x, vec_y = bx - px, by - py
         mag = math.hypot(vec_x, vec_y)
         alvo_x, alvo_y = (bx + (vec_x/mag)*600, by + (vec_y/mag)*600) if mag > 0 else (bx+400, by+400)
@@ -490,6 +574,10 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         
         if math.hypot(alvo_x_f - bx, alvo_y_f - by) > 200:
             node_teleporte_sinalizador(agora, estado_ia, boss_pos, (alvo_x_f, alvo_y_f))
+
+    elif decisao == "CAMINHO_ESPINHOS":
+        node_caminho_espinhos(agora, estado_ia, bx, by, px, py, historico_player)
+        estado_ia['dano_recente'] = 0
             
     elif decisao == "ATAQUE":
         node_ataque_direcionado(agora, estado_ia, bx, by, px, py, historico_player, memoria)
@@ -553,6 +641,10 @@ def movimentacao_inteligente_umbra(agora, boss_pos, player_pos, disparos, estado
     if estado_mov.get('parede_ativa'):
         estado_mov['vel_x'], estado_mov['vel_y'] = 0, 0
         return estado_mov.get('centro_mapa', (680, 384)), "SIFON_STASIS"
+    
+    if estado_mov.get('laser_ativo'):
+        estado_mov['vel_x'], estado_mov['vel_y'] = 0, 0
+        return (boss_pos[0], boss_pos[1]), "LASER_STASIS" # Estática e letal
 
     bx, by = boss_pos[0], boss_pos[1]
     px, py = player_pos[0], player_pos[1]

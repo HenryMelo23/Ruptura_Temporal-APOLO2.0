@@ -910,7 +910,7 @@ while running:
             tempo_movimento = random.randint(3000, 7000)
         # Atualizar movimento dos inimigos com previsão
         tempo_previsao = 5  # Tempo em quadros para prever o movimento
-        print( pos_x_personagem, pos_y_personagem)
+       
         atualizar_movimento_inimigos(
         inimigos_comum, pos_x_personagem, pos_y_personagem, ultima_tecla_movimento, velocidade_personagem, tempo_previsao
         )
