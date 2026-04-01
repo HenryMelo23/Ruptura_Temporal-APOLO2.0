@@ -837,8 +837,8 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
             dano_person_hit += 5 + (inimigos_eliminados // 100) * 1
             chance_critico += 0.01 + (inimigos_eliminados // 300) * 0.002
         elif carta == "Cura":
-            roubo_de_vida += 0.010 + (inimigos_eliminados // 500) * 0.001
-            quantidade_roubo_vida += 0.02 + (inimigos_eliminados // 500) * 0.001
+            roubo_de_vida += 0.055 + (inimigos_eliminados // 500) * 0.001
+            quantidade_roubo_vida += 0.10 + (inimigos_eliminados // 500) * 0.001
         elif carta == "Speed Atack":
             intervalo_disparo = max(50, int(intervalo_disparo * 0.88))
         elif carta == "Teleporte":
@@ -882,7 +882,7 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
     vida_maxima_umbra = int(25000 + (dps_teorico_apolo * 24) + (inimigos_eliminados * 25))
 
     # --- O ESPELHO CORROMPIDO (CARTAS DA UMBRA) ---
-    qtd_cartas_umbra = qtd_cartas_jogador // 2
+    qtd_cartas_umbra = qtd_cartas_jogador // 3
     cartas_umbra = [
         "Essência Obscura", 
         "Projétil Devastador", 
@@ -896,13 +896,13 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
         carta_u = random.choice(cartas_umbra)
         registro_umbra.append(carta_u)
         if carta_u == "Essência Obscura":
-            vida_maxima_umbra = int(vida_maxima_umbra * 0.65) 
+            vida_maxima_umbra = int(vida_maxima_umbra * 1.12) 
         elif carta_u == "Projétil Devastador":
-            multiplicador_dano_umbra += 0.18 
+            multiplicador_dano_umbra += 0.01 
         elif carta_u == "Frenesi Temporal":
             reducao_cooldown_umbra *= 0.92 
         elif carta_u == "Armadura de Matéria Escura":
-            resistencia_umbra += 6.5 
+            resistencia_umbra += 3.5 
         elif carta_u == "Sifão Aprimorado":
             bonus_cura_sifon += 0.25
 
@@ -915,7 +915,7 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
     print("="*50 + "\n")
 
 # Invoca a mutação absoluta
-injetar_build_endgame(qtd_cartas_jogador=50)
+injetar_build_endgame(qtd_cartas_jogador=60)
 ###################################################################################################################################################################################################
 # Geração de coordenadas estocásticas para o início do embate
 pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem)
@@ -1512,7 +1512,7 @@ while running:
             hitbox_player = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
             for p in estado_atual_ia['projeteis']:
                 if p["rect"].colliderect(hitbox_player):
-                    dano_bruto = (450 + (inimigos_eliminados * 0.30)) * multiplicador_dano_umbra
+                    dano_bruto = (150 + (inimigos_eliminados * 0.10)) * multiplicador_dano_umbra
                     dano_recebido = int(dano_bruto - Resistencia)
                     
                     if dano_recebido < 0: 
@@ -1525,6 +1525,7 @@ while running:
                         escudo_devota_ativo = False
                     else:
                         vida -= dano_recebido
+                        print(dano_recebido)
                         eliminacoes_consecutivas = 0
                         bonus_pontuacao = 0
                         piscando_vida = True
@@ -1538,7 +1539,7 @@ while running:
                 if tempo_miasma < miasma['duracao']:
                     
                     if agora % 1000 < 50: 
-                        vida -= vida_maxima*0.001
+                        vida -= vida_maxima*0.01
                     
                     centro_ceg_x = pos_x_personagem + (largura_personagem // 2)
                     centro_ceg_y = pos_y_personagem + (altura_personagem // 2)
