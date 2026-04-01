@@ -286,5 +286,95 @@
         "exploracao_umbra": 0.2,
         "habilidade_dominante": "NENHUMA",
         "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 33,
+        "duracao": 90.452,
+        "vencedor": "Umbra",
+        "hp_restante": 193581.5748069125,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 34,
+        "duracao": 54.728,
+        "vencedor": "Umbra",
+        "hp_restante": 119624.0,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 35,
+        "duracao": 40.334,
+        "vencedor": "Umbra",
+        "hp_restante": 92774.29113430376,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 36,
+        "duracao": 45.102,
+        "vencedor": "Umbra",
+        "hp_restante": 36430.0,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 37,
+        "duracao": 39.485,
+        "vencedor": "Umbra",
+        "hp_restante": 56681.385796268754,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 38,
+        "duracao": 35.979,
+        "vencedor": "Umbra",
+        "hp_restante": 48052.0,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 39,
+        "duracao": 26.788,
+        "vencedor": "Umbra",
+        "hp_restante": 61192.0,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 40,
+        "duracao": 72.349,
+        "vencedor": "Umbra",
+        "hp_restante": 44955.046325136245,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 41,
+        "duracao": 113.213,
+        "vencedor": "Umbra",
+        "hp_restante": 36626.2916645721,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 42,
+        "duracao": 42.178,
+        "vencedor": "Umbra",
+        "hp_restante": 42436.0,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
     }
 ]

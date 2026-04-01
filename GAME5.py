@@ -822,7 +822,7 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
         if carta == "Speed Boost":
             velocidade_personagem += 0.02 + (inimigos_eliminados // 200) * 0.002
         elif carta == "Porção":
-            aumento_vida = 250 + (inimigos_eliminados // 50) * 8
+            aumento_vida = 650 + (inimigos_eliminados // 50) * 8
             vida_maxima += aumento_vida
             vida += int(vida_maxima * 0.30)
             vida_petro += int(vida_maxima_petro * 0.25)
@@ -838,7 +838,7 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
             chance_critico += 0.01 + (inimigos_eliminados // 300) * 0.002
         elif carta == "Cura":
             roubo_de_vida += 0.055 + (inimigos_eliminados // 500) * 0.001
-            quantidade_roubo_vida += 0.10 + (inimigos_eliminados // 500) * 0.001
+            quantidade_roubo_vida += 0.25 + (inimigos_eliminados // 500) * 0.001
         elif carta == "Speed Atack":
             intervalo_disparo = max(50, int(intervalo_disparo * 0.88))
         elif carta == "Teleporte":
@@ -896,15 +896,15 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
         carta_u = random.choice(cartas_umbra)
         registro_umbra.append(carta_u)
         if carta_u == "Essência Obscura":
-            vida_maxima_umbra = int(vida_maxima_umbra * 1.12) 
+            vida_maxima_umbra = int(vida_maxima_umbra * 0.89) 
         elif carta_u == "Projétil Devastador":
             multiplicador_dano_umbra += 0.01 
         elif carta_u == "Frenesi Temporal":
             reducao_cooldown_umbra *= 0.92 
         elif carta_u == "Armadura de Matéria Escura":
-            resistencia_umbra += 3.5 
+            resistencia_umbra += 2.5 
         elif carta_u == "Sifão Aprimorado":
-            bonus_cura_sifon += 0.25
+            bonus_cura_sifon += 0.05
 
     vida = vida_maxima
     vida_umbra = vida_maxima_umbra

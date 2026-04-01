@@ -355,7 +355,7 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
 
     # Lógica de Sifon (Gatilhos de Saúde e Dano)
     tempo_pos_sifon = agora - estado_ia.get('ultimo_sifon_fim', 0)
-    if tempo_pos_sifon >= 15000 or estado_ia.get('ultimo_sifon_fim') == 0:
+    if tempo_pos_sifon >= 25000 or estado_ia.get('ultimo_sifon_fim') == 0:
         vida_perc = config_boss.get('vida_atual', 1600) / config_boss.get('vida_max', 1600)
         dano_acumulado = estado_ia.get('dano_recente', 0)
 
