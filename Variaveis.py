@@ -413,6 +413,8 @@ tempo_fim_chamas = 0
 multiplicador_chamas = 0
 ultimo_tick_chamas = 0
 particulas_fogo_player = []
+esferas_energia_umbra = []
+tempo_ultima_esfera_umbra = 0
 # Criação de superfícies pré-renderizadas para performance (flocos de neve)
 floco_superficie = pygame.Surface((4, 4), pygame.SRCALPHA)
 pygame.draw.circle(floco_superficie, (255, 255, 255, 230), (2, 2), 2)

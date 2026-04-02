@@ -896,9 +896,9 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
         carta_u = random.choice(cartas_umbra)
         registro_umbra.append(carta_u)
         if carta_u == "Essência Obscura":
-            vida_maxima_umbra = int(vida_maxima_umbra * 0.89) 
+            vida_maxima_umbra = int(vida_maxima_umbra * 1.25) 
         elif carta_u == "Projétil Devastador":
-            multiplicador_dano_umbra += 0.01 
+            multiplicador_dano_umbra += 0.05 + (inimigos_eliminados // 500) * 0.005
         elif carta_u == "Frenesi Temporal":
             reducao_cooldown_umbra *= 0.92 
         elif carta_u == "Armadura de Matéria Escura":
@@ -1239,6 +1239,9 @@ while running:
             estado_atual_ia['ultimo_ataque'] = agora
             estado_atual_ia['ultimo_teleporte'] = agora
             estado_atual_ia['ultimo_sifao'] = agora
+            estado_atual_ia['passiva_chance'] = 0.30
+            estado_atual_ia['passiva_reducao'] = 1.0
+            estado_atual_ia['intervalo'] = 1900
         
         luta_iniciada = (agora - estado_atual_ia['tempo_start_boss']) >= 2000
         ataque_liberado = (agora - estado_atual_ia['tempo_start_boss']) >= 3000
@@ -1509,12 +1512,16 @@ while running:
                     pygame.draw.circle(tela, (255, 255, 255), p["rect"].center, raio // 2)
                 else:
                     memoria_umbra.treinar(-0.5)
+                    estado_atual_ia['passiva_chance'] = 0.30
+                    estado_atual_ia['passiva_reducao'] = 1.0
+                    estado_atual_ia['intervalo'] = 1900
 
             estado_atual_ia['projeteis'] = projeteis_vivos
 
             # --- 3. DETECÇÃO DE DANO NO JOGADOR ---
             hitbox_player = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-            for p in estado_atual_ia['projeteis']:
+            
+            for p in estado_atual_ia['projeteis'][:]:
                 if p["rect"].colliderect(hitbox_player):
                     dano_bruto = (150 + (inimigos_eliminados * 0.10)) * multiplicador_dano_umbra
                     dano_recebido = int(dano_bruto - Resistencia)
@@ -1532,9 +1539,28 @@ while running:
                         eliminacoes_consecutivas = 0
                         bonus_pontuacao = 0
                         piscando_vida = True
+                    
+                    memoria_umbra.treinar(1.5) 
+                    
+                    chance_atual = estado_atual_ia.get('passiva_chance', 0.30)
+                    if random.random() <= chance_atual:
+                        reducao_atual = estado_atual_ia.get('passiva_reducao', 1.0)
+                        nova_reducao = max(0.2, reducao_atual - 0.15) 
                         
-                    memoria_umbra.treinar(1.5)
-                    estado_atual_ia['projeteis'].remove(p)
+                        estado_atual_ia['passiva_reducao'] = nova_reducao
+                        estado_atual_ia['passiva_chance'] = min(1.0, chance_atual + 0.15)
+                        estado_atual_ia['intervalo'] = int(1900 * nova_reducao)
+                        
+                        efeitos_texto.append({
+                            "texto": "ACELERAÇÃO UMBRAL!",
+                            "x": pos_x_personagem,
+                            "y": pos_y_personagem - 50,
+                            "tempo_inicio": agora,
+                            "cor": (138, 43, 226)
+                        })
+
+                    if p in estado_atual_ia['projeteis']:
+                        estado_atual_ia['projeteis'].remove(p)
 
             miasma = estado_atual_ia.get('miasma_ativo')
             if miasma:
@@ -1913,10 +1939,9 @@ while running:
                         if dist_linha <= hitbox_r and dot_product > 0:
                             tomou_dano_neste_frame = True
                             
-                    # Processa o dano apenas 1 vez por frame, com cooldown absoluto de 150ms
                     if tomou_dano_neste_frame:
-                        if agora - estado_atual_ia.get('ultimo_dano_laser', 0) > 150: 
-                            vida -= 95
+                        if agora - estado_atual_ia.get('ultimo_dano_laser', 0) > 100: 
+                            vida -= vida_maxima * 0.10
                             
                             # Matemática de Combustão Progressiva
                             if player_em_chamas and agora < tempo_fim_chamas:
@@ -2034,25 +2059,59 @@ while running:
                     estado_atual_ia['ultimo_transmutar'] = agora 
                     
                     mapa_antigo = mapa.copy().convert_alpha() 
-                    mapa_atual_path = mapa_path5 # Retorna para a arena principal
+                    mapa_atual_path = mapa_path5 
                     dados_p['mapa_atual'] = mapa_atual_path
                     
                     mapa_novo = pygame.transform.scale(pygame.image.load(mapa_atual_path).convert(), (largura_mapa, altura_mapa))
                     
                     particulas_pulso = []
-                    for i in range(400): 
+                    for i in range(120): 
                         ang = random.uniform(0, math.pi * 2)
-                        vel = random.uniform(3, 8)
+                        vel = random.uniform(15, 30) 
                         particulas_pulso.append({
                             'x': pos_x_umbra + (largura_boss // 2),
                             'y': pos_y_umbra + (altura_boss // 2),
                             'vx': math.cos(ang) * vel,
                             'vy': math.sin(ang) * vel,
-                            'tamanho': random.randint(10, 25)
+                            'tamanho': random.randint(20, 40) 
                         })
                     
                     em_transicao_mapa = True
                     inicio_transicao_mapa = agora
+            if agora - tempo_ultima_esfera_umbra >= 30000:
+                esferas_energia_umbra.append({
+                    "x": pos_x_umbra + largura_boss // 2,
+                    "y": pos_y_umbra + altura_boss // 2,
+                    "tempo_criacao": agora
+                })
+                tempo_ultima_esfera_umbra = agora
+
+            for esfera in esferas_energia_umbra[:]:
+                pulso = math.sin(agora * 0.005) * 5
+                raio_esfera = 15 + pulso
+                
+                pygame.draw.circle(tela, (0, 255, 150), (int(esfera["x"]), int(esfera["y"])), int(raio_esfera + 8), 2)
+                pygame.draw.circle(tela, (50, 255, 200), (int(esfera["x"]), int(esfera["y"])), int(raio_esfera))
+                pygame.draw.circle(tela, (255, 255, 255), (int(esfera["x"]), int(esfera["y"])), int(raio_esfera * 0.4))
+                
+                cx_p = pos_x_personagem + largura_personagem // 2
+                cy_p = pos_y_personagem + altura_personagem // 2
+                distancia_coleta = math.hypot(cx_p - esfera["x"], cy_p - esfera["y"])
+                
+                if distancia_coleta <= 45:
+                    vida_perdida = vida_maxima - vida
+                    cura_aplicada = int(vida_perdida * 0.50)
+                    vida += cura_aplicada
+                    
+                    efeitos_texto.append({
+                        "texto": f"+{cura_aplicada} RESTAURAÇÃO!",
+                        "x": pos_x_personagem,
+                        "y": pos_y_personagem - 30,
+                        "tempo_inicio": agora,
+                        "cor": (0, 255, 150)
+                    })
+                    
+                    esferas_energia_umbra.remove(esfera)
         else:
             img_atual_boss = frames_geo_umbra_paths[direcao_boss][frame_boss]
             offset_y_boss = math.sin(agora * 0.005) * 7

@@ -843,45 +843,45 @@ while running:
                 inimigo["vida"] -= dano_person_hit*2  
                 inimigos_atingidos_por_onda[inimigo_id] = tempo_atual  # Atualiza o tempo do último dano
 
-                # Verifica se o inimigo foi derrotado
                 if inimigo["vida"] <= 0:
                     inimigos_comum.remove(inimigo)
-                    # Progressão escalonada
-                    vida_inimigo_maxima += 1.2 + nivel_ameaca * 0.8
-                    Resistencia_petro += 0.2 + nivel_ameaca * 0.1
-                    dano_inimigo_perto += 0.2 + nivel_ameaca * 0.1
-                    dano_person_hit += 0.15 + nivel_ameaca * 0.05
-                    vida_maxima_petro += 0.5 + nivel_ameaca * 0.3
-                    dano_petro += 0.015 + nivel_ameaca * 0.01
-                    dano_inimigo_longe += 0.04 + nivel_ameaca * 0.02
-                    dano_boss += 0.025 + nivel_ameaca * 0.02
-                    Dano_Boss_Habilit += 0.05 + nivel_ameaca * 0.03
-                    Velocidade_Inimigos_1 += 0.0015 + nivel_ameaca * 0.0005
-
                     inimigos_eliminados += 1
 
-                    # Pontuação escalada
-                    ganho = int(75 + math.log2(inimigos_eliminados + 1) * 4)
+                    # --- ESCALONAMENTO POR NIVEL DE AMEAÇA ---
+                    # Multiplicador que cresce suavemente para evitar o "Power Creep" imediato
+                    mult = 1.0 + (nivel_ameaca * 0.1)
+                    
+                    vida_inimigo_maxima += 0.5 * mult
+                    Resistencia_petro += 0.05 * mult
+                    dano_inimigo_perto += 0.04 * mult
+                    dano_person_hit += 0.03 * mult
+                    vida_maxima_petro += 0.2 * mult
+                    dano_petro += 0.005 * mult
+                    dano_inimigo_longe += 0.01 * mult
+                    dano_boss += 0.01 * mult
+                    Dano_Boss_Habilit += 0.02 * mult
+                    # Velocidade com teto máximo para evitar bugs de física
+                    Velocidade_Inimigos_1 = min(4.8, Velocidade_Inimigos_1 + 0.0001)
+
+                    # --- ECONOMIA DE PONTOS PARA AS 50 CARTAS ---
+                    # Ganho logarítmico: quanto mais mata, mais ganha, mas sem explosão de valores
+                    ganho = int(120 * (1 + math.log10(inimigos_eliminados + 1)))
                     pontuacao += ganho
                     pontuacao_exib += ganho
 
-                    # Cura da Petro se estiver muito ferida
                     if vida_petro < (vida_maxima_petro * 0.6):
-                        vida_petro += (vida_maxima_petro * 0.4)
-                        if vida_petro > vida_maxima_petro:
-                            vida_petro = vida_maxima_petro
+                        vida_petro = min(vida_maxima_petro, vida_petro + (vida_maxima_petro * 0.2))
 
-                    # Boss: progressão escalada
                     if not boss_vivo1:
-                        if vida_boss > 0:
-                            vida_boss += 15 + nivel_ameaca * 10
-                            vida_maxima_boss1 = vida_boss
-                            vida_boss2 += 20 + nivel_ameaca * 12
-                            vida_maxima_boss2 = vida_boss2
-                            vida_boss3 += 25 + nivel_ameaca * 15
-                            vida_maxima_boss3 = vida_boss3
-                            vida_boss4 += 30 + nivel_ameaca * 18
-                            vida_maxima_boss4 = vida_boss4
+                        # Bosses escalam 15% do ganho de vida dos inimigos comuns
+                        vida_boss += 12 * mult
+                        vida_maxima_boss1 = vida_boss
+                        vida_boss2 += 15 * mult
+                        vida_maxima_boss2 = vida_boss2
+                        vida_boss3 += 18 * mult
+                        vida_maxima_boss3 = vida_boss3
+                        vida_boss4 += 22 * mult
+                        vida_maxima_boss4 = vida_boss4
         
 
 
@@ -1130,32 +1130,30 @@ while running:
                 # Verifica se passou tempo suficiente desde o último dano
                 tempo_atual_petro = pygame.time.get_ticks()
                 if tempo_atual_petro - tempo_anterior_petro >= intervalo_dano_petro:
-                    # Aplica dano ao inimigo mais próximo
-                    Dano_pos_resistencia_petro=dano_inimigo-Resistencia_petro
-                    if Dano_pos_resistencia_petro < 0:
-                        pass
+                    # Cálculo de Defesa: Petro absorve dano através de sua resistência
+                    dano_real_em_petro = max(0, dano_inimigo - Resistencia_petro)
+                    vida_petro -= int(dano_real_em_petro)
                     
-                    else:
-                        vida_petro-=int(Dano_pos_resistencia_petro)#Dano em petro
-                    
-                    
-                    inimigo_mais_proximo["vida"] -= int(dano_person_hit * 0.005)+ dano_petro
+                    # Dano da Petro: 0.5% do dano total do jogador + bônus fixo da Petro
+                    inimigo_mais_proximo["vida"] -= int(dano_person_hit * 0.005) + dano_petro
                     tempo_anterior_petro = tempo_atual_petro
                     
-                    # Verifica se o inimigo foi derrotado
                     if inimigo_mais_proximo["vida"] <= 0:
-                        vida_inimigo_maxima+=23
-                        pontuacao += int(75 + inimigos_eliminados * 0.5)
-                        pontuacao_exib += int(75 + inimigos_eliminados * 0.5)
-                        Resistencia_petro+=24.5
-                        vida_maxima_petro+=35
-                        dano_person_hit+=8
+                        # Evolução harmônica por abate da Petro
+                        vida_inimigo_maxima += 0.5
+                        Resistencia_petro += 0.08
+                        vida_maxima_petro += 0.25
+                        dano_person_hit += 0.05
+                        dano_petro += 0.008
                         inimigos_eliminados += 1
-                        dano_petro+=0.035 
-                        dano_inimigo_longe+=2
-                        dano_inimigo_perto+=0.35
-                        # Remove o inimigo da lista de inimigos comuns
-                        inimigos_comum.remove(inimigo_mais_proximo) 
+                        
+                        # Pontuação otimizada
+                        pontos_petro = int(100 * (1 + math.log10(inimigos_eliminados + 1)))
+                        pontuacao += pontos_petro
+                        pontuacao_exib += pontos_petro
+                        
+                        if inimigo_mais_proximo in inimigos_comum:
+                            inimigos_comum.remove(inimigo_mais_proximo)
                         
                     if not boss_vivo1:
                         if vida_boss>0:
@@ -1468,50 +1466,47 @@ while running:
                     
                     
                 if Ultimo_Estalo and inimigo["vida"] <= Executa_inimigo * inimigo["vida_maxima"]:
-                    
                     estalos.play()
                     posicao_inimigo = inimigo["rect"].center
                     soltar_moeda(posicao_inimigo)
-                    inimigos_comum.remove(inimigo)
-                    inimigos_comum.remove(inimigo)
-
-                    # Crescimento escalonado dos atributos
-                    vida_inimigo_maxima += 1.5 + nivel_ameaca * 0.75
-                    Resistencia_petro += 0.25 + nivel_ameaca * 0.1
-                    dano_inimigo_perto += 0.2 + nivel_ameaca * 0.1
-                    vida_maxima_petro += 0.6 + nivel_ameaca * 0.3
-                    dano_petro += 0.015 + nivel_ameaca * 0.01
-                    dano_inimigo_longe += 0.04 + nivel_ameaca * 0.02
-                    dano_boss += 0.03 + nivel_ameaca * 0.02
-                    Dano_Boss_Habilit += 0.05 + nivel_ameaca * 0.03
-                    Velocidade_Inimigos_1 += 0.0015 + nivel_ameaca * 0.0005
-
+                    if inimigo in inimigos_comum: inimigos_comum.remove(inimigo)
+                    
                     inimigos_eliminados += 1
+                    mult_exec = 1.0 + (nivel_ameaca * 0.12) # Execução dá 12% a mais de escala
 
-                    # Pontuação escalada com progressão suave
-                    ganho_pontos = int(75 + math.log2(inimigos_eliminados + 1) * 5)
+                    vida_inimigo_maxima += 0.6 * mult_exec
+                    Resistencia_petro += 0.07 * mult_exec
+                    dano_inimigo_perto += 0.05 * mult_exec
+                    vida_maxima_petro += 0.3 * mult_exec
+                    dano_petro += 0.006 * mult_exec
+                    dano_inimigo_longe += 0.015 * mult_exec
+                    dano_boss += 0.015 * mult_exec
+                    Dano_Boss_Habilit += 0.02 * mult_exec
+                    Velocidade_Inimigos_1 = min(4.8, Velocidade_Inimigos_1 + 0.0001)
+
+                    ganho_pontos = int(150 * (1 + math.log10(inimigos_eliminados + 1)))
                     pontuacao += ganho_pontos
                     eliminacoes_consecutivas_impulsiva += 1
-                    # Pontuação com carta Mercenária
+
                     if Mercenaria_Active:
                         eliminacoes_consecutivas += 1
+                        # Bônus mercenário fixo para evitar inflação infinita
                         pontuacao_exib += ganho_pontos + bonus_pontuacao
                         if eliminacoes_consecutivas % 5 == 0:
-                            bonus_pontuacao += Valor_Bonus
+                            bonus_pontuacao = min(500, bonus_pontuacao + Valor_Bonus) 
                     else:
                         pontuacao_exib += ganho_pontos
 
-                    # Escalonamento de vida dos bosses (somente se não estiver ativo no momento)
                     if not boss_vivo1:
-                        if vida_boss > 0:
-                            vida_boss += 15 + nivel_ameaca * 10
-                            vida_maxima_boss1 = vida_boss
-                            vida_boss2 += 20 + nivel_ameaca * 12
-                            vida_maxima_boss2 = vida_boss2
-                            vida_boss3 += 25 + nivel_ameaca * 15
-                            vida_maxima_boss3 = vida_boss3
-                            vida_boss4 += 30 + nivel_ameaca * 18
-                            vida_maxima_boss4 = vida_boss4
+                        vida_boss += 15 * mult_exec
+                        vida_maxima_boss1 = vida_boss
+                        vida_boss2 += 20 * mult_exec
+                        vida_maxima_boss2 = vida_boss2
+                        vida_boss3 += 25 * mult_exec
+                        vida_maxima_boss3 = vida_boss3
+                        vida_boss4 += 30 * mult_exec
+                        vida_maxima_boss4 = vida_boss4
+
                 elif inimigo["vida"] <= 0:
                     posicao_inimigo = inimigo["rect"].center
                     soltar_moeda(posicao_inimigo)
@@ -1810,23 +1805,22 @@ while running:
     for inimigo in inimigos_comum:
         i_id = id(inimigo)
         if i_id in inimigos_em_chamas:
-            tempo_inicio = inimigos_em_chamas[i_id]
-            if tempo_atual - tempo_inicio <= duracao_incendio_vanguarda:
+            if tempo_atual - inimigos_em_chamas[i_id] <= duracao_incendio_vanguarda:
                 if tempo_atual - inimigo.get("ultimo_tick_queimando", 0) >= 1000:
                     inimigo["ultimo_tick_queimando"] = tempo_atual
-                    proporcao_inicial = 0.01  # 1% da vida máxima por segundo no início
-                    proporcao_escalada = min(0.03, proporcao_inicial + (eliminacoes_consecutivas * 0.0015))  # escala até 3%
-                    dano_fogo = int(vida_maxima * proporcao_escalada)
+                    
+                    # Escalonamento: 1% a 3% da vida máxima baseado no combo
+                    proporcao = min(0.03, 0.01 + (eliminacoes_consecutivas * 0.0005))
+                    dano_fogo = int(inimigo.get("vida_maxima", 100) * proporcao)
 
                     inimigo["vida"] -= dano_fogo
-                   
-
+                    
                     efeitos_texto.append({
                         "texto": f"-{dano_fogo}",
                         "x": inimigo["rect"].x,
                         "y": inimigo["rect"].y - 20,
                         "tempo_inicio": tempo_atual,
-                        "cor": (255, 120, 0)
+                        "cor": (255, 60, 0)
                     })
 
                     if inimigo["vida"] <= 0:

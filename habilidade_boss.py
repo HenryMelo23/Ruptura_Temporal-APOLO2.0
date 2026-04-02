@@ -365,8 +365,6 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
     # --- 1. HIERARQUIA DE ESTADO ATIVO ---
 
 
-    
-
     if estado_ia.get('parede_ativa'):
         node_sifon(agora, estado_ia, boss_pos, centro_mapa)
         return estado_ia
@@ -493,11 +491,12 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         ultima_dim = estado_ia.get('ultima_dimensao_usada', None)
         candidatos = []
         
-        intervalo_tiro = config_boss.get('p_intervalo_disparo', 350)
+        intervalo_tiro = 300
         
      
-        if intervalo_tiro <= 180 and ultima_dim != "atrito":
-            candidatos.append(("Sprites/Fase7.png", "atrito", 150)) 
+        if (intervalo_tiro <= 680 or vida_p >= 0.80) and ultima_dim != "atrito":
+            peso_atrito = 95 if vida_p >= 0.80 else 90
+            candidatos.append(("Sprites/Fase7.png", "atrito", peso_atrito))
         
         if player_imortal and ultima_dim != "hemorragia":
             candidatos.append(("Sprites/Fase6.png", "hemorragia", 100))

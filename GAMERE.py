@@ -2497,23 +2497,22 @@ while running:
     for inimigo in inimigos_comum:
         i_id = id(inimigo)
         if i_id in inimigos_em_chamas:
-            tempo_inicio = inimigos_em_chamas[i_id]
-            if tempo_atual - tempo_inicio <= duracao_incendio_vanguarda:
+            if tempo_atual - inimigos_em_chamas[i_id] <= duracao_incendio_vanguarda:
                 if tempo_atual - inimigo.get("ultimo_tick_queimando", 0) >= 1000:
                     inimigo["ultimo_tick_queimando"] = tempo_atual
-                    proporcao_inicial = 0.01  # 1% da vida máxima por segundo no início
-                    proporcao_escalada = min(0.03, proporcao_inicial + (eliminacoes_consecutivas * 0.0015))  # escala até 3%
-                    dano_fogo = int(vida_maxima * proporcao_escalada)
+                    
+                    # Escalonamento: 1% a 3% da vida máxima baseado no combo
+                    proporcao = min(0.03, 0.01 + (eliminacoes_consecutivas * 0.0005))
+                    dano_fogo = int(inimigo.get("vida_maxima", 100) * proporcao)
 
                     inimigo["vida"] -= dano_fogo
-                   
-
+                    
                     efeitos_texto.append({
                         "texto": f"-{dano_fogo}",
                         "x": inimigo["rect"].x,
                         "y": inimigo["rect"].y - 20,
                         "tempo_inicio": tempo_atual,
-                        "cor": (255, 120, 0)
+                        "cor": (255, 60, 0)
                     })
 
                     if inimigo["vida"] <= 0:
