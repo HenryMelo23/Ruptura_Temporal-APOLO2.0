@@ -5,33 +5,47 @@ import os
 
 pygame.init()
 
-LARGURA = 900
-ALTURA = 650
+LARGURA = 1000
+ALTURA = 700
 tela = pygame.display.set_mode((LARGURA, ALTURA))
 pygame.display.set_caption("Telemetria Neural: Umbra")
 
-PRETO = (10, 10, 15)
-VERDE_NEON = (0, 255, 100)
-ROXO_UMBRA = (138, 43, 226)
+PRETO_FUNDO = (12, 12, 18)
+PRETO_PAINEL = (20, 20, 28)
+VERDE_NEON = (0, 255, 128)
+ROXO_UMBRA = (150, 50, 255)
 BRANCO = (240, 240, 240)
-CINZA = (50, 50, 50)
-VERMELHO = (255, 50, 50)
+CINZA = (60, 60, 70)
+VERMELHO = (255, 60, 60)
+AZUL_DADOS = (0, 180, 255)
 
 try:
-    fonte_titulo = pygame.font.SysFont("consolas", 28, bold=True)
-    fonte_sub = pygame.font.SysFont("consolas", 20, bold=True)
-    fonte_texto = pygame.font.SysFont("consolas", 16)
+    fonte_titulo = pygame.font.SysFont("consolas", 32, bold=True)
+    fonte_sub = pygame.font.SysFont("consolas", 18, bold=True)
+    fonte_texto = pygame.font.SysFont("consolas", 14)
+    fonte_barras = pygame.font.SysFont("consolas", 12)
 except:
     fonte_titulo = pygame.font.Font(None, 36)
-    fonte_sub = pygame.font.Font(None, 28)
-    fonte_texto = pygame.font.Font(None, 22)
+    fonte_sub = pygame.font.Font(None, 24)
+    fonte_texto = pygame.font.Font(None, 20)
+    fonte_barras = pygame.font.Font(None, 18)
+
+# Dicionário estático absoluto de todas as ações possíveis
+ACOES_MECANICAS = [
+    "ATAQUE", "SIFON", "TELEPORTE", 
+    "CERCAR", "FUGIR", "INTERCEPTAR", 
+    "ORBITAR", "VORTICE", "PRISAO", 
+    "MIASMA", "DESCARGA_ELETRICA", "CAMINHO_ESPINHOS", 
+    "TRANSMUTAR_VORTICE", "TRANSMUTAR_GRAVIDADE", "TRANSMUTAR_NECROSE", 
+    "TRANSMUTAR_RESSONANCIA", "TRANSMUTAR_HEMORRAGIA", "TRANSMUTAR_ATRITO"
+]
 
 def carregar_historico():
     try:
         if os.path.exists("historico_batalhas.json"):
             with open("historico_batalhas.json", "r") as f:
                 dados = json.load(f)
-                vencedores = [d["vencedor"] for d in dados]
+                vencedores = [d.get("vencedor", "") for d in dados]
                 total = len(vencedores)
                 if total == 0: return 0, 0, 0
                 
@@ -46,6 +60,14 @@ def carregar_historico():
         pass
     return 0, 0, 0
 
+def desenhar_painel(superficie, x, y, larg, alt, titulo, cor_borda):
+    pygame.draw.rect(superficie, PRETO_PAINEL, (x, y, larg, alt), border_radius=8)
+    pygame.draw.rect(superficie, cor_borda, (x, y, larg, alt), 2, border_radius=8)
+    if titulo:
+        txt = fonte_sub.render(titulo, True, BRANCO)
+        superficie.blit(txt, (x + 15, y + 15))
+        pygame.draw.line(superficie, CINZA, (x + 10, y + 40), (x + larg - 10, y + 40), 1)
+
 relogio = pygame.time.Clock()
 rodando = True
 
@@ -54,7 +76,7 @@ while rodando:
         if evento.type == pygame.QUIT:
             rodando = False
 
-    tela.fill(PRETO)
+    tela.fill(PRETO_FUNDO)
 
     try:
         resposta = requests.get("http://localhost:5000/dados", timeout=0.1)
@@ -64,71 +86,89 @@ while rodando:
         dados_ia = {}
         conectado = False
 
-    # --- RENDERIZAÇÃO DO CABEÇALHO ---
     titulo = fonte_titulo.render("CÓRTEX ANALÍTICO - UMBRA", True, ROXO_UMBRA)
-    tela.blit(titulo, (20, 20))
+    tela.blit(titulo, (30, 20))
     
     status_cor = VERDE_NEON if conectado else VERMELHO
-    status_txt = "CONECTADO AO COLISEU" if conectado else "AGUARDANDO CONEXÃO FLASK..."
-    tela.blit(fonte_texto.render(status_txt, True, status_cor), (20, 60))
+    status_txt = "STATUS: CONECTADO AO COLISEU NEURAL" if conectado else "STATUS: AGUARDANDO CONEXÃO FLASK..."
+    tela.blit(fonte_sub.render(status_txt, True, status_cor), (30, 60))
 
-    pygame.draw.line(tela, CINZA, (20, 90), (LARGURA - 20, 90), 2)
-
-    # --- RENDERIZAÇÃO DOS DADOS NEURAIS (Se Conectado) ---
     if conectado:
-        # 1. Estado Atual
+        desenhar_painel(tela, 30, 100, 450, 140, "ESTADO SENSORIAL & DIRETRIZ", AZUL_DADOS)
         estado_atual = dados_ia.get("estado_atual", "DESCONHECIDO")
-        tela.blit(fonte_sub.render("ESTADO SENSORIAL ATIVO:", True, BRANCO), (20, 110))
-        tela.blit(fonte_texto.render(estado_atual, True, VERDE_NEON), (20, 140))
-
-        # 2. Decisões Tomadas
+        tela.blit(fonte_texto.render("Vetor de Estado Ativo:", True, CINZA), (45, 150))
+        tela.blit(fonte_sub.render(estado_atual, True, VERDE_NEON), (45, 170))
+        
         decisoes = dados_ia.get("decisao_ativa", [])
         decisoes_str = " | ".join(decisoes) if decisoes else "PROCESSANDO..."
-        tela.blit(fonte_sub.render("DIRETRIZ DE AÇÃO IMEDIATA:", True, BRANCO), (20, 190))
-        tela.blit(fonte_texto.render(decisoes_str, True, ROXO_UMBRA), (20, 220))
+        tela.blit(fonte_texto.render("Ação Imediata:", True, CINZA), (45, 200))
+        tela.blit(fonte_sub.render(decisoes_str, True, ROXO_UMBRA), (45, 220))
 
-        # 3. Viés Bayesiano
+        desenhar_painel(tela, 500, 100, 470, 140, "VIÉS BAYESIANO (PREDIÇÃO)", AZUL_DADOS)
         bias = dados_ia.get("bias_bayesiano", [0, 0])
-        tela.blit(fonte_sub.render("VIÉS BAYESIANO (PREDIÇÃO DE FUGA):", True, BRANCO), (450, 110))
-        tela.blit(fonte_texto.render(f"Eixo X (Esq/Dir): {bias[0]:.4f}", True, VERDE_NEON), (450, 140))
-        tela.blit(fonte_texto.render(f"Eixo Y (Cima/Baixo): {bias[1]:.4f}", True, VERDE_NEON), (450, 170))
+        tela.blit(fonte_texto.render(f"Eixo X (Esquerda / Direita) : {bias[0]:.4f}", True, BRANCO), (515, 160))
+        tela.blit(fonte_texto.render(f"Eixo Y (Cima / Baixo)      : {bias[1]:.4f}", True, BRANCO), (515, 190))
 
-        # 4. Matriz de Pesos (Gráfico de Barras em Tempo Real)
-        tela.blit(fonte_sub.render("ÁRVORE DE DECISÃO (PESOS Q-LEARNING):", True, BRANCO), (20, 290))
+        desenhar_painel(tela, 30, 260, 940, 300, "ÁRVORE DE DECISÃO (MATRIZ DUPLA)", ROXO_UMBRA)
         pesos = dados_ia.get("rede_completa", {}).get(estado_atual, {})
         
-        y_barra = 330
-        if pesos:
-            max_peso = max(pesos.values()) if pesos else 1
-            min_peso = min(pesos.values()) if pesos else 0
-            amplitude = max(1, max_peso - min_peso)
+        # Garante que todas as ações sejam exibidas, mesmo que a IA ainda não as conheça neste estado
+        acoes_exibicao = list(ACOES_MECANICAS)
+        for a in pesos.keys():
+            if a not in acoes_exibicao:
+                acoes_exibicao.append(a)
+                
+        max_peso = max(pesos.values()) if pesos else 0
+        min_peso = min(pesos.values()) if pesos else 0
+        amplitude = max(0.0001, max_peso - min_peso)
 
-            for acao, valor in pesos.items():
-                tela.blit(fonte_texto.render(f"{acao}", True, BRANCO), (20, y_barra))
-                
-                # Normalização para a barra caber na tela
-                largura_barra = int(((valor - min_peso) / amplitude) * 400)
-                largura_barra = max(10, largura_barra) 
-                
-                cor_barra = VERDE_NEON if valor == max_peso else ROXO_UMBRA
-                pygame.draw.rect(tela, cor_barra, (180, y_barra, largura_barra, 20))
-                tela.blit(fonte_texto.render(f"{valor:.2f}", True, BRANCO), (190 + largura_barra, y_barra))
-                
-                y_barra += 40
-        else:
-            tela.blit(fonte_texto.render("Buscando vetores...", True, CINZA), (20, y_barra))
+        y_inicial = 310
+        passo_y = 25 # Altura reduzida para acomodar as duas colunas perfeitamente
 
-    # --- RENDERIZAÇÃO DO HISTÓRICO GLOBAL ---
-    pygame.draw.line(tela, CINZA, (20, ALTURA - 150), (LARGURA - 20, ALTURA - 150), 2)
-    tela.blit(fonte_sub.render("RESUMO EVOLUTIVO (HISTÓRICO_BATALHAS.JSON)", True, BRANCO), (20, ALTURA - 130))
-    
+        for i, acao in enumerate(acoes_exibicao):
+            # Lógica de Coluna Dupla
+            coluna = i % 2
+            linha = i // 2
+            
+            x_base = 45 if coluna == 0 else 510
+            y_barra = y_inicial + (linha * passo_y)
+            
+            if y_barra > 530: # Proteção visual do limite inferior do painel
+                break
+                
+            valor = pesos.get(acao, 0.0)
+            
+            # Textos e Rótulos
+            tela.blit(fonte_barras.render(f"{acao[:18]:<18}", True, BRANCO), (x_base, y_barra + 2))
+            
+            largura_maxima = 160
+            x_barra = x_base + 160
+            largura_barra = int(((valor - min_peso) / amplitude) * largura_maxima)
+            largura_barra = max(3, min(largura_maxima, largura_barra)) 
+            
+            # Dinâmica de cores
+            if valor == 0.0 and max_peso == 0.0 and min_peso == 0.0:
+                cor_barra = CINZA # Estado inexplorado
+            elif valor == max_peso:
+                cor_barra = VERDE_NEON
+            elif valor >= 0:
+                cor_barra = AZUL_DADOS
+            else:
+                cor_barra = VERMELHO
+            
+            pygame.draw.rect(tela, CINZA, (x_barra, y_barra, largura_maxima, 14), border_radius=3)
+            pygame.draw.rect(tela, cor_barra, (x_barra, y_barra, largura_barra, 14), border_radius=3)
+            
+            tela.blit(fonte_barras.render(f"{valor:.4f}", True, BRANCO), (x_barra + largura_maxima + 10, y_barra + 2))
+
+    desenhar_painel(tela, 30, 580, 940, 100, "RESUMO EVOLUTIVO", CINZA)
     total_gen, taxa_geral, taxa_50 = carregar_historico()
     
-    tela.blit(fonte_texto.render(f"Gerações: {total_gen}", True, VERDE_NEON), (20, ALTURA - 90))
-    tela.blit(fonte_texto.render(f"Letalidade Global: {taxa_geral:.1f}%", True, ROXO_UMBRA), (250, ALTURA - 90))
-    tela.blit(fonte_texto.render(f"Letalidade (Últimas 50): {taxa_50:.1f}%", True, ROXO_UMBRA), (550, ALTURA - 90))
+    tela.blit(fonte_texto.render(f"Gerações Processadas: {total_gen}", True, VERDE_NEON), (45, 635))
+    tela.blit(fonte_texto.render(f"Letalidade Global: {taxa_geral:.2f}%", True, BRANCO), (350, 635))
+    tela.blit(fonte_texto.render(f"Letalidade (Últimas 50): {taxa_50:.2f}%", True, ROXO_UMBRA), (650, 635))
 
     pygame.display.flip()
-    relogio.tick(15) # 15 FPS é perfeito para painéis de telemetria
+    relogio.tick(15)
 
 pygame.quit()

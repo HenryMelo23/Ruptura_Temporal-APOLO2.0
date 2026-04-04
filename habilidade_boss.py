@@ -29,50 +29,11 @@ class MemoriaEvolutivaUmbra:
         with open(self.arquivo, 'w') as f:
             json.dump(self.q_table, f)
 
-    def discretizar_estado(self, vida_perc, dist_player, sob_fogo, historico_player):
-        v = "crit" if vida_perc < 0.35 else "estavel"
-        d = "perto" if dist_player < 350 else "longe"
-        f = "perigo" if sob_fogo else "calmo"
-        
-        m = "linear"
-        if len(historico_player) >= 10:
-            p1, p2, p3 = historico_player[-10], historico_player[-5], historico_player[-1]
-            v1 = (p2[0]-p1[0], p2[1]-p1[1])
-            v2 = (p3[0]-p2[0], p3[1]-p2[1])
-            if (v1[0]*v2[0] + v1[1]*v2[1]) < 0:
-                m = "erratico"
-        
-        estado_base = f"{v}_{d}_{f}_{m}"
-
-        # A Umbra cria uma "assinatura" da situação exata
-        sig_vida = round(vida_perc, 1) # Agrupa de 10% em 10%
-        sig_dist = round(dist_player / 100) # Agrupa a cada 100 pixels
-        assinatura = f"SIG_{sig_vida}_{sig_dist}_{f}_{m}"
-
-        return f"{estado_base}|{assinatura}"
-
-    def decidir(self, estado, acoes):
-        if estado not in self.q_table:
-            self.q_table[estado] = {a: 0.0 for a in acoes}
-        if random.random() < self.exploracao:
-            self.ultima_acao = random.choice(acoes)
-        else:
-            self.ultima_acao = max(self.q_table[estado], key=self.q_table[estado].get)
-        self.ultimo_estado = estado
-        return self.ultima_acao
-
-    def treinar(self, recompensa):
-        if self.ultimo_estado and self.ultima_acao:
-            v_antigo = self.q_table[self.ultimo_estado][self.ultima_acao]
-            self.q_table[self.ultimo_estado][self.ultima_acao] = v_antigo + self.aprendizado * (recompensa - v_antigo)
-
-    # --- PROTOCOLO BAYESIANO: REGISTRO DE PADRÕES ---
     def registrar_esquiva_player(self, vx, vy):
         if "tendencias" not in self.q_table:
             self.q_table["tendencias"] = {"ESQUERDA": 0, "DIREITA": 0, "CIMA": 0, "BAIXO": 0, "TOTAL": 0}
         
         t = self.q_table["tendencias"]
-        # Só registra se houver movimento real (evita poluir a média parado)
         if abs(vx) > 0.5 or abs(vy) > 0.5:
             if vx > 1: t["DIREITA"] += 1
             elif vx < -1: t["ESQUERDA"] += 1
@@ -87,30 +48,55 @@ class MemoriaEvolutivaUmbra:
         bias_y = (t.get("BAIXO", 0) - t.get("CIMA", 0)) / total
         return bias_x, bias_y
 
-    def discretizar_estado(self, vida_perc, dist_player, sob_fogo, historico_player):
+    def discretizar_estado(self, vida_perc, dist_player, sob_fogo, historico_player, mapa_atual="Fase_Base"):
         v = "crit" if vida_perc < 0.35 else "estavel"
         d = "perto" if dist_player < 350 else "longe"
         f = "perigo" if sob_fogo else "calmo"
         
-        # NOVO: Detecta se o player mudou de direção bruscamente (o "passo atrás")
         m = "linear"
         if len(historico_player) >= 10:
-            # Compara o vetor antigo com o atual
             p1, p2, p3 = historico_player[-10], historico_player[-5], historico_player[-1]
             v1 = (p2[0]-p1[0], p2[1]-p1[1])
             v2 = (p3[0]-p2[0], p3[1]-p2[1])
-            # Se o produto escalar for baixo ou negativo, o movimento é errático
             if (v1[0]*v2[0] + v1[1]*v2[1]) < 0:
                 m = "erratico"
                 
-        return f"{v}_{d}_{f}_{m}"
-    def treinar(self, recompensa, prioridade=False): # <--- ADICIONE 'prioridade=False' AQUI
+        fase = str(mapa_atual).split('/')[-1].replace('.png', '') if mapa_atual else "Fase_Base"
+        estado_base = f"{fase}_{v}_{d}_{f}_{m}"
+
+        sig_vida = round(vida_perc, 1)
+        sig_dist = round(dist_player / 100)
+        assinatura = f"SIG_{sig_vida}_{sig_dist}_{f}_{m}"
+
+        return f"{estado_base}|{assinatura}"
+
+    def decidir(self, estado, acoes):
+        if estado not in self.q_table:
+            self.q_table[estado] = {}
+            
+        for acao in acoes:
+            if acao not in self.q_table[estado]:
+                self.q_table[estado][acao] = 0.0
+
+        if random.random() < self.exploracao:
+            self.ultima_acao = random.choice(acoes)
+        else:
+            acoes_disponiveis = {a: self.q_table[estado][a] for a in acoes}
+            self.ultima_acao = max(acoes_disponiveis, key=acoes_disponiveis.get)
+            
+        self.ultimo_estado = estado
+        return self.ultima_acao
+
+    def treinar(self, recompensa, prioridade=False):
         if self.ultimo_estado and self.ultima_acao:
-            # Se for prioridade, dobramos a taxa de aprendizado para esse evento específico
             taxa = self.aprendizado * 2 if prioridade else self.aprendizado
             
+            if self.ultimo_estado not in self.q_table:
+                self.q_table[self.ultimo_estado] = {}
+            if self.ultima_acao not in self.q_table[self.ultimo_estado]:
+                self.q_table[self.ultimo_estado][self.ultima_acao] = 0.0
+                
             v_antigo = self.q_table[self.ultimo_estado][self.ultima_acao]
-            # Atualização da Q-Table
             self.q_table[self.ultimo_estado][self.ultima_acao] = v_antigo + taxa * (recompensa - v_antigo)
 
 def aplicar_inteligencia_q_ao_grafo(pesos, estado_ia, memoria, vida_perc, dist_p, sob_fogo, historico):
@@ -347,24 +333,13 @@ def node_descarga_eletrica(agora, estado_ia, bx, by, px, py):
 # --- MOTOR DE DECISÃO (O GRAFO) ---
 
 def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_player, estado_ia, config_boss, memoria):
+    import math
+    import random
+    
     bx, by = boss_pos['x'], boss_pos['y']
     px, py = player_pos[0], player_pos[1]
-    centro_mapa = estado_ia['centro_mapa']
+    centro_mapa = estado_ia.get('centro_mapa', (680, 384))
     
-    # CÁLCULO DE AMEAÇA DE CURA
-    roubo_chance = config_boss.get('p_roubo_chance', 0.0)
-    roubo_qtd = config_boss.get('p_roubo_qtd', 0.0)
-    tem_trembo = config_boss.get('p_trembo', False)
-    
-    # Matemática: 5% de chance de curar 25% da vida = Índice 1.25.
-    indice_sustento = (roubo_chance * roubo_qtd) * 100 
-    
-    # Se o índice for maior que 1.0 (cura massiva) ou tiver regeneração passiva:
-    player_imortal = indice_sustento >= 1.0 or tem_trembo
-
-    # --- 1. HIERARQUIA DE ESTADO ATIVO ---
-
-
     if estado_ia.get('parede_ativa'):
         node_sifon(agora, estado_ia, boss_pos, centro_mapa)
         return estado_ia
@@ -372,99 +347,50 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
     if estado_ia.get('fase_tele') != "espera":
         return estado_ia
 
-    # --- 2. CÁLCULO DE PESOS (O PENSAMENTO) ---
-    pesos = { 
-        "TELEPORTE": 0.0, 
-        "SIFON": 0.0,
-        "TRANSMUTAR": 0.0,
-        "VORTICE": 0.0,
-        "ATAQUE": 1.0 
-    }
-    vida_p = config_boss.get('vida_atual', 1600) / config_boss.get('vida_max', 1600)
+    vida_p = config_boss.get('vida_atual', 1600) / max(1, config_boss.get('vida_max', 1600))
     dist_p = math.hypot(px - bx, py - by)
     sob_fogo = len(disparos_player) > 0
+    mapa_atual = config_boss.get('mapa_atual')
     
-    # Aplica o conhecimento empírico do Q-Learning
-    pesos = aplicar_inteligencia_q_ao_grafo(pesos, estado_ia, memoria, vida_p, dist_p, sob_fogo, historico_player)
-    
-    # Lógica de Teleporte: Apenas define o peso estratégico
-    if agora - estado_ia.get('ultimo_teleporte', 0) >= 5000:
-        pesos["TELEPORTE"] = 1.8
-        if estado_ia.get('dano_recente', 0) > 400:
-            pesos["TELEPORTE"] = 4.0
+    estado_composto = memoria.discretizar_estado(vida_p, dist_p, sob_fogo, historico_player, mapa_atual)
 
-    # Lógica de Sifon (Gatilhos de Saúde e Dano)
-    tempo_pos_sifon = agora - estado_ia.get('ultimo_sifon_fim', 0)
-    if tempo_pos_sifon >= 25000 or estado_ia.get('ultimo_sifon_fim') == 0:
-        vida_perc = config_boss.get('vida_atual', 1600) / config_boss.get('vida_max', 1600)
-        dano_acumulado = estado_ia.get('dano_recente', 0)
+    acoes_disponiveis = ["ATAQUE"]
 
-        if vida_perc < 0.15:
-            pesos["SIFON"] = 20.0
-        elif dano_acumulado >= 400:
-            pesos["SIFON"] = 9.0 
-        elif vida_perc < 0.50:
-            pesos["SIFON"] = 1.5
+    if agora - estado_ia.get('ultimo_teleporte', 0) >= 10000:
+        acoes_disponiveis.append("TELEPORTE")
+        
+    if agora - estado_ia.get('ultimo_sifon_fim', 0) >= 15000 or estado_ia.get('ultimo_sifon_fim') == 0:
+        acoes_disponiveis.append("SIFON")
 
     if agora - estado_ia.get('ultimo_transmutar', 0) >= 38000:
-        pesos["TRANSMUTAR"] = 3.5
-        if estado_ia.get('dano_recente', 0) > 300:
-            pesos["TRANSMUTAR"] = 8.0
-        # Se o player cura muito, a prioridade máxima é cortar a cura!
-        if player_imortal:
-            pesos["TRANSMUTAR"] = 25.0
-        
+        ultima_dim = estado_ia.get('ultima_dimensao_usada', "")
+        if ultima_dim != "vortice": acoes_disponiveis.append("TRANSMUTAR_VORTICE")
+        if ultima_dim != "gravidade": acoes_disponiveis.append("TRANSMUTAR_GRAVIDADE")
+        if ultima_dim != "necrose": acoes_disponiveis.append("TRANSMUTAR_NECROSE")
+        if ultima_dim != "ressonancia": acoes_disponiveis.append("TRANSMUTAR_RESSONANCIA")
+        if ultima_dim != "hemorragia": acoes_disponiveis.append("TRANSMUTAR_HEMORRAGIA")
+        if ultima_dim != "atrito": acoes_disponiveis.append("TRANSMUTAR_ATRITO")
 
-    if config_boss.get('mapa_atual') == "Sprites/Fase1.png":
-        if agora - estado_ia.get('ultimo_vortice', 0) >= 12000:
-            dist_player = math.hypot(px - bx, py - by)
-            if dist_player > 350:
-                pesos["VORTICE"] = 6.0
-            else:
-                pesos["VORTICE"] = 2.0
-    if config_boss.get('mapa_atual') == "Sprites/Fase2.png":
-        if agora - estado_ia.get('ultimo_prisao', 0) >= 9000:
-            if len(historico_player) >= 2 and math.hypot(px - historico_player[-2][0], py - historico_player[-2][1]) > 1.0:
-                pesos["PRISAO"] = 5.0
-            else:
-                pesos["PRISAO"] = 2.5
-    if config_boss.get('mapa_atual') == "Sprites/Fase3.png":
-        if agora - estado_ia.get('ultimo_miasma', 0) >= 10000:
-            if estado_ia.get('dano_recente', 0) > 200:
-                pesos["MIASMA"] = 10.0
-            else:
-                pesos["MIASMA"] = 2.5
-    if config_boss.get('mapa_atual') == "Sprites/Fase4.png":
-        if agora - estado_ia.get('ultimo_descarga', 0) >= 11000:
-            pesos["DESCARGA_ELETRICA"] = 8.5
-    if config_boss.get('mapa_atual') == "Sprites/Fase6.png":
-        if agora - estado_ia.get('ultimo_espinhos', 0) >= 8000:
-            pesos["CAMINHO_ESPINHOS"] = 12.0
-            if estado_ia.get('dano_recente', 0) < 50:
-                pesos["CAMINHO_ESPINHOS"] = 18.0
-        
+    if mapa_atual == "Sprites/Fase1.png" and agora - estado_ia.get('ultimo_vortice', 0) >= 12000:
+        acoes_disponiveis.append("VORTICE")
+    elif mapa_atual == "Sprites/Fase2.png" and agora - estado_ia.get('ultimo_prisao', 0) >= 9000:
+        acoes_disponiveis.append("PRISAO")
+    elif mapa_atual == "Sprites/Fase3.png" and agora - estado_ia.get('ultimo_miasma', 0) >= 10000:
+        acoes_disponiveis.append("MIASMA")
+    elif mapa_atual == "Sprites/Fase4.png" and agora - estado_ia.get('ultimo_descarga', 0) >= 11000:
+        acoes_disponiveis.append("DESCARGA_ELETRICA")
+    elif mapa_atual == "Sprites/Fase6.png" and agora - estado_ia.get('ultimo_espinhos', 0) >= 8000:
+        acoes_disponiveis.append("CAMINHO_ESPINHOS")
 
-    # --- 3. RESOLUÇÃO E EXECUÇÃO ---
-    decisao = max(pesos, key=pesos.get)
+    decisao = memoria.decidir(estado_composto, acoes_disponiveis)
 
     if estado_ia.get('laser_ativo'):
         decisao = "NENHUMA"
-    else:
-        decisao = max(pesos, key=pesos.get) if max(pesos.values()) > 0 else "NENHUMA"
 
-    acoes_simultaneas = []
-    if estado_ia.get('parede_ativa'): acoes_simultaneas.append("SIFON")
-    if estado_ia.get('vortice_ativo'): acoes_simultaneas.append("VORTICE")
-    if estado_ia.get('miasma_ativo'): acoes_simultaneas.append("MIASMA")
-    if estado_ia.get('prisao_ativa'): acoes_simultaneas.append("PRISAO")
-    if estado_ia.get('fase_tele', 'espera') != 'espera': acoes_simultaneas.append("TELEPORTE")
-    if estado_ia.get('caminho_espinhos'): acoes_simultaneas.append("CAMINHO_ESPINHOS")
-    
-    if decisao not in acoes_simultaneas:
+    acoes_simultaneas = estado_ia.get('decisoes_ativas', [])
+    if decisao not in acoes_simultaneas and decisao != "NENHUMA":
         acoes_simultaneas.append(decisao)
-
     estado_ia['decisoes_ativas'] = acoes_simultaneas
-    estado_ia['ultimos_pesos_calculados'] = pesos
 
     if decisao == "SIFON":
         estado_ia['parede_ativa'] = True
@@ -472,7 +398,7 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         estado_ia['dano_recente'] = 0 
         node_sifon(agora, estado_ia, boss_pos, centro_mapa)
 
-    elif decisao == "TRANSMUTAR":
+    elif decisao.startswith("TRANSMUTAR_"):
         estado_ia['iniciar_transicao_mapa'] = True
         estado_ia['ultimo_transmutar'] = agora
         estado_ia['primeira_transmutacao_feita'] = True
@@ -485,55 +411,23 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         estado_ia['ultimo_miasma'] = agora
         estado_ia['ultimo_descarga'] = agora
         
-        vida_p = config_boss.get('vida_atual', 1600) / config_boss.get('vida_max', 1600)
+        dimensao_escolhida = decisao.split("_")[1].lower()
+        mapas = {
+            "vortice": "Sprites/Fase1.png",
+            "gravidade": "Sprites/Fase2.png",
+            "necrose": "Sprites/Fase3.png",
+            "ressonancia": "Sprites/Fase4.png",
+            "hemorragia": "Sprites/Fase6.png",
+            "atrito": "Sprites/Fase7.png"
+        }
         
-
-        ultima_dim = estado_ia.get('ultima_dimensao_usada', None)
-        candidatos = []
-        
-        intervalo_tiro = 300
-        
-     
-        if (intervalo_tiro <= 680 or vida_p >= 0.80) and ultima_dim != "atrito":
-            peso_atrito = 95 if vida_p >= 0.80 else 90
-            candidatos.append(("Sprites/Fase7.png", "atrito", peso_atrito))
-        
-        if player_imortal and ultima_dim != "hemorragia":
-            candidatos.append(("Sprites/Fase6.png", "hemorragia", 100))
-
-        if player_imortal and ultima_dim != "hemorragia":
-            candidatos.append(("Sprites/Fase6.png", "hemorragia", 100)) # Prioridade Máxima
-            
-        if dist_p < 250 and ultima_dim != "necrose":
-            candidatos.append(("Sprites/Fase3.png", "necrose", 80))
-            
-        if len(historico_player) > 5 and math.hypot(px - historico_player[-5][0], py - historico_player[-5][1]) > 15 and ultima_dim != "gravidade":
-            candidatos.append(("Sprites/Fase2.png", "gravidade", 60))
-            
-        if vida_p > 0.6 and ultima_dim != "ressonancia":
-            candidatos.append(("Sprites/Fase4.png", "ressonancia", 40))
-            
-        if ultima_dim != "vortice":
-            candidatos.append(("Sprites/Fase1.png", "vortice", 20))
-            
-        # Fallback de segurança absoluta
-        if not candidatos:
-            candidatos.append(("Sprites/Fase1.png", "vortice", 0))
-            
-        # Ordena a lista do maior peso para o menor e escolhe o topo
-        candidatos.sort(key=lambda x: x[2], reverse=True)
-        escolha_final = candidatos[0]
-        
-        estado_ia['mapa_alvo'] = escolha_final[0]
-        estado_ia['dimensao_ativa'] = escolha_final[1]
-        
-        
-        estado_ia['ultima_dimensao_usada'] = escolha_final[1] 
-
+        estado_ia['mapa_alvo'] = mapas[dimensao_escolhida]
+        estado_ia['dimensao_ativa'] = dimensao_escolhida
+        estado_ia['ultima_dimensao_usada'] = dimensao_escolhida 
         
         vec_x, vec_y = bx - px, by - py
         mag = math.hypot(vec_x, vec_y)
-        alvo_x, alvo_y = (bx + (vec_x/mag)*600, by + (vec_y/mag)*600) if mag > 0 else (bx+400, by+400)
+        alvo_x, alvo_y = (bx + (vec_x/max(1, mag))*600, by + (vec_y/max(1, mag))*600)
         
         from Variaveis import espacamento, largura_mapa, altura_mapa
         alvo_x_f = max(espacamento, min(largura_mapa - 100, alvo_x))
@@ -557,10 +451,11 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         estado_ia['dano_recente'] = 0
 
     elif decisao == "TELEPORTE":
-        if estado_ia.get('dano_recente', 0) > 400:
-            vec_x, vec_y = bx - px, by - py
-            mag = math.hypot(vec_x, vec_y)
-            alvo_x, alvo_y = (bx + (vec_x/mag)*600, by + (vec_y/mag)*600) if mag > 0 else (bx+400, by+400)
+        vec_x, vec_y = bx - px, by - py
+        mag = math.hypot(vec_x, vec_y)
+        
+        if mag < 200:
+            alvo_x, alvo_y = bx + (vec_x/max(1, mag))*600, by + (vec_y/max(1, mag))*600
         else:
             ang_player = math.atan2(py - by, px - bx)
             ang_flanco = ang_player + random.choice([math.pi/2, -math.pi/2])
@@ -571,8 +466,7 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         alvo_x_f = max(espacamento, min(largura_mapa - 100, alvo_x))
         alvo_y_f = max(espacamento, min(altura_mapa - 150, alvo_y))
         
-        if math.hypot(alvo_x_f - bx, alvo_y_f - by) > 200:
-            node_teleporte_sinalizador(agora, estado_ia, boss_pos, (alvo_x_f, alvo_y_f))
+        node_teleporte_sinalizador(agora, estado_ia, boss_pos, (alvo_x_f, alvo_y_f))
 
     elif decisao == "CAMINHO_ESPINHOS":
         node_caminho_espinhos(agora, estado_ia, bx, by, px, py, historico_player)
@@ -657,7 +551,8 @@ def movimentacao_inteligente_umbra(agora, boss_pos, player_pos, disparos, estado
         vida_perc = dados_player['vida_atual'] / dados_player['vida_max']
         sob_fogo = len(disparos) > 0
         
-        estado_atual = memoria.discretizar_estado(vida_perc, dist_p, sob_fogo, historico_player)
+        mapa_atual = dados_player.get('mapa_atual', 'Fase_Base')
+        estado_atual = memoria.discretizar_estado(vida_perc, dist_p, sob_fogo, historico_player, mapa_atual)
         estrategias = ["FUGIR", "INTERCEPTAR", "ORBITAR", "CERCAR"]
         decisao = memoria.decidir(estado_atual, estrategias)
         

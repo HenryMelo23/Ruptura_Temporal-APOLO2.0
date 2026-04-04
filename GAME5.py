@@ -322,8 +322,11 @@ def atualizar_posicao_personagem(keys, joystick):#APOLO
         }
         
         vida_boss_atual = vida_umbra if 'vida_umbra' in globals() else 10000
+        
+        # Garante que a IA não colapse se a lista de esferas ainda não existir no escopo global
+        lista_esferas = esferas_energia_umbra if 'esferas_energia_umbra' in globals() else []
 
-        apolo.pensar((pos_x_personagem, pos_y_personagem), hitbox_alvo, lista_tiros_umbra, cds_ia, vida, vida_boss_atual)
+        apolo.pensar((pos_x_personagem, pos_y_personagem), hitbox_alvo, lista_tiros_umbra, cds_ia, vida, vida_boss_atual, lista_esferas)
         dx, dy = apolo.direcao_x, apolo.direcao_y
         
         if dx > 0: ultima_tecla_movimento = 'right'
@@ -352,7 +355,7 @@ def atualizar_posicao_personagem(keys, joystick):#APOLO
         pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem + dx * velocidade_personagem))
         pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem + dy * velocidade_personagem))
 
-    ia_precisa_dash = modo_ia_treino and any(math.hypot(p["rect"].x - pos_x_personagem, p["rect"].y - pos_y_personagem) < 40 for p in estado_atual_ia.get('projeteis', []))
+    ia_precisa_dash = modo_ia_treino and getattr(apolo, 'usar_dash', False)
     
     if (keys[config_teclas["Teleporte"]] or ia_precisa_dash) and cooldown_dash == False and atordoado == False:
         Som_portal.play()
@@ -561,6 +564,7 @@ class AgenteApolo:
     def __init__(self):
         self.direcao_x = 0
         self.direcao_y = 0
+        self.usar_dash = False
         self.mouse_simulado = [False, False, False]
         self.alvo_x = 0
         self.alvo_y = 0
@@ -570,16 +574,12 @@ class AgenteApolo:
         self.vida_jogador_anterior = 0
         self.vida_boss_anterior = 0
         self.arquivo_memoria = "apolo_memoria.json"
-        self.taxa_exploracao = 0.20 # Caos inicial
-        
-        # --- SISTEMA DE FLUIDEZ MOTORA ---
-        self.tempo_ultima_decisao = 0
-        self.delay_movimento = 250 # Mantém a direção escolhida por 250ms para não tremer
-        
+        self.taxa_exploracao = 0.20
         self.carregar_memoria()
         self.atualizar_foco_progressivo()
 
     def carregar_memoria(self):
+        import os, json
         if os.path.exists(self.arquivo_memoria):
             try:
                 with open(self.arquivo_memoria, "r") as f:
@@ -587,10 +587,12 @@ class AgenteApolo:
             except: pass
 
     def salvar_memoria(self):
+        import json
         with open(self.arquivo_memoria, "w") as f:
             json.dump(self.q_table, f)
 
     def atualizar_foco_progressivo(self):
+        import os, json
         try:
             if os.path.exists("historico_batalhas.json"):
                 with open("historico_batalhas.json", "r") as f:
@@ -598,112 +600,88 @@ class AgenteApolo:
                 self.taxa_exploracao = max(0.01, 0.20 * (0.985 ** geracoes))
         except: pass
 
-    def obter_estado(self, pos_p, boss_hitbox, projeteis_boss, cds):
-        perigo = 0
-        for p in projeteis_boss:
-            if math.hypot(p["rect"].centerx - pos_p[0], p["rect"].centery - pos_p[1]) < 120:
-                perigo = 1
-                break
-
-        dist_boss = 2
+    def obter_estado(self, pos_p, boss_hitbox, projeteis_boss, cds, esferas_energia):
+        quadrante_boss = "C"
         if boss_hitbox:
-            d = math.hypot(boss_hitbox.centerx - pos_p[0], boss_hitbox.centery - pos_p[1])
-            if d < 200: dist_boss = 0
-            elif d < 400: dist_boss = 1
-
-        margem = 150
-        parede_x = 1 if (pos_p[0] < margem or pos_p[0] > largura_mapa - margem) else 0
-        parede_y = 1 if (pos_p[1] < margem or pos_p[1] > altura_mapa - margem) else 0
+            dx = boss_hitbox.centerx - pos_p[0]
+            dy = boss_hitbox.centery - pos_p[1]
+            if abs(dx) > abs(dy):
+                quadrante_boss = "L" if dx > 0 else "O"
+            else:
+                quadrante_boss = "S" if dy > 0 else "N"
         
-        posicao_parede = 0
-        if parede_x == 1 and parede_y == 1: posicao_parede = 2
-        elif parede_x == 1 or parede_y == 1: posicao_parede = 1
+        perigo_dir = "LIVRE"
+        import math
+        for p in projeteis_boss:
+            if math.hypot(p["rect"].centerx - pos_p[0], p["rect"].centery - pos_p[1]) < 150:
+                dx = p["rect"].centerx - pos_p[0]
+                dy = p["rect"].centery - pos_p[1]
+                if abs(dx) > abs(dy):
+                    perigo_dir = "L" if dx > 0 else "O"
+                else:
+                    perigo_dir = "S" if dy > 0 else "N"
+                break
+                
+        esfera_dir = "NENHUMA"
+        if esferas_energia:
+            esf = esferas_energia[0]
+            dx_e = esf["x"] - pos_p[0]
+            dy_e = esf["y"] - pos_p[1]
+            if abs(dx_e) > abs(dy_e):
+                esfera_dir = "L" if dx_e > 0 else "O"
+            else:
+                esfera_dir = "S" if dy_e > 0 else "N"
+        
+        return f"{quadrante_boss}_{perigo_dir}_{cds['teleporte']}_{esfera_dir}"
 
-        return f"{dist_boss}_{perigo}_{cds['teleporte']}_{posicao_parede}"
-
-    def pensar(self, pos_p, boss_hitbox, projeteis_boss, cds, vida_jogador, vida_boss):
-        import pygame
-        agora = pygame.time.get_ticks()
-
-        # Gatilho e Mira não sofrem delay. Apolo atira de forma implacável em tempo real.
-        self.mouse_simulado[0] = False
-        if boss_hitbox:
-            self.alvo_x, self.alvo_y = boss_hitbox.center
-            if cds["disparo"] == False:
-                self.mouse_simulado[0] = True
-
-        # Sensor de Pânico: Se houver um projétil a menos de 120 pixels, quebra a trava de movimento
-        perigo_imediato = any(math.hypot(p["rect"].centerx - pos_p[0], p["rect"].centery - pos_p[1]) < 120 for p in projeteis_boss)
-
-        # Se não há perigo, Apolo mantém a direção que escolheu para andar de forma fluida
-        if not perigo_imediato and (agora - self.tempo_ultima_decisao < self.delay_movimento):
-            return
-
-        self.tempo_ultima_decisao = agora
+    def pensar(self, pos_p, boss_hitbox, projeteis_boss, cds, vida_jogador, vida_boss, esferas_energia):
+        import random
         self.direcao_x = 0
         self.direcao_y = 0
+        self.usar_dash = False
+        self.mouse_simulado[0] = False
 
-        # --- AVALIAÇÃO DA Q-TABLE ---
+        if boss_hitbox:
+            self.alvo_x, self.alvo_y = boss_hitbox.center
+            if cds["disparo"] == False: 
+                self.mouse_simulado[0] = True
+
         recompensa = 0
-        dist_minima_projetil = 999
-        for p in projeteis_boss:
-            d = math.hypot(p["rect"].centerx - pos_p[0], p["rect"].centery - pos_p[1])
-            if d < dist_minima_projetil: dist_minima_projetil = d
-        
-        if dist_minima_projetil < 150:
-            recompensa -= (150 - dist_minima_projetil) * 0.1
-
         if self.vida_jogador_anterior > 0:
-            if vida_jogador < self.vida_jogador_anterior: recompensa -= 20 
-            if vida_boss < self.vida_boss_anterior: recompensa += 15 
+            if vida_jogador < self.vida_jogador_anterior: 
+                recompensa -= 50
+            if vida_boss < self.vida_boss_anterior: 
+                recompensa += 30
+            if vida_jogador > self.vida_jogador_anterior:
+                recompensa += 100 
 
         self.vida_jogador_anterior = vida_jogador
         self.vida_boss_anterior = vida_boss
 
-        estado_atual = self.obter_estado(pos_p, boss_hitbox, projeteis_boss, cds)
+        estado_atual = self.obter_estado(pos_p, boss_hitbox, projeteis_boss, cds, esferas_energia)
 
-        if self.estado_anterior not in self.q_table: self.q_table[self.estado_anterior] = [0.0, 0.0, 0.0, 0.0]
-        if estado_atual not in self.q_table: self.q_table[estado_atual] = [0.0, 0.0, 0.0, 0.0]
+        if self.estado_anterior not in self.q_table: 
+            self.q_table[self.estado_anterior] = [0.0] * 5
+        if estado_atual not in self.q_table: 
+            self.q_table[estado_atual] = [0.0] * 5
 
         q_antigo = self.q_table[self.estado_anterior][self.acao_anterior]
         max_q_novo = max(self.q_table[estado_atual])
         self.q_table[self.estado_anterior][self.acao_anterior] = q_antigo + 0.2 * (recompensa + 0.9 * max_q_novo - q_antigo)
 
         if random.random() < self.taxa_exploracao:
-            acao = random.choice([0, 1, 2, 3])
+            acao = random.choice([0, 1, 2, 3, 4])
         else:
             acao = self.q_table[estado_atual].index(max(self.q_table[estado_atual]))
 
         self.estado_anterior = estado_atual
         self.acao_anterior = acao
 
-        # --- EXECUÇÃO MOTORA ---
-        if acao == 0: # Aproximar
-            if boss_hitbox:
-                if abs(boss_hitbox.centerx - pos_p[0]) > abs(boss_hitbox.centery - pos_p[1]):
-                    self.direcao_x = -1 if boss_hitbox.centerx > pos_p[0] else 1
-                else:
-                    self.direcao_y = -1 if boss_hitbox.centery > pos_p[1] else 1
-        elif acao == 1: # Afastar
-            if boss_hitbox:
-                if abs(boss_hitbox.centerx - pos_p[0]) > abs(boss_hitbox.centery - pos_p[1]):
-                    self.direcao_x = 1 if boss_hitbox.centerx > pos_p[0] else -1
-                else:
-                    self.direcao_y = 1 if boss_hitbox.centery > pos_p[1] else -1
-        elif acao == 2: # Desviar (Evasiva)
-            for p in projeteis_boss:
-                if math.hypot(p["rect"].centerx - pos_p[0], p["rect"].centery - pos_p[1]) < 120:
-                    if abs(p["rect"].centerx - pos_p[0]) > abs(p["rect"].centery - pos_p[1]):
-                        self.direcao_x = 1 if p["rect"].x < pos_p[0] else -1
-                    else:
-                        self.direcao_y = 1 if p["rect"].y < pos_p[1] else -1
-                    break
-        elif acao == 3: # Centralizar (Fugir das bordas)
-            centro_x, centro_y = largura_mapa // 2, altura_mapa // 2
-            if abs(centro_x - pos_p[0]) > abs(centro_y - pos_p[1]):
-                self.direcao_x = 1 if centro_x > pos_p[0] else -1
-            else:
-                self.direcao_y = 1 if centro_y > pos_p[1] else -1
+        if acao == 0: self.direcao_y = -1   
+        elif acao == 1: self.direcao_y = 1  
+        elif acao == 2: self.direcao_x = -1 
+        elif acao == 3: self.direcao_x = 1  
+        elif acao == 4: self.usar_dash = True
 
 apolo = AgenteApolo()
 
@@ -749,35 +727,9 @@ def recompensar_cartas(cartas_usadas, venceu):
 
 def inteligencia_escolha_cartas_apolo(qtd):
     pesos = carregar_memoria_cartas()
-    estrategia_foco = False
-    carta_foco = ""
-    try:
-        if os.path.exists("historico_batalhas.json"):
-            with open("historico_batalhas.json", "r") as f:
-                historico = json.load(f)
-                if len(historico) >= 3:
-                    derrotas = sum(1 for h in historico[-3:] if h.get("vencedor") == "Umbra")
-                    if derrotas >= 2: estrategia_foco = True
-
-                if historico:
-                    ultima_luta = historico[-1]
-                    vencedor = ultima_luta.get("vencedor", "Desconhecido")
-                    hp_rest = ultima_luta.get("hp_restante", 0)
-                    if vencedor == "Umbra":
-                        if hp_rest > 375000:
-                            if estrategia_foco:
-                                pesos["Disparo crescente"] *= 1.5; carta_foco = "Poder de Fogo Absoluto"
-                            else:
-                                pesos["Disparo crescente"] *= 1.2; pesos["Speed Atack"] *= 1.2
-                        else:
-                            if estrategia_foco:
-                                pesos["Cura"] *= 1.5; carta_foco = "Imortalidade Sanguínea"
-                            else:
-                                pesos["Cura"] *= 1.2; pesos["Defesa"] *= 1.2
-    except: pass
-
     escolhas = []
     opcoes = list(pesos.keys())
+
     for _ in range(qtd):
         if escolhas.count("Petro") >= 5: pesos["Petro"] = 0
         if escolhas.count("Trembo") >= 1: pesos["Trembo"] = 0
@@ -787,17 +739,22 @@ def inteligencia_escolha_cartas_apolo(qtd):
         if escolhas.count("Porção") >= 10: pesos["Porção"] = 0
         if escolhas.count("Tempestade") >= 12: pesos["Tempestade"] = 0
         if escolhas.count("Disparo crescente") >= 15: pesos["Disparo crescente"] = 0
-        
+
         p_lista = [pesos[op] for op in opcoes]
+        soma = sum(p_lista)
+        if soma == 0:
+            p_lista = [1.0 for _ in opcoes]
+
         escolhida = random.choices(opcoes, weights=p_lista, k=1)[0]
         escolhas.append(escolhida)
 
     contagem = collections.Counter(escolhas)
     print("\n" + "="*50)
-    print(f"🧠 MUTAÇÃO ESTRATÉGICA DE APOLO ({qtd} Cartas)")
-    if estrategia_foco: print(f"DIRETRIZ DE FOCO: {carta_foco}")
-    for carta, q in sorted(contagem.items(), key=lambda x: x[1], reverse=True): print(f"[{q}x] {carta}")
+    print(f"🧠 SELEÇÃO GENÉTICA DE APOLO ({qtd} Cartas)")
+    for carta, q in sorted(contagem.items(), key=lambda x: x[1], reverse=True): 
+        print(f"[{q}x] {carta}")
     print("="*50)
+    
     return escolhas
 
 def injetar_build_endgame(qtd_cartas_jogador=30):
@@ -1028,7 +985,7 @@ while running:
         proj_ref = estado_atual_ia.get('projeteis', [])
         vida_boss_atual = vida_umbra if 'vida_umbra' in globals() else 10000
 
-        apolo.pensar((pos_x_personagem, pos_y_personagem), boss_ref, proj_ref, cds, vida, vida_boss_atual)
+        apolo.pensar((pos_x_personagem, pos_y_personagem), boss_ref, proj_ref, cds, vida, vida_boss_atual, esferas_energia_umbra)
         
         pos_mouse = (apolo.alvo_x, apolo.alvo_y)
         botao_mouse = (apolo.mouse_simulado[0], False, False)
@@ -1157,6 +1114,7 @@ while running:
             Tempo_cura=2500
             pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem)
         else:
+            recompensar_cartas(cartas_compradas_apolo_global, venceu=False)
             agora_fim = pygame.time.get_ticks()
             tempo_inicio = estado_atual_ia.get('tempo_start_boss', agora_fim) if 'estado_atual_ia' in locals() else agora_fim
             duracao_combate = (agora_fim - tempo_inicio) / 1000.0
@@ -1169,6 +1127,14 @@ while running:
                 estado_atual_ia.get('erros_umbra', 0),
                 estado_atual_ia.get('contagem_habilidades', {})
             )
+            
+            # Apolo sofre o trauma absoluto do fracasso
+            if apolo.estado_anterior in apolo.q_table:
+                apolo.q_table[apolo.estado_anterior][apolo.acao_anterior] -= 500.0
+            
+         
+            memoria_umbra.treinar(500.0, prioridade=True)
+   
             mostrar_tutorial=False
             pygame.time.delay(2000)
             Musica_tema_fases.stop()
@@ -1192,12 +1158,16 @@ while running:
 
         
 
-    # 1. Atualizar o histórico do jogador (Mantenha os últimos 60 frames)
     if 'historico_player' not in locals():
         historico_player = []
     historico_player.append((pos_x_personagem, pos_y_personagem))
     if len(historico_player) > 60:
         historico_player.pop(0)
+
+    if len(historico_player) >= 2:
+        vetor_x = historico_player[-1][0] - historico_player[-2][0]
+        vetor_y = historico_player[-1][1] - historico_player[-2][1]
+        memoria_umbra.registrar_esquiva_player(vetor_x, vetor_y)
     personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
     
     
@@ -1206,6 +1176,7 @@ while running:
         
         agora = pygame.time.get_ticks()
         if vida_umbra <= 0:
+            recompensar_cartas(cartas_compradas_apolo_global, venceu=True)
             duracao_combate = (agora - estado_atual_ia.get('tempo_start_boss', agora)) / 1000.0
             agora_fim = pygame.time.get_ticks()
             tempo_inicio = estado_atual_ia.get('tempo_start_boss', agora_fim) if 'estado_atual_ia' in locals() else agora_fim
@@ -1304,7 +1275,7 @@ while running:
                 if agora - estado_atual_ia.get('ultimo_tick_cura', 0) >= 600:
                     # Reduzimos para 2% para permitir o counter-play tático
                     valor_cura = (vida_maxima_umbra-vida_umbra) * 0.01
-                    
+                    memoria_umbra.treinar(1.5)
                     # A cura não pode ultrapassar o limite máximo
                     vida_umbra = min(vida_maxima_umbra, vida_umbra + valor_cura)
                     
@@ -1332,6 +1303,11 @@ while running:
                         pos_x_personagem += (dx_v / dist_v) * fator_succao
                         pos_y_personagem += (dy_v / dist_v) * fator_succao
                         
+                        # --- PUNIÇÃO APOLO: Sendo sugado para o centro ---
+                        if dist_v < 150 and agora % 200 < 30:
+                            if apolo.estado_anterior in apolo.q_table:
+                                apolo.q_table[apolo.estado_anterior][apolo.acao_anterior] -= 2.0
+                                
                         # Trava de colisão com os limites do mapa
                         pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem))
                         pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem))
@@ -1407,6 +1383,11 @@ while running:
                     dist_p = math.hypot(prisao['x'] - personagem_rect.centerx, prisao['y'] - personagem_rect.centery)
                     if dist_p < raio_hitbox_atual: 
                         velocidade_personagem = 0.3 
+                        
+                        # --- PUNIÇÃO APOLO: Ficar preso no gelo (lentidão) ---
+                        if agora % 100 < 20: 
+                            if apolo.estado_anterior in apolo.q_table:
+                                apolo.q_table[apolo.estado_anterior][apolo.acao_anterior] -= 2.0
                         
                         if agora % 1000 < 50:
                             efeitos_texto.append({
@@ -1520,10 +1501,9 @@ while running:
 
             # --- 3. DETECÇÃO DE DANO NO JOGADOR ---
             hitbox_player = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-            
             for p in estado_atual_ia['projeteis'][:]:
                 if p["rect"].colliderect(hitbox_player):
-                    dano_bruto = (150 + (inimigos_eliminados * 0.10)) * multiplicador_dano_umbra
+                    dano_bruto = (420 + (inimigos_eliminados * 0.10)) * multiplicador_dano_umbra
                     dano_recebido = int(dano_bruto - Resistencia)
                     
                     if dano_recebido < 0: 
@@ -1540,7 +1520,7 @@ while running:
                         bonus_pontuacao = 0
                         piscando_vida = True
                     
-                    memoria_umbra.treinar(1.5) 
+                    memoria_umbra.treinar(3.0, prioridade=True)
                     
                     chance_atual = estado_atual_ia.get('passiva_chance', 0.30)
                     if random.random() <= chance_atual:
@@ -1569,6 +1549,9 @@ while running:
                     
                     if agora % 1000 < 50: 
                         vida -= vida_maxima*0.01
+                        # --- PUNIÇÃO APOLO: Dano por cegueira/miasma ---
+                        if apolo.estado_anterior in apolo.q_table:
+                            apolo.q_table[apolo.estado_anterior][apolo.acao_anterior] -= 5.0
                     
                     centro_ceg_x = pos_x_personagem + (largura_personagem // 2)
                     centro_ceg_y = pos_y_personagem + (altura_personagem // 2)
@@ -1631,6 +1614,10 @@ while running:
                                 "cor": (255, 255, 0)
                             })
                             memoria_umbra.treinar(2.0)
+                            
+                            # --- PUNIÇÃO APOLO: Choque e atordoamento ---
+                            if apolo.estado_anterior in apolo.q_table:
+                                apolo.q_table[apolo.estado_anterior][apolo.acao_anterior] -= 10.0
                         
                         estado_atual_ia['fim_stun'] = agora + 600 
                 else:
@@ -1823,6 +1810,10 @@ while running:
                             tempo_fim_hemorragia = agora + 6000 
                             penalidade_cura_percentual = 0.85 # Aniquila 85% de toda a cura
                             
+                            # --- PUNIÇÃO APOLO: Punição máxima por cair na armadilha mortal ---
+                            if apolo.estado_anterior in apolo.q_table:
+                                apolo.q_table[apolo.estado_anterior][apolo.acao_anterior] -= 25.0
+                            
                             efeitos_texto.append({
                                 "texto": "SANGRAMENTO FATAL!",
                                 "x": pos_x_personagem + random.randint(-20, 20),
@@ -1943,6 +1934,10 @@ while running:
                         if agora - estado_atual_ia.get('ultimo_dano_laser', 0) > 100: 
                             vida -= vida_maxima * 0.10
                             
+                            # --- PUNIÇÃO APOLO: Ser atingido pelo laser principal ---
+                            if apolo.estado_anterior in apolo.q_table:
+                                apolo.q_table[apolo.estado_anterior][apolo.acao_anterior] -= 15.0
+                                
                             # Matemática de Combustão Progressiva
                             if player_em_chamas and agora < tempo_fim_chamas:
                                 multiplicador_chamas += 1
@@ -2142,6 +2137,7 @@ while running:
 
                 if random.random() <= chance_critico:
                     dano_final = dano_person_hit * 2
+                    punicao = -4.0  # Dano crítico pune o dobro
                     cor_feedback = (255, 255, 0) # Amarelo Crítico
                 else:
                     dano_final = dano_person_hit
@@ -2172,10 +2168,10 @@ while running:
                 # Aplicação de Dano e Treino
                 if vida_umbra > 0:
                     vida_umbra -= dano_final
-                    punicao = -1.5 # Punição base aumentada
+                    
+                    punicao = -2.0 
+                    memoria_umbra.treinar(punicao, prioridade=True)
     
-                    if random.random() <= chance_critico:
-                        punicao -= 2.0  # Punição extra por dano crítico (falha tática grave)
                     if random.random() < roubo_de_vida:
                         cura_base = quantidade_roubo_vida
                         
@@ -2229,7 +2225,7 @@ while running:
                             # A engine consome a ordem e desliga o sinalizador
                             estado_atual_ia['iniciar_transicao_mapa'] = False
 
-                    memoria_umbra.treinar(punicao, prioridade=True)
+       
                     
                     # Gatilho do Veneno
                     if not boss_envenenado and Poison_Active:
@@ -2238,37 +2234,37 @@ while running:
                         dano_por_tick_veneno_boss = vida_maxima_umbra * (Dano_Veneno_Acumulado / 100)
                         tempo_inicio_veneno_boss = agora
                         ultimo_tick_veneno_boss = agora
-                # --- CORROSÃO: DANO CONTÍNUO DE VENENO ---
-                if boss_envenenado:
-                    # Aplica o tick de dano a cada 500 milissegundos
-                    if agora - ultimo_tick_veneno_boss >= 500:
-                        vida_umbra -= dano_por_tick_veneno_boss
-                        ultimo_tick_veneno_boss = agora
-                        
-                        # Feedback Visual (Verde Tóxico integrado ao sistema de partículas)
-                        efeitos_texto.append({
-                            "texto": f"-{int(dano_por_tick_veneno_boss)}",
-                            "x": hitbox_boss5.centerx + random.randint(-30, 30),
-                            "y": hitbox_boss5.top - random.randint(10, 30),
-                            "tempo_inicio": agora,
-                            "cor": (50, 255, 50) # Verde vibrante
-                        })
-                        
-                        # Punição sensorial na rede neural: A Umbra odeia o dano contínuo
-                        memoria_umbra.treinar(-0.8)
+                    # --- CORROSÃO: DANO CONTÍNUO DE VENENO ---
+                    if boss_envenenado:
+                        # Aplica o tick de dano a cada 500 milissegundos
+                        if agora - ultimo_tick_veneno_boss >= 500:
+                            vida_umbra -= dano_por_tick_veneno_boss
+                            ultimo_tick_veneno_boss = agora
+                            
+                            # Feedback Visual (Verde Tóxico integrado ao sistema de partículas)
+                            efeitos_texto.append({
+                                "texto": f"-{int(dano_por_tick_veneno_boss)}",
+                                "x": hitbox_boss5.centerx + random.randint(-30, 30),
+                                "y": hitbox_boss5.top - random.randint(10, 30),
+                                "tempo_inicio": agora,
+                                "cor": (50, 255, 50) # Verde vibrante
+                            })
+                            
+                            # Punição sensorial na rede neural: A Umbra odeia o dano contínuo
+                            memoria_umbra.treinar(-0.8)
 
-                    # Verifica se o efeito do veneno passou
-                    if agora - tempo_inicio_veneno_boss >= duracao_veneno_boss:
-                        boss_envenenado = False
-                # Feedback Visual e Limpeza
-                efeitos_texto.append({
-                    "texto": f"-{int(dano_final)}",
-                    "x": hitbox_boss5.centerx + random.randint(-20, 20),
-                    "y": hitbox_boss5.top - 10,
-                    "tempo_inicio": agora,
-                    "cor": cor_feedback
-                })
-                atingiu_boss = True
+                        # Verifica se o efeito do veneno passou
+                        if agora - tempo_inicio_veneno_boss >= duracao_veneno_boss:
+                            boss_envenenado = False
+                    # Feedback Visual e Limpeza
+                    efeitos_texto.append({
+                        "texto": f"-{int(dano_final)}",
+                        "x": hitbox_boss5.centerx + random.randint(-20, 20),
+                        "y": hitbox_boss5.top - 10,
+                        "tempo_inicio": agora,
+                        "cor": cor_feedback
+                    })
+                    atingiu_boss = True
 
         # 5. Manutenção de Projéteis no Mapa
         dentro_mapa = 0 <= disparo["rect"].x < largura_mapa and 0 <= disparo["rect"].y < altura_mapa
