@@ -4300,5 +4300,3101 @@
         "exploracao_umbra": 0.2,
         "habilidade_dominante": "NENHUMA",
         "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 479,
+        "duracao": 44.063,
+        "vencedor": "Umbra",
+        "hp_restante": 85601.22926736825,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 480,
+        "duracao": 135.07,
+        "vencedor": "Apolo",
+        "hp_restante": -2455.2967296460274,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 481,
+        "duracao": 138.442,
+        "vencedor": "Apolo",
+        "hp_restante": -2142.6301841719255,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 482,
+        "duracao": 76.732,
+        "vencedor": "Umbra",
+        "hp_restante": 235112.22541554767,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 483,
+        "duracao": 57.97,
+        "vencedor": "Umbra",
+        "hp_restante": 163832.37751762389,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 484,
+        "duracao": 47.213,
+        "vencedor": "Umbra",
+        "hp_restante": 619461.6217252472,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 485,
+        "duracao": 70.569,
+        "vencedor": "Umbra",
+        "hp_restante": 136280.52604825926,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 486,
+        "duracao": 72.68,
+        "vencedor": "Apolo",
+        "hp_restante": -1931.965911833118,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 487,
+        "duracao": 91.486,
+        "vencedor": "Umbra",
+        "hp_restante": 197532.84989141958,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 488,
+        "duracao": 500.184,
+        "vencedor": "Apolo",
+        "hp_restante": -410.8964585506469,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 489,
+        "duracao": 80.934,
+        "vencedor": "Umbra",
+        "hp_restante": 252362.55179517015,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 490,
+        "duracao": 139.709,
+        "vencedor": "Umbra",
+        "hp_restante": 59975.24931786572,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 491,
+        "duracao": 57.198,
+        "vencedor": "Umbra",
+        "hp_restante": 254750.14911571628,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 492,
+        "duracao": 69.882,
+        "vencedor": "Apolo",
+        "hp_restante": -1066.0591746642276,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 493,
+        "duracao": 195.32,
+        "vencedor": "Umbra",
+        "hp_restante": 22164.554245962452,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 494,
+        "duracao": 91.685,
+        "vencedor": "Umbra",
+        "hp_restante": 99785.0791565465,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 495,
+        "duracao": 108.323,
+        "vencedor": "Apolo",
+        "hp_restante": -1130.5833315393775,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 496,
+        "duracao": 60.249,
+        "vencedor": "Umbra",
+        "hp_restante": 173874.52609289138,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 497,
+        "duracao": 59.189,
+        "vencedor": "Umbra",
+        "hp_restante": 146459.1157906035,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 498,
+        "duracao": 49.244,
+        "vencedor": "Umbra",
+        "hp_restante": 207785.08566186635,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 499,
+        "duracao": 159.061,
+        "vencedor": "Apolo",
+        "hp_restante": -1669.227605398485,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 500,
+        "duracao": 319.615,
+        "vencedor": "Apolo",
+        "hp_restante": -2026.4356638146119,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 501,
+        "duracao": 150.914,
+        "vencedor": "Apolo",
+        "hp_restante": -180.97747650189467,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 502,
+        "duracao": 247.843,
+        "vencedor": "Apolo",
+        "hp_restante": -840.490543051018,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 503,
+        "duracao": 40.365,
+        "vencedor": "Umbra",
+        "hp_restante": 479945.02215262665,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 504,
+        "duracao": 69.881,
+        "vencedor": "Apolo",
+        "hp_restante": -2300.345537753142,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 505,
+        "duracao": 136.665,
+        "vencedor": "Apolo",
+        "hp_restante": -2057.587030924029,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 506,
+        "duracao": 229.295,
+        "vencedor": "Apolo",
+        "hp_restante": -3490.43562392651,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 507,
+        "duracao": 113.238,
+        "vencedor": "Apolo",
+        "hp_restante": -2153.9970800079464,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 508,
+        "duracao": 113.096,
+        "vencedor": "Umbra",
+        "hp_restante": 153335.6755943661,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 509,
+        "duracao": 72.212,
+        "vencedor": "Umbra",
+        "hp_restante": 45189.94796097649,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 510,
+        "duracao": 51.141,
+        "vencedor": "Umbra",
+        "hp_restante": 151341.39428939935,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 511,
+        "duracao": 182.837,
+        "vencedor": "Umbra",
+        "hp_restante": 115357.39488252587,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 512,
+        "duracao": 159.716,
+        "vencedor": "Apolo",
+        "hp_restante": -783.666123835561,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 513,
+        "duracao": 115.858,
+        "vencedor": "Apolo",
+        "hp_restante": -1705.5264309017684,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 514,
+        "duracao": 50.879,
+        "vencedor": "Umbra",
+        "hp_restante": 197109.80023050023,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 515,
+        "duracao": 81.271,
+        "vencedor": "Umbra",
+        "hp_restante": 578256.587690489,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 516,
+        "duracao": 102.101,
+        "vencedor": "Umbra",
+        "hp_restante": 103534.2185245207,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 517,
+        "duracao": 67.345,
+        "vencedor": "Umbra",
+        "hp_restante": 107226.60922120998,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 518,
+        "duracao": 117.247,
+        "vencedor": "Umbra",
+        "hp_restante": 95165.00473346605,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 519,
+        "duracao": 84.309,
+        "vencedor": "Umbra",
+        "hp_restante": 128804.68016686008,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 520,
+        "duracao": 112.036,
+        "vencedor": "Apolo",
+        "hp_restante": -29.825801211587077,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 521,
+        "duracao": 176.395,
+        "vencedor": "Apolo",
+        "hp_restante": -282.94643192948297,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 522,
+        "duracao": 87.047,
+        "vencedor": "Umbra",
+        "hp_restante": 181026.24806721057,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 523,
+        "duracao": 109.171,
+        "vencedor": "Umbra",
+        "hp_restante": 46032.73032970299,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 524,
+        "duracao": 159.551,
+        "vencedor": "Apolo",
+        "hp_restante": -212.7104400208998,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 525,
+        "duracao": 129.181,
+        "vencedor": "Umbra",
+        "hp_restante": 58818.26347509319,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 526,
+        "duracao": 129.515,
+        "vencedor": "Umbra",
+        "hp_restante": 111300.816820046,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 527,
+        "duracao": 205.078,
+        "vencedor": "Apolo",
+        "hp_restante": -80.59069541607573,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 528,
+        "duracao": 43.527,
+        "vencedor": "Umbra",
+        "hp_restante": 415129.187375875,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 529,
+        "duracao": 57.977,
+        "vencedor": "Umbra",
+        "hp_restante": 124048.96014172322,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 530,
+        "duracao": 161.509,
+        "vencedor": "Umbra",
+        "hp_restante": 161221.1008486335,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 531,
+        "duracao": 80.71,
+        "vencedor": "Umbra",
+        "hp_restante": 94567.66845555748,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 532,
+        "duracao": 114.394,
+        "vencedor": "Umbra",
+        "hp_restante": 51779.14022519214,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 533,
+        "duracao": 82.922,
+        "vencedor": "Umbra",
+        "hp_restante": 12974.235456189217,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 534,
+        "duracao": 105.982,
+        "vencedor": "Apolo",
+        "hp_restante": -1517.6962131842924,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 535,
+        "duracao": 71.777,
+        "vencedor": "Apolo",
+        "hp_restante": -1416.2512715531202,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 536,
+        "duracao": 47.264,
+        "vencedor": "Umbra",
+        "hp_restante": 25927.936917864452,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 537,
+        "duracao": 131.226,
+        "vencedor": "Apolo",
+        "hp_restante": -2084.534846035105,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 538,
+        "duracao": 333.665,
+        "vencedor": "Umbra",
+        "hp_restante": 161923.99402400435,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 539,
+        "duracao": 119.566,
+        "vencedor": "Umbra",
+        "hp_restante": 126969.47967137978,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 540,
+        "duracao": 106.169,
+        "vencedor": "Umbra",
+        "hp_restante": 206200.752514801,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 541,
+        "duracao": 260.672,
+        "vencedor": "Umbra",
+        "hp_restante": 52786.05706323005,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 542,
+        "duracao": 131.026,
+        "vencedor": "Apolo",
+        "hp_restante": -20.00893326811638,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 543,
+        "duracao": 363.566,
+        "vencedor": "Apolo",
+        "hp_restante": -599.3180651543745,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 544,
+        "duracao": 122.619,
+        "vencedor": "Umbra",
+        "hp_restante": 340558.08747147233,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 545,
+        "duracao": 65.534,
+        "vencedor": "Umbra",
+        "hp_restante": 176832.3051955613,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 546,
+        "duracao": 102.641,
+        "vencedor": "Apolo",
+        "hp_restante": -1340.0396737868068,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 547,
+        "duracao": 122.878,
+        "vencedor": "Umbra",
+        "hp_restante": 189849.8821852377,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 548,
+        "duracao": 112.807,
+        "vencedor": "Apolo",
+        "hp_restante": -1545.6967477632415,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 549,
+        "duracao": 82.967,
+        "vencedor": "Apolo",
+        "hp_restante": -1147.138497996733,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 550,
+        "duracao": 47.412,
+        "vencedor": "Umbra",
+        "hp_restante": 219445.20690055843,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 551,
+        "duracao": 86.25,
+        "vencedor": "Apolo",
+        "hp_restante": -122.7276994997494,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 552,
+        "duracao": 59.291,
+        "vencedor": "Umbra",
+        "hp_restante": 251928.97950966496,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 553,
+        "duracao": 127.886,
+        "vencedor": "Umbra",
+        "hp_restante": 225408.30126661755,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 554,
+        "duracao": 112.064,
+        "vencedor": "Apolo",
+        "hp_restante": -542.719918420824,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 555,
+        "duracao": 168.181,
+        "vencedor": "Umbra",
+        "hp_restante": 34762.199500804054,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 556,
+        "duracao": 149.544,
+        "vencedor": "Umbra",
+        "hp_restante": 468337.0265981865,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 557,
+        "duracao": 84.336,
+        "vencedor": "Umbra",
+        "hp_restante": 181583.95462819067,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 558,
+        "duracao": 129.533,
+        "vencedor": "Apolo",
+        "hp_restante": -392.5185623187208,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 559,
+        "duracao": 188.791,
+        "vencedor": "Umbra",
+        "hp_restante": 198542.6453843115,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 560,
+        "duracao": 136.505,
+        "vencedor": "Umbra",
+        "hp_restante": 1567.7848664539742,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 561,
+        "duracao": 273.804,
+        "vencedor": "Apolo",
+        "hp_restante": -3280.7180931881594,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 562,
+        "duracao": 185.72,
+        "vencedor": "Apolo",
+        "hp_restante": -1481.7896343584944,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 563,
+        "duracao": 112.668,
+        "vencedor": "Apolo",
+        "hp_restante": -36.160900578799556,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 564,
+        "duracao": 111.148,
+        "vencedor": "Apolo",
+        "hp_restante": -1725.975214124047,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 565,
+        "duracao": 88.321,
+        "vencedor": "Umbra",
+        "hp_restante": 60045.04433633418,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 566,
+        "duracao": 70.615,
+        "vencedor": "Apolo",
+        "hp_restante": -1850.4098458947528,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 567,
+        "duracao": 99.856,
+        "vencedor": "Umbra",
+        "hp_restante": 85132.77013103278,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 568,
+        "duracao": 70.179,
+        "vencedor": "Apolo",
+        "hp_restante": -806.3821385898971,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 569,
+        "duracao": 47.889,
+        "vencedor": "Umbra",
+        "hp_restante": 1007813.1845444702,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 570,
+        "duracao": 67.403,
+        "vencedor": "Umbra",
+        "hp_restante": 163727.23255059883,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 571,
+        "duracao": 51.282,
+        "vencedor": "Umbra",
+        "hp_restante": 196677.34331875143,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 572,
+        "duracao": 161.205,
+        "vencedor": "Apolo",
+        "hp_restante": -8.719526791391672,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 573,
+        "duracao": 159.245,
+        "vencedor": "Apolo",
+        "hp_restante": -26.363831783504793,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 574,
+        "duracao": 83.54,
+        "vencedor": "Apolo",
+        "hp_restante": -1401.48319105321,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 575,
+        "duracao": 116.753,
+        "vencedor": "Apolo",
+        "hp_restante": -2826.314834624588,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 576,
+        "duracao": 104.164,
+        "vencedor": "Apolo",
+        "hp_restante": -303.49961908918726,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 577,
+        "duracao": 224.619,
+        "vencedor": "Apolo",
+        "hp_restante": -173.1127625468073,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 578,
+        "duracao": 385.114,
+        "vencedor": "Umbra",
+        "hp_restante": 11906.446382268194,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 579,
+        "duracao": 139.838,
+        "vencedor": "Apolo",
+        "hp_restante": -432.3613686676424,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 580,
+        "duracao": 138.043,
+        "vencedor": "Umbra",
+        "hp_restante": 127210.81093263288,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 581,
+        "duracao": 63.48,
+        "vencedor": "Umbra",
+        "hp_restante": 231316.07453079039,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 582,
+        "duracao": 85.411,
+        "vencedor": "Umbra",
+        "hp_restante": 581736.4660541468,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 583,
+        "duracao": 155.134,
+        "vencedor": "Apolo",
+        "hp_restante": -770.8280117155737,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 584,
+        "duracao": 69.638,
+        "vencedor": "Umbra",
+        "hp_restante": 459916.9163357596,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 585,
+        "duracao": 83.752,
+        "vencedor": "Umbra",
+        "hp_restante": 72456.64091970924,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 586,
+        "duracao": 70.179,
+        "vencedor": "Apolo",
+        "hp_restante": -873.7620995578237,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 587,
+        "duracao": 91.974,
+        "vencedor": "Apolo",
+        "hp_restante": -535.841742579085,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 588,
+        "duracao": 131.03,
+        "vencedor": "Apolo",
+        "hp_restante": -1477.3871357403623,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 589,
+        "duracao": 71.159,
+        "vencedor": "Umbra",
+        "hp_restante": 568068.3101095095,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 590,
+        "duracao": 113.433,
+        "vencedor": "Apolo",
+        "hp_restante": -1432.3403585402484,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 591,
+        "duracao": 136.895,
+        "vencedor": "Apolo",
+        "hp_restante": -2375.9329725358566,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 592,
+        "duracao": 82.035,
+        "vencedor": "Apolo",
+        "hp_restante": -1512.1385935348624,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 593,
+        "duracao": 94.235,
+        "vencedor": "Umbra",
+        "hp_restante": 11588.089576646355,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 594,
+        "duracao": 222.102,
+        "vencedor": "Apolo",
+        "hp_restante": -583.9141433970409,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 595,
+        "duracao": 108.124,
+        "vencedor": "Apolo",
+        "hp_restante": -829.2479452306422,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 596,
+        "duracao": 127.268,
+        "vencedor": "Umbra",
+        "hp_restante": 336416.1626468582,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 597,
+        "duracao": 116.251,
+        "vencedor": "Umbra",
+        "hp_restante": 151115.83165855584,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 598,
+        "duracao": 46.979,
+        "vencedor": "Umbra",
+        "hp_restante": 278111.32799030334,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 599,
+        "duracao": 197.035,
+        "vencedor": "Umbra",
+        "hp_restante": 265599.7325180943,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 600,
+        "duracao": 179.039,
+        "vencedor": "Apolo",
+        "hp_restante": -420.8611703395862,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 601,
+        "duracao": 105.875,
+        "vencedor": "Apolo",
+        "hp_restante": -1926.6389245554665,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 602,
+        "duracao": 113.487,
+        "vencedor": "Umbra",
+        "hp_restante": 122944.02282622954,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 603,
+        "duracao": 49.106,
+        "vencedor": "Umbra",
+        "hp_restante": 191932.27886713907,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 604,
+        "duracao": 111.378,
+        "vencedor": "Apolo",
+        "hp_restante": -270.16099322616424,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 605,
+        "duracao": 180.449,
+        "vencedor": "Apolo",
+        "hp_restante": -600.0946166870797,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 606,
+        "duracao": 116.19,
+        "vencedor": "Apolo",
+        "hp_restante": -302.4106457852977,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 607,
+        "duracao": 103.511,
+        "vencedor": "Apolo",
+        "hp_restante": -1290.555791646648,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 608,
+        "duracao": 112.026,
+        "vencedor": "Apolo",
+        "hp_restante": -210.4853914822229,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 609,
+        "duracao": 86.383,
+        "vencedor": "Apolo",
+        "hp_restante": -315.56930912106225,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 610,
+        "duracao": 320.331,
+        "vencedor": "Apolo",
+        "hp_restante": -2835.7100697843407,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 611,
+        "duracao": 226.931,
+        "vencedor": "Apolo",
+        "hp_restante": -355.59429306617926,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 612,
+        "duracao": 59.515,
+        "vencedor": "Umbra",
+        "hp_restante": 228972.4883186454,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 613,
+        "duracao": 72.676,
+        "vencedor": "Umbra",
+        "hp_restante": 312904.3764751732,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 614,
+        "duracao": 345.451,
+        "vencedor": "Umbra",
+        "hp_restante": 350390.8218540347,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 615,
+        "duracao": 61.278,
+        "vencedor": "Umbra",
+        "hp_restante": 126076.21477780788,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 616,
+        "duracao": 53.668,
+        "vencedor": "Umbra",
+        "hp_restante": 111863.79578224168,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 617,
+        "duracao": 49.242,
+        "vencedor": "Umbra",
+        "hp_restante": 373567.45222464966,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 618,
+        "duracao": 217.136,
+        "vencedor": "Umbra",
+        "hp_restante": 257601.58051114407,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 619,
+        "duracao": 132.122,
+        "vencedor": "Apolo",
+        "hp_restante": -39.867780997170485,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 620,
+        "duracao": 89.234,
+        "vencedor": "Apolo",
+        "hp_restante": -1863.9038955671995,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 621,
+        "duracao": 62.305,
+        "vencedor": "Umbra",
+        "hp_restante": 343564.7506645509,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 622,
+        "duracao": 82.129,
+        "vencedor": "Apolo",
+        "hp_restante": -398.07661408843603,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 623,
+        "duracao": 133.547,
+        "vencedor": "Umbra",
+        "hp_restante": 51649.44780252682,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 624,
+        "duracao": 155.931,
+        "vencedor": "Apolo",
+        "hp_restante": -81.24259477621649,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 625,
+        "duracao": 86.642,
+        "vencedor": "Umbra",
+        "hp_restante": 125385.79833354094,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 626,
+        "duracao": 108.281,
+        "vencedor": "Umbra",
+        "hp_restante": 207621.85228308965,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 627,
+        "duracao": 83.444,
+        "vencedor": "Apolo",
+        "hp_restante": -1049.4739240401286,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 628,
+        "duracao": 125.152,
+        "vencedor": "Umbra",
+        "hp_restante": 101507.08006872427,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 629,
+        "duracao": 54.744,
+        "vencedor": "Umbra",
+        "hp_restante": 89611.42930703677,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 630,
+        "duracao": 69.104,
+        "vencedor": "Apolo",
+        "hp_restante": -1378.2206047662987,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 631,
+        "duracao": 114.138,
+        "vencedor": "Apolo",
+        "hp_restante": -1577.7708875593735,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 632,
+        "duracao": 155.218,
+        "vencedor": "Apolo",
+        "hp_restante": -580.6382205260506,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 633,
+        "duracao": 113.615,
+        "vencedor": "Apolo",
+        "hp_restante": -149.60187224058927,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 634,
+        "duracao": 199.294,
+        "vencedor": "Umbra",
+        "hp_restante": 207033.87780430558,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 635,
+        "duracao": 58.447,
+        "vencedor": "Umbra",
+        "hp_restante": 159464.55908402693,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 636,
+        "duracao": 126.261,
+        "vencedor": "Umbra",
+        "hp_restante": 291866.85390373936,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 637,
+        "duracao": 150.283,
+        "vencedor": "Apolo",
+        "hp_restante": -198.85140437070925,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 638,
+        "duracao": 89.051,
+        "vencedor": "Umbra",
+        "hp_restante": 65127.28059553864,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 639,
+        "duracao": 118.011,
+        "vencedor": "Umbra",
+        "hp_restante": 11394.219055440224,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 640,
+        "duracao": 81.741,
+        "vencedor": "Umbra",
+        "hp_restante": 568436.8467418408,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 641,
+        "duracao": 179.597,
+        "vencedor": "Umbra",
+        "hp_restante": 26020.46184798825,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 642,
+        "duracao": 153.824,
+        "vencedor": "Apolo",
+        "hp_restante": -1044.2657712476866,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 643,
+        "duracao": 123.825,
+        "vencedor": "Umbra",
+        "hp_restante": 153870.93292860698,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 644,
+        "duracao": 63.309,
+        "vencedor": "Umbra",
+        "hp_restante": 68598.21565013977,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 645,
+        "duracao": 184.702,
+        "vencedor": "Umbra",
+        "hp_restante": 61049.91069091928,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 646,
+        "duracao": 133.181,
+        "vencedor": "Apolo",
+        "hp_restante": -716.7213608830464,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 647,
+        "duracao": 102.383,
+        "vencedor": "Apolo",
+        "hp_restante": -1749.472029076891,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 648,
+        "duracao": 153.786,
+        "vencedor": "Apolo",
+        "hp_restante": -124.26433289081342,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 649,
+        "duracao": 57.286,
+        "vencedor": "Umbra",
+        "hp_restante": 333146.7730505346,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 650,
+        "duracao": 101.896,
+        "vencedor": "Umbra",
+        "hp_restante": 261972.268293662,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 651,
+        "duracao": 57.214,
+        "vencedor": "Umbra",
+        "hp_restante": 288204.4137715588,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 652,
+        "duracao": 105.986,
+        "vencedor": "Apolo",
+        "hp_restante": -2727.4694693822103,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 653,
+        "duracao": 115.673,
+        "vencedor": "Apolo",
+        "hp_restante": -32.048261933594404,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 654,
+        "duracao": 61.85,
+        "vencedor": "Umbra",
+        "hp_restante": 313304.3188215754,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 655,
+        "duracao": 89.338,
+        "vencedor": "Apolo",
+        "hp_restante": -371.6604093298604,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 656,
+        "duracao": 184.746,
+        "vencedor": "Apolo",
+        "hp_restante": -1635.4955974996838,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 657,
+        "duracao": 119.165,
+        "vencedor": "Umbra",
+        "hp_restante": 117076.21349169634,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 658,
+        "duracao": 86.128,
+        "vencedor": "Umbra",
+        "hp_restante": 18133.233658093195,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 659,
+        "duracao": 107.095,
+        "vencedor": "Apolo",
+        "hp_restante": -1748.0023017989479,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 660,
+        "duracao": 126.822,
+        "vencedor": "Umbra",
+        "hp_restante": 30473.387786197083,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 661,
+        "duracao": 61.73,
+        "vencedor": "Umbra",
+        "hp_restante": 175279.99837149464,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 662,
+        "duracao": 60.777,
+        "vencedor": "Umbra",
+        "hp_restante": 179219.92771965015,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 663,
+        "duracao": 63.361,
+        "vencedor": "Umbra",
+        "hp_restante": 32025.927434271187,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 664,
+        "duracao": 116.933,
+        "vencedor": "Apolo",
+        "hp_restante": -844.9770964659383,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 665,
+        "duracao": 93.374,
+        "vencedor": "Apolo",
+        "hp_restante": -1059.4152667919557,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 666,
+        "duracao": 124.333,
+        "vencedor": "Umbra",
+        "hp_restante": 569036.5874964192,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 667,
+        "duracao": 138.45,
+        "vencedor": "Apolo",
+        "hp_restante": -342.17389220229893,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 668,
+        "duracao": 65.234,
+        "vencedor": "Umbra",
+        "hp_restante": 352129.4425025551,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 669,
+        "duracao": 53.817,
+        "vencedor": "Umbra",
+        "hp_restante": 187671.22917055007,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 670,
+        "duracao": 67.689,
+        "vencedor": "Umbra",
+        "hp_restante": 180407.0561300094,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 671,
+        "duracao": 117.229,
+        "vencedor": "Umbra",
+        "hp_restante": 198255.93915664096,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 672,
+        "duracao": 180.732,
+        "vencedor": "Apolo",
+        "hp_restante": -1663.5659394226675,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 673,
+        "duracao": 203.702,
+        "vencedor": "Apolo",
+        "hp_restante": -1866.0280405216513,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 674,
+        "duracao": 156.433,
+        "vencedor": "Umbra",
+        "hp_restante": 36977.88787973691,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 675,
+        "duracao": 45.544,
+        "vencedor": "Umbra",
+        "hp_restante": 362672.6874898067,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 676,
+        "duracao": 79.661,
+        "vencedor": "Umbra",
+        "hp_restante": 234886.73981490522,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 677,
+        "duracao": 213.084,
+        "vencedor": "Umbra",
+        "hp_restante": 431152.81324967346,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 678,
+        "duracao": 90.318,
+        "vencedor": "Apolo",
+        "hp_restante": -1055.9264171395102,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 679,
+        "duracao": 60.332,
+        "vencedor": "Umbra",
+        "hp_restante": 164932.9816343907,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 680,
+        "duracao": 55.102,
+        "vencedor": "Umbra",
+        "hp_restante": 603636.1288366072,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 681,
+        "duracao": 169.264,
+        "vencedor": "Umbra",
+        "hp_restante": 160335.15560943115,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 682,
+        "duracao": 51.669,
+        "vencedor": "Umbra",
+        "hp_restante": 407694.32163508935,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 683,
+        "duracao": 109.737,
+        "vencedor": "Apolo",
+        "hp_restante": -515.1180049220275,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 684,
+        "duracao": 82.472,
+        "vencedor": "Apolo",
+        "hp_restante": -435.1487890251756,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 685,
+        "duracao": 84.417,
+        "vencedor": "Apolo",
+        "hp_restante": -132.16067619906516,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 686,
+        "duracao": 64.943,
+        "vencedor": "Umbra",
+        "hp_restante": 337488.6638119824,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 687,
+        "duracao": 69.782,
+        "vencedor": "Umbra",
+        "hp_restante": 128965.28999716727,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 688,
+        "duracao": 123.53,
+        "vencedor": "Umbra",
+        "hp_restante": 69556.77969350526,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 689,
+        "duracao": 128.886,
+        "vencedor": "Apolo",
+        "hp_restante": -344.0431390157314,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 690,
+        "duracao": 227.051,
+        "vencedor": "Umbra",
+        "hp_restante": 23571.563219290263,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 691,
+        "duracao": 54.303,
+        "vencedor": "Umbra",
+        "hp_restante": 203308.86204771136,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 692,
+        "duracao": 54.948,
+        "vencedor": "Umbra",
+        "hp_restante": 371105.22882645676,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 693,
+        "duracao": 67.485,
+        "vencedor": "Umbra",
+        "hp_restante": 177710.56701287645,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 694,
+        "duracao": 51.146,
+        "vencedor": "Umbra",
+        "hp_restante": 112306.42519902266,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 695,
+        "duracao": 84.072,
+        "vencedor": "Umbra",
+        "hp_restante": 175471.23980140706,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 696,
+        "duracao": 135.409,
+        "vencedor": "Umbra",
+        "hp_restante": 157397.32079038443,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 697,
+        "duracao": 111.902,
+        "vencedor": "Umbra",
+        "hp_restante": 194992.33117224326,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 698,
+        "duracao": 133.737,
+        "vencedor": "Apolo",
+        "hp_restante": -887.3378917826504,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 699,
+        "duracao": 222.391,
+        "vencedor": "Apolo",
+        "hp_restante": -427.36415708444156,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 700,
+        "duracao": 116.549,
+        "vencedor": "Apolo",
+        "hp_restante": -1144.7651943735782,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 701,
+        "duracao": 245.374,
+        "vencedor": "Apolo",
+        "hp_restante": -225.76897087652992,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 702,
+        "duracao": 112.064,
+        "vencedor": "Umbra",
+        "hp_restante": 353295.4573423946,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 703,
+        "duracao": 109.626,
+        "vencedor": "Apolo",
+        "hp_restante": -612.2616901606318,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 704,
+        "duracao": 53.379,
+        "vencedor": "Umbra",
+        "hp_restante": 278870.7319541913,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 705,
+        "duracao": 76.219,
+        "vencedor": "Umbra",
+        "hp_restante": 121254.09585950093,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 706,
+        "duracao": 128.48,
+        "vencedor": "Umbra",
+        "hp_restante": 160288.01776845104,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 707,
+        "duracao": 139.565,
+        "vencedor": "Apolo",
+        "hp_restante": -22.345952602115176,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 708,
+        "duracao": 154.918,
+        "vencedor": "Umbra",
+        "hp_restante": 456181.525167922,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 709,
+        "duracao": 92.935,
+        "vencedor": "Umbra",
+        "hp_restante": 56945.992278998834,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 710,
+        "duracao": 158.115,
+        "vencedor": "Apolo",
+        "hp_restante": -489.82613041030163,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 711,
+        "duracao": 14.898,
+        "vencedor": "Umbra",
+        "hp_restante": 575758.590384414,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 712,
+        "duracao": 133.71,
+        "vencedor": "Apolo",
+        "hp_restante": -426.79724265541154,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 713,
+        "duracao": 127.531,
+        "vencedor": "Umbra",
+        "hp_restante": 461186.9907873954,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 714,
+        "duracao": 114.58,
+        "vencedor": "Apolo",
+        "hp_restante": -38.48419236498012,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 715,
+        "duracao": 103.612,
+        "vencedor": "Apolo",
+        "hp_restante": -467.1048091650114,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 716,
+        "duracao": 65.298,
+        "vencedor": "Umbra",
+        "hp_restante": 132999.49124927146,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 717,
+        "duracao": 89.7,
+        "vencedor": "Apolo",
+        "hp_restante": -187.7328828125501,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 718,
+        "duracao": 275.094,
+        "vencedor": "Apolo",
+        "hp_restante": -704.1779601131277,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 719,
+        "duracao": 60.196,
+        "vencedor": "Umbra",
+        "hp_restante": 125611.04893159875,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 720,
+        "duracao": 51.537,
+        "vencedor": "Umbra",
+        "hp_restante": 158747.76775375154,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 721,
+        "duracao": 117.189,
+        "vencedor": "Umbra",
+        "hp_restante": 99416.16454311402,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 722,
+        "duracao": 223.818,
+        "vencedor": "Apolo",
+        "hp_restante": -330.88414768195094,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 723,
+        "duracao": 80.195,
+        "vencedor": "Apolo",
+        "hp_restante": -314.4143283274425,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 724,
+        "duracao": 133.066,
+        "vencedor": "Apolo",
+        "hp_restante": -1782.5877346078196,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 725,
+        "duracao": 60.379,
+        "vencedor": "Umbra",
+        "hp_restante": 106163.13451959117,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 726,
+        "duracao": 134.765,
+        "vencedor": "Apolo",
+        "hp_restante": -787.1417274071573,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 727,
+        "duracao": 128.622,
+        "vencedor": "Umbra",
+        "hp_restante": 75779.55013273511,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 728,
+        "duracao": 316.369,
+        "vencedor": "Apolo",
+        "hp_restante": -571.1030596125295,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 729,
+        "duracao": 126.044,
+        "vencedor": "Umbra",
+        "hp_restante": 105194.27389984475,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 730,
+        "duracao": 100.053,
+        "vencedor": "Umbra",
+        "hp_restante": 79202.45478788353,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 731,
+        "duracao": 111.442,
+        "vencedor": "Umbra",
+        "hp_restante": 367255.60833947564,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 732,
+        "duracao": 201.129,
+        "vencedor": "Apolo",
+        "hp_restante": -1203.8746863242409,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 733,
+        "duracao": 145.022,
+        "vencedor": "Apolo",
+        "hp_restante": -356.06811655583033,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 734,
+        "duracao": 137.323,
+        "vencedor": "Apolo",
+        "hp_restante": -597.247471348576,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 735,
+        "duracao": 116.262,
+        "vencedor": "Apolo",
+        "hp_restante": -1179.823582136267,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 736,
+        "duracao": 125.475,
+        "vencedor": "Umbra",
+        "hp_restante": 72262.13213756055,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 737,
+        "duracao": 116.89,
+        "vencedor": "Umbra",
+        "hp_restante": 63082.67655956648,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 738,
+        "duracao": 48.754,
+        "vencedor": "Umbra",
+        "hp_restante": 539734.1127492833,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 739,
+        "duracao": 131.266,
+        "vencedor": "Apolo",
+        "hp_restante": -230.45446639038528,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 740,
+        "duracao": 137.186,
+        "vencedor": "Apolo",
+        "hp_restante": -5986.657705295726,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 741,
+        "duracao": 49.256,
+        "vencedor": "Umbra",
+        "hp_restante": 165972.71100404052,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 742,
+        "duracao": 106.685,
+        "vencedor": "Apolo",
+        "hp_restante": -3154.491013617255,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 743,
+        "duracao": 157.509,
+        "vencedor": "Apolo",
+        "hp_restante": -1055.651532214477,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 744,
+        "duracao": 93.913,
+        "vencedor": "Umbra",
+        "hp_restante": 60673.19174046133,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 745,
+        "duracao": 51.215,
+        "vencedor": "Umbra",
+        "hp_restante": 253357.8915349722,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 746,
+        "duracao": 64.787,
+        "vencedor": "Umbra",
+        "hp_restante": 236361.20144529187,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 747,
+        "duracao": 123.433,
+        "vencedor": "Umbra",
+        "hp_restante": 113718.19482579795,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 748,
+        "duracao": 50.322,
+        "vencedor": "Umbra",
+        "hp_restante": 239181.82472121535,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 749,
+        "duracao": 85.524,
+        "vencedor": "Apolo",
+        "hp_restante": -317.78970185489743,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 750,
+        "duracao": 114.308,
+        "vencedor": "Apolo",
+        "hp_restante": -516.5197158297151,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 751,
+        "duracao": 87.062,
+        "vencedor": "Umbra",
+        "hp_restante": 115158.44312021232,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 752,
+        "duracao": 85.134,
+        "vencedor": "Apolo",
+        "hp_restante": -1418.1183984574172,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 753,
+        "duracao": 70.541,
+        "vencedor": "Umbra",
+        "hp_restante": 68129.83763775742,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 754,
+        "duracao": 102.161,
+        "vencedor": "Umbra",
+        "hp_restante": 453712.58770415315,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 755,
+        "duracao": 43.33,
+        "vencedor": "Umbra",
+        "hp_restante": 221590.85955546392,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 756,
+        "duracao": 129.315,
+        "vencedor": "Umbra",
+        "hp_restante": 449463.2773034745,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 757,
+        "duracao": 85.665,
+        "vencedor": "Umbra",
+        "hp_restante": 307189.90724101843,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 758,
+        "duracao": 103.08,
+        "vencedor": "Apolo",
+        "hp_restante": -494.18371101031016,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 759,
+        "duracao": 129.318,
+        "vencedor": "Umbra",
+        "hp_restante": 32451.01689676333,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 760,
+        "duracao": 92.974,
+        "vencedor": "Apolo",
+        "hp_restante": -243.09724372520577,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 761,
+        "duracao": 105.845,
+        "vencedor": "Umbra",
+        "hp_restante": 554106.3888796959,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 762,
+        "duracao": 52.444,
+        "vencedor": "Umbra",
+        "hp_restante": 143334.9629705665,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 763,
+        "duracao": 118.207,
+        "vencedor": "Umbra",
+        "hp_restante": 218346.9089404954,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 764,
+        "duracao": 79.933,
+        "vencedor": "Umbra",
+        "hp_restante": 406289.3132558733,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 765,
+        "duracao": 49.708,
+        "vencedor": "Umbra",
+        "hp_restante": 116665.31959479168,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 766,
+        "duracao": 137.86,
+        "vencedor": "Umbra",
+        "hp_restante": 750386.0977216561,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 767,
+        "duracao": 59.134,
+        "vencedor": "Umbra",
+        "hp_restante": 253772.29564503217,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 768,
+        "duracao": 79.091,
+        "vencedor": "Umbra",
+        "hp_restante": 149708.41900102524,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 769,
+        "duracao": 83.061,
+        "vencedor": "Umbra",
+        "hp_restante": 156829.05794880126,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 770,
+        "duracao": 43.274,
+        "vencedor": "Umbra",
+        "hp_restante": 463206.66178907023,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 771,
+        "duracao": 161.64,
+        "vencedor": "Apolo",
+        "hp_restante": -1136.014605462187,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 772,
+        "duracao": 102.806,
+        "vencedor": "Apolo",
+        "hp_restante": -2172.115532720681,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 773,
+        "duracao": 128.877,
+        "vencedor": "Apolo",
+        "hp_restante": -2887.9764787819577,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 774,
+        "duracao": 187.024,
+        "vencedor": "Apolo",
+        "hp_restante": -654.8727516962147,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 775,
+        "duracao": 83.162,
+        "vencedor": "Apolo",
+        "hp_restante": -2808.133181197505,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 776,
+        "duracao": 384.807,
+        "vencedor": "Apolo",
+        "hp_restante": -1516.6051711847958,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 777,
+        "duracao": 83.834,
+        "vencedor": "Apolo",
+        "hp_restante": -109.08751134632598,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 778,
+        "duracao": 118.046,
+        "vencedor": "Apolo",
+        "hp_restante": -2179.5415971555885,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 779,
+        "duracao": 154.37,
+        "vencedor": "Apolo",
+        "hp_restante": -4208.940253038116,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 780,
+        "duracao": 181.572,
+        "vencedor": "Apolo",
+        "hp_restante": -1094.9806611975819,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 781,
+        "duracao": 135.219,
+        "vencedor": "Apolo",
+        "hp_restante": -386.81638862885575,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 782,
+        "duracao": 130.043,
+        "vencedor": "Umbra",
+        "hp_restante": 414154.2422067757,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 783,
+        "duracao": 58.198,
+        "vencedor": "Umbra",
+        "hp_restante": 226170.26998483238,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 784,
+        "duracao": 134.965,
+        "vencedor": "Apolo",
+        "hp_restante": -2141.4773450987195,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 785,
+        "duracao": 136.104,
+        "vencedor": "Apolo",
+        "hp_restante": -200.67141062467272,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 786,
+        "duracao": 50.259,
+        "vencedor": "Umbra",
+        "hp_restante": 365383.13157858717,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 787,
+        "duracao": 205.816,
+        "vencedor": "Apolo",
+        "hp_restante": -1823.4902917250847,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 788,
+        "duracao": 127.354,
+        "vencedor": "Umbra",
+        "hp_restante": 63078.4446385803,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 789,
+        "duracao": 190.107,
+        "vencedor": "Umbra",
+        "hp_restante": 148852.400592559,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 790,
+        "duracao": 330.752,
+        "vencedor": "Umbra",
+        "hp_restante": 146085.28478465314,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 791,
+        "duracao": 80.53,
+        "vencedor": "Apolo",
+        "hp_restante": -620.0060836111393,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 792,
+        "duracao": 134.563,
+        "vencedor": "Apolo",
+        "hp_restante": -1121.8575375093778,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 793,
+        "duracao": 69.005,
+        "vencedor": "Apolo",
+        "hp_restante": -1053.221679200629,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 794,
+        "duracao": 110.082,
+        "vencedor": "Umbra",
+        "hp_restante": 37814.89689292159,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 795,
+        "duracao": 137.972,
+        "vencedor": "Umbra",
+        "hp_restante": 294746.08084629703,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 796,
+        "duracao": 78.302,
+        "vencedor": "Umbra",
+        "hp_restante": 675490.2259262025,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 797,
+        "duracao": 118.285,
+        "vencedor": "Umbra",
+        "hp_restante": 174190.4473196379,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 798,
+        "duracao": 139.693,
+        "vencedor": "Umbra",
+        "hp_restante": 37085.438128514805,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 799,
+        "duracao": 203.163,
+        "vencedor": "Apolo",
+        "hp_restante": -89.264612373408,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 800,
+        "duracao": 135.722,
+        "vencedor": "Apolo",
+        "hp_restante": -886.9747480914955,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 801,
+        "duracao": 186.965,
+        "vencedor": "Apolo",
+        "hp_restante": -1279.7053333044496,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 802,
+        "duracao": 93.095,
+        "vencedor": "Apolo",
+        "hp_restante": -860.5173609071205,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 803,
+        "duracao": 115.714,
+        "vencedor": "Umbra",
+        "hp_restante": 202990.6610538017,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 804,
+        "duracao": 112.758,
+        "vencedor": "Apolo",
+        "hp_restante": -685.5789504901695,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 805,
+        "duracao": 184.363,
+        "vencedor": "Umbra",
+        "hp_restante": 135656.02010155277,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 806,
+        "duracao": 113.216,
+        "vencedor": "Umbra",
+        "hp_restante": 54191.47058002863,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 807,
+        "duracao": 135.654,
+        "vencedor": "Umbra",
+        "hp_restante": 457652.7695478819,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 808,
+        "duracao": 79.205,
+        "vencedor": "Umbra",
+        "hp_restante": 4531.290030690858,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 809,
+        "duracao": 114.11,
+        "vencedor": "Umbra",
+        "hp_restante": 24251.882350345633,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 810,
+        "duracao": 183.464,
+        "vencedor": "Apolo",
+        "hp_restante": -3338.814262245619,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 811,
+        "duracao": 81.189,
+        "vencedor": "Umbra",
+        "hp_restante": 161830.37231986935,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 812,
+        "duracao": 70.514,
+        "vencedor": "Umbra",
+        "hp_restante": 214561.31474949128,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 813,
+        "duracao": 152.78,
+        "vencedor": "Apolo",
+        "hp_restante": -107.49274281254202,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 814,
+        "duracao": 115.35,
+        "vencedor": "Umbra",
+        "hp_restante": 30737.427121463843,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 815,
+        "duracao": 118.9,
+        "vencedor": "Apolo",
+        "hp_restante": -2621.831387551043,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 816,
+        "duracao": 58.104,
+        "vencedor": "Umbra",
+        "hp_restante": 171875.44653741494,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 817,
+        "duracao": 271.077,
+        "vencedor": "Apolo",
+        "hp_restante": -864.9547632223766,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 818,
+        "duracao": 160.767,
+        "vencedor": "Umbra",
+        "hp_restante": 211254.27553491382,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 819,
+        "duracao": 157.71,
+        "vencedor": "Apolo",
+        "hp_restante": -922.2094480685487,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 820,
+        "duracao": 93.022,
+        "vencedor": "Apolo",
+        "hp_restante": -127.16985768808172,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 821,
+        "duracao": 137.849,
+        "vencedor": "Umbra",
+        "hp_restante": 168848.47573999202,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 822,
+        "duracao": 190.452,
+        "vencedor": "Umbra",
+        "hp_restante": 21192.10342839735,
+        "exploracao_umbra": 0.2,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
     }
 ]
