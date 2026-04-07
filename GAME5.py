@@ -17,9 +17,11 @@ from Variaveis import *
 from utils import *
 import habilidade_boss as hb
 import collections
+from vfx_engine_apolo import ApoloVFXManager
 
 pygame.init()
 memoria_umbra = hb.MemoriaEvolutivaUmbra()
+vfx_apolo = ApoloVFXManager()
 
 
 estalos = pygame.mixer.Sound("Sounds/Estalo.mp3")
@@ -953,6 +955,8 @@ while running:
             # Resetamos o cooldown e simulamos dano crítico para forçar o Grafo
             estado_atual_ia['ultimo_teleporte'] = 0
             estado_atual_ia['dano_recente'] = 500
+    # A tecla V foi removida para dar a Umbra a capacidade de chamar autonomamente
+
 
     # Verificar eventos de joystick
     joystick_count = pygame.joystick.get_count()
@@ -1220,7 +1224,7 @@ while running:
         boss_pos_ia = {
             'x': pos_x_umbra,
             'y': pos_y_umbra,
-            'hitbox_centro': hitbox_boss5.center if 'hitbox_boss5' in locals() else (pos_x_umbra, pos_y_umbra)
+            'hitbox_centro': hitbox_boss5.center if 'hitbox_boss5' in locals() or 'hitbox_boss5' in globals() else (pos_x_umbra + largura_boss // 2, pos_y_umbra + altura_boss // 2)
         }
         player_pos_data = (pos_x_personagem, pos_y_personagem)
         dados_p = {
@@ -1481,16 +1485,8 @@ while running:
                 if 0 < p["rect"].x < largura_mapa and 0 < p["rect"].y < altura_mapa:
                     projeteis_vivos.append(p)
                     
-                    # --- 2. RENDERIZAÇÃO DOS PROJÉTEIS ---
-                    if p.get("tipo") == "furia":
-                        cor_tiro = (138, 43, 226) # Roxo Intenso
-                        raio = 12
-                    else:
-                        cor_tiro = (255, 50, 50)  # Vermelho Alerta
-                        raio = 6
-
-                    pygame.draw.circle(tela, cor_tiro, p["rect"].center, raio)
-                    pygame.draw.circle(tela, (255, 255, 255), p["rect"].center, raio // 2)
+                    # A renderização agora é processada pelo MOTOR DE VFX PROCEDURAL abaixo
+                    pass 
                 else:
                     memoria_umbra.treinar(-0.5)
                     estado_atual_ia['passiva_chance'] = 0.30
@@ -1498,11 +1494,18 @@ while running:
                     estado_atual_ia['intervalo'] = 1900
 
             estado_atual_ia['projeteis'] = projeteis_vivos
+            
+            # --- 2. MOTOR DE VFX PROCEDURAL (PLASMA & PARTÍCULAS) ---
+            hb.renderizar_vfx_umbra(tela, agora, estado_atual_ia)
 
             # --- 3. DETECÇÃO DE DANO NO JOGADOR ---
             hitbox_player = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
             for p in estado_atual_ia['projeteis'][:]:
                 if p["rect"].colliderect(hitbox_player):
+                    # Aciona VFX de Desfragmentação Elite no Impacto
+                    cor_frag = (138, 43, 226) if p.get('tipo') == 'furia' else (0, 191, 255)
+                    hb.gerar_burst_desfragmentacao(p["rect"].centerx, p["rect"].centery, estado_atual_ia, cor_frag)
+                    
                     dano_bruto = (420 + (inimigos_eliminados * 0.10)) * multiplicador_dano_umbra
                     dano_recebido = int(dano_bruto - Resistencia)
                     
@@ -1522,10 +1525,10 @@ while running:
                     
                     memoria_umbra.treinar(3.0, prioridade=True)
                     
-                    chance_atual = estado_atual_ia.get('passiva_chance', 0.30)
+                    chance_atual = estado_atual_ia.get('passiva_chance', 0.50)
                     if random.random() <= chance_atual:
                         reducao_atual = estado_atual_ia.get('passiva_reducao', 1.0)
-                        nova_reducao = max(0.2, reducao_atual - 0.15) 
+                        nova_reducao = max(0.2, reducao_atual - 0.35) 
                         
                         estado_atual_ia['passiva_reducao'] = nova_reducao
                         estado_atual_ia['passiva_chance'] = min(1.0, chance_atual + 0.15)
@@ -2034,6 +2037,9 @@ while running:
                         cinza = int(p["vida"] * 0.4)
                         pygame.draw.circle(tela, (cinza, cinza, cinza), (int(p["x"]), int(p["y"])), int(p["tamanho"]))
 
+            
+
+
             # Renderização Final da Barra de Vida da Boss
             mostrar_vida_boss = True
             if estado_atual_ia.get('miasma_ativo'):
@@ -2148,26 +2154,12 @@ while running:
                     dano_final *= 0.75
                     cor_feedback = (0, 200, 255) # Azul de Escudo
 
-                # O Escudo de Atrito (Reduz dano em 70% e carrega a fúria)
-                if estado_atual_ia.get('dimensao_ativa') == "atrito":
-                    dano_final *= 0.3
-                    estado_atual_ia['carga_atrito'] = estado_atual_ia.get('carga_atrito', 0) + 8
-                    
-                    if estado_atual_ia['carga_atrito'] >= 100 and not estado_atual_ia.get('laser_ativo'):
-                        pos_x_umbra = (largura_mapa // 2) - (largura_boss // 2)
-                        pos_y_umbra = (altura_mapa // 2) - (altura_boss // 2)
-                        
-                        estado_atual_ia['laser_ativo'] = {
-                            'tempo_inicio': agora,
-                            'fase': 'carregando',
-                            'rodada': 1,              # Inicia na Rodada 1
-                            'duracao_carga': 1500,    # 1.5s de carga entre cada estágio
-                            'duracao_disparo': 4000   # 4s atirando por estágio
-                        }
-                        estado_atual_ia['carga_atrito'] = 0
                 # Aplicação de Dano e Treino
                 if vida_umbra > 0:
                     vida_umbra -= dano_final
+                    
+                    # --- NOVO MOTOR DE VFX: Desfragmentação de Impacto ---
+                    vfx_apolo.criar_impacto_fragmentado(disparo["rect"].centerx, disparo["rect"].centery)
                     
                     punicao = -2.0 
                     memoria_umbra.treinar(punicao, prioridade=True)
@@ -2266,6 +2258,190 @@ while running:
                     })
                     atingiu_boss = True
 
+                # --- RENDERIZAÇÃO E FÍSICA DAS BORDAS VENENOSAS (RASTRO) ---
+            bordas = estado_atual_ia.get('bordas_ativas')
+            if bordas and agora - bordas['tempo_inicio'] >= bordas['duracao']:
+                estado_atual_ia['bordas_ativas'] = None
+                bordas = None
+
+            if estado_atual_ia.get('dimensao_ativa') == "rastro" and bordas:
+                tempo_na_habilidade = agora - bordas['tempo_inicio']
+                
+                # Preservar o nível de identação (20 espaços para o if, 24 para a Surface e além)
+                if True:
+                    fator_expansao = min(1.0, tempo_na_habilidade / 2000.0)
+                    fluidez = fator_expansao * fator_expansao * (3.0 - 2.0 * fator_expansao)
+                    
+                    border_w = int(120 * fluidez)
+
+                    if border_w > 0:
+                        s_veneno = pygame.Surface((largura_mapa, altura_mapa), pygame.SRCALPHA)
+
+                        c_abismo = (5, 12, 8, int(255 * fluidez))
+                        c_profunda = (14, 26, 17, int(240 * fluidez))
+                        c_fluido1 = (22, 48, 25, int(210 * fluidez))
+                        c_fluido2 = (34, 76, 36, int(255 * fluidez))
+                        c_espuma = (65, 140, 70, int(180 * fluidez))
+                        c_reflexo = (150, 255, 170, int(140 * fluidez))
+
+                        pygame.draw.rect(s_veneno, c_profunda, (0, 0, largura_mapa, border_w))
+                        pygame.draw.rect(s_veneno, c_profunda, (0, altura_mapa - border_w, largura_mapa, border_w))
+                        pygame.draw.rect(s_veneno, c_profunda, (0, border_w, border_w, altura_mapa - 2*border_w))
+                        pygame.draw.rect(s_veneno, c_profunda, (largura_mapa - border_w, border_w, border_w, altura_mapa - 2*border_w))
+
+                        passo_onda = 20
+                        p_t_abismo, p_t1, p_t2, p_t_luz = [(0, 0)], [(0, 0)], [(0, 0)], [(0, 0)]
+                        p_b_abismo, p_b1, p_b2, p_b_luz = [(0, altura_mapa)], [(0, altura_mapa)], [(0, altura_mapa)], [(0, altura_mapa)]
+                        
+                        for x in range(0, largura_mapa + passo_onda, passo_onda):
+                            o_base = math.sin(agora * 0.0012 + x * 0.008) * (18 * fluidez)
+                            o_med = math.cos(agora * 0.0022 + x * 0.018) * (22 * fluidez)
+                            o_caos = math.sin(agora * 0.0045 + x * 0.035) * (12 * fluidez)
+                            o_micro = math.cos(agora * 0.008 + x * 0.05) * (5 * fluidez)
+                            
+                            onda_total1 = border_w - (20 * fluidez) + o_base + o_med
+                            onda_total2 = border_w + o_med + o_caos
+                            onda_reflexo = border_w + o_caos + o_micro + (5 * fluidez)
+                            
+                            p_t_abismo.append((x, onda_total2 + (15 * fluidez)))
+                            p_t1.append((x, onda_total1))
+                            p_t2.append((x, onda_total2))
+                            p_t_luz.append((x, onda_reflexo))
+                            
+                            o_b_base = math.cos(agora * 0.0013 + x * 0.009) * (18 * fluidez)
+                            o_b_med = math.sin(agora * 0.0024 + x * 0.017) * (22 * fluidez)
+                            o_b_caos = math.cos(agora * 0.0042 + x * 0.032) * (12 * fluidez)
+                            o_b_micro = math.sin(agora * 0.007 + x * 0.048) * (5 * fluidez)
+                            
+                            onda_b_total1 = (altura_mapa - border_w) + (20 * fluidez) - o_b_base - o_b_med
+                            onda_b_total2 = (altura_mapa - border_w) - o_b_med - o_b_caos
+                            onda_b_reflexo = (altura_mapa - border_w) - o_b_caos - o_b_micro - (5 * fluidez)
+                            
+                            p_b_abismo.append((x, onda_b_total2 - (15 * fluidez)))
+                            p_b1.append((x, onda_b_total1))
+                            p_b2.append((x, onda_b_total2))
+                            p_b_luz.append((x, onda_b_reflexo))
+
+                        p_t_abismo.append((largura_mapa, 0)); p_t1.append((largura_mapa, 0)); p_t2.append((largura_mapa, 0)); p_t_luz.append((largura_mapa, 0))
+                        p_b_abismo.append((largura_mapa, altura_mapa)); p_b1.append((largura_mapa, altura_mapa)); p_b2.append((largura_mapa, altura_mapa)); p_b_luz.append((largura_mapa, altura_mapa))
+
+                        pygame.draw.polygon(s_veneno, c_abismo, p_t_abismo)
+                        pygame.draw.polygon(s_veneno, c_fluido1, p_t1)
+                        pygame.draw.polygon(s_veneno, c_fluido2, p_t2)
+                        pygame.draw.lines(s_veneno, c_reflexo, False, p_t_luz, max(1, int(3 * fluidez)))
+                        
+                        pygame.draw.polygon(s_veneno, c_abismo, p_b_abismo)
+                        pygame.draw.polygon(s_veneno, c_fluido1, p_b1)
+                        pygame.draw.polygon(s_veneno, c_fluido2, p_b2)
+                        pygame.draw.lines(s_veneno, c_reflexo, False, p_b_luz, max(1, int(3 * fluidez)))
+
+                        p_e_abismo, p_e1, p_e2, p_e_luz = [(0, 0)], [(0, 0)], [(0, 0)], [(0, 0)]
+                        p_d_abismo, p_d1, p_d2, p_d_luz = [(largura_mapa, 0)], [(largura_mapa, 0)], [(largura_mapa, 0)], [(largura_mapa, 0)]
+                        
+                        for y in range(0, altura_mapa + passo_onda, passo_onda):
+                            o_base = math.cos(agora * 0.0014 + y * 0.011) * (18 * fluidez)
+                            o_med = math.sin(agora * 0.0021 + y * 0.019) * (22 * fluidez)
+                            o_caos = math.cos(agora * 0.0041 + y * 0.033) * (12 * fluidez)
+                            o_micro = math.sin(agora * 0.0075 + y * 0.052) * (5 * fluidez)
+                            
+                            onda_e_total1 = border_w - (20 * fluidez) + o_base + o_med
+                            onda_e_total2 = border_w + o_med + o_caos
+                            onda_e_reflexo = border_w + o_caos + o_micro + (5 * fluidez)
+                            
+                            p_e_abismo.append((onda_e_total2 + (15 * fluidez), y))
+                            p_e1.append((onda_e_total1, y))
+                            p_e2.append((onda_e_total2, y))
+                            p_e_luz.append((onda_e_reflexo, y))
+                            
+                            o_d_base = math.sin(agora * 0.0016 + y * 0.01) * (18 * fluidez)
+                            o_d_med = math.cos(agora * 0.0023 + y * 0.016) * (22 * fluidez)
+                            o_d_caos = math.sin(agora * 0.0044 + y * 0.031) * (12 * fluidez)
+                            o_d_micro = math.cos(agora * 0.0072 + y * 0.049) * (5 * fluidez)
+                            
+                            onda_d_total1 = (largura_mapa - border_w) + (20 * fluidez) - o_d_base - o_d_med
+                            onda_d_total2 = (largura_mapa - border_w) - o_d_med - o_d_caos
+                            onda_d_reflexo = (largura_mapa - border_w) - o_d_caos - o_d_micro - (5 * fluidez)
+                            
+                            p_d_abismo.append((onda_d_total2 - (15 * fluidez), y))
+                            p_d1.append((onda_d_total1, y))
+                            p_d2.append((onda_d_total2, y))
+                            p_d_luz.append((onda_d_reflexo, y))
+
+                        p_e_abismo.append((0, altura_mapa)); p_e1.append((0, altura_mapa)); p_e2.append((0, altura_mapa)); p_e_luz.append((0, altura_mapa))
+                        p_d_abismo.append((largura_mapa, altura_mapa)); p_d1.append((largura_mapa, altura_mapa)); p_d2.append((largura_mapa, altura_mapa)); p_d_luz.append((largura_mapa, altura_mapa))
+
+                        pygame.draw.polygon(s_veneno, c_abismo, p_e_abismo)
+                        pygame.draw.polygon(s_veneno, c_fluido1, p_e1)
+                        pygame.draw.polygon(s_veneno, c_fluido2, p_e2)
+                        pygame.draw.lines(s_veneno, c_reflexo, False, p_e_luz, max(1, int(3 * fluidez)))
+                        
+                        pygame.draw.polygon(s_veneno, c_abismo, p_d_abismo)
+                        pygame.draw.polygon(s_veneno, c_fluido1, p_d1)
+                        pygame.draw.polygon(s_veneno, c_fluido2, p_d2)
+                        pygame.draw.lines(s_veneno, c_reflexo, False, p_d_luz, max(1, int(3 * fluidez)))
+
+                        random.seed(int(agora / 250))
+                        for _ in range(60):
+                            bx = random.randint(0, largura_mapa)
+                            by = random.randint(0, altura_mapa)
+                            if (bx < border_w + 20 or bx > largura_mapa - border_w - 20 or 
+                                by < border_w + 20 or by > altura_mapa - border_w - 20):
+                                
+                                tamanho_base = random.randint(8, 28) * fluidez
+                                if tamanho_base > 2:
+                                    pulsar = math.sin(agora * 0.01 + bx + by) * (6 * fluidez)
+                                    tamanho_final = max(4, int(tamanho_base + pulsar))
+                                    
+                                    # Geometrias quadradas para consolidar o Pixel Art
+                                    pygame.draw.rect(s_veneno, (10, 20, 12, int(150 * fluidez)), (bx + 2, by + 3, tamanho_final, tamanho_final))
+                                    pygame.draw.rect(s_veneno, c_espuma, (bx, by, tamanho_final, tamanho_final))
+                                    
+                                    tamanho_reflexo = max(2, int(tamanho_final * 0.3))
+                                    pygame.draw.rect(s_veneno, (200, 255, 210, int(200 * fluidez)), (bx + int(tamanho_final * 0.1), by + int(tamanho_final * 0.1), tamanho_reflexo, tamanho_reflexo))
+                        random.seed()
+
+                        # Compressão e Expansão de Resolução (Filtro Pixel Art)
+                        escala_pixel = 6 # Intensidade do granulado (ajuste entre 4 e 8 para preferência visual)
+                        s_veneno_comprimido = pygame.transform.scale(s_veneno, (largura_mapa // escala_pixel, altura_mapa // escala_pixel))
+                        s_veneno_pixelado = pygame.transform.scale(s_veneno_comprimido, (largura_mapa, altura_mapa))
+
+                        tela.blit(s_veneno_pixelado, (0, 0))
+
+                        if (pos_x_personagem < border_w or 
+                            pos_x_personagem + largura_personagem > largura_mapa - border_w or
+                            pos_y_personagem < border_w or 
+                            pos_y_personagem + altura_personagem > altura_mapa - border_w):
+                            
+                            if agora % 1000 < 50:
+                                vida -= vida_maxima * 0.05
+                                memoria_umbra.treinar(2.0)
+                                efeitos_texto.append({
+                                    "texto": "BORDAS TÓXICAS!",
+                                    "x": pos_x_personagem + random.randint(-20, 20),
+                                    "y": pos_y_personagem - 30,
+                                    "tempo_inicio": agora,
+                                    "cor": (40, 180, 60)
+                                })
+
+                # O Escudo de Atrito (Reduz dano em 70% e carrega a fúria)
+                if estado_atual_ia.get('dimensao_ativa') == "atrito":
+                    dano_final *= 0.3
+                    estado_atual_ia['carga_atrito'] = estado_atual_ia.get('carga_atrito', 0) + 8
+                    
+                    if estado_atual_ia['carga_atrito'] >= 100 and not estado_atual_ia.get('laser_ativo'):
+                        pos_x_umbra = (largura_mapa // 2) - (largura_boss // 2)
+                        pos_y_umbra = (altura_mapa // 2) - (altura_boss // 2)
+                        
+                        estado_atual_ia['laser_ativo'] = {
+                            'tempo_inicio': agora,
+                            'fase': 'carregando',
+                            'rodada': 1,              # Inicia na Rodada 1
+                            'duracao_carga': 1500,    # 1.5s de carga entre cada estágio
+                            'duracao_disparo': 4000   # 4s atirando por estágio
+                        }
+                        estado_atual_ia['carga_atrito'] = 0
+                
+
         # 5. Manutenção de Projéteis no Mapa
         dentro_mapa = 0 <= disparo["rect"].x < largura_mapa and 0 <= disparo["rect"].y < altura_mapa
         if dentro_mapa and not atingiu_boss and not interceptado:
@@ -2279,9 +2455,12 @@ while running:
     rect_personagem = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
     novos_projeteis_boss = []
 
-    # Renderizar os disparos
+    # Renderizar os disparos (NOVO MOTOR PROCEDURAL)
     for disparo in disparos:
-        tela.blit(frames_disparo[frame_atual_disparo], disparo["rect"].topleft)
+        vfx_apolo.renderizar_plasma_apolo(tela, disparo["rect"].center, agora)
+
+    # Atualizar e Desenhar Partículas de Desfragmentação (Globais)
+    vfx_apolo.atualizar_e_desenhar(tela, agora)
 
     for moeda in moedas_soltadas[:]:
         if personagem_rect.colliderect(moeda["rect"]):

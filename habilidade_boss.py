@@ -1,7 +1,7 @@
 import pygame
 import math
 import random
-from Variaveis import espacamento, largura_mapa, altura_mapa
+from Variaveis import espacamento, largura_mapa, altura_mapa, largura_personagem, altura_personagem, largura_boss, altura_boss
 import json
 import os
 
@@ -141,17 +141,29 @@ def calcular_poh(player_pos, boss_pos, historico_player, confianca_ia):
     return confianca_ia * estabilidade * fator_dist
 
 def node_ataque_direcionado(agora, estado_ia, bx, by, px, py, historico_player, memoria):
-    if agora - estado_ia.get('ultimo_attack', 0) >= estado_ia.get('intervalo', 1900):
-        distancia = math.hypot(px - bx, py - by)
-        vel_projetil = 7 
+    if agora - estado_ia.get('ultimo_attack', 0) >= estado_ia.get('intervalo', 1250):
+        # CALIBRAÇÃO DE PRECISÃO: Usamos o centro absoluto das hitboxes
+        centro_bx = bx + (largura_boss // 2)
+        centro_by = by + (altura_boss // 2)
+        centro_px = px + (largura_personagem // 2)
+        centro_py = py + (altura_personagem // 2)
+        
+        distancia = math.hypot(centro_px - centro_bx, centro_py - centro_by)
+        vel_projetil = 9
         tempo_voo = distancia / vel_projetil
         
-        # O SEGREDO: A Umbra decide se vai tentar prever ou atirar no corpo
-        # Se o player é "errático", ela tem 50% de chance de atirar onde você ESTÁ
-        # para te pegar justamente no seu "passo atrás".
-        modo_predict = random.random() > 0.4 # 60% Predict, 40% Direto
+        # O SEGREDO TÁTICO: Umbra detecta se o player está estático ou num canto
+        parado = len(historico_player) >= 5 and all(math.hypot(p[0]-px, p[1]-py) < 5 for p in historico_player[-5:])
+        no_canto = px < 100 or px > largura_mapa - 150 or py < 100 or py > altura_mapa - 150
+
+        # Se parado ou no canto, a Umbra favorece o tiro DIRETO para evitar bugs de predição
+        if parado or no_canto:
+            modo_predict = random.random() > 0.8 # 20% Predict, 80% Direto
+        else:
+            modo_predict = random.random() > 0.3 # 70% Predict, 30% Direto
         
         if len(historico_player) >= 2 and modo_predict:
+            # Cálculo de vetor de movimento do centro do player
             v_px = px - historico_player[-2][0]
             v_py = py - historico_player[-2][1]
             
@@ -159,14 +171,21 @@ def node_ataque_direcionado(agora, estado_ia, bx, by, px, py, historico_player, 
             # Fator de lead (ajustado pela confiança da IA)
             fator_lead = estado_ia.get('lead', 0.8)
             
-            alvo_x = px + (v_px * tempo_voo * fator_lead) + (bias_x * 120)
-            alvo_y = py + (v_py * tempo_voo * fator_lead) + (bias_y * 120)
+            # Predição com trava de limites para não atirar fora da arena
+            alvo_x = centro_px + (v_px * tempo_voo * fator_lead) + (bias_x * 80)
+            alvo_y = centro_py + (v_py * tempo_voo * fator_lead) + (bias_y * 80)
+            
+            # Clamp emocional: Não permite que a predição saia do mapa
+            alvo_x = max(50, min(largura_mapa - 50, alvo_x))
+            alvo_y = max(50, min(altura_mapa - 50, alvo_y))
         else:
-            alvo_x, alvo_y = px, py
+            alvo_x, alvo_y = centro_px, centro_py
 
-        angulo = math.atan2(alvo_y - by, alvo_x - bx)
+        # ÂNGULO ABSOLUTO: Calculado da origem do projétil ao alvo corrigido
+        angulo = math.atan2(alvo_y - centro_by, alvo_x - centro_bx)
+        
         estado_ia['projeteis'].append({
-            "rect": pygame.Rect(bx + 20, by + 20, 12, 12),
+            "rect": pygame.Rect(centro_bx - 6, centro_by - 6, 12, 12),
             "angulo": angulo,
             "velocidade": vel_projetil,
             "tipo": "comum"
@@ -176,20 +195,26 @@ def node_ataque_direcionado(agora, estado_ia, bx, by, px, py, historico_player, 
 
 def node_caminho_espinhos(agora, estado_ia, bx, by, px, py, historico_player):
     """Evoca um trilho linear que se alarga gradualmente e engole o jogador ao toque."""
-    alvo_x, alvo_y = px, py
+    # PRECISÃO GEOMÉTRICA: Origem no centro do BOSS
+    centro_bx = bx + (largura_boss // 2)
+    centro_by = by + (altura_boss // 2)
+    centro_px = px + (largura_personagem // 2)
+    centro_py = py + (altura_personagem // 2)
+
+    alvo_x, alvo_y = centro_px, centro_py
     
     if len(historico_player) >= 3:
         vx_p = px - historico_player[-3][0]
         vy_p = py - historico_player[-3][1]
-        alvo_x = px + (vx_p * 12)
-        alvo_y = py + (vy_p * 12)
+        alvo_x = centro_px + (vx_p * 12)
+        alvo_y = centro_py + (vy_p * 12)
 
-    dx = alvo_x - bx
-    dy = alvo_y - by
+    dx = alvo_x - centro_bx
+    dy = alvo_y - centro_by
     angulo = math.atan2(dy, dx)
     
     estado_ia['caminho_espinhos'] = {
-        'origem': (bx + 30, by + 30),
+        'origem': (centro_bx, centro_by),
         'angulo': angulo,
         'comprimento': 1500, # Atravessa a arena inteira
         'largura_maxima': 220,
@@ -317,10 +342,16 @@ def node_teleporte_sinalizador(agora, estado_ia, boss_pos, alvo_pos):
     estado_ia['fase_tele'] = "projetil_viajando"
 
 def node_descarga_eletrica(agora, estado_ia, bx, by, px, py):
-    angulo_disparo = math.atan2(py - by, px - bx)
+    # CALIBRAÇÃO DE CENTRO: Garante que os raios saiam da alma do boss
+    centro_bx = bx + (largura_boss // 2)
+    centro_by = by + (altura_boss // 2)
+    centro_px = px + (largura_personagem // 2)
+    centro_py = py + (altura_personagem // 2)
+
+    angulo_disparo = math.atan2(centro_py - centro_by, centro_px - centro_bx)
     estado_ia['descarga_eletrica'] = {
-        'x': bx + 30,
-        'y': by + 30,
+        'x': centro_bx,
+        'y': centro_by,
         'angulo_base': angulo_disparo,
         'raio_maximo': 380.0,
         'abertura': 0.9, 
@@ -370,6 +401,7 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         if ultima_dim != "ressonancia": acoes_disponiveis.append("TRANSMUTAR_RESSONANCIA")
         if ultima_dim != "hemorragia": acoes_disponiveis.append("TRANSMUTAR_HEMORRAGIA")
         if ultima_dim != "atrito": acoes_disponiveis.append("TRANSMUTAR_ATRITO")
+        if ultima_dim != "rastro": acoes_disponiveis.append("TRANSMUTAR_RASTRO")
 
     if mapa_atual == "Sprites/Fase1.png" and agora - estado_ia.get('ultimo_vortice', 0) >= 12000:
         acoes_disponiveis.append("VORTICE")
@@ -381,6 +413,10 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         acoes_disponiveis.append("DESCARGA_ELETRICA")
     elif mapa_atual == "Sprites/Fase6.png" and agora - estado_ia.get('ultimo_espinhos', 0) >= 8000:
         acoes_disponiveis.append("CAMINHO_ESPINHOS")
+    elif mapa_atual == "Sprites/Fase7.png" and agora - estado_ia.get('ultimo_laser', 0) >= 11000:
+        acoes_disponiveis.append("LASER_SOBRECARGA")
+    elif mapa_atual == "Sprites/Fase9.png" and agora - estado_ia.get('ultimo_bordas', 0) >= 12000:
+        acoes_disponiveis.append("BORDAS_TOXICAS")
 
     decisao = memoria.decidir(estado_composto, acoes_disponiveis)
 
@@ -410,6 +446,9 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         estado_ia['ultimo_prisao'] = agora
         estado_ia['ultimo_miasma'] = agora
         estado_ia['ultimo_descarga'] = agora
+        estado_ia['ultimo_espinhos'] = agora
+        estado_ia['ultimo_laser'] = agora
+        estado_ia['ultimo_bordas'] = agora
         
         dimensao_escolhida = decisao.split("_")[1].lower()
         mapas = {
@@ -418,7 +457,8 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
             "necrose": "Sprites/Fase3.png",
             "ressonancia": "Sprites/Fase4.png",
             "hemorragia": "Sprites/Fase6.png",
-            "atrito": "Sprites/Fase7.png"
+            "atrito": "Sprites/Fase7.png",
+            "rastro": "Sprites/Fase9.png"
         }
         
         estado_ia['mapa_alvo'] = mapas[dimensao_escolhida]
@@ -448,6 +488,26 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
 
     elif decisao == "PRISAO":
         node_prisao_criogenica(agora, estado_ia, px, py, historico_player)
+        estado_ia['dano_recente'] = 0
+
+    elif decisao == "BORDAS_TOXICAS":
+        estado_ia['bordas_ativas'] = {
+            'tempo_inicio': agora,
+            'duracao': 9000
+        }
+        estado_ia['ultimo_bordas'] = agora
+        estado_ia['dano_recente'] = 0
+
+    elif decisao == "LASER_SOBRECARGA":
+        estado_ia['laser_ativo'] = {
+            'tempo_inicio': agora,
+            'fase': 'carregando',
+            'rodada': 1,
+            'duracao_carga': 1500,
+            'duracao_disparo': 4000
+        }
+        estado_ia['ultimo_laser'] = agora
+        estado_ia['carga_atrito'] = 0
         estado_ia['dano_recente'] = 0
 
     elif decisao == "TELEPORTE":
@@ -622,3 +682,88 @@ def movimentacao_inteligente_umbra(agora, boss_pos, player_pos, disparos, estado
     ny = max(espacamento, min(altura_mapa - 150, by + vy))
 
     return (nx, ny), "GENERATIVE_MOVE"
+
+# --- MOTOR DE VFX PROCEDURAL (PLASMA & PARTÍCULAS) ---
+
+def gerar_burst_desfragmentacao(x, y, estado_ia, cor_base=(0, 191, 255)):
+    """Gera uma explosão de fragmentos etéreos de plasma ao colidir."""
+    if 'vfx_particulas' not in estado_ia:
+        estado_ia['vfx_particulas'] = []
+        
+    for _ in range(random.randint(15, 25)):
+        ang = random.uniform(0, math.pi * 2)
+        forca = random.uniform(1.0, 4.5)
+        vida = random.randint(20, 50)
+        estado_ia['vfx_particulas'].append({
+            'x': x, 'y': y,
+            'vx': math.cos(ang) * forca,
+            'vy': math.sin(ang) * forca,
+            'vida': vida,
+            'vida_max': vida,
+            'cor': cor_base,
+            'tam': random.randint(2, 6)
+        })
+
+def renderizar_vfx_umbra(tela, agora, estado_ia):
+    """Renderiza esferas de plasma, arcos elétricos e partículas de desfragmentação."""
+    
+    # 1. GESTÃO TÁTICA DE PARTÍCULAS (DESFRAGMENTAÇÃO)
+    particulas_vivas = []
+    vfx_pool = estado_ia.get('vfx_particulas', [])
+    
+    for p in vfx_pool:
+        p['x'] += p['vx']
+        p['y'] += p['vy']
+        p['vida'] -= 1
+        # Viscosidade física
+        p['vx'] *= 0.94
+        p['vy'] *= 0.94
+        
+        if p['vida'] > 0:
+            alfa = int((p['vida'] / p['vida_max']) * 255)
+            # Renderização de partícula 'viscosa' (Soft circle)
+            s = pygame.Surface((p['tam']*2, p['tam']*2), pygame.SRCALPHA)
+            pygame.draw.circle(s, (*p['cor'][:3], alfa), (p['tam'], p['tam']), p['tam'])
+            tela.blit(s, (p['x'] - p['tam'], p['y'] - p['tam']))
+            particulas_vivas.append(p)
+            
+    estado_ia['vfx_particulas'] = particulas_vivas
+
+    # 2. RENDERIZAÇÃO PROCEDURAL DE PROJÉTEIS (ESFERA DE PLASMA)
+    for proj in estado_ia.get('projeteis', []):
+        x, y = proj['rect'].center
+        tipo = proj.get('tipo', 'comum')
+        
+        # Calibração de Cores e Energia
+        if tipo == "furia":
+            cor_plasma = (138, 43, 226) # Púrpura de Fúria
+            raio_n = 15
+        else:
+            cor_plasma = (0, 191, 255)  # Azul Radiante
+            raio_n = 8
+            
+        pulso = math.sin(agora * 0.015) * 3
+        
+        # A. CAMADAS DE GLOW (Plasma Glow)
+        for i in range(3, 0, -1):
+            r_vfx = raio_n + (i * 5) + pulso
+            alfa_vfx = 90 // i
+            s_vfx = pygame.Surface((r_vfx*2, r_vfx*2), pygame.SRCALPHA)
+            pygame.draw.circle(s_vfx, (*cor_plasma, alfa_vfx), (r_vfx, r_vfx), r_vfx)
+            tela.blit(s_vfx, (x - r_vfx, y - r_vfx))
+            
+        # B. NÚCLEO E ARCOS ELÉTRICOS
+        pygame.draw.circle(tela, (255, 255, 255), (x, y), int(raio_n * 0.6))
+        pygame.draw.circle(tela, cor_plasma, (x, y), raio_n, 2)
+
+        # Geração procedural de arcos elétricos (orbitais)
+        random.seed(int(agora // 80) + id(proj)) # Flicks elétricos estáveis por frame
+        for _ in range(3):
+            ang_ele = random.uniform(0, math.pi * 2)
+            d_ele = raio_n + 8 + (pulso * 0.5)
+            p_inicio = (x + math.cos(ang_ele)*raio_n, y + math.sin(ang_ele)*raio_n)
+            p_meio = (x + math.cos(ang_ele + 0.4)*d_ele + random.uniform(-4,4), y + math.sin(ang_ele + 0.4)*d_ele + random.uniform(-4,4))
+            p_fim = (x + math.cos(ang_ele - 0.2)*(d_ele+3), y + math.sin(ang_ele - 0.2)*(d_ele+3))
+            
+            pygame.draw.lines(tela, random.choice([(255,255,255), cor_plasma]), False, [p_inicio, p_meio, p_fim], 1)
+        random.seed() # Destrava seed
