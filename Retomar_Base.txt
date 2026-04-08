@@ -1,2 +1,0 @@
-if agora - estado_ia.get('ultimo_transmutar', 0) >= 38000:
-intervalo_tiro = config_boss.get('p_intervalo_disparo', 500)

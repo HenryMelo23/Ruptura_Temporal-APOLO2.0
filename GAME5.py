@@ -306,6 +306,7 @@ def atualizar_posicao_personagem(keys, joystick):#APOLO
     global hitbox_boss5, estado_atual_ia, modo_ia_treino
     global tempo_ultimo_disparo, intervalo_disparo, disparos
     global vida, largura_disparo, altura_disparo
+    global tempo_entrada_bordas, tempo_acumulado_bordas, ultimo_tick_dano_bordas, estava_nas_bordas
 
     dx, dy = 0, 0
     direcao_atual = 'stop'
@@ -327,8 +328,14 @@ def atualizar_posicao_personagem(keys, joystick):#APOLO
         
         # Garante que a IA não colapse se a lista de esferas ainda não existir no escopo global
         lista_esferas = esferas_energia_umbra if 'esferas_energia_umbra' in globals() else []
+        
+        # Calcula velocidade atual do personagem
+        velocidade_atual = math.hypot(dx, dy) * velocidade_personagem if (dx != 0 or dy != 0) else 0
+        
+        # Passa estado_atual_ia para o Apolo ter consciência das armadilhas
+        estado_ia_ref = estado_atual_ia if 'estado_atual_ia' in globals() else None
 
-        apolo.pensar((pos_x_personagem, pos_y_personagem), hitbox_alvo, lista_tiros_umbra, cds_ia, vida, vida_boss_atual, lista_esferas)
+        apolo.pensar((pos_x_personagem, pos_y_personagem), hitbox_alvo, lista_tiros_umbra, cds_ia, vida, vida_boss_atual, lista_esferas, velocidade_atual, estado_ia_ref)
         dx, dy = apolo.direcao_x, apolo.direcao_y
         
         if dx > 0: ultima_tecla_movimento = 'right'
@@ -538,7 +545,11 @@ reducao_cooldown_umbra = 1.0
 resistencia_umbra = 0.0
 bonus_cura_sifon = 1.0
 
-
+# Rastreadores de tempo nas bordas tóxicas
+tempo_entrada_bordas = 0
+tempo_acumulado_bordas = 0
+ultimo_tick_dano_bordas = 0
+estava_nas_bordas = False
 
 tempo_parado_person = pygame.time.get_ticks()  
 boss_atingido_por_onda = pygame.time.get_ticks()
@@ -577,6 +588,7 @@ class AgenteApolo:
         self.vida_boss_anterior = 0
         self.arquivo_memoria = "apolo_memoria.json"
         self.taxa_exploracao = 0.20
+        self.frames_sobrevividos = 0
         self.carregar_memoria()
         self.atualizar_foco_progressivo()
 
@@ -602,66 +614,197 @@ class AgenteApolo:
                 self.taxa_exploracao = max(0.01, 0.20 * (0.985 ** geracoes))
         except: pass
 
-    def obter_estado(self, pos_p, boss_hitbox, projeteis_boss, cds, esferas_energia):
+    def obter_estado_expandido(self, pos_p, boss_hitbox, projeteis_boss, cds, esferas_energia, vida_apolo, vida_boss, velocidade_apolo, estado_ia):
+        """
+        ESTADO EXPANDIDO (10 COMPONENTES):
+        1. QUADRANTE_BOSS (5 estados: C/L/O/S/N)
+        2. DISTANCIA_BOSS (4 estados: MUITO_PERTO/PERTO/MEDIO/LONGE)
+        3. VIDA_APOLO (4 estados: CRITICA/BAIXA/MEDIA/ALTA)
+        4. VIDA_BOSS (4 estados: CRITICA/BAIXA/MEDIA/ALTA)
+        5. PERIGO_IMINENTE (3 estados: NENHUM/PROJETIL/MULTIPLOS)
+        6. DIRECAO_PERIGO (5 estados: LIVRE/L/O/S/N)
+        7. CD_TELEPORTE (2 estados: True/False)
+        8. ARMADILHA_ATIVA (2 estados: True/False)
+        9. POSICAO_MAPA (5 estados: CENTRO/BORDA_L/BORDA_O/BORDA_S/BORDA_N)
+        10. VELOCIDADE (3 estados: PARADO/NORMAL/DASH)
+        """
+        import math
+        px, py = pos_p
+        
+        # 1. QUADRANTE DO BOSS
         quadrante_boss = "C"
         if boss_hitbox:
-            dx = boss_hitbox.centerx - pos_p[0]
-            dy = boss_hitbox.centery - pos_p[1]
-            if abs(dx) > abs(dy):
+            bx, by = boss_hitbox.centerx, boss_hitbox.centery
+            dx = bx - px
+            dy = by - py
+            if abs(dx) < 100 and abs(dy) < 100:
+                quadrante_boss = "C"
+            elif abs(dx) > abs(dy):
                 quadrante_boss = "L" if dx > 0 else "O"
             else:
                 quadrante_boss = "S" if dy > 0 else "N"
+        else:
+            bx, by = largura_mapa // 2, altura_mapa // 2
+            dx = bx - px
+            dy = by - py
         
-        perigo_dir = "LIVRE"
-        import math
-        for p in projeteis_boss:
-            if math.hypot(p["rect"].centerx - pos_p[0], p["rect"].centery - pos_p[1]) < 150:
-                dx = p["rect"].centerx - pos_p[0]
-                dy = p["rect"].centery - pos_p[1]
-                if abs(dx) > abs(dy):
-                    perigo_dir = "L" if dx > 0 else "O"
-                else:
-                    perigo_dir = "S" if dy > 0 else "N"
-                break
-                
-        esfera_dir = "NENHUMA"
-        if esferas_energia:
-            esf = esferas_energia[0]
-            dx_e = esf["x"] - pos_p[0]
-            dy_e = esf["y"] - pos_p[1]
-            if abs(dx_e) > abs(dy_e):
-                esfera_dir = "L" if dx_e > 0 else "O"
+        # 2. DISTÂNCIA DO BOSS (granular)
+        dist_boss = math.hypot(dx, dy)
+        if dist_boss < 200:
+            dist_categoria = "MUITO_PERTO"
+        elif dist_boss < 400:
+            dist_categoria = "PERTO"
+        elif dist_boss < 700:
+            dist_categoria = "MEDIO"
+        else:
+            dist_categoria = "LONGE"
+        
+        # 3. VIDA DO APOLO (granular)
+        vida_perc_apolo = vida_apolo / 1000.0
+        if vida_perc_apolo < 0.25:
+            vida_apolo_cat = "CRITICA"
+        elif vida_perc_apolo < 0.5:
+            vida_apolo_cat = "BAIXA"
+        elif vida_perc_apolo < 0.75:
+            vida_apolo_cat = "MEDIA"
+        else:
+            vida_apolo_cat = "ALTA"
+        
+        # 4. VIDA DA UMBRA (granular)
+        vida_perc_boss = vida_boss / 1200.0
+        if vida_perc_boss < 0.25:
+            vida_boss_cat = "CRITICA"
+        elif vida_perc_boss < 0.5:
+            vida_boss_cat = "BAIXA"
+        elif vida_perc_boss < 0.75:
+            vida_boss_cat = "MEDIA"
+        else:
+            vida_boss_cat = "ALTA"
+        
+        # 5 & 6. ANÁLISE DE PERIGO (múltiplos projéteis)
+        projeteis_proximos = []
+        for proj in projeteis_boss:
+            if 'rect' in proj:
+                proj_x, proj_y = proj['rect'].centerx, proj['rect'].centery
             else:
-                esfera_dir = "S" if dy_e > 0 else "N"
+                proj_x, proj_y = proj.get('x', px), proj.get('y', py)
+            dist_proj = math.hypot(proj_x - px, proj_y - py)
+            if dist_proj < 250:
+                projeteis_proximos.append((proj_x, proj_y, dist_proj))
         
-        return f"{quadrante_boss}_{perigo_dir}_{cds['teleporte']}_{esfera_dir}"
+        if len(projeteis_proximos) == 0:
+            perigo_nivel = "NENHUM"
+            perigo_dir = "LIVRE"
+        elif len(projeteis_proximos) == 1:
+            perigo_nivel = "PROJETIL"
+            proj_x, proj_y, _ = projeteis_proximos[0]
+            dx_p = proj_x - px
+            dy_p = proj_y - py
+            if abs(dx_p) > abs(dy_p):
+                perigo_dir = "L" if dx_p > 0 else "O"
+            else:
+                perigo_dir = "S" if dy_p > 0 else "N"
+        else:
+            perigo_nivel = "MULTIPLOS"
+            proj_x, proj_y, _ = min(projeteis_proximos, key=lambda p: p[2])
+            dx_p = proj_x - px
+            dy_p = proj_y - py
+            if abs(dx_p) > abs(dy_p):
+                perigo_dir = "L" if dx_p > 0 else "O"
+            else:
+                perigo_dir = "S" if dy_p > 0 else "N"
+        
+        # 7. COOLDOWN TELEPORTE
+        cd_tele_str = "True" if cds.get('teleporte', False) else "False"
+        
+        # 8. ARMADILHA ATIVA (detecta armadilhas no estado_ia)
+        armadilha_ativa = False
+        if estado_ia:
+            armadilha_ativa = (
+                estado_ia.get('vortice_ativo', False) or
+                estado_ia.get('prisao_ativa', False) or
+                estado_ia.get('caminho_espinhos', False) or
+                estado_ia.get('laser_ativo', False) or
+                estado_ia.get('descarga_eletrica', False) or
+                estado_ia.get('bordas_ativas', False) or
+                estado_ia.get('miasma_ativo', False)
+            )
+        armadilha_str = "True" if armadilha_ativa else "False"
+        
+        # 9. POSIÇÃO NO MAPA (consciência de bordas)
+        margem = 150
+        if px < margem:
+            pos_mapa = "BORDA_O"
+        elif px > largura_mapa - margem:
+            pos_mapa = "BORDA_L"
+        elif py < margem:
+            pos_mapa = "BORDA_N"
+        elif py > altura_mapa - margem:
+            pos_mapa = "BORDA_S"
+        else:
+            pos_mapa = "CENTRO"
+        
+        # 10. VELOCIDADE ATUAL
+        if velocidade_apolo < 1:
+            vel_cat = "PARADO"
+        elif velocidade_apolo < 10:
+            vel_cat = "NORMAL"
+        else:
+            vel_cat = "DASH"
+        
+        # COMPOSIÇÃO DO ESTADO (10 componentes)
+        return f"{quadrante_boss}_{dist_categoria}_{vida_apolo_cat}_{vida_boss_cat}_{perigo_nivel}_{perigo_dir}_{cd_tele_str}_{armadilha_str}_{pos_mapa}_{vel_cat}"
 
-    def pensar(self, pos_p, boss_hitbox, projeteis_boss, cds, vida_jogador, vida_boss, esferas_energia):
+    def pensar(self, pos_p, boss_hitbox, projeteis_boss, cds, vida_jogador, vida_boss, esferas_energia, velocidade_atual=5, estado_ia=None):
         import random
         self.direcao_x = 0
         self.direcao_y = 0
         self.usar_dash = False
         self.mouse_simulado[0] = False
+        self.frames_sobrevividos += 1
 
         if boss_hitbox:
             self.alvo_x, self.alvo_y = boss_hitbox.center
-            if cds["disparo"] == False: 
+            if cds.get("disparo", False) == False: 
                 self.mouse_simulado[0] = True
 
-        recompensa = 0
+        # RECOMPENSA EXPANDIDA
+        recompensa = 0.5  # Sobrevivência base
+        
         if self.vida_jogador_anterior > 0:
-            if vida_jogador < self.vida_jogador_anterior: 
+            delta_vida_apolo = vida_jogador - self.vida_jogador_anterior
+            delta_vida_boss = vida_boss - self.vida_boss_anterior
+            
+            if delta_vida_apolo < 0:
                 recompensa -= 50
-            if vida_boss < self.vida_boss_anterior: 
+            if delta_vida_boss < 0:
                 recompensa += 30
-            if vida_jogador > self.vida_jogador_anterior:
-                recompensa += 100 
+            if delta_vida_apolo > 0:
+                recompensa += 100
+        
+        # Recompensa por evitar bordas perigosas
+        px, py = pos_p
+        if px < 100 or px > largura_mapa - 100 or py < 100 or py > altura_mapa - 100:
+            recompensa -= 2
+        
+        # Recompensa por manter distância segura
+        if boss_hitbox:
+            dist_boss = math.hypot(boss_hitbox.centerx - px, boss_hitbox.centery - py)
+            if 300 < dist_boss < 600:
+                recompensa += 1
+            elif dist_boss < 200:
+                recompensa -= 3
 
         self.vida_jogador_anterior = vida_jogador
         self.vida_boss_anterior = vida_boss
 
-        estado_atual = self.obter_estado(pos_p, boss_hitbox, projeteis_boss, cds, esferas_energia)
+        # OBTER ESTADO EXPANDIDO
+        estado_atual = self.obter_estado_expandido(
+            pos_p, boss_hitbox, projeteis_boss, cds, esferas_energia,
+            vida_jogador, vida_boss, velocidade_atual, estado_ia
+        )
 
+        # Q-LEARNING
         if self.estado_anterior not in self.q_table: 
             self.q_table[self.estado_anterior] = [0.0] * 5
         if estado_atual not in self.q_table: 
@@ -669,8 +812,9 @@ class AgenteApolo:
 
         q_antigo = self.q_table[self.estado_anterior][self.acao_anterior]
         max_q_novo = max(self.q_table[estado_atual])
-        self.q_table[self.estado_anterior][self.acao_anterior] = q_antigo + 0.2 * (recompensa + 0.9 * max_q_novo - q_antigo)
+        self.q_table[self.estado_anterior][self.acao_anterior] = q_antigo + 0.15 * (recompensa + 0.95 * max_q_novo - q_antigo)
 
+        # SELEÇÃO DE AÇÃO
         if random.random() < self.taxa_exploracao:
             acao = random.choice([0, 1, 2, 3, 4])
         else:
@@ -988,8 +1132,16 @@ while running:
         boss_ref = hitbox_boss5 if 'hitbox_boss5' in locals() or 'hitbox_boss5' in globals() else None
         proj_ref = estado_atual_ia.get('projeteis', [])
         vida_boss_atual = vida_umbra if 'vida_umbra' in globals() else 10000
+        
+        # Calcula velocidade atual do personagem
+        delta_x = pos_x_personagem - ultimo_x
+        delta_y = pos_y_personagem - ultimo_y
+        velocidade_atual = math.hypot(delta_x, delta_y)
+        
+        # Passa estado_atual_ia para o Apolo ter consciência das armadilhas
+        estado_ia_ref = estado_atual_ia if 'estado_atual_ia' in globals() else None
 
-        apolo.pensar((pos_x_personagem, pos_y_personagem), boss_ref, proj_ref, cds, vida, vida_boss_atual, esferas_energia_umbra)
+        apolo.pensar((pos_x_personagem, pos_y_personagem), boss_ref, proj_ref, cds, vida, vida_boss_atual, esferas_energia_umbra, velocidade_atual, estado_ia_ref)
         
         pos_mouse = (apolo.alvo_x, apolo.alvo_y)
         botao_mouse = (apolo.mouse_simulado[0], False, False)
@@ -2407,21 +2559,62 @@ while running:
 
                         tela.blit(s_veneno_pixelado, (0, 0))
 
-                        if (pos_x_personagem < border_w or 
-                            pos_x_personagem + largura_personagem > largura_mapa - border_w or
-                            pos_y_personagem < border_w or 
-                            pos_y_personagem + altura_personagem > altura_mapa - border_w):
+                        # SISTEMA DE DANO ESCALÁVEL DAS BORDAS TÓXICAS
+                        nas_bordas = (pos_x_personagem < border_w or 
+                                     pos_x_personagem + largura_personagem > largura_mapa - border_w or
+                                     pos_y_personagem < border_w or 
+                                     pos_y_personagem + altura_personagem > altura_mapa - border_w)
+                        
+                        if nas_bordas:
+                            # Se acabou de entrar nas bordas, registra o tempo
+                            if not estava_nas_bordas:
+                                tempo_entrada_bordas = agora
+                                tempo_acumulado_bordas = 0
+                                estava_nas_bordas = True
                             
-                            if agora % 1000 < 50:
-                                vida -= vida_maxima * 0.05
-                                memoria_umbra.treinar(2.0)
+                            # Calcula tempo acumulado nas bordas
+                            tempo_acumulado_bordas = agora - tempo_entrada_bordas
+                            
+                            # Dano a cada 800ms (conforme solicitado)
+                            if agora - ultimo_tick_dano_bordas >= 800:
+                                # DANO ESCALÁVEL: Começa baixo e aumenta com o tempo
+                                # Fórmula: dano_base + (tempo_em_segundos * multiplicador)
+                                tempo_segundos = tempo_acumulado_bordas / 1000.0
+                                
+                                # Dano inicial: 0.5% da vida máxima
+                                # Escala: +0.3% por segundo nas bordas
+                                # Máximo: 5% da vida máxima (após ~15 segundos)
+                                dano_percentual = min(0.05, 0.005 + (tempo_segundos * 0.003))
+                                dano_bordas = vida_maxima * dano_percentual
+                                
+                                vida -= dano_bordas
+                                ultimo_tick_dano_bordas = agora
+                                
+                                # Feedback visual com cor baseada na intensidade
+                                intensidade = min(1.0, tempo_segundos / 10.0)
+                                cor_r = int(40 + (intensidade * 180))  # 40 -> 220
+                                cor_g = int(180 - (intensidade * 80))  # 180 -> 100
+                                cor_b = 60
+                                
+                                memoria_umbra.treinar(2.0 + (intensidade * 3.0))  # Recompensa escala também
+                                
                                 efeitos_texto.append({
-                                    "texto": "BORDAS TÓXICAS!",
+                                    "texto": f"-{int(dano_bordas)} VENENO!",
                                     "x": pos_x_personagem + random.randint(-20, 20),
                                     "y": pos_y_personagem - 30,
                                     "tempo_inicio": agora,
-                                    "cor": (40, 180, 60)
+                                    "cor": (cor_r, cor_g, cor_b)
                                 })
+                                
+                                # Punição escalável para o Apolo
+                                if apolo.estado_anterior in apolo.q_table:
+                                    punicao_apolo = -5.0 - (intensidade * 10.0)  # -5 a -15
+                                    apolo.q_table[apolo.estado_anterior][apolo.acao_anterior] += punicao_apolo
+                        else:
+                            # Saiu das bordas, reseta o rastreador
+                            if estava_nas_bordas:
+                                estava_nas_bordas = False
+                                tempo_acumulado_bordas = 0
 
                 # O Escudo de Atrito (Reduz dano em 70% e carrega a fúria)
                 if estado_atual_ia.get('dimensao_ativa') == "atrito":

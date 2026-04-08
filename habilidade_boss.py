@@ -393,7 +393,7 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
     if agora - estado_ia.get('ultimo_sifon_fim', 0) >= 15000 or estado_ia.get('ultimo_sifon_fim') == 0:
         acoes_disponiveis.append("SIFON")
 
-    if agora - estado_ia.get('ultimo_transmutar', 0) >= 38000:
+    if agora - estado_ia.get('ultimo_transmutar', 0) >= 25000:
         ultima_dim = estado_ia.get('ultima_dimensao_usada', "")
         if ultima_dim != "vortice": acoes_disponiveis.append("TRANSMUTAR_VORTICE")
         if ultima_dim != "gravidade": acoes_disponiveis.append("TRANSMUTAR_GRAVIDADE")
@@ -685,15 +685,19 @@ def movimentacao_inteligente_umbra(agora, boss_pos, player_pos, disparos, estado
 
 # --- MOTOR DE VFX PROCEDURAL (PLASMA & PARTÍCULAS) ---
 
-def gerar_burst_desfragmentacao(x, y, estado_ia, cor_base=(0, 191, 255)):
-    """Gera uma explosão de fragmentos etéreos de plasma ao colidir."""
+def gerar_burst_desfragmentacao(x, y, estado_ia, cor_base=(0, 255, 100)):
+    """
+    OTIMIZADO: Gera explosão de fragmentos com MENOS partículas (15-20 ao invés de 15-25).
+    Cor padrão: Verde para combinar com projéteis da Umbra.
+    """
     if 'vfx_particulas' not in estado_ia:
         estado_ia['vfx_particulas'] = []
         
-    for _ in range(random.randint(15, 25)):
+    # OTIMIZAÇÃO: Reduzido de 15-25 para 10-15 partículas
+    for _ in range(random.randint(10, 15)):
         ang = random.uniform(0, math.pi * 2)
-        forca = random.uniform(1.0, 4.5)
-        vida = random.randint(20, 50)
+        forca = random.uniform(1.0, 4.0)  # OTIMIZAÇÃO: Reduzida força máxima
+        vida = random.randint(15, 40)  # OTIMIZAÇÃO: Reduzida vida máxima
         estado_ia['vfx_particulas'].append({
             'x': x, 'y': y,
             'vx': math.cos(ang) * forca,
@@ -701,69 +705,65 @@ def gerar_burst_desfragmentacao(x, y, estado_ia, cor_base=(0, 191, 255)):
             'vida': vida,
             'vida_max': vida,
             'cor': cor_base,
-            'tam': random.randint(2, 6)
+            'tam': random.randint(2, 4)  # OTIMIZAÇÃO: Reduzido tamanho máximo
         })
 
 def renderizar_vfx_umbra(tela, agora, estado_ia):
-    """Renderiza esferas de plasma, arcos elétricos e partículas de desfragmentação."""
+    """
+    DESIGN OTIMIZADO: Projéteis verdes da Umbra com menos partículas.
+    Renderiza esferas de plasma verde com aura pulsante.
+    """
     
-    # 1. GESTÃO TÁTICA DE PARTÍCULAS (DESFRAGMENTAÇÃO)
+    # 1. GESTÃO OTIMIZADA DE PARTÍCULAS (REDUZIDO)
     particulas_vivas = []
     vfx_pool = estado_ia.get('vfx_particulas', [])
     
-    for p in vfx_pool:
-        p['x'] += p['vx']
-        p['y'] += p['vy']
-        p['vida'] -= 1
-        # Viscosidade física
-        p['vx'] *= 0.94
-        p['vy'] *= 0.94
-        
-        if p['vida'] > 0:
-            alfa = int((p['vida'] / p['vida_max']) * 255)
-            # Renderização de partícula 'viscosa' (Soft circle)
-            s = pygame.Surface((p['tam']*2, p['tam']*2), pygame.SRCALPHA)
-            pygame.draw.circle(s, (*p['cor'][:3], alfa), (p['tam'], p['tam']), p['tam'])
-            tela.blit(s, (p['x'] - p['tam'], p['y'] - p['tam']))
-            particulas_vivas.append(p)
+    # OTIMIZAÇÃO: Processa apenas a cada 2 frames para reduzir carga
+    if len(vfx_pool) > 0 and agora % 2 == 0:
+        for p in vfx_pool:
+            p['x'] += p['vx']
+            p['y'] += p['vy']
+            p['vida'] -= 2  # Decrementa 2 para compensar o skip de frame
+            p['vx'] *= 0.94
+            p['vy'] *= 0.94
+            
+            if p['vida'] > 0:
+                alfa = int((p['vida'] / p['vida_max']) * 255)
+                s = pygame.Surface((p['tam']*2, p['tam']*2), pygame.SRCALPHA)
+                cor_rgb = p['cor'][:3] if isinstance(p['cor'], (tuple, list)) and len(p['cor']) >= 3 else (0, 255, 100)
+                pygame.draw.circle(s, (*cor_rgb, alfa), (p['tam'], p['tam']), p['tam'])
+                tela.blit(s, (p['x'] - p['tam'], p['y'] - p['tam']))
+                particulas_vivas.append(p)
+    else:
+        particulas_vivas = vfx_pool
             
     estado_ia['vfx_particulas'] = particulas_vivas
 
-    # 2. RENDERIZAÇÃO PROCEDURAL DE PROJÉTEIS (ESFERA DE PLASMA)
+    # 2. RENDERIZAÇÃO OTIMIZADA DE PROJÉTEIS (VERDE)
     for proj in estado_ia.get('projeteis', []):
         x, y = proj['rect'].center
         tipo = proj.get('tipo', 'comum')
         
-        # Calibração de Cores e Energia
+        # Cores Verde da Umbra
         if tipo == "furia":
-            cor_plasma = (138, 43, 226) # Púrpura de Fúria
-            raio_n = 15
+            cor_aura = (138, 43, 226)  # Púrpura de Fúria (mantém especial)
+            raio_base = 15
+            camadas = 3
         else:
-            cor_plasma = (0, 191, 255)  # Azul Radiante
-            raio_n = 8
+            cor_aura = (0, 255, 100)  # Verde Brilhante
+            raio_base = 8
+            camadas = 2  # OTIMIZAÇÃO: Reduzido de 3 para 2 camadas
             
-        pulso = math.sin(agora * 0.015) * 3
+        pulsar = math.sin(agora * 0.02) * 2  # OTIMIZAÇÃO: Reduzido amplitude
         
-        # A. CAMADAS DE GLOW (Plasma Glow)
-        for i in range(3, 0, -1):
-            r_vfx = raio_n + (i * 5) + pulso
-            alfa_vfx = 90 // i
-            s_vfx = pygame.Surface((r_vfx*2, r_vfx*2), pygame.SRCALPHA)
-            pygame.draw.circle(s_vfx, (*cor_plasma, alfa_vfx), (r_vfx, r_vfx), r_vfx)
-            tela.blit(s_vfx, (x - r_vfx, y - r_vfx))
+        # A. AURA TRANSLÚCIDA PULSANTE (OTIMIZADA)
+        for nivel in range(camadas, 0, -1):
+            raio_vfx = raio_base + (nivel * 3) + pulsar  # OTIMIZAÇÃO: Reduzido multiplicador
+            opacidade = 70 // nivel  # OTIMIZAÇÃO: Reduzida opacidade base
+            circulo_aura = pygame.Surface((raio_vfx * 2, raio_vfx * 2), pygame.SRCALPHA)
+            pygame.draw.circle(circulo_aura, (*cor_aura, opacidade), (raio_vfx, raio_vfx), raio_vfx)
+            tela.blit(circulo_aura, (x - raio_vfx, y - raio_vfx))
             
-        # B. NÚCLEO E ARCOS ELÉTRICOS
-        pygame.draw.circle(tela, (255, 255, 255), (x, y), int(raio_n * 0.6))
-        pygame.draw.circle(tela, cor_plasma, (x, y), raio_n, 2)
-
-        # Geração procedural de arcos elétricos (orbitais)
-        random.seed(int(agora // 80) + id(proj)) # Flicks elétricos estáveis por frame
-        for _ in range(3):
-            ang_ele = random.uniform(0, math.pi * 2)
-            d_ele = raio_n + 8 + (pulso * 0.5)
-            p_inicio = (x + math.cos(ang_ele)*raio_n, y + math.sin(ang_ele)*raio_n)
-            p_meio = (x + math.cos(ang_ele + 0.4)*d_ele + random.uniform(-4,4), y + math.sin(ang_ele + 0.4)*d_ele + random.uniform(-4,4))
-            p_fim = (x + math.cos(ang_ele - 0.2)*(d_ele+3), y + math.sin(ang_ele - 0.2)*(d_ele+3))
-            
-            pygame.draw.lines(tela, random.choice([(255,255,255), cor_plasma]), False, [p_inicio, p_meio, p_fim], 1)
-        random.seed() # Destrava seed
+        # B. NÚCLEO BRILHANTE (SIMPLIFICADO)
+        pygame.draw.circle(tela, (255, 255, 255), (x, y), raio_base)
+        pygame.draw.circle(tela, cor_aura, (x, y), raio_base + 1, 1)  # OTIMIZAÇÃO: Reduzida espessura
