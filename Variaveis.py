@@ -951,6 +951,12 @@ def calcular_posicao_prevista(pos_x, pos_y, direcao, velocidade, tempo_previsao)
 
 def atualizar_movimento_inimigos(inimigos, pos_x_p, pos_y_p, direcao_j, vel_p, tempo_p, movendo_agora):
     for inimigo in inimigos:
+        # Inicializa pos_x e pos_y se não existirem (para sub-pixel precision)
+        if "pos_x" not in inimigo:
+            inimigo["pos_x"] = float(inimigo["rect"].x)
+        if "pos_y" not in inimigo:
+            inimigo["pos_y"] = float(inimigo["rect"].y)
+        
         # Cálculo da posição prevista (Alvo)
         if movendo_agora:
             alvo_x, alvo_y = calcular_posicao_prevista(pos_x_p, pos_y_p, direcao_j, vel_p, tempo_p)

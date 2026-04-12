@@ -15,6 +15,7 @@ import pyperclip
 from Config_Teclas import tela_de_controles,carregar_config_teclas
 from Variaveis import largura_tela, altura_tela, python
 from rede import descobrir_host_udp, conectar_ao_host
+from audio_manager import carregar_config_audio, aplicar_volume_musica
 
 
 pygame.init()
@@ -81,7 +82,11 @@ ultima_mudanca_de_opcao = pygame.time.get_ticks()
 
 pygame.mixer.init()
 pygame.mixer.music.load("Sounds/Menu.mp3")
-pygame.mixer.music.set_volume(0.5)
+
+# Carregar e aplicar configurações de áudio
+config_audio = carregar_config_audio()
+aplicar_volume_musica(config_audio)
+
 pygame.mixer.music.play(-1)
 pygame.joystick.init()
 
@@ -328,6 +333,262 @@ def tela_decisao_tutorial(tela, fonte):
         clock.tick(60)
 
 
+def tela_configuracoes_graficas(tela, fonte):
+    """Tela de configurações gráficas"""
+    # Carregar configurações atuais
+    try:
+        with open("config_graficos.json", "r") as f:
+            config = json.load(f)
+    except:
+        config = {
+            "sombras_ativas": "dinamicas",
+            "qualidade_grafica": "alta",
+            "particulas_ativas": True,
+            "efeitos_visuais": True
+        }
+    
+    opcoes_config = [
+        {"nome": "Sombras", "chave": "sombras_ativas", "valores": ["desativadas", "simples", "dinamicas"], "labels": ["Desativadas", "Simples", "Dinâmicas"]},
+        {"nome": "Qualidade Gráfica", "chave": "qualidade_grafica", "valores": ["alta", "media", "baixa"], "labels": ["Alta", "Média", "Baixa"]},
+        {"nome": "Partículas", "chave": "particulas_ativas", "valores": [True, False], "labels": ["Ativadas", "Desativadas"]},
+        {"nome": "Efeitos Visuais", "chave": "efeitos_visuais", "valores": [True, False], "labels": ["Ativados", "Desativados"]},
+        {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
+    ]
+    
+    selecionado = 0
+    clock = pygame.time.Clock()
+    fonte_titulo = pygame.font.Font(caminho_fonte_titulo, 48)
+    fonte_opcao = pygame.font.Font(caminho_fonte_letra1, 24)
+    fonte_valor = pygame.font.Font(caminho_fonte_letras, 20)
+    
+    while True:
+        tela.fill((10, 10, 10))
+        
+        # Título
+        texto_titulo = fonte_titulo.render("CONFIGURAÇÕES GRÁFICAS", True, (0, 255, 204))
+        tela.blit(texto_titulo, (largura_tela // 2 - texto_titulo.get_width() // 2, altura_tela // 8))
+        
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+            elif evento.type == pygame.KEYDOWN:
+                if evento.key in [pygame.K_UP, pygame.K_w]:
+                    selecionado = (selecionado - 1) % len(opcoes_config)
+                elif evento.key in [pygame.K_DOWN, pygame.K_s]:
+                    selecionado = (selecionado + 1) % len(opcoes_config)
+                elif evento.key in [pygame.K_LEFT, pygame.K_a, pygame.K_RIGHT, pygame.K_d]:
+                    if opcoes_config[selecionado]["chave"]:
+                        chave = opcoes_config[selecionado]["chave"]
+                        valores = opcoes_config[selecionado]["valores"]
+                        valor_atual = config[chave]
+                        indice_atual = valores.index(valor_atual)
+                        
+                        if evento.key in [pygame.K_RIGHT, pygame.K_d]:
+                            novo_indice = (indice_atual + 1) % len(valores)
+                        else:
+                            novo_indice = (indice_atual - 1) % len(valores)
+                        
+                        config[chave] = valores[novo_indice]
+                        
+                        # Salvar imediatamente
+                        with open("config_graficos.json", "w") as f:
+                            json.dump(config, f, indent=4)
+                
+                elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    if opcoes_config[selecionado]["nome"] == "Voltar":
+                        return
+                elif evento.key == pygame.K_ESCAPE:
+                    return
+        
+        # Desenhar opções
+        y_inicial = altura_tela // 3
+        espacamento = 70
+        
+        for i, opcao in enumerate(opcoes_config):
+            y_pos = y_inicial + i * espacamento
+            
+            # Cor baseada na seleção
+            cor_nome = (255, 255, 255) if i == selecionado else (120, 120, 120)
+            
+            # Nome da opção
+            texto_nome = fonte_opcao.render(opcao["nome"], True, cor_nome)
+            tela.blit(texto_nome, (largura_tela // 4, y_pos))
+            
+            # Valor atual (se não for "Voltar")
+            if opcao["chave"]:
+                valor_atual = config[opcao["chave"]]
+                indice_valor = opcao["valores"].index(valor_atual)
+                label_valor = opcao["labels"][indice_valor]
+                
+                cor_valor = (0, 255, 204) if i == selecionado else (150, 150, 150)
+                texto_valor = fonte_valor.render(label_valor, True, cor_valor)
+                tela.blit(texto_valor, (largura_tela // 2 + 50, y_pos + 5))
+                
+                # Setas de navegação se selecionado
+                if i == selecionado:
+                    seta_esq = fonte_valor.render("<", True, (255, 255, 255))
+                    seta_dir = fonte_valor.render(">", True, (255, 255, 255))
+                    tela.blit(seta_esq, (largura_tela // 2 + 20, y_pos + 5))
+                    tela.blit(seta_dir, (largura_tela // 2 + 250, y_pos + 5))
+        
+        # Instruções
+        fonte_instrucao = pygame.font.Font(caminho_fonte_letras, 16)
+        instrucoes = [
+            "W/S: Navegar | A/D: Alterar valor",
+            "ENTER/ESPAÇO: Confirmar | ESC: Voltar"
+        ]
+        
+        y_instrucao = altura_tela - 80
+        for instrucao in instrucoes:
+            texto_inst = fonte_instrucao.render(instrucao, True, (150, 150, 150))
+            tela.blit(texto_inst, (largura_tela // 2 - texto_inst.get_width() // 2, y_instrucao))
+            y_instrucao += 25
+        
+        pygame.display.flip()
+        clock.tick(60)
+
+
+def tela_configuracoes_audio(tela, fonte):
+    """Tela de configurações de áudio"""
+    # Carregar configurações atuais
+    try:
+        with open("config_audio.json", "r") as f:
+            config = json.load(f)
+    except:
+        config = {
+            "volume_musica": 0.5,
+            "volume_efeitos": 0.5,
+            "volume_master": 1.0
+        }
+    
+    selecionado = 0
+    clock = pygame.time.Clock()
+    fonte_titulo = pygame.font.Font(caminho_fonte_titulo, 48)
+    fonte_opcao = pygame.font.Font(caminho_fonte_letra1, 24)
+    fonte_valor = pygame.font.Font(caminho_fonte_letras, 20)
+    
+    opcoes = ["volume_master", "volume_musica", "volume_efeitos", "voltar"]
+    labels = ["Volume Master", "Volume Música", "Volume Efeitos", "Voltar"]
+    
+    while True:
+        tela.fill((10, 10, 10))
+        
+        # Título
+        texto_titulo = fonte_titulo.render("CONFIGURAÇÕES DE ÁUDIO", True, (0, 255, 204))
+        tela.blit(texto_titulo, (largura_tela // 2 - texto_titulo.get_width() // 2, altura_tela // 8))
+        
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+            elif evento.type == pygame.KEYDOWN:
+                if evento.key in [pygame.K_UP, pygame.K_w]:
+                    selecionado = (selecionado - 1) % len(opcoes)
+                elif evento.key in [pygame.K_DOWN, pygame.K_s]:
+                    selecionado = (selecionado + 1) % len(opcoes)
+                elif evento.key in [pygame.K_LEFT, pygame.K_a]:
+                    if opcoes[selecionado] != "voltar":
+                        chave = opcoes[selecionado]
+                        config[chave] = max(0.0, config[chave] - 0.1)
+                        
+                        # Salvar e aplicar
+                        with open("config_audio.json", "w") as f:
+                            json.dump(config, f, indent=4)
+                        aplicar_volumes_audio(config)
+                
+                elif evento.key in [pygame.K_RIGHT, pygame.K_d]:
+                    if opcoes[selecionado] != "voltar":
+                        chave = opcoes[selecionado]
+                        config[chave] = min(1.0, config[chave] + 0.1)
+                        
+                        # Salvar e aplicar
+                        with open("config_audio.json", "w") as f:
+                            json.dump(config, f, indent=4)
+                        aplicar_volumes_audio(config)
+                
+                elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    if opcoes[selecionado] == "voltar":
+                        return
+                elif evento.key == pygame.K_ESCAPE:
+                    return
+        
+        # Desenhar opções
+        y_inicial = altura_tela // 3
+        espacamento = 80
+        
+        for i, opcao in enumerate(opcoes):
+            y_pos = y_inicial + i * espacamento
+            
+            # Cor baseada na seleção
+            cor_nome = (255, 255, 255) if i == selecionado else (120, 120, 120)
+            
+            # Nome da opção
+            texto_nome = fonte_opcao.render(labels[i], True, cor_nome)
+            tela.blit(texto_nome, (largura_tela // 4, y_pos))
+            
+            # Barra de volume (se não for "Voltar")
+            if opcao != "voltar":
+                valor = config[opcao]
+                
+                # Barra de fundo
+                barra_x = largura_tela // 2 + 20
+                barra_y = y_pos + 10
+                barra_largura = 300
+                barra_altura = 20
+                
+                pygame.draw.rect(tela, (50, 50, 50), (barra_x, barra_y, barra_largura, barra_altura))
+                
+                # Barra de preenchimento
+                cor_barra = (0, 255, 204) if i == selecionado else (100, 200, 180)
+                largura_preenchimento = int(barra_largura * valor)
+                pygame.draw.rect(tela, cor_barra, (barra_x, barra_y, largura_preenchimento, barra_altura))
+                
+                # Borda
+                pygame.draw.rect(tela, (255, 255, 255), (barra_x, barra_y, barra_largura, barra_altura), 2)
+                
+                # Porcentagem
+                porcentagem = int(valor * 100)
+                texto_porcentagem = fonte_valor.render(f"{porcentagem}%", True, cor_nome)
+                tela.blit(texto_porcentagem, (barra_x + barra_largura + 20, y_pos + 5))
+                
+                # Setas de navegação se selecionado
+                if i == selecionado:
+                    seta_esq = fonte_valor.render("<", True, (255, 255, 255))
+                    seta_dir = fonte_valor.render(">", True, (255, 255, 255))
+                    tela.blit(seta_esq, (barra_x - 30, y_pos + 5))
+                    tela.blit(seta_dir, (barra_x + barra_largura + 5, y_pos + 5))
+        
+        # Instruções
+        fonte_instrucao = pygame.font.Font(caminho_fonte_letras, 16)
+        instrucoes = [
+            "W/S: Navegar | A/D: Ajustar volume",
+            "ENTER/ESPAÇO: Confirmar | ESC: Voltar"
+        ]
+        
+        y_instrucao = altura_tela - 80
+        for instrucao in instrucoes:
+            texto_inst = fonte_instrucao.render(instrucao, True, (150, 150, 150))
+            tela.blit(texto_inst, (largura_tela // 2 - texto_inst.get_width() // 2, y_instrucao))
+            y_instrucao += 25
+        
+        pygame.display.flip()
+        clock.tick(60)
+
+
+def aplicar_volumes_audio(config):
+    """Aplica as configurações de volume a todos os sons e músicas"""
+    volume_master = config.get("volume_master", 1.0)
+    volume_musica = config.get("volume_musica", 0.5)
+    
+    # Aplicar volume da música
+    pygame.mixer.music.set_volume(volume_musica * volume_master)
+    
+    # Salvar configuração
+    with open("config_audio.json", "w") as f:
+        json.dump(config, f, indent=4)
+
+
 while True:  # Loop principal do menu
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -367,9 +628,63 @@ while True:  # Loop principal do menu
 
 
 
-                elif indice_selecionado == 1:  # Configuração de Controles
-                    config_teclas = carregar_config_teclas()
-                    tela_de_controles(config_teclas, largura_tela, altura_tela)
+                elif indice_selecionado == 1:  # Configuração
+                    # Submenu de configurações
+                    opcoes_config = ["Controles", "Gráficos", "Áudio", "Voltar"]
+                    indice_config = 0
+                    
+                    while True:
+                        tela.fill((10, 10, 10))
+                        fonte_config = pygame.font.Font(caminho_fonte_titulo, 48)
+                        texto_config = fonte_config.render("CONFIGURAÇÕES", True, (0, 255, 204))
+                        tela.blit(texto_config, (largura_tela // 2 - texto_config.get_width() // 2, altura_tela // 6))
+                        
+                        config_selecionada = False
+                        for event_config in pygame.event.get():
+                            if event_config.type == pygame.QUIT:
+                                pygame.quit()
+                                sys.exit()
+                            elif event_config.type == pygame.KEYDOWN:
+                                if event_config.key in [pygame.K_w, pygame.K_UP]:
+                                    indice_config = (indice_config - 1) % len(opcoes_config)
+                                elif event_config.key in [pygame.K_s, pygame.K_DOWN]:
+                                    indice_config = (indice_config + 1) % len(opcoes_config)
+                                elif event_config.key in [pygame.K_SPACE, pygame.K_RETURN]:
+                                    if indice_config == 0:  # Controles
+                                        config_teclas = carregar_config_teclas()
+                                        tela_de_controles(config_teclas, largura_tela, altura_tela)
+                                    elif indice_config == 1:  # Gráficos
+                                        tela_configuracoes_graficas(tela, fonte)
+                                    elif indice_config == 2:  # Áudio
+                                        tela_configuracoes_audio(tela, fonte)
+                                    elif indice_config == 3:  # Voltar
+                                        config_selecionada = True
+                                        break
+                                elif event_config.key == pygame.K_ESCAPE:
+                                    config_selecionada = True
+                                    break
+                        
+                        if config_selecionada:
+                            break
+                        
+                        # Desenhar opções do submenu
+                        fonte_opcao = pygame.font.Font(caminho_fonte_letra1, 32)
+                        for i, opcao in enumerate(opcoes_config):
+                            cor = (255, 255, 255) if i == indice_config else (120, 120, 120)
+                            texto_opcao = fonte_opcao.render(opcao, True, cor)
+                            y_pos = altura_tela // 3 + i * 80
+                            tela.blit(texto_opcao, (largura_tela // 2 - texto_opcao.get_width() // 2, y_pos))
+                            
+                            if i == indice_config:
+                                # Setas indicadoras
+                                seta_esq = fonte_opcao.render("<", True, (255, 255, 255))
+                                seta_dir = fonte_opcao.render(">", True, (255, 255, 255))
+                                tela.blit(seta_esq, (largura_tela // 2 - texto_opcao.get_width() // 2 - 40, y_pos))
+                                tela.blit(seta_dir, (largura_tela // 2 + texto_opcao.get_width() // 2 + 20, y_pos))
+                        
+                        pygame.display.flip()
+                        clock = pygame.time.Clock()
+                        clock.tick(60)
                 elif indice_selecionado == 2:
                     pygame.mixer.music.stop()
                     pygame.quit()

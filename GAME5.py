@@ -18,33 +18,40 @@ from utils import *
 import habilidade_boss as hb
 import collections
 from vfx_engine_apolo import ApoloVFXManager
+from audio_manager import carregar_config_audio, aplicar_volume_som
 
 pygame.init()
 memoria_umbra = hb.MemoriaEvolutivaUmbra()
 vfx_apolo = ApoloVFXManager()
 
+# Carregar configurações gráficas
+try:
+    with open("config_graficos.json", "r") as f:
+        config_graficos = json.load(f)
+except:
+    config_graficos = {
+        "sombras_ativas": "dinamicas",
+        "qualidade_grafica": "alta",
+        "particulas_ativas": True,
+        "efeitos_visuais": True
+    }
 
-estalos = pygame.mixer.Sound("Sounds/Estalo.mp3")
-estalos.set_volume(0.07) 
+# Carregar configurações de áudio
+config_audio = carregar_config_audio()
 
-som_ataque_boss = pygame.mixer.Sound("Sounds/Hit_Boss1.mp3")
-som_ataque_boss.set_volume(0.04) 
+estalos = aplicar_volume_som(pygame.mixer.Sound("Sounds/Estalo.mp3"), config_audio)
 
+som_ataque_boss = aplicar_volume_som(pygame.mixer.Sound("Sounds/Hit_Boss1.mp3"), config_audio)
 
-Disparo_Geo = pygame.mixer.Sound("Sounds/Disparo_Geo.wav")
-Disparo_Geo.set_volume(0.04) 
+Disparo_Geo = aplicar_volume_som(pygame.mixer.Sound("Sounds/Disparo_Geo.wav"), config_audio)
 
-Musica_tema_Boss1 = pygame.mixer.Sound("Sounds/Fase1_Boss.mp3")
-Musica_tema_Boss1.set_volume(0.00) 
+Musica_tema_Boss1 = aplicar_volume_som(pygame.mixer.Sound("Sounds/Fase1_Boss.mp3"), config_audio)
 
-Musica_tema_fases = pygame.mixer.Sound("Sounds/Fase_boas.mp3")
-Musica_tema_fases.set_volume(0.00) 
+Musica_tema_fases = aplicar_volume_som(pygame.mixer.Sound("Sounds/Fase_boas.mp3"), config_audio)
 
-Som_tema_fases = pygame.mixer.Sound("Sounds/Praia.wav")
-Som_tema_fases.set_volume(0.00) 
+Som_tema_fases = aplicar_volume_som(pygame.mixer.Sound("Sounds/Praia.wav"), config_audio)
 
-Som_portal = pygame.mixer.Sound("Sounds/Portal.mp3")
-Som_portal.set_volume(0.06) 
+Som_portal = aplicar_volume_som(pygame.mixer.Sound("Sounds/Portal.mp3"), config_audio) 
 
 Dano_person = pygame.mixer.Sound("Sounds/hit_person.mp3")
 Dano_person.set_volume(0.1)  
@@ -89,12 +96,18 @@ def exportar_telemetria():
         bias_x, bias_y = memoria_umbra.calcular_bias_bayesiano()
         
         # Resgata o estado exato que a IA está enxergando neste milissegundo
-        estado_ativo = memoria_umbra.ultimo_estado
+        estado_ativo = "DQN_TENSOR"
         
         # Mergulha na Matriz-Q para extrair os pesos reais formados pela dor e recompensa
+        # Mergulha na Matriz-Q para extrair os pesos reais formados pela dor e recompensa
         pesos_reais = {}
-        if estado_ativo and estado_ativo in memoria_umbra.q_table:
-            pesos_reais = memoria_umbra.q_table[estado_ativo]
+        import torch
+        if memoria_umbra.ultimo_estado_tensor is not None:
+            with torch.no_grad():
+                memoria_umbra.q_network.eval()
+                q_vals = memoria_umbra.q_network(memoria_umbra.ultimo_estado_tensor)[0]
+                for i, acn in enumerate(memoria_umbra.acoes_base):
+                    pesos_reais[acn] = round(float(q_vals[i]), 3)
         else:
             pesos_reais = estado_atual_ia.get('ultimos_pesos_calculados', {})
 
@@ -409,6 +422,47 @@ def verificar_colisao_personagem(projeteis):
     return False  # Sem colisão
 
 
+def desenhar_sombra(tela, x, y, largura, altura, offset_y=5):
+    """Desenha uma sombra elíptica embaixo de um ser com três níveis de qualidade"""
+    modo_sombra = config_graficos.get("sombras_ativas", "dinamicas")
+    
+    if modo_sombra == "desativadas":
+        return
+    
+    if modo_sombra == "simples":
+        # Sombra simples - elipse básica
+        sombra_surface = pygame.Surface((largura, altura // 3), pygame.SRCALPHA)
+        cor_sombra = (0, 0, 0, 80)
+        pygame.draw.ellipse(sombra_surface, cor_sombra, (0, 0, largura, altura // 3))
+        tela.blit(sombra_surface, (x, y + altura - offset_y))
+    
+    elif modo_sombra == "dinamicas":
+        # Sombra dinâmica - múltiplas camadas com gradiente
+        sombra_surface = pygame.Surface((int(largura * 1.2), int(altura // 2.5)), pygame.SRCALPHA)
+        
+        # Camada externa (mais suave e transparente)
+        cor_externa = (0, 0, 0, 40)
+        pygame.draw.ellipse(sombra_surface, cor_externa, 
+                          (0, 0, int(largura * 1.2), int(altura // 2.5)))
+        
+        # Camada intermediária
+        cor_media = (0, 0, 0, 70)
+        margem = int(largura * 0.15)
+        pygame.draw.ellipse(sombra_surface, cor_media, 
+                          (margem, margem // 2, int(largura * 0.9), int(altura // 3)))
+        
+        # Camada interna (mais escura e definida)
+        cor_interna = (0, 0, 0, 100)
+        margem_interna = int(largura * 0.25)
+        pygame.draw.ellipse(sombra_surface, cor_interna, 
+                          (margem_interna, margem_interna // 2, int(largura * 0.7), int(altura // 3.5)))
+        
+        # Posicionar a sombra centralizada
+        pos_x = x - int(largura * 0.1)
+        pos_y = y + altura - offset_y - int(altura // 6)
+        tela.blit(sombra_surface, (pos_x, pos_y))
+
+
 def soltar_moeda(posicao):
     chance = 0.05 # 5%
     if random.random() < chance:
@@ -573,6 +627,23 @@ modo_ia_treino = True
 
 #####################################################################APOLO1######################################################################################################
 
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+class ApoloDQN(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(ApoloDQN, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_size, 128),
+            nn.LeakyReLU(),
+            nn.Linear(128, 64),
+            nn.LeakyReLU(),
+            nn.Linear(64, output_size)
+        )
+    def forward(self, x):
+        return self.net(x)
+
 class AgenteApolo:
     def __init__(self):
         self.direcao_x = 0
@@ -581,29 +652,46 @@ class AgenteApolo:
         self.mouse_simulado = [False, False, False]
         self.alvo_x = 0
         self.alvo_y = 0
-        self.q_table = {}
-        self.estado_anterior = "vazio"
+        
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.input_size = 20
+        self.output_size = 5
+        
+        self.q_network = ApoloDQN(self.input_size, self.output_size).to(self.device)
+        self.optimizer = optim.Adam(self.q_network.parameters(), lr=0.001)
+        self.criterion = nn.MSELoss()
+        
+        self.ultimo_estado_tensor = None
         self.acao_anterior = 0
         self.vida_jogador_anterior = 0
         self.vida_boss_anterior = 0
-        self.arquivo_memoria = "apolo_memoria.json"
+        self.arquivo_memoria = "apolo_memoria_dqn.pt"
         self.taxa_exploracao = 0.20
         self.frames_sobrevividos = 0
         self.carregar_memoria()
         self.atualizar_foco_progressivo()
 
     def carregar_memoria(self):
-        import os, json
+        import os
         if os.path.exists(self.arquivo_memoria):
             try:
-                with open(self.arquivo_memoria, "r") as f:
-                    self.q_table = json.load(f)
+                self.q_network.load_state_dict(torch.load(self.arquivo_memoria, map_location=self.device, weights_only=True))
             except: pass
 
     def salvar_memoria(self):
-        import json
-        with open(self.arquivo_memoria, "w") as f:
-            json.dump(self.q_table, f)
+        torch.save(self.q_network.state_dict(), self.arquivo_memoria)
+
+    def aplicar_recompensa_direta(self, recompensa_direta):
+        if self.ultimo_estado_tensor is not None:
+            self.q_network.train()
+            q_values = self.q_network(self.ultimo_estado_tensor)
+            q_val = q_values[0, self.acao_anterior]
+            alvo = q_val.item() + 0.15 * recompensa_direta
+            alvo_tensor = torch.tensor(alvo, dtype=torch.float32, device=self.device)
+            loss = self.criterion(q_val, alvo_tensor)
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
 
     def atualizar_foco_progressivo(self):
         import os, json
@@ -615,145 +703,62 @@ class AgenteApolo:
         except: pass
 
     def obter_estado_expandido(self, pos_p, boss_hitbox, projeteis_boss, cds, esferas_energia, vida_apolo, vida_boss, velocidade_apolo, estado_ia):
-        """
-        ESTADO EXPANDIDO (10 COMPONENTES):
-        1. QUADRANTE_BOSS (5 estados: C/L/O/S/N)
-        2. DISTANCIA_BOSS (4 estados: MUITO_PERTO/PERTO/MEDIO/LONGE)
-        3. VIDA_APOLO (4 estados: CRITICA/BAIXA/MEDIA/ALTA)
-        4. VIDA_BOSS (4 estados: CRITICA/BAIXA/MEDIA/ALTA)
-        5. PERIGO_IMINENTE (3 estados: NENHUM/PROJETIL/MULTIPLOS)
-        6. DIRECAO_PERIGO (5 estados: LIVRE/L/O/S/N)
-        7. CD_TELEPORTE (2 estados: True/False)
-        8. ARMADILHA_ATIVA (2 estados: True/False)
-        9. POSICAO_MAPA (5 estados: CENTRO/BORDA_L/BORDA_O/BORDA_S/BORDA_N)
-        10. VELOCIDADE (3 estados: PARADO/NORMAL/DASH)
-        """
         import math
         px, py = pos_p
-        
-        # 1. QUADRANTE DO BOSS
-        quadrante_boss = "C"
+        bx, by = largura_mapa // 2, altura_mapa // 2
         if boss_hitbox:
             bx, by = boss_hitbox.centerx, boss_hitbox.centery
-            dx = bx - px
-            dy = by - py
-            if abs(dx) < 100 and abs(dy) < 100:
-                quadrante_boss = "C"
-            elif abs(dx) > abs(dy):
-                quadrante_boss = "L" if dx > 0 else "O"
-            else:
-                quadrante_boss = "S" if dy > 0 else "N"
-        else:
-            bx, by = largura_mapa // 2, altura_mapa // 2
-            dx = bx - px
-            dy = by - py
+            
+        feat_px = px / max(1, largura_mapa)
+        feat_py = py / max(1, altura_mapa)
+        feat_bx = bx / max(1, largura_mapa)
+        feat_by = by / max(1, altura_mapa)
         
-        # 2. DISTÂNCIA DO BOSS (granular)
-        dist_boss = math.hypot(dx, dy)
-        if dist_boss < 200:
-            dist_categoria = "MUITO_PERTO"
-        elif dist_boss < 400:
-            dist_categoria = "PERTO"
-        elif dist_boss < 700:
-            dist_categoria = "MEDIO"
-        else:
-            dist_categoria = "LONGE"
+        feat_vida_p = vida_apolo / 1000.0
+        feat_vida_b = vida_boss / 1200.0
         
-        # 3. VIDA DO APOLO (granular)
-        vida_perc_apolo = vida_apolo / 1000.0
-        if vida_perc_apolo < 0.25:
-            vida_apolo_cat = "CRITICA"
-        elif vida_perc_apolo < 0.5:
-            vida_apolo_cat = "BAIXA"
-        elif vida_perc_apolo < 0.75:
-            vida_apolo_cat = "MEDIA"
-        else:
-            vida_apolo_cat = "ALTA"
-        
-        # 4. VIDA DA UMBRA (granular)
-        vida_perc_boss = vida_boss / 1200.0
-        if vida_perc_boss < 0.25:
-            vida_boss_cat = "CRITICA"
-        elif vida_perc_boss < 0.5:
-            vida_boss_cat = "BAIXA"
-        elif vida_perc_boss < 0.75:
-            vida_boss_cat = "MEDIA"
-        else:
-            vida_boss_cat = "ALTA"
-        
-        # 5 & 6. ANÁLISE DE PERIGO (múltiplos projéteis)
+        dist_perigo = 1.0
+        dx_perigo = 0.0
+        dy_perigo = 0.0
         projeteis_proximos = []
         for proj in projeteis_boss:
             if 'rect' in proj:
                 proj_x, proj_y = proj['rect'].centerx, proj['rect'].centery
             else:
                 proj_x, proj_y = proj.get('x', px), proj.get('y', py)
-            dist_proj = math.hypot(proj_x - px, proj_y - py)
-            if dist_proj < 250:
-                projeteis_proximos.append((proj_x, proj_y, dist_proj))
+            d = math.hypot(proj_x - px, proj_y - py)
+            if d < 250:
+                projeteis_proximos.append((proj_x, proj_y, d))
+                
+        if projeteis_proximos:
+            proj_x, proj_y, d = min(projeteis_proximos, key=lambda p: p[2])
+            dist_perigo = d / 250.0
+            dx_perigo = (proj_x - px) / max(1.0, d)
+            dy_perigo = (proj_y - py) / max(1.0, d)
+            
+        feat_cd_tele = 1.0 if cds.get('teleporte', False) else 0.0
         
-        if len(projeteis_proximos) == 0:
-            perigo_nivel = "NENHUM"
-            perigo_dir = "LIVRE"
-        elif len(projeteis_proximos) == 1:
-            perigo_nivel = "PROJETIL"
-            proj_x, proj_y, _ = projeteis_proximos[0]
-            dx_p = proj_x - px
-            dy_p = proj_y - py
-            if abs(dx_p) > abs(dy_p):
-                perigo_dir = "L" if dx_p > 0 else "O"
-            else:
-                perigo_dir = "S" if dy_p > 0 else "N"
-        else:
-            perigo_nivel = "MULTIPLOS"
-            proj_x, proj_y, _ = min(projeteis_proximos, key=lambda p: p[2])
-            dx_p = proj_x - px
-            dy_p = proj_y - py
-            if abs(dx_p) > abs(dy_p):
-                perigo_dir = "L" if dx_p > 0 else "O"
-            else:
-                perigo_dir = "S" if dy_p > 0 else "N"
-        
-        # 7. COOLDOWN TELEPORTE
-        cd_tele_str = "True" if cds.get('teleporte', False) else "False"
-        
-        # 8. ARMADILHA ATIVA (detecta armadilhas no estado_ia)
-        armadilha_ativa = False
+        feat_armadilhas = [0.0] * 7
         if estado_ia:
-            armadilha_ativa = (
-                estado_ia.get('vortice_ativo', False) or
-                estado_ia.get('prisao_ativa', False) or
-                estado_ia.get('caminho_espinhos', False) or
-                estado_ia.get('laser_ativo', False) or
-                estado_ia.get('descarga_eletrica', False) or
-                estado_ia.get('bordas_ativas', False) or
-                estado_ia.get('miasma_ativo', False)
-            )
-        armadilha_str = "True" if armadilha_ativa else "False"
+            keys = ['vortice_ativo', 'prisao_ativa', 'caminho_espinhos', 'laser_ativo', 'descarga_eletrica', 'bordas_ativas', 'miasma_ativo']
+            for i, k in enumerate(keys):
+                if estado_ia.get(k): feat_armadilhas[i] = 1.0
         
-        # 9. POSIÇÃO NO MAPA (consciência de bordas)
-        margem = 150
-        if px < margem:
-            pos_mapa = "BORDA_O"
-        elif px > largura_mapa - margem:
-            pos_mapa = "BORDA_L"
-        elif py < margem:
-            pos_mapa = "BORDA_N"
-        elif py > altura_mapa - margem:
-            pos_mapa = "BORDA_S"
-        else:
-            pos_mapa = "CENTRO"
+        feat_vel_p = min(1.0, velocidade_apolo / 15.0)
         
-        # 10. VELOCIDADE ATUAL
-        if velocidade_apolo < 1:
-            vel_cat = "PARADO"
-        elif velocidade_apolo < 10:
-            vel_cat = "NORMAL"
-        else:
-            vel_cat = "DASH"
+        qtd_esferas = len(esferas_energia) if esferas_energia else 0
+        feat_esferas = min(1.0, qtd_esferas / 10.0)
         
-        # COMPOSIÇÃO DO ESTADO (10 componentes)
-        return f"{quadrante_boss}_{dist_categoria}_{vida_apolo_cat}_{vida_boss_cat}_{perigo_nivel}_{perigo_dir}_{cd_tele_str}_{armadilha_str}_{pos_mapa}_{vel_cat}"
+        feat_vel_b = 0.0
+        if estado_ia:
+            vx_b = estado_ia.get('vel_x', 0)
+            vy_b = estado_ia.get('vel_y', 0)
+            feat_vel_b = min(1.0, math.hypot(vx_b, vy_b) / 5.0)
+            
+        features = [feat_px, feat_py, feat_bx, feat_by, feat_vida_p, feat_vida_b, dist_perigo, dx_perigo, dy_perigo, feat_cd_tele, feat_vel_p, feat_esferas, feat_vel_b] + feat_armadilhas
+        
+        tensor = torch.tensor(features, dtype=torch.float32, device=self.device).unsqueeze(0)
+        return tensor
 
     def pensar(self, pos_p, boss_hitbox, projeteis_boss, cds, vida_jogador, vida_boss, esferas_energia, velocidade_atual=5, estado_ia=None):
         import random
@@ -799,28 +804,31 @@ class AgenteApolo:
         self.vida_boss_anterior = vida_boss
 
         # OBTER ESTADO EXPANDIDO
-        estado_atual = self.obter_estado_expandido(
+        estado_tensor = self.obter_estado_expandido(
             pos_p, boss_hitbox, projeteis_boss, cds, esferas_energia,
             vida_jogador, vida_boss, velocidade_atual, estado_ia
         )
 
-        # Q-LEARNING
-        if self.estado_anterior not in self.q_table: 
-            self.q_table[self.estado_anterior] = [0.0] * 5
-        if estado_atual not in self.q_table: 
-            self.q_table[estado_atual] = [0.0] * 5
+        if self.ultimo_estado_tensor is not None:
+            self.q_network.train()
+            q_values = self.q_network(self.ultimo_estado_tensor)
+            q_val = q_values[0, self.acao_anterior]
+            alvo = q_val.item() + 0.15 * (recompensa - q_val.item())
+            alvo_tensor = torch.tensor(alvo, dtype=torch.float32, device=self.device)
+            loss = self.criterion(q_val, alvo_tensor)
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
 
-        q_antigo = self.q_table[self.estado_anterior][self.acao_anterior]
-        max_q_novo = max(self.q_table[estado_atual])
-        self.q_table[self.estado_anterior][self.acao_anterior] = q_antigo + 0.15 * (recompensa + 0.95 * max_q_novo - q_antigo)
-
-        # SELEÇÃO DE AÇÃO
         if random.random() < self.taxa_exploracao:
             acao = random.choice([0, 1, 2, 3, 4])
         else:
-            acao = self.q_table[estado_atual].index(max(self.q_table[estado_atual]))
+            with torch.no_grad():
+                self.q_network.eval()
+                q_vals = self.q_network(estado_tensor)
+                acao = torch.argmax(q_vals).item()
 
-        self.estado_anterior = estado_atual
+        self.ultimo_estado_tensor = estado_tensor
         self.acao_anterior = acao
 
         if acao == 0: self.direcao_y = -1   
@@ -1285,8 +1293,7 @@ while running:
             )
             
             # Apolo sofre o trauma absoluto do fracasso
-            if apolo.estado_anterior in apolo.q_table:
-                apolo.q_table[apolo.estado_anterior][apolo.acao_anterior] -= 500.0
+            apolo.aplicar_recompensa_direta(-500.0)
             
          
             memoria_umbra.treinar(500.0, prioridade=True)
@@ -1346,8 +1353,7 @@ while running:
                 estado_atual_ia.get('erros_umbra', 0),
                 estado_atual_ia.get('contagem_habilidades', {})
             )
-            if apolo.estado_anterior in apolo.q_table:
-                apolo.q_table[apolo.estado_anterior][apolo.acao_anterior] += 500.0 
+            apolo.aplicar_recompensa_direta(500.0) 
             memoria_umbra.treinar(-500.0, prioridade=True)
             
             mostrar_tutorial = False
@@ -1415,8 +1421,7 @@ while running:
                 
                 # Capturamos todos os estados conhecidos para desenhar o grafo global
                 # (Limitamos aos 5 estados mais recentes para não poluir o visual)
-                estados_relevantes = list(memoria_umbra.q_table.keys())[:]
-                mapa_neural = {est: memoria_umbra.q_table[est] for est in estados_relevantes if isinstance(memoria_umbra.q_table[est], dict)}
+                mapa_neural = {"DQN": "Ativo"}
 
                 # 3. TRANSMISSÃO PARA O DASHBOARD
                 dados_ia_umbra = {
@@ -1461,8 +1466,7 @@ while running:
                         
                         # --- PUNIÇÃO APOLO: Sendo sugado para o centro ---
                         if dist_v < 150 and agora % 200 < 30:
-                            if apolo.estado_anterior in apolo.q_table:
-                                apolo.q_table[apolo.estado_anterior][apolo.acao_anterior] -= 2.0
+                            apolo.aplicar_recompensa_direta(-2.0)
                                 
                         # Trava de colisão com os limites do mapa
                         pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem))
@@ -1542,8 +1546,7 @@ while running:
                         
                         # --- PUNIÇÃO APOLO: Ficar preso no gelo (lentidão) ---
                         if agora % 100 < 20: 
-                            if apolo.estado_anterior in apolo.q_table:
-                                apolo.q_table[apolo.estado_anterior][apolo.acao_anterior] -= 2.0
+                            apolo.aplicar_recompensa_direta(-2.0)
                         
                         if agora % 1000 < 50:
                             efeitos_texto.append({
@@ -1599,6 +1602,8 @@ while running:
                     historico_player
                 )
                 pos_x_umbra, pos_y_umbra = nova_pos[0], nova_pos[1]
+                pos_x_umbra = max(espacamento, min(largura_mapa - largura_boss - espacamento, pos_x_umbra))
+                pos_y_umbra = max(espacamento, min(altura_mapa - altura_boss - espacamento, pos_y_umbra))
 
             # --- 4. DINÂMICA VISUAL, ANIMAÇÃO E HITBOX ---
             offset_y_boss = math.sin(agora * 0.005) * 7
@@ -1619,6 +1624,8 @@ while running:
                 hitbox_x = pos_x_umbra + 30
 
             hitbox_boss5 = pygame.Rect(hitbox_x, pos_y_umbra + offset_y_boss, largura_boss - 30, altura_boss)
+            # Desenhar sombra do boss
+            desenhar_sombra(tela, pos_x_umbra, pos_y_umbra + offset_y_boss, largura_boss, altura_boss, offset_y=10)
             tela.blit(img_atual_boss, (pos_x_umbra, pos_y_umbra + offset_y_boss))
            
             # --- 5. BARRA DE VIDA E PROJÉTEIS ---
@@ -1705,8 +1712,7 @@ while running:
                     if agora % 1000 < 50: 
                         vida -= vida_maxima*0.01
                         # --- PUNIÇÃO APOLO: Dano por cegueira/miasma ---
-                        if apolo.estado_anterior in apolo.q_table:
-                            apolo.q_table[apolo.estado_anterior][apolo.acao_anterior] -= 5.0
+                        apolo.aplicar_recompensa_direta(-5.0)
                     
                     centro_ceg_x = pos_x_personagem + (largura_personagem // 2)
                     centro_ceg_y = pos_y_personagem + (altura_personagem // 2)
@@ -1771,8 +1777,7 @@ while running:
                             memoria_umbra.treinar(2.0)
                             
                             # --- PUNIÇÃO APOLO: Choque e atordoamento ---
-                            if apolo.estado_anterior in apolo.q_table:
-                                apolo.q_table[apolo.estado_anterior][apolo.acao_anterior] -= 10.0
+                            apolo.aplicar_recompensa_direta(-10.0)
                         
                         estado_atual_ia['fim_stun'] = agora + 600 
                 else:
@@ -1966,8 +1971,7 @@ while running:
                             penalidade_cura_percentual = 0.85 # Aniquila 85% de toda a cura
                             
                             # --- PUNIÇÃO APOLO: Punição máxima por cair na armadilha mortal ---
-                            if apolo.estado_anterior in apolo.q_table:
-                                apolo.q_table[apolo.estado_anterior][apolo.acao_anterior] -= 25.0
+                            apolo.aplicar_recompensa_direta(-25.0)
                             
                             efeitos_texto.append({
                                 "texto": "SANGRAMENTO FATAL!",
@@ -2090,8 +2094,7 @@ while running:
                             vida -= vida_maxima * 0.10
                             
                             # --- PUNIÇÃO APOLO: Ser atingido pelo laser principal ---
-                            if apolo.estado_anterior in apolo.q_table:
-                                apolo.q_table[apolo.estado_anterior][apolo.acao_anterior] -= 15.0
+                            apolo.aplicar_recompensa_direta(-15.0)
                                 
                             # Matemática de Combustão Progressiva
                             if player_em_chamas and agora < tempo_fim_chamas:
@@ -2269,9 +2272,14 @@ while running:
             img_atual_boss = frames_geo_umbra_paths[direcao_boss][frame_boss]
             offset_y_boss = math.sin(agora * 0.005) * 7
             img_atual_boss = pygame.transform.flip(img_atual_boss, True, False)
+            # Desenhar sombra do boss
+            desenhar_sombra(tela, pos_x_umbra, pos_y_umbra + offset_y_boss, largura_boss, altura_boss, offset_y=10)
             tela.blit(img_atual_boss, (pos_x_umbra, pos_y_umbra + offset_y_boss))
             
     ###############################################   DESENHA O PERSONAGEM NA TELA ################################
+    # Desenhar sombra do personagem
+    desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+    
     if estado_atual_ia.get('miasma_ativo'):
         tela.blit(imagem_personagem_doente, (pos_x_personagem, pos_y_personagem))
     else:
@@ -2281,7 +2289,55 @@ while running:
     if 'estado_atual_ia' not in locals() and 'estado_atual_ia' not in globals():
         estado_atual_ia = {'parede_ativa': False}
 
+    # --- MOTOR DE PRAGA DE RATOS (DIMENSÃO 9) ---
+    if estado_atual_ia.get('dimensao_ativa') == "rastro":
+        ratos = estado_atual_ia.get('ratos_ativos', [])
+        novos_ratos = []
+        for rato in ratos:
+            vivo = True
+            # Steering Boids (Cercamento Implacável)
+            dx = pos_x_personagem + largura_personagem//2 - rato['x']
+            dy = pos_y_personagem + altura_personagem//2 - rato['y']
+            dist = math.hypot(dx, dy)
+            if dist > 0:
+                rato['x'] += (dx/dist) * 6.0
+                rato['y'] += (dy/dist) * 6.0
+            
+            # Colisão com o Jogador (Lifesteal)
+            if dist < 30 and vivo:
+                vivo = False
+                vida -= 5.0
+                vida_boss5 = min(vida_boss_maxima, vida_boss5 + 20)
+                estado_atual_ia['ratos_adicionais'] = estado_atual_ia.get('ratos_adicionais', 0) + 1
+                
+                memoria_umbra.treinar(5.0)  # Recompensa alta pra Umbra
+                apolo.aplicar_recompensa_direta(-5.0)  # Punição pro Apolo
+                
+                efeitos_texto.append({"texto": "+20 LIFESTEAL UMBRA", "x": pos_x_umbra, "y": pos_y_umbra - 30, "tempo_inicio": agora, "cor": (50, 255, 50)})
+                efeitos_texto.append({"texto": "+1 RATO PERMANENTE", "x": pos_x_umbra, "y": pos_y_umbra - 50, "tempo_inicio": agora, "cor": (150, 0, 150)})
+            
+            # Bloqueio Ativo (Escudo de Carne / Destruição de Ratos)
+            for tiro in list(disparos): # Itera uma cópia de disparos globais
+                dist_tiro = math.hypot(tiro['rect'].centerx - rato['x'], tiro['rect'].centery - rato['y'])
+                if dist_tiro < 25 and vivo:
+                    vivo = False
+                    if tiro in disparos:
+                        disparos.remove(tiro)
+                    efeitos_texto.append({"texto": "SPLAT!", "x": rato['x'], "y": rato['y'], "tempo_inicio": agora, "cor": (100, 0, 100)})
+                    apolo.aplicar_recompensa_direta(0.5) # Micro recompensa pro player acertar rato
+                    break
+            
+            if vivo:
+                novos_ratos.append(rato)
+                # Arte Procedural Boids/Rato (Borda de caos púrpura)
+                pygame.draw.circle(tela, (20, 10, 30), (int(rato['x']), int(rato['y'])), 12)
+                pygame.draw.circle(tela, (130, 20, 150), (int(rato['x']), int(rato['y'])), 8)
+                pygame.draw.circle(tela, (50, 255, 50), (int(rato['x']+random.randint(-2,2)), int(rato['y']+random.randint(-2,2))), 3)
+                
+        estado_atual_ia['ratos_ativos'] = novos_ratos
+
     novos_disparos = []
+
 
     for disparo in disparos:
         # 1. Movimentação do Projétil do Jogador
@@ -2409,212 +2465,8 @@ while running:
                         "cor": cor_feedback
                     })
                     atingiu_boss = True
+                    estado_atual_ia['tomou_tiro_no_dash'] = True
 
-                # --- RENDERIZAÇÃO E FÍSICA DAS BORDAS VENENOSAS (RASTRO) ---
-            bordas = estado_atual_ia.get('bordas_ativas')
-            if bordas and agora - bordas['tempo_inicio'] >= bordas['duracao']:
-                estado_atual_ia['bordas_ativas'] = None
-                bordas = None
-
-            if estado_atual_ia.get('dimensao_ativa') == "rastro" and bordas:
-                tempo_na_habilidade = agora - bordas['tempo_inicio']
-                
-                # Preservar o nível de identação (20 espaços para o if, 24 para a Surface e além)
-                if True:
-                    fator_expansao = min(1.0, tempo_na_habilidade / 2000.0)
-                    fluidez = fator_expansao * fator_expansao * (3.0 - 2.0 * fator_expansao)
-                    
-                    border_w = int(120 * fluidez)
-
-                    if border_w > 0:
-                        s_veneno = pygame.Surface((largura_mapa, altura_mapa), pygame.SRCALPHA)
-
-                        c_abismo = (5, 12, 8, int(255 * fluidez))
-                        c_profunda = (14, 26, 17, int(240 * fluidez))
-                        c_fluido1 = (22, 48, 25, int(210 * fluidez))
-                        c_fluido2 = (34, 76, 36, int(255 * fluidez))
-                        c_espuma = (65, 140, 70, int(180 * fluidez))
-                        c_reflexo = (150, 255, 170, int(140 * fluidez))
-
-                        pygame.draw.rect(s_veneno, c_profunda, (0, 0, largura_mapa, border_w))
-                        pygame.draw.rect(s_veneno, c_profunda, (0, altura_mapa - border_w, largura_mapa, border_w))
-                        pygame.draw.rect(s_veneno, c_profunda, (0, border_w, border_w, altura_mapa - 2*border_w))
-                        pygame.draw.rect(s_veneno, c_profunda, (largura_mapa - border_w, border_w, border_w, altura_mapa - 2*border_w))
-
-                        passo_onda = 20
-                        p_t_abismo, p_t1, p_t2, p_t_luz = [(0, 0)], [(0, 0)], [(0, 0)], [(0, 0)]
-                        p_b_abismo, p_b1, p_b2, p_b_luz = [(0, altura_mapa)], [(0, altura_mapa)], [(0, altura_mapa)], [(0, altura_mapa)]
-                        
-                        for x in range(0, largura_mapa + passo_onda, passo_onda):
-                            o_base = math.sin(agora * 0.0012 + x * 0.008) * (18 * fluidez)
-                            o_med = math.cos(agora * 0.0022 + x * 0.018) * (22 * fluidez)
-                            o_caos = math.sin(agora * 0.0045 + x * 0.035) * (12 * fluidez)
-                            o_micro = math.cos(agora * 0.008 + x * 0.05) * (5 * fluidez)
-                            
-                            onda_total1 = border_w - (20 * fluidez) + o_base + o_med
-                            onda_total2 = border_w + o_med + o_caos
-                            onda_reflexo = border_w + o_caos + o_micro + (5 * fluidez)
-                            
-                            p_t_abismo.append((x, onda_total2 + (15 * fluidez)))
-                            p_t1.append((x, onda_total1))
-                            p_t2.append((x, onda_total2))
-                            p_t_luz.append((x, onda_reflexo))
-                            
-                            o_b_base = math.cos(agora * 0.0013 + x * 0.009) * (18 * fluidez)
-                            o_b_med = math.sin(agora * 0.0024 + x * 0.017) * (22 * fluidez)
-                            o_b_caos = math.cos(agora * 0.0042 + x * 0.032) * (12 * fluidez)
-                            o_b_micro = math.sin(agora * 0.007 + x * 0.048) * (5 * fluidez)
-                            
-                            onda_b_total1 = (altura_mapa - border_w) + (20 * fluidez) - o_b_base - o_b_med
-                            onda_b_total2 = (altura_mapa - border_w) - o_b_med - o_b_caos
-                            onda_b_reflexo = (altura_mapa - border_w) - o_b_caos - o_b_micro - (5 * fluidez)
-                            
-                            p_b_abismo.append((x, onda_b_total2 - (15 * fluidez)))
-                            p_b1.append((x, onda_b_total1))
-                            p_b2.append((x, onda_b_total2))
-                            p_b_luz.append((x, onda_b_reflexo))
-
-                        p_t_abismo.append((largura_mapa, 0)); p_t1.append((largura_mapa, 0)); p_t2.append((largura_mapa, 0)); p_t_luz.append((largura_mapa, 0))
-                        p_b_abismo.append((largura_mapa, altura_mapa)); p_b1.append((largura_mapa, altura_mapa)); p_b2.append((largura_mapa, altura_mapa)); p_b_luz.append((largura_mapa, altura_mapa))
-
-                        pygame.draw.polygon(s_veneno, c_abismo, p_t_abismo)
-                        pygame.draw.polygon(s_veneno, c_fluido1, p_t1)
-                        pygame.draw.polygon(s_veneno, c_fluido2, p_t2)
-                        pygame.draw.lines(s_veneno, c_reflexo, False, p_t_luz, max(1, int(3 * fluidez)))
-                        
-                        pygame.draw.polygon(s_veneno, c_abismo, p_b_abismo)
-                        pygame.draw.polygon(s_veneno, c_fluido1, p_b1)
-                        pygame.draw.polygon(s_veneno, c_fluido2, p_b2)
-                        pygame.draw.lines(s_veneno, c_reflexo, False, p_b_luz, max(1, int(3 * fluidez)))
-
-                        p_e_abismo, p_e1, p_e2, p_e_luz = [(0, 0)], [(0, 0)], [(0, 0)], [(0, 0)]
-                        p_d_abismo, p_d1, p_d2, p_d_luz = [(largura_mapa, 0)], [(largura_mapa, 0)], [(largura_mapa, 0)], [(largura_mapa, 0)]
-                        
-                        for y in range(0, altura_mapa + passo_onda, passo_onda):
-                            o_base = math.cos(agora * 0.0014 + y * 0.011) * (18 * fluidez)
-                            o_med = math.sin(agora * 0.0021 + y * 0.019) * (22 * fluidez)
-                            o_caos = math.cos(agora * 0.0041 + y * 0.033) * (12 * fluidez)
-                            o_micro = math.sin(agora * 0.0075 + y * 0.052) * (5 * fluidez)
-                            
-                            onda_e_total1 = border_w - (20 * fluidez) + o_base + o_med
-                            onda_e_total2 = border_w + o_med + o_caos
-                            onda_e_reflexo = border_w + o_caos + o_micro + (5 * fluidez)
-                            
-                            p_e_abismo.append((onda_e_total2 + (15 * fluidez), y))
-                            p_e1.append((onda_e_total1, y))
-                            p_e2.append((onda_e_total2, y))
-                            p_e_luz.append((onda_e_reflexo, y))
-                            
-                            o_d_base = math.sin(agora * 0.0016 + y * 0.01) * (18 * fluidez)
-                            o_d_med = math.cos(agora * 0.0023 + y * 0.016) * (22 * fluidez)
-                            o_d_caos = math.sin(agora * 0.0044 + y * 0.031) * (12 * fluidez)
-                            o_d_micro = math.cos(agora * 0.0072 + y * 0.049) * (5 * fluidez)
-                            
-                            onda_d_total1 = (largura_mapa - border_w) + (20 * fluidez) - o_d_base - o_d_med
-                            onda_d_total2 = (largura_mapa - border_w) - o_d_med - o_d_caos
-                            onda_d_reflexo = (largura_mapa - border_w) - o_d_caos - o_d_micro - (5 * fluidez)
-                            
-                            p_d_abismo.append((onda_d_total2 - (15 * fluidez), y))
-                            p_d1.append((onda_d_total1, y))
-                            p_d2.append((onda_d_total2, y))
-                            p_d_luz.append((onda_d_reflexo, y))
-
-                        p_e_abismo.append((0, altura_mapa)); p_e1.append((0, altura_mapa)); p_e2.append((0, altura_mapa)); p_e_luz.append((0, altura_mapa))
-                        p_d_abismo.append((largura_mapa, altura_mapa)); p_d1.append((largura_mapa, altura_mapa)); p_d2.append((largura_mapa, altura_mapa)); p_d_luz.append((largura_mapa, altura_mapa))
-
-                        pygame.draw.polygon(s_veneno, c_abismo, p_e_abismo)
-                        pygame.draw.polygon(s_veneno, c_fluido1, p_e1)
-                        pygame.draw.polygon(s_veneno, c_fluido2, p_e2)
-                        pygame.draw.lines(s_veneno, c_reflexo, False, p_e_luz, max(1, int(3 * fluidez)))
-                        
-                        pygame.draw.polygon(s_veneno, c_abismo, p_d_abismo)
-                        pygame.draw.polygon(s_veneno, c_fluido1, p_d1)
-                        pygame.draw.polygon(s_veneno, c_fluido2, p_d2)
-                        pygame.draw.lines(s_veneno, c_reflexo, False, p_d_luz, max(1, int(3 * fluidez)))
-
-                        random.seed(int(agora / 250))
-                        for _ in range(60):
-                            bx = random.randint(0, largura_mapa)
-                            by = random.randint(0, altura_mapa)
-                            if (bx < border_w + 20 or bx > largura_mapa - border_w - 20 or 
-                                by < border_w + 20 or by > altura_mapa - border_w - 20):
-                                
-                                tamanho_base = random.randint(8, 28) * fluidez
-                                if tamanho_base > 2:
-                                    pulsar = math.sin(agora * 0.01 + bx + by) * (6 * fluidez)
-                                    tamanho_final = max(4, int(tamanho_base + pulsar))
-                                    
-                                    # Geometrias quadradas para consolidar o Pixel Art
-                                    pygame.draw.rect(s_veneno, (10, 20, 12, int(150 * fluidez)), (bx + 2, by + 3, tamanho_final, tamanho_final))
-                                    pygame.draw.rect(s_veneno, c_espuma, (bx, by, tamanho_final, tamanho_final))
-                                    
-                                    tamanho_reflexo = max(2, int(tamanho_final * 0.3))
-                                    pygame.draw.rect(s_veneno, (200, 255, 210, int(200 * fluidez)), (bx + int(tamanho_final * 0.1), by + int(tamanho_final * 0.1), tamanho_reflexo, tamanho_reflexo))
-                        random.seed()
-
-                        # Compressão e Expansão de Resolução (Filtro Pixel Art)
-                        escala_pixel = 6 # Intensidade do granulado (ajuste entre 4 e 8 para preferência visual)
-                        s_veneno_comprimido = pygame.transform.scale(s_veneno, (largura_mapa // escala_pixel, altura_mapa // escala_pixel))
-                        s_veneno_pixelado = pygame.transform.scale(s_veneno_comprimido, (largura_mapa, altura_mapa))
-
-                        tela.blit(s_veneno_pixelado, (0, 0))
-
-                        # SISTEMA DE DANO ESCALÁVEL DAS BORDAS TÓXICAS
-                        nas_bordas = (pos_x_personagem < border_w or 
-                                     pos_x_personagem + largura_personagem > largura_mapa - border_w or
-                                     pos_y_personagem < border_w or 
-                                     pos_y_personagem + altura_personagem > altura_mapa - border_w)
-                        
-                        if nas_bordas:
-                            # Se acabou de entrar nas bordas, registra o tempo
-                            if not estava_nas_bordas:
-                                tempo_entrada_bordas = agora
-                                tempo_acumulado_bordas = 0
-                                estava_nas_bordas = True
-                            
-                            # Calcula tempo acumulado nas bordas
-                            tempo_acumulado_bordas = agora - tempo_entrada_bordas
-                            
-                            # Dano a cada 800ms (conforme solicitado)
-                            if agora - ultimo_tick_dano_bordas >= 800:
-                                # DANO ESCALÁVEL: Começa baixo e aumenta com o tempo
-                                # Fórmula: dano_base + (tempo_em_segundos * multiplicador)
-                                tempo_segundos = tempo_acumulado_bordas / 1000.0
-                                
-                                # Dano inicial: 0.5% da vida máxima
-                                # Escala: +0.3% por segundo nas bordas
-                                # Máximo: 5% da vida máxima (após ~15 segundos)
-                                dano_percentual = min(0.05, 0.005 + (tempo_segundos * 0.003))
-                                dano_bordas = vida_maxima * dano_percentual
-                                
-                                vida -= dano_bordas
-                                ultimo_tick_dano_bordas = agora
-                                
-                                # Feedback visual com cor baseada na intensidade
-                                intensidade = min(1.0, tempo_segundos / 10.0)
-                                cor_r = int(40 + (intensidade * 180))  # 40 -> 220
-                                cor_g = int(180 - (intensidade * 80))  # 180 -> 100
-                                cor_b = 60
-                                
-                                memoria_umbra.treinar(2.0 + (intensidade * 3.0))  # Recompensa escala também
-                                
-                                efeitos_texto.append({
-                                    "texto": f"-{int(dano_bordas)} VENENO!",
-                                    "x": pos_x_personagem + random.randint(-20, 20),
-                                    "y": pos_y_personagem - 30,
-                                    "tempo_inicio": agora,
-                                    "cor": (cor_r, cor_g, cor_b)
-                                })
-                                
-                                # Punição escalável para o Apolo
-                                if apolo.estado_anterior in apolo.q_table:
-                                    punicao_apolo = -5.0 - (intensidade * 10.0)  # -5 a -15
-                                    apolo.q_table[apolo.estado_anterior][apolo.acao_anterior] += punicao_apolo
-                        else:
-                            # Saiu das bordas, reseta o rastreador
-                            if estava_nas_bordas:
-                                estava_nas_bordas = False
-                                tempo_acumulado_bordas = 0
 
                 # O Escudo de Atrito (Reduz dano em 70% e carrega a fúria)
                 if estado_atual_ia.get('dimensao_ativa') == "atrito":
@@ -2686,6 +2538,8 @@ while running:
         # Desenhar o segundo personagem ao lado do personagem original
         pos_x_segundo_personagem = pos_x_personagem + largura_personagem + 4
         pos_y_segundo_personagem = pos_y_personagem
+        # Desenhar sombra do Trembo
+        desenhar_sombra(tela, pos_x_segundo_personagem, pos_y_segundo_personagem, largura_personagem, altura_personagem)
         tela.blit(frames_animacao_trembo[direcao_atual][frame_atual], (pos_x_segundo_personagem, pos_y_segundo_personagem))
     if trembo and tempo_atual - tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima:
         cura_trembo = vida_maxima * porcentagem_cura

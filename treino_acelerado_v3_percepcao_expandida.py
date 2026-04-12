@@ -23,6 +23,9 @@ import json
 import os
 import time
 from collections import deque
+import torch
+import torch.nn as nn
+import torch.optim as optim
 
 from habilidade_boss import MemoriaEvolutivaUmbra
 
@@ -37,17 +40,34 @@ except ImportError:
     altura_boss = 80
 
 
+class ApoloDQN(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(ApoloDQN, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_size, 128),
+            nn.LeakyReLU(),
+            nn.Linear(128, 64),
+            nn.LeakyReLU(),
+            nn.Linear(64, output_size)
+        )
+    def forward(self, x):
+        return self.net(x)
+
 class AgenteApoloExpandido:
-    """
-    Versão com percepção expandida do Apolo.
-    Estado: 10 componentes (vs 4 na V2)
-    """
-    def __init__(self, arquivo="apolo_memoria.json"):
+    def __init__(self, arquivo="apolo_memoria_dqn.pt"):
         self.direcao_x = 0
         self.direcao_y = 0
         self.usar_dash = False
-        self.q_table = {}
-        self.estado_anterior = "vazio"
+        
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.input_size = 20
+        self.output_size = 5
+        
+        self.q_network = ApoloDQN(self.input_size, self.output_size).to(self.device)
+        self.optimizer = optim.Adam(self.q_network.parameters(), lr=0.001)
+        self.criterion = nn.MSELoss()
+        
+        self.ultimo_estado_tensor = None
         self.acao_anterior = 0
         self.vida_jogador_anterior = 0
         self.vida_boss_anterior = 0
@@ -58,138 +78,69 @@ class AgenteApoloExpandido:
     def carregar_memoria(self):
         if os.path.exists(self.arquivo_memoria):
             try:
-                with open(self.arquivo_memoria, "r") as f:
-                    self.q_table = json.load(f)
-            except:
-                pass
+                self.q_network.load_state_dict(torch.load(self.arquivo_memoria, map_location=self.device, weights_only=True))
+            except: pass
 
     def salvar_memoria(self):
-        with open(self.arquivo_memoria, "w") as f:
-            json.dump(self.q_table, f)
+        torch.save(self.q_network.state_dict(), self.arquivo_memoria)
+
+    def aplicar_recompensa_direta(self, recompensa_direta):
+        if self.ultimo_estado_tensor is not None:
+            self.q_network.train()
+            q_values = self.q_network(self.ultimo_estado_tensor)
+            q_val = q_values[0, self.acao_anterior]
+            alvo = q_val.item() + 0.15 * recompensa_direta
+            alvo_tensor = torch.tensor(alvo, dtype=torch.float32, device=self.device)
+            loss = self.criterion(q_val, alvo_tensor)
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
 
     def obter_estado_expandido(self, pos_p, pos_boss, projeteis_boss, cd_teleporte, armadilhas_ativas, vida_apolo, vida_boss, velocidade_apolo):
-        """
-        ESTADO EXPANDIDO (10 COMPONENTES):
-        1. QUADRANTE_BOSS (5 estados: C/L/O/S/N)
-        2. DISTANCIA_BOSS (4 estados: MUITO_PERTO/PERTO/MEDIO/LONGE)
-        3. VIDA_APOLO (4 estados: CRITICA/BAIXA/MEDIA/ALTA)
-        4. VIDA_BOSS (4 estados: CRITICA/BAIXA/MEDIA/ALTA)
-        5. PERIGO_IMINENTE (3 estados: NENHUM/PROJETIL/MULTIPLOS)
-        6. DIRECAO_PERIGO (5 estados: LIVRE/L/O/S/N)
-        7. CD_TELEPORTE (2 estados: True/False)
-        8. ARMADILHA_ATIVA (2 estados: True/False)
-        9. POSICAO_MAPA (5 estados: CENTRO/BORDA_L/BORDA_O/BORDA_S/BORDA_N)
-        10. VELOCIDADE (3 estados: PARADO/NORMAL/DASH)
-        
-        Total teórico: 5×4×4×4×3×5×2×2×5×3 = 288,000 estados
-        Prático: ~2000-5000 estados (apenas situações realmente encontradas)
-        """
         px, py = pos_p
         bx, by = pos_boss
         
-        # 1. QUADRANTE DO BOSS
-        dx = bx - px
-        dy = by - py
-        if abs(dx) < 100 and abs(dy) < 100:
-            quadrante_boss = "C"
-        elif abs(dx) > abs(dy):
-            quadrante_boss = "L" if dx > 0 else "O"
-        else:
-            quadrante_boss = "S" if dy > 0 else "N"
+        feat_px = px / max(1, largura_mapa)
+        feat_py = py / max(1, altura_mapa)
+        feat_bx = bx / max(1, largura_mapa)
+        feat_by = by / max(1, altura_mapa)
         
-        # 2. DISTÂNCIA DO BOSS (granular)
-        dist_boss = math.hypot(dx, dy)
-        if dist_boss < 200:
-            dist_categoria = "MUITO_PERTO"
-        elif dist_boss < 400:
-            dist_categoria = "PERTO"
-        elif dist_boss < 700:
-            dist_categoria = "MEDIO"
-        else:
-            dist_categoria = "LONGE"
+        feat_vida_p = vida_apolo / 1000.0
+        feat_vida_b = vida_boss / 1200.0
         
-        # 3. VIDA DO APOLO (granular)
-        vida_perc_apolo = vida_apolo / 1000.0
-        if vida_perc_apolo < 0.25:
-            vida_apolo_cat = "CRITICA"
-        elif vida_perc_apolo < 0.5:
-            vida_apolo_cat = "BAIXA"
-        elif vida_perc_apolo < 0.75:
-            vida_apolo_cat = "MEDIA"
-        else:
-            vida_apolo_cat = "ALTA"
-        
-        # 4. VIDA DA UMBRA (granular)
-        vida_perc_boss = vida_boss / 1200.0
-        if vida_perc_boss < 0.25:
-            vida_boss_cat = "CRITICA"
-        elif vida_perc_boss < 0.5:
-            vida_boss_cat = "BAIXA"
-        elif vida_perc_boss < 0.75:
-            vida_boss_cat = "MEDIA"
-        else:
-            vida_boss_cat = "ALTA"
-        
-        # 5 & 6. ANÁLISE DE PERIGO (múltiplos projéteis)
+        dist_perigo = 1.0
+        dx_perigo = 0.0
+        dy_perigo = 0.0
         projeteis_proximos = []
         for proj in projeteis_boss:
             proj_x, proj_y = proj['x'], proj['y']
-            dist_proj = math.hypot(proj_x - px, proj_y - py)
-            if dist_proj < 250:  # Raio de detecção expandido
-                projeteis_proximos.append((proj_x, proj_y, dist_proj))
+            d = math.hypot(proj_x - px, proj_y - py)
+            if d < 250:
+                projeteis_proximos.append((proj_x, proj_y, d))
+                
+        if projeteis_proximos:
+            proj_x, proj_y, d = min(projeteis_proximos, key=lambda p: p[2])
+            dist_perigo = d / 250.0
+            dx_perigo = (proj_x - px) / max(1.0, d)
+            dy_perigo = (proj_y - py) / max(1.0, d)
+            
+        feat_cd_tele = 1.0 if cd_teleporte else 0.0
         
-        if len(projeteis_proximos) == 0:
-            perigo_nivel = "NENHUM"
-            perigo_dir = "LIVRE"
-        elif len(projeteis_proximos) == 1:
-            perigo_nivel = "PROJETIL"
-            proj_x, proj_y, _ = projeteis_proximos[0]
-            dx_p = proj_x - px
-            dy_p = proj_y - py
-            if abs(dx_p) > abs(dy_p):
-                perigo_dir = "L" if dx_p > 0 else "O"
-            else:
-                perigo_dir = "S" if dy_p > 0 else "N"
-        else:
-            perigo_nivel = "MULTIPLOS"
-            # Direção do projétil mais próximo
-            proj_x, proj_y, _ = min(projeteis_proximos, key=lambda p: p[2])
-            dx_p = proj_x - px
-            dy_p = proj_y - py
-            if abs(dx_p) > abs(dy_p):
-                perigo_dir = "L" if dx_p > 0 else "O"
-            else:
-                perigo_dir = "S" if dy_p > 0 else "N"
+        feat_armadilhas = [0.0] * 7
+        if isinstance(armadilhas_ativas, dict):
+            keys = ['vortice_ativo', 'prisao_ativa', 'caminho_espinhos', 'laser_ativo', 'descarga_eletrica', 'praga_ratos', 'miasma_ativo']
+            for i, k in enumerate(keys):
+                if armadilhas_ativas.get(k): feat_armadilhas[i] = 1.0
+        elif armadilhas_ativas:
+            feat_armadilhas[random.randint(0, 6)] = 1.0
+            
+        feat_vel_p = min(1.0, velocidade_apolo / 15.0)
+        feat_esferas = 0.0
+        feat_vel_b = 0.0
         
-        # 7. COOLDOWN TELEPORTE
-        cd_tele_str = "True" if cd_teleporte else "False"
-        
-        # 8. ARMADILHA ATIVA
-        armadilha_str = "True" if armadilhas_ativas else "False"
-        
-        # 9. POSIÇÃO NO MAPA (consciência de bordas)
-        margem = 150
-        if px < margem:
-            pos_mapa = "BORDA_O"
-        elif px > largura_mapa - margem:
-            pos_mapa = "BORDA_L"
-        elif py < margem:
-            pos_mapa = "BORDA_N"
-        elif py > altura_mapa - margem:
-            pos_mapa = "BORDA_S"
-        else:
-            pos_mapa = "CENTRO"
-        
-        # 10. VELOCIDADE ATUAL
-        if velocidade_apolo < 1:
-            vel_cat = "PARADO"
-        elif velocidade_apolo < 10:
-            vel_cat = "NORMAL"
-        else:
-            vel_cat = "DASH"
-        
-        # COMPOSIÇÃO DO ESTADO (10 componentes)
-        return f"{quadrante_boss}_{dist_categoria}_{vida_apolo_cat}_{vida_boss_cat}_{perigo_nivel}_{perigo_dir}_{cd_tele_str}_{armadilha_str}_{pos_mapa}_{vel_cat}"
+        features = [feat_px, feat_py, feat_bx, feat_by, feat_vida_p, feat_vida_b, dist_perigo, dx_perigo, dy_perigo, feat_cd_tele, feat_vel_p, feat_esferas, feat_vel_b] + feat_armadilhas
+        tensor = torch.tensor(features, dtype=torch.float32, device=self.device).unsqueeze(0)
+        return tensor
 
     def pensar(self, pos_p, pos_boss, projeteis_boss, cd_teleporte, vida_jogador, vida_boss, armadilhas_ativas, frames_sobrevividos, velocidade_atual):
         self.direcao_x = 0
@@ -230,28 +181,32 @@ class AgenteApoloExpandido:
         self.vida_boss_anterior = vida_boss
 
         # OBTER ESTADO EXPANDIDO
-        estado_atual = self.obter_estado_expandido(
+        estado_tensor = self.obter_estado_expandido(
             pos_p, pos_boss, projeteis_boss, cd_teleporte, 
             armadilhas_ativas, vida_jogador, vida_boss, velocidade_atual
         )
 
-        # Q-LEARNING
-        if self.estado_anterior not in self.q_table:
-            self.q_table[self.estado_anterior] = [0.0] * 5
-        if estado_atual not in self.q_table:
-            self.q_table[estado_atual] = [0.0] * 5
-
-        q_antigo = self.q_table[self.estado_anterior][self.acao_anterior]
-        max_q_novo = max(self.q_table[estado_atual])
-        self.q_table[self.estado_anterior][self.acao_anterior] = q_antigo + 0.15 * (recompensa + 0.95 * max_q_novo - q_antigo)
+        if self.ultimo_estado_tensor is not None:
+            self.q_network.train()
+            q_values = self.q_network(self.ultimo_estado_tensor)
+            q_val = q_values[0, self.acao_anterior]
+            alvo = q_val.item() + 0.15 * (recompensa - q_val.item())
+            alvo_tensor = torch.tensor(alvo, dtype=torch.float32, device=self.device)
+            loss = self.criterion(q_val, alvo_tensor)
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
 
         # SELEÇÃO DE AÇÃO
         if random.random() < self.taxa_exploracao:
             acao = random.choice([0, 1, 2, 3, 4])
         else:
-            acao = self.q_table[estado_atual].index(max(self.q_table[estado_atual]))
+            with torch.no_grad():
+                self.q_network.eval()
+                q_vals = self.q_network(estado_tensor)
+                acao = torch.argmax(q_vals).item()
 
-        self.estado_anterior = estado_atual
+        self.ultimo_estado_tensor = estado_tensor
         self.acao_anterior = acao
 
         if acao == 0:
@@ -342,16 +297,23 @@ class SimuladorCombateExpandido:
             'tempo_simulado': tempo_simulado,
             'frames_sobrevividos': frames_sobrevividos,
             'invulneravel_ate': invulneravel_ate,
-            'velocidade_apolo_atual': velocidade_apolo_atual
+            'velocidade_apolo_atual': velocidade_apolo_atual,
+            'ratos_ativos': [],
+            'ratos_adicionais': 0,
+            'ultimo_praga': 0,
+            'estava_nas_bordas': False,
+            'tempo_entrada_bordas': 0,
+            'ultimo_tick_dano_bordas': 0,
+            'laser_ativo': None
         }
 
     def simular_frame(self, estado):
-        estado['tempo_simulado'] += 16
+        estado['tempo_simulado'] += 16.666
         estado['frames_sobrevividos'] += 1
         
-        estado['cd_ataque_umbra'] = max(0, estado['cd_ataque_umbra'] - 16)
-        estado['cd_teleporte_apolo'] = max(0, estado['cd_teleporte_apolo'] - 16)
-        estado['cd_habilidade_especial'] = max(0, estado['cd_habilidade_especial'] - 16)
+        estado['cd_ataque_umbra'] = max(0, estado['cd_ataque_umbra'] - 16.666)
+        estado['cd_teleporte_apolo'] = max(0, estado['cd_teleporte_apolo'] - 16.666)
+        estado['cd_habilidade_especial'] = max(0, estado['cd_habilidade_especial'] - 16.666)
         
         # ===== DECISÃO DO APOLO =====
         cd_teleporte_bool = estado['cd_teleporte_apolo'] == 0
@@ -438,6 +400,53 @@ class SimuladorCombateExpandido:
         
         elif acao_umbra == "HABILIDADE_ESPECIAL":
             estado['cd_habilidade_especial'] = 8000
+            if not estado['laser_ativo']:
+                estado['laser_ativo'] = {
+                    'tempo_inicio': estado['tempo_simulado'],
+                    'fase': 'carregando',
+                    'rodada': 1,
+                    'duracao_carga': 1500,
+                    'duracao_disparo': 4000
+                }
+                
+        # ===== ATUALIZAR LASER =====
+        laser = estado['laser_ativo']
+        if laser:
+            tempo_laser = estado['tempo_simulado'] - laser['tempo_inicio']
+            origem_laser = (estado['pos_umbra'][0] + largura_boss // 2, estado['pos_umbra'][1] + altura_boss // 2)
+            
+            if laser['fase'] == 'carregando':
+                if tempo_laser >= laser['duracao_carga']:
+                    laser['fase'] = 'disparando'
+                    laser['tempo_inicio_disparo'] = estado['tempo_simulado']
+            elif laser['fase'] == 'disparando':
+                t_disp = estado['tempo_simulado'] - laser['tempo_inicio_disparo']
+                progresso = min(1.0, t_disp / laser['duracao_disparo'])
+                angulo_atual = laser.get('angulo_base', 0) + math.sin(progresso * math.pi * 4) * 0.5
+                
+                comp_laser = 2500
+                fim_x = origem_laser[0] + math.cos(angulo_atual) * comp_laser
+                fim_y = origem_laser[1] + math.sin(angulo_atual) * comp_laser
+                
+                # Hitbox Euclidiano do Laser
+                px_c = estado['pos_apolo'][0] + largura_personagem // 2
+                py_c = estado['pos_apolo'][1] + altura_personagem // 2
+                
+                numerador = abs((fim_y - origem_laser[1])*px_c - (fim_x - origem_laser[0])*py_c + fim_x*origem_laser[1] - fim_y*origem_laser[0])
+                denominador = math.hypot(fim_y - origem_laser[1], fim_x - origem_laser[0])
+                distancia = numerador / denominador if denominador != 0 else 999
+                
+                dot_product = (px_c - origem_laser[0]) * math.cos(angulo_atual) + (py_c - origem_laser[1]) * math.sin(angulo_atual)
+                atingido = distancia < 25 and 0 < dot_product < comp_laser
+                
+                if atingido and estado['tempo_simulado'] - laser.get('ultimo_dano_laser', 0) > 100:
+                    estado['vida_apolo'] -= 45
+                    self.umbra.treinar(50.0, prioridade=True)
+                    self.apolo.aplicar_recompensa_direta(-30.0)
+                    laser['ultimo_dano_laser'] = estado['tempo_simulado']
+                    
+                if t_disp >= laser['duracao_disparo']:
+                    estado['laser_ativo'] = None
         
         # ===== ATUALIZAR PROJÉTEIS =====
         projeteis_ativos = []
@@ -460,25 +469,38 @@ class SimuladorCombateExpandido:
         
         estado['projeteis_umbra'] = projeteis_ativos
         
-        # ===== DANO DE ARMADILHA =====
-        if armadilhas_ativas and not invulneravel:
-            estado['vida_apolo'] -= 0.5
+        # ===== ENXAME DE RATOS =====
+        for rato in list(estado['ratos_ativos']):
+            dx = estado['pos_apolo'][0] - rato['x']
+            dy = estado['pos_apolo'][1] - rato['y']
+            dist = math.hypot(dx, dy)
+            if dist > 0:
+                rato['x'] += (dx/dist) * 6.0
+                rato['y'] += (dy/dist) * 6.0
+            
+            # Colisão com o Player
+            if dist < 25 and not invulneravel:
+                estado['vida_apolo'] -= 8
+                estado['vida_umbra'] = min(estado['vida_max_umbra'], estado['vida_umbra'] + 20)
+                estado['ratos_adicionais'] += 1
+                self.umbra.treinar(5.0, prioridade=True)
+                self.apolo.aplicar_recompensa_direta(-5.0)
+                estado['ratos_ativos'].remove(rato)
         
         # ===== APOLO ATACA UMBRA =====
         if random.random() < 0.05:
             estado['vida_umbra'] -= 15
+            estado['tomou_tiro_no_dash'] = True
         
         # ===== VERIFICAR FIM DO EPISÓDIO =====
         if estado['vida_apolo'] <= 0:
             self.umbra.treinar(500.0, prioridade=True)
-            if self.apolo.estado_anterior in self.apolo.q_table:
-                self.apolo.q_table[self.apolo.estado_anterior][self.apolo.acao_anterior] -= 500.0
+            self.apolo.aplicar_recompensa_direta(-500.0)
             return True, "UMBRA"
         
         if estado['vida_umbra'] <= 0:
             self.umbra.treinar(-500.0, prioridade=True)
-            if self.apolo.estado_anterior in self.apolo.q_table:
-                self.apolo.q_table[self.apolo.estado_anterior][self.apolo.acao_anterior] += 500.0
+            self.apolo.aplicar_recompensa_direta(500.0)
             return True, "APOLO"
         
         if estado['tempo_simulado'] > 30000:
@@ -531,8 +553,8 @@ class SimuladorCombateExpandido:
             print(f"[LOTE {lote//self.episodios_por_lote + 1}] Episódios {lote+1}-{lote+episodios_neste_lote}")
             print(f"  Progresso: {progresso:.1f}%")
             print(f"  Placar: Umbra {self.vitorias_umbra} x {self.vitorias_apolo} Apolo")
-            print(f"  Q-Table Umbra: {len(self.umbra.q_table)} estados")
-            print(f"  Q-Table Apolo: {len(self.apolo.q_table)} estados")
+            print(f"  Q-Table Umbra: {0} estados")
+            print(f"  Q-Table Apolo: {0} estados")
             print(f"  Taxa Exploração: {self.umbra.exploracao*100:.2f}%")
             print(f"  Tempo do lote: {tempo_lote:.2f}s")
             print()
@@ -550,8 +572,8 @@ class SimuladorCombateExpandido:
         print(f"Placar final: Umbra {self.vitorias_umbra} x {self.vitorias_apolo} Apolo")
         print(f"Taxa de vitória Umbra: {(self.vitorias_umbra/self.episodios_totais)*100:.1f}%")
         print(f"Taxa de vitória Apolo: {(self.vitorias_apolo/self.episodios_totais)*100:.1f}%")
-        print(f"Estados na Q-Table Umbra: {len(self.umbra.q_table)}")
-        print(f"Estados na Q-Table Apolo: {len(self.apolo.q_table)}")
+        print(f"Estados na Q-Table Umbra: {0}")
+        print(f"Estados na Q-Table Apolo: {0}")
         print("="*80)
         print()
         
@@ -566,10 +588,10 @@ class SimuladorCombateExpandido:
 
 def main():
     print()
-    print("╔" + "="*78 + "╗")
-    print("║" + " "*18 + "TREINO ACELERADO V3" + " "*40 + "║")
-    print("║" + " "*24 + "PERCEPÇÃO EXPANDIDA" + " "*36 + "║")
-    print("╚" + "="*78 + "╝")
+    print("+" + "="*78 + "+")
+    print("|" + " "*18 + "TREINO ACELERADO V3" + " "*40 + "|")
+    print("|" + " "*24 + "PERCEPÇÃO EXPANDIDA" + " "*36 + "|")
+    print("+" + "="*78 + "+")
     print()
     
     # CONFIGURAÇÃO PARA TREINAMENTO LONGO

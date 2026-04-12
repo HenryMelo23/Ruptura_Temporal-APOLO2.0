@@ -11,31 +11,40 @@ import json
 from Tela_Cartas import tela_de_pausa
 from Variaveis import *
 from utils import *
+from audio_manager import carregar_config_audio, aplicar_volume_som
 
 
 pygame.init()
 
+# Carregar configurações gráficas
+try:
+    with open("config_graficos.json", "r") as f:
+        config_graficos = json.load(f)
+except:
+    config_graficos = {
+        "sombras_ativas": "dinamicas",
+        "qualidade_grafica": "alta",
+        "particulas_ativas": True,
+        "efeitos_visuais": True
+    }
+
+# Carregar configurações de áudio
+config_audio = carregar_config_audio()
+
 dano_inimigo=80
-estalos = pygame.mixer.Sound("Sounds/Estalo.mp3")
-estalos.set_volume(0.07) 
+estalos = aplicar_volume_som(pygame.mixer.Sound("Sounds/Estalo.mp3"), config_audio)
 
-som_ataque_boss = pygame.mixer.Sound("Sounds/Hit_Boss1.mp3")
-som_ataque_boss.set_volume(0.04) 
+som_ataque_boss = aplicar_volume_som(pygame.mixer.Sound("Sounds/Hit_Boss1.mp3"), config_audio)
 
-Hit_inimigo1 = pygame.mixer.Sound("Sounds/Inimigo1_hit.wav")
-Hit_inimigo1.set_volume(0.04) 
+Hit_inimigo1 = aplicar_volume_som(pygame.mixer.Sound("Sounds/Inimigo1_hit.wav"), config_audio)
 
-Disparo_Geo = pygame.mixer.Sound("Sounds/Disparo_Geo.wav")
-Disparo_Geo.set_volume(0.04) 
+Disparo_Geo = aplicar_volume_som(pygame.mixer.Sound("Sounds/Disparo_Geo.wav"), config_audio)
 
-Musica_tema_Boss1 = pygame.mixer.Sound("Sounds/Fase1_Boss.mp3")
-Musica_tema_Boss1.set_volume(0.06) 
+Musica_tema_Boss1 = aplicar_volume_som(pygame.mixer.Sound("Sounds/Fase1_Boss.mp3"), config_audio)
 
-Musica_tema_fases = pygame.mixer.Sound("Sounds/Fase_boas.mp3")
-Musica_tema_fases.set_volume(0.06) 
+Musica_tema_fases = aplicar_volume_som(pygame.mixer.Sound("Sounds/Fase_boas.mp3"), config_audio)
 
-Som_tema_fases = pygame.mixer.Sound("Sounds/Praia.wav")
-Som_tema_fases.set_volume(0.10) 
+Som_tema_fases = aplicar_volume_som(pygame.mixer.Sound("Sounds/Praia.wav"), config_audio) 
 
 Som_portal = pygame.mixer.Sound("Sounds/Portal.mp3")
 Som_portal.set_volume(0.06) 
@@ -394,6 +403,47 @@ def criar_inimigo(x, y, tipo=1):
     rect = pygame.Rect(x + offset_x, y + offset_y, largura_hitbox, altura_hitbox)
     
     return {"rect": rect, "image": image, "tipo": tipo, "vida": vida_inimigo_maxima, "vida_maxima": vida_inimigo_maxima}
+
+
+def desenhar_sombra(tela, x, y, largura, altura, offset_y=5):
+    """Desenha uma sombra elíptica embaixo de um ser com três níveis de qualidade"""
+    modo_sombra = config_graficos.get("sombras_ativas", "dinamicas")
+    
+    if modo_sombra == "desativadas":
+        return
+    
+    if modo_sombra == "simples":
+        # Sombra simples - elipse básica
+        sombra_surface = pygame.Surface((largura, altura // 3), pygame.SRCALPHA)
+        cor_sombra = (0, 0, 0, 80)
+        pygame.draw.ellipse(sombra_surface, cor_sombra, (0, 0, largura, altura // 3))
+        tela.blit(sombra_surface, (x, y + altura - offset_y))
+    
+    elif modo_sombra == "dinamicas":
+        # Sombra dinâmica - múltiplas camadas com gradiente
+        sombra_surface = pygame.Surface((int(largura * 1.2), int(altura // 2.5)), pygame.SRCALPHA)
+        
+        # Camada externa (mais suave e transparente)
+        cor_externa = (0, 0, 0, 40)
+        pygame.draw.ellipse(sombra_surface, cor_externa, 
+                          (0, 0, int(largura * 1.2), int(altura // 2.5)))
+        
+        # Camada intermediária
+        cor_media = (0, 0, 0, 70)
+        margem = int(largura * 0.15)
+        pygame.draw.ellipse(sombra_surface, cor_media, 
+                          (margem, margem // 2, int(largura * 0.9), int(altura // 3)))
+        
+        # Camada interna (mais escura e definida)
+        cor_interna = (0, 0, 0, 100)
+        margem_interna = int(largura * 0.25)
+        pygame.draw.ellipse(sombra_surface, cor_interna, 
+                          (margem_interna, margem_interna // 2, int(largura * 0.7), int(altura // 3.5)))
+        
+        # Posicionar a sombra centralizada
+        pos_x = x - int(largura * 0.1)
+        pos_y = y + altura - 15 - int(altura // 6)
+        tela.blit(sombra_surface, (pos_x, pos_y))
 
 
 def gerar_inimigo():
@@ -912,7 +962,7 @@ while running:
         tempo_previsao = 5  # Tempo em quadros para prever o movimento
        
         atualizar_movimento_inimigos(
-        inimigos_comum, pos_x_personagem, pos_y_personagem, ultima_tecla_movimento, velocidade_personagem, tempo_previsao
+        inimigos_comum, pos_x_personagem, pos_y_personagem, ultima_tecla_movimento, velocidade_personagem, tempo_previsao, movendo
         )
     else:
         if tempo_atual - tempo_anterior >= tempo_parado:
@@ -929,6 +979,8 @@ while running:
     for inimigo in inimigos_comum:
         inimigo["image"] = frames_inimigo[frame_atual % len(frames_inimigo)]
 
+        # Desenhar sombra do inimigo
+        desenhar_sombra(tela, inimigo["rect"].x, inimigo["rect"].y, largura_inimigo, altura_inimigo)
         tela.blit(inimigo["image"], inimigo["rect"])
         desenhar_barra_de_vida(tela, inimigo["rect"].x, inimigo["rect"].y - 10, largura_inimigo, 5, inimigo["vida"], inimigo["vida_maxima"])
     
@@ -1052,6 +1104,8 @@ while running:
     
 
     ###############################################   DESENHA O PERSONAGEM NA TELA ################################
+    # Desenhar sombra do personagem
+    desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
     tela.blit(frames_animacao[direcao_atual][frame_atual], (pos_x_personagem, pos_y_personagem))
     for moeda in moedas_soltadas[:]:
         if personagem_rect.colliderect(moeda["rect"]):
@@ -1084,6 +1138,8 @@ while running:
         # Desenhar o segundo personagem ao lado do personagem original
         pos_x_segundo_personagem = pos_x_personagem + largura_personagem + 4
         pos_y_segundo_personagem = pos_y_personagem
+        # Desenhar sombra do Trembo
+        desenhar_sombra(tela, pos_x_segundo_personagem, pos_y_segundo_personagem, largura_personagem, altura_personagem)
         tela.blit(frames_animacao_trembo[direcao_atual][frame_atual], (pos_x_segundo_personagem, pos_y_segundo_personagem))
     if trembo and tempo_atual- tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima :
         if vida_maxima < vida:
@@ -1218,7 +1274,9 @@ while running:
             direcao_atual_petro="left_petro"
             comando_direção_petro=False
             
-        desenhar_barra_de_vida_petro(tela, vida_petro, pos_x_petro, pos_y_petro - 20,vida_maxima_petro)  
+        desenhar_barra_de_vida_petro(tela, vida_petro, pos_x_petro, pos_y_petro - 20,vida_maxima_petro)
+        # Desenhar sombra do Petro
+        desenhar_sombra(tela, pos_x_petro, pos_y_petro, largura_personagem, altura_personagem)
         tela.blit(petro_nivel[direcao_atual_petro][frame_atual], (pos_x_petro, pos_y_petro))
 
 

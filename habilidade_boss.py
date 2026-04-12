@@ -3,37 +3,72 @@ import math
 import random
 from Variaveis import espacamento, largura_mapa, altura_mapa, largura_personagem, altura_personagem, largura_boss, altura_boss
 import json
+import sys
 import os
+import json
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+class UmbraDQN(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(UmbraDQN, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_size, 128),
+            nn.LeakyReLU(),
+            nn.Linear(128, 64),
+            nn.LeakyReLU(),
+            nn.Linear(64, output_size)
+        )
+    def forward(self, x):
+        return self.net(x)
 
 class MemoriaEvolutivaUmbra:
-    def __init__(self, arquivo="memoria_umbra.json"):
+    def __init__(self, arquivo="memoria_umbra_dqn.pt"):
         self.arquivo = arquivo
-        self.aprendizado = 0.1
-        self.desconto = 0.9
+        self.gamma = 0.95
         self.exploracao = 0.2
-        self.q_table = self._carregar()
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        if "neurogenese" not in self.q_table:
-            self.q_table["neurogenese"] = {} 
-            
-        self.ultimo_estado = None
-        self.ultima_acao = None
+        self.input_size = 18
+        self.acoes_base = [
+            "FUGIR", "INTERCEPTAR", "ORBITAR", "CERCAR", "ATAQUE", "SIFON", "TELEPORTE",
+            "TRANSMUTAR_VORTICE", "TRANSMUTAR_GRAVIDADE", "TRANSMUTAR_NECROSE", 
+            "TRANSMUTAR_RESSONANCIA", "TRANSMUTAR_HEMORRAGIA", "TRANSMUTAR_ATRITO", 
+            "TRANSMUTAR_RASTRO", "VORTICE", "PRISAO", "MIASMA", "DESCARGA_ELETRICA", 
+            "PRAGA_RATOS", "LASER_SOBRECARGA", "CAMINHO_ESPINHOS", "NENHUMA"
+        ]
+        self.output_size = len(self.acoes_base)
+        
+        self.q_network = UmbraDQN(self.input_size, self.output_size).to(self.device)
+        self.optimizer = optim.Adam(self.q_network.parameters(), lr=0.001)
+        self.criterion = nn.MSELoss()
+        
+        self.tendencias = {"TOTAL": 0, "ESQUERDA": 0, "DIREITA": 0, "CIMA": 0, "BAIXO": 0}
+        self.ultimo_estado_tensor = None
+        self.ultima_acao_idx = None
+        
+        self._carregar()
 
     def _carregar(self):
         if os.path.exists(self.arquivo):
-            with open(self.arquivo, 'r') as f:
-                return json.load(f)
-        return {}
+            try:
+                self.q_network.load_state_dict(torch.load(self.arquivo, map_location=self.device, weights_only=True))
+            except:
+                pass
+        if os.path.exists("tendencias_umbra.json"):
+            try:
+                with open("tendencias_umbra.json", 'r') as f:
+                    self.tendencias = json.load(f)
+            except: pass
 
     def salvar(self):
-        with open(self.arquivo, 'w') as f:
-            json.dump(self.q_table, f)
+        torch.save(self.q_network.state_dict(), self.arquivo)
+        with open("tendencias_umbra.json", 'w') as f:
+            json.dump(self.tendencias, f)
 
     def registrar_esquiva_player(self, vx, vy):
-        if "tendencias" not in self.q_table:
-            self.q_table["tendencias"] = {"ESQUERDA": 0, "DIREITA": 0, "CIMA": 0, "BAIXO": 0, "TOTAL": 0}
-        
-        t = self.q_table["tendencias"]
+        t = self.tendencias
         if abs(vx) > 0.5 or abs(vy) > 0.5:
             if vx > 1: t["DIREITA"] += 1
             elif vx < -1: t["ESQUERDA"] += 1
@@ -42,72 +77,106 @@ class MemoriaEvolutivaUmbra:
             t["TOTAL"] += 1
 
     def calcular_bias_bayesiano(self):
-        t = self.q_table.get("tendencias", {"TOTAL": 0})
+        t = self.tendencias
         total = max(1, t["TOTAL"])
         bias_x = (t.get("DIREITA", 0) - t.get("ESQUERDA", 0)) / total
         bias_y = (t.get("BAIXO", 0) - t.get("CIMA", 0)) / total
         return bias_x, bias_y
 
-    def discretizar_estado(self, vida_perc, dist_player, sob_fogo, historico_player, mapa_atual="Fase_Base"):
-        v = "crit" if vida_perc < 0.35 else "estavel"
-        d = "perto" if dist_player < 350 else "longe"
-        f = "perigo" if sob_fogo else "calmo"
+    def discretizar_estado(self, vida_perc, dist_player, sob_fogo, historico_player, mapa_atual="Fase_Base", player_pos=None, boss_pos=None, armadilhas=None, ameaca_vec=(0.0, 0.0)):
+        feat_vida = float(vida_perc)
+        feat_dist = float(dist_player) / 2000.0 
+        feat_fogo = 1.0 if sob_fogo else 0.0
         
-        m = "linear"
-        if len(historico_player) >= 10:
-            p1, p2, p3 = historico_player[-10], historico_player[-5], historico_player[-1]
-            v1 = (p2[0]-p1[0], p2[1]-p1[1])
-            v2 = (p3[0]-p2[0], p3[1]-p2[1])
-            if (v1[0]*v2[0] + v1[1]*v2[1]) < 0:
-                m = "erratico"
+        vx_p, vy_p = 0.0, 0.0
+        if historico_player and len(historico_player) >= 3:
+            p1, p3 = historico_player[-3], historico_player[-1]
+            vx_p = (p3[0] - p1[0]) / 30.0
+            vy_p = (p3[1] - p1[1]) / 30.0
+            
+        feat_vx = max(-1.0, min(1.0, vx_p))
+        feat_vy = max(-1.0, min(1.0, vy_p))
+        
+        dx, dy = 0.0, 0.0
+        if player_pos and boss_pos:
+            px = player_pos[0] if isinstance(player_pos, (tuple, list)) else player_pos.get('x', 0)
+            py = player_pos[1] if isinstance(player_pos, (tuple, list)) else player_pos.get('y', 0)
+            bx = boss_pos[0] if isinstance(boss_pos, (tuple, list)) else boss_pos.get('x', 0)
+            by = boss_pos[1] if isinstance(boss_pos, (tuple, list)) else boss_pos.get('y', 0)
+            dx = (bx - px) / 1000.0
+            dy = (by - py) / 1000.0
+            
+        feat_armadilhas = [0.0] * 8
+        if armadilhas:
+            keys = ['vortice_ativo', 'prisao_ativa', 'caminho_espinhos', 'laser_ativo', 'descarga_eletrica', 'bordas_ativas', 'miasma_ativo']
+            for i, k in enumerate(keys):
+                if armadilhas.get(k): feat_armadilhas[i] = 1.0
                 
-        fase = str(mapa_atual).split('/')[-1].replace('.png', '') if mapa_atual else "Fase_Base"
-        estado_base = f"{fase}_{v}_{d}_{f}_{m}"
+        map_val = 0.0
+        if mapa_atual:
+            map_str = str(mapa_atual).lower()
+            if "fase" in map_str:
+                num = ''.join(filter(str.isdigit, map_str))
+                if num: map_val = float(num) / 10.0
+                
+        features = [feat_vida, feat_dist, feat_fogo, feat_vx, feat_vy, dx, dy] + feat_armadilhas + [map_val, ameaca_vec[0], ameaca_vec[1]]
+        tensor = torch.tensor(features, dtype=torch.float32, device=self.device).unsqueeze(0)
+        return tensor
 
-        sig_vida = round(vida_perc, 1)
-        sig_dist = round(dist_player / 100)
-        assinatura = f"SIG_{sig_vida}_{sig_dist}_{f}_{m}"
-
-        return f"{estado_base}|{assinatura}"
-
-    def decidir(self, estado, acoes):
-        if estado not in self.q_table:
-            self.q_table[estado] = {}
-            
-        for acao in acoes:
-            if acao not in self.q_table[estado]:
-                self.q_table[estado][acao] = 0.0
-
+    def decidir(self, estado_tensor, acoes_disponiveis):
+        import random
         if random.random() < self.exploracao:
-            self.ultima_acao = random.choice(acoes)
-        else:
-            acoes_disponiveis = {a: self.q_table[estado][a] for a in acoes}
-            self.ultima_acao = max(acoes_disponiveis, key=acoes_disponiveis.get)
+            acao_escolhida = random.choice(acoes_disponiveis)
+            self.ultima_acao_idx = self.acoes_base.index(acao_escolhida) if acao_escolhida in self.acoes_base else 0
+            self.ultimo_estado_tensor = estado_tensor
+            return acao_escolhida
             
-        self.ultimo_estado = estado
-        return self.ultima_acao
+        with torch.no_grad():
+            self.q_network.eval()
+            q_values = self.q_network(estado_tensor)
+            
+        best_q = -float('inf')
+        best_action = random.choice(acoes_disponiveis)
+        for acao in acoes_disponiveis:
+            if acao in self.acoes_base:
+                idx = self.acoes_base.index(acao)
+                q_val = q_values[0, idx].item()
+                if q_val > best_q:
+                    best_q = q_val
+                    best_action = acao
+                    
+        self.ultima_acao_idx = self.acoes_base.index(best_action) if best_action in self.acoes_base else 0
+        self.ultimo_estado_tensor = estado_tensor
+        return best_action
 
     def treinar(self, recompensa, prioridade=False):
-        if self.ultimo_estado and self.ultima_acao:
-            taxa = self.aprendizado * 2 if prioridade else self.aprendizado
+        if self.ultimo_estado_tensor is not None and self.ultima_acao_idx is not None:
+            self.q_network.train()
+            # Forward pass: estimação atual
+            q_values = self.q_network(self.ultimo_estado_tensor)
+            q_val = q_values[0, self.ultima_acao_idx]
             
-            if self.ultimo_estado not in self.q_table:
-                self.q_table[self.ultimo_estado] = {}
-            if self.ultima_acao not in self.q_table[self.ultimo_estado]:
-                self.q_table[self.ultimo_estado][self.ultima_acao] = 0.0
-                
-            v_antigo = self.q_table[self.ultimo_estado][self.ultima_acao]
-            self.q_table[self.ultimo_estado][self.ultima_acao] = v_antigo + taxa * (recompensa - v_antigo)
+            # Aproximação da recompensa (regressão isolada na função de custo)
+            alvo = q_val.item() + (0.2 if prioridade else 0.1) * (recompensa - q_val.item())
+            alvo_tensor = torch.tensor(alvo, dtype=torch.float32, device=self.device)
+            
+            loss = self.criterion(q_val, alvo_tensor)
+            
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
 
 def aplicar_inteligencia_q_ao_grafo(pesos, estado_ia, memoria, vida_perc, dist_p, sob_fogo, historico):
-
-    estado_composto = memoria.discretizar_estado(vida_perc, dist_p, sob_fogo, historico)
+    estado_tensor = memoria.discretizar_estado(vida_perc, dist_p, sob_fogo, historico, player_pos=None, boss_pos=None, armadilhas=estado_ia)
     
-    if estado_composto in memoria.q_table:
-        conhecimento = memoria.q_table[estado_composto]
-        for acao, valor in conhecimento.items():
-            if acao in pesos:
-                pesos[acao] += valor * 2.0 
+    with torch.no_grad():
+        memoria.q_network.eval()
+        q_values = memoria.q_network(estado_tensor)
+        
+    for acao in pesos.keys():
+        if acao in memoria.acoes_base:
+            idx = memoria.acoes_base.index(acao)
+            pesos[acao] += q_values[0, idx].item() * 2.0 
     
     return pesos
 
@@ -163,17 +232,21 @@ def node_ataque_direcionado(agora, estado_ia, bx, by, px, py, historico_player, 
             modo_predict = random.random() > 0.3 # 70% Predict, 30% Direto
         
         if len(historico_player) >= 2 and modo_predict:
-            # Cálculo de vetor de movimento do centro do player
-            v_px = px - historico_player[-2][0]
-            v_py = py - historico_player[-2][1]
+            # Cálculo de vetor de movimento do centro do player (corrigido para 1 frame de delta)
+            v_px = (px - historico_player[-2][0]) / 2.0
+            v_py = (py - historico_player[-2][1]) / 2.0
             
             bias_x, bias_y = memoria.calcular_bias_bayesiano()
-            # Fator de lead (ajustado pela confiança da IA)
-            fator_lead = estado_ia.get('lead', 0.8)
+            # O viés Bayesiano causa erro quando o alvo está parado. Anulamos nesse cenário.
+            if parado:
+                bias_x, bias_y = 0.0, 0.0
+                
+            # Fator de lead ajustado: Se o alvo estiver muito distante, reduzimos a hiper-antecipação cega
+            fator_lead = max(0.5, 0.95 - (distancia / 2500.0))
             
             # Predição com trava de limites para não atirar fora da arena
-            alvo_x = centro_px + (v_px * tempo_voo * fator_lead) + (bias_x * 80)
-            alvo_y = centro_py + (v_py * tempo_voo * fator_lead) + (bias_y * 80)
+            alvo_x = centro_px + (v_px * tempo_voo * fator_lead) + (bias_x * 40)
+            alvo_y = centro_py + (v_py * tempo_voo * fator_lead) + (bias_y * 40)
             
             # Clamp emocional: Não permite que a predição saia do mapa
             alvo_x = max(50, min(largura_mapa - 50, alvo_x))
@@ -380,10 +453,10 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
 
     vida_p = config_boss.get('vida_atual', 1600) / max(1, config_boss.get('vida_max', 1600))
     dist_p = math.hypot(px - bx, py - by)
-    sob_fogo = len(disparos_player) > 0
+    sob_fogo = len(disparos_player)
     mapa_atual = config_boss.get('mapa_atual')
     
-    estado_composto = memoria.discretizar_estado(vida_p, dist_p, sob_fogo, historico_player, mapa_atual)
+    estado_composto = memoria.discretizar_estado(vida_p, dist_p, sob_fogo, historico_player, mapa_atual, player_pos, boss_pos, estado_ia)
 
     acoes_disponiveis = ["ATAQUE"]
 
@@ -416,7 +489,7 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
     elif mapa_atual == "Sprites/Fase7.png" and agora - estado_ia.get('ultimo_laser', 0) >= 11000:
         acoes_disponiveis.append("LASER_SOBRECARGA")
     elif mapa_atual == "Sprites/Fase9.png" and agora - estado_ia.get('ultimo_bordas', 0) >= 12000:
-        acoes_disponiveis.append("BORDAS_TOXICAS")
+        acoes_disponiveis.append("PRAGA_RATOS")
 
     decisao = memoria.decidir(estado_composto, acoes_disponiveis)
 
@@ -490,7 +563,7 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         node_prisao_criogenica(agora, estado_ia, px, py, historico_player)
         estado_ia['dano_recente'] = 0
 
-    elif decisao == "BORDAS_TOXICAS":
+    elif decisao == "PRAGA_RATOS":
         estado_ia['bordas_ativas'] = {
             'tempo_inicio': agora,
             'duracao': 9000
@@ -586,81 +659,63 @@ def node_prisao_criogenica(agora, estado_ia, px, py, historico_player):
     estado_ia['ultimo_prisao'] = agora
 
 
-def movimentacao_inteligente_umbra(agora, boss_pos, player_pos, disparos, estado_mov, dados_player, memoria,historico_player):
-    r"""
-    Navegação de Fluxo Visionária Generativa.
-    """
-    # --- 1. PROTOCOLO DE ESTASE ---
+def movimentacao_inteligente_umbra(agora, boss_pos, player_pos, disparos, estado_mov, dados_player, memoria, historico_player):
     if estado_mov.get('parede_ativa'):
         estado_mov['vel_x'], estado_mov['vel_y'] = 0, 0
         return estado_mov.get('centro_mapa', (680, 384)), "SIFON_STASIS"
-    
     if estado_mov.get('laser_ativo'):
         estado_mov['vel_x'], estado_mov['vel_y'] = 0, 0
-        return (boss_pos[0], boss_pos[1]), "LASER_STASIS" # Estática e letal
+        return (boss_pos[0], boss_pos[1]), "LASER_STASIS"
 
+    import math, random
     bx, by = boss_pos[0], boss_pos[1]
     px, py = player_pos[0], player_pos[1]
     dist_p = math.hypot(bx - px, by - py)
 
-    # --- 2. TOMADA DE DECISÃO GENERATIVA (ALVO) ---
-    alvo = estado_mov.get('alvo_ia', (680, 384))
-    dist_alvo = math.hypot(alvo[0] - bx, alvo[1] - by)
+    VEL_MAX = 3.0
+    AGILIDADE = 0.3
+    RAIO_SEGURANCA = 340
 
-    if dist_alvo < 50 or agora - estado_mov.get('ultimo_alvo_tempo', 0) > 4000:
-        vida_perc = dados_player['vida_atual'] / dados_player['vida_max']
-        sob_fogo = len(disparos) > 0
-        
-        mapa_atual = dados_player.get('mapa_atual', 'Fase_Base')
-        estado_atual = memoria.discretizar_estado(vida_perc, dist_p, sob_fogo, historico_player, mapa_atual)
-        estrategias = ["FUGIR", "INTERCEPTAR", "ORBITAR", "CERCAR"]
-        decisao = memoria.decidir(estado_atual, estrategias)
-        
-        if decisao == "FUGIR":
-            cantos = [(150, 150), (1150, 150), (150, 620), (1150, 620)]
-            alvo_x, alvo_y = max(cantos, key=lambda c: math.hypot(c[0] - px, c[1] - py))
-        elif decisao == "INTERCEPTAR":
-            alvo_x = px + (px - bx) * 0.3
-            alvo_y = py + (py - by) * 0.3
-        elif decisao == "ORBITAR":
-            ang = math.atan2(by - py, bx - px) + 0.7
-            alvo_x, alvo_y = px + math.cos(ang) * 450, py + math.sin(ang) * 450
-        else: # CERCAR
-            ang = math.atan2(by - py, bx - px)
-            alvo_x, alvo_y = px + math.cos(ang) * 300, py + math.sin(ang) * 300
-
-        estado_mov['alvo_ia'] = (max(100, min(1260, alvo_x)), max(100, min(660, alvo_y)))
-        estado_mov['ultimo_alvo_tempo'] = agora
-
-    # --- 3. CONFIGURAÇÃO DE FÍSICA E STEERING (ORIGINAL) ---
-    VEL_MAX, AGILIDADE, RAIO_SEGURANCA = 1, 0.2, 340
-    vx, vy = estado_mov.get('vel_x', 0), estado_mov.get('vel_y', 0)
-    hitbox_centro = (bx, by)
-
-    # --- 4. PROTOCOLO DE ESQUIVA MATEMÁTICA ---
-    f_esquiva_y = 0
+    # PROTOCOLO DE VISÃO DE BALA
     tiro_ameaca = None
+    ameaca_x, ameaca_y = 0.0, 0.0
     for d in disparos:
-        dx_tiro = hitbox_centro[0] - d["rect"].centerx
+        dx_tiro = bx - d["rect"].centerx
         vx_tiro = math.cos(d["angulo"])
         if (dx_tiro > 0 and vx_tiro > 0) or (dx_tiro < 0 and vx_tiro < 0):
-            dist_h = math.hypot(d["rect"].centerx - hitbox_centro[0], d["rect"].centery - hitbox_centro[1])
-            if dist_h < 450: 
+            dist_h = math.hypot(d["rect"].centerx - bx, d["rect"].centery - by)
+            if dist_h < 400:
                 tiro_ameaca = d
+                ameaca_x = math.cos(d["angulo"])
+                ameaca_y = math.sin(d["angulo"])
                 break
-    if tiro_ameaca:
-        tx, ty = tiro_ameaca["rect"].centerx, tiro_ameaca["rect"].centery
-        ang = tiro_ameaca["angulo"]
-        dist_x = hitbox_centro[0] - tx
-        try:
-            y_proj = ty + (dist_x * math.tan(ang))
-            if abs(y_proj - hitbox_centro[1]) < 60:
-                f_esquiva_y = 2.0 if y_proj < hitbox_centro[1] else -2.0
-                estado_mov['ultimo_desvio'] = agora
-        except ZeroDivisionError:
-            f_esquiva_y = random.choice([-2, 2])
 
-    # --- 5. CÁLCULO DE VETORES ---
+    vida_perc = dados_player['vida_atual'] / dados_player['vida_max']
+    sob_fogo = 1.0 if tiro_ameaca else 0.0
+    estado_atual = memoria.discretizar_estado(vida_perc, dist_p, sob_fogo, historico_player, dados_player.get('mapa_atual', 'Fase_Base'), player_pos, boss_pos, estado_mov, ameaca_vec=(ameaca_x, ameaca_y))
+    
+    estrategias = ["FUGIR", "INTERCEPTAR", "ORBITAR", "CERCAR"]
+    decisao = memoria.decidir(estado_atual, estrategias)
+
+    # MOVIMENTO PADRAO (Se chegou aqui n deu dash)
+    if decisao == "FUGIR":
+        ang_fuga = math.atan2(by - py, bx - px)
+        alvo_x, alvo_y = bx + math.cos(ang_fuga) * 600, by + math.sin(ang_fuga) * 600
+    elif decisao == "INTERCEPTAR":
+        alvo_x = px + (px - bx) * 0.3; alvo_y = py + (py - by) * 0.3
+    elif decisao == "ORBITAR":
+        ang = math.atan2(by - py, bx - px) + 0.7
+        alvo_x, alvo_y = px + math.cos(ang) * 450, py + math.sin(ang) * 450
+    else: 
+        ang = math.atan2(by - py, bx - px)
+        alvo_x, alvo_y = px + math.cos(ang) * 300, py + math.sin(ang) * 300
+
+    limite_x_min = int(espacamento)
+    limite_x_max = int(largura_mapa - largura_boss - espacamento)
+    limite_y_min = int(espacamento)
+    limite_y_max = int(altura_mapa - altura_boss - espacamento)
+    estado_mov['alvo_ia'] = (max(limite_x_min, min(limite_x_max, alvo_x)), max(limite_y_min, min(limite_y_max, alvo_y)))
+    
     dx_a, dy_a = estado_mov['alvo_ia'][0] - bx, estado_mov['alvo_ia'][1] - by
     mag_a = math.hypot(dx_a, dy_a)
     vec_alvo_x = (dx_a / mag_a) if mag_a > 0 else 0
@@ -673,15 +728,18 @@ def movimentacao_inteligente_umbra(agora, boss_pos, player_pos, disparos, estado
         f_rep_x, f_rep_y = (rx/dist_r) * 1.5, (ry/dist_r) * 1.5
 
     v_desejada_x = (vec_alvo_x + f_rep_x) * VEL_MAX
-    v_desejada_y = (vec_alvo_y + f_rep_y + f_esquiva_y) * VEL_MAX
+    v_desejada_y = (vec_alvo_y + f_rep_y) * VEL_MAX
+    vx = estado_mov.get('vel_x', 0)
+    vy = estado_mov.get('vel_y', 0)
     vx += (v_desejada_x - vx) * AGILIDADE
     vy += (v_desejada_y - vy) * AGILIDADE
     estado_mov['vel_x'], estado_mov['vel_y'] = vx, vy
 
-    nx = max(espacamento, min(largura_mapa - 100, bx + vx)) 
-    ny = max(espacamento, min(altura_mapa - 150, by + vy))
+    nx = max(int(espacamento), min(int(largura_mapa - largura_boss - espacamento), int(bx + vx)))
+    ny = max(int(espacamento), min(int(altura_mapa - altura_boss - espacamento), int(by + vy)))
 
     return (nx, ny), "GENERATIVE_MOVE"
+
 
 # --- MOTOR DE VFX PROCEDURAL (PLASMA & PARTÍCULAS) ---
 
