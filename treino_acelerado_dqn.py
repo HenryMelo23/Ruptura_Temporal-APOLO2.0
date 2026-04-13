@@ -1209,8 +1209,21 @@ def main():
     print(f"  Umbra: {UMBRA_INPUT_SIZE} inputs, {UMBRA_OUTPUT_SIZE} outputs")
     print("=" * 70)
 
-    eps_a = EPSILON_INICIO
-    eps_u = EPSILON_INICIO
+    # --- Epsilon Inteligente: evita "amnesia de exploracao" no restart ---
+    # Se o arquivo de pesos ja existe, o agente retoma de onde parou
+    # com epsilon baixo (20%) em vez de recomecar do zero (100%).
+    EPSILON_RETOMADA = 0.2
+    eps_a = EPSILON_RETOMADA if os.path.exists(ARQUIVO_APOLO) else EPSILON_INICIO
+    eps_u = EPSILON_RETOMADA if os.path.exists(ARQUIVO_UMBRA) else EPSILON_INICIO
+
+    if os.path.exists(ARQUIVO_APOLO):
+        print(f"  [Apolo] Pesos encontrados -> epsilon inicial = {eps_a:.2f} (retomada)")
+    else:
+        print(f"  [Apolo] Treino novo       -> epsilon inicial = {eps_a:.2f} (exploracao total)")
+    if os.path.exists(ARQUIVO_UMBRA):
+        print(f"  [Umbra] Pesos encontrados -> epsilon inicial = {eps_u:.2f} (retomada)")
+    else:
+        print(f"  [Umbra] Treino novo       -> epsilon inicial = {eps_u:.2f} (exploracao total)")
 
     agente_a = AgenteApolo(epsilon=eps_a)
     agente_u = AgenteUmbra(epsilon=eps_u)
@@ -1222,64 +1235,81 @@ def main():
     fps_hist   : Deque[float] = collections.deque(maxlen=LOG_INTERVALO)
     t_ini = time.time()
 
-    for ep in range(1, MAX_EPISODIOS + 1):
-        agente_a.epsilon = eps_a
-        agente_u.epsilon = eps_u
+    try:
+        for ep in range(1, MAX_EPISODIOS + 1):
+            agente_a.epsilon = eps_a
+            agente_u.epsilon = eps_u
 
-        venc, ra, ru, frames, dur = rodar_episodio(agente_a, agente_u, frame_global)
-        frame_global += int(frames)
+            venc, ra, ru, frames, dur = rodar_episodio(agente_a, agente_u, frame_global)
+            frame_global += int(frames)
 
-        if   venc == "Apolo": vit_a += 1; win_hist.append(1)
-        elif venc == "Umbra": vit_u += 1; win_hist.append(0)
-        else:                             win_hist.append(0)
+            if   venc == "Apolo": vit_a += 1; win_hist.append(1)
+            elif venc == "Umbra": vit_u += 1; win_hist.append(0)
+            else:                             win_hist.append(0)
 
-        rew_a_hist.append(ra);  rew_u_hist.append(ru)
-        fps_hist.append(frames / max(dur, 1e-9))
+            rew_a_hist.append(ra);  rew_u_hist.append(ru)
+            fps_hist.append(frames / max(dur, 1e-9))
 
-        # Decay do epsilon
-        eps_a = max(EPSILON_FIM, eps_a * EPSILON_DECAIMENTO)
-        eps_u = max(EPSILON_FIM, eps_u * EPSILON_DECAIMENTO)
+            # Decay do epsilon
+            eps_a = max(EPSILON_FIM, eps_a * EPSILON_DECAIMENTO)
+            eps_u = max(EPSILON_FIM, eps_u * EPSILON_DECAIMENTO)
 
-        # Checkpoint
-        if ep % SAVE_INTERVALO == 0:
-            agente_a.salvar()
-            agente_u.salvar()
+            # Checkpoint
+            if ep % SAVE_INTERVALO == 0:
+                agente_a.salvar()
+                agente_u.salvar()
 
-        # Log
-        if ep % LOG_INTERVALO == 0:
-            wr  = sum(win_hist) / max(1, len(win_hist)) * 100.0
-            ra_m = sum(rew_a_hist) / max(1, len(rew_a_hist))
-            ru_m = sum(rew_u_hist) / max(1, len(rew_u_hist))
-            la_m = agente_a.loss_media()
-            lu_m = agente_u.loss_media()
-            fps_m = sum(fps_hist) / max(1, len(fps_hist))
-            buf_a = len(agente_a.buffer) / BUFFER_SIZE * 100
-            buf_u = len(agente_u.buffer) / BUFFER_SIZE * 100
-            elapsed = (time.time() - t_ini) / 60.0
+            # Log
+            if ep % LOG_INTERVALO == 0:
+                wr  = sum(win_hist) / max(1, len(win_hist)) * 100.0
+                ra_m = sum(rew_a_hist) / max(1, len(rew_a_hist))
+                ru_m = sum(rew_u_hist) / max(1, len(rew_u_hist))
+                la_m = agente_a.loss_media()
+                lu_m = agente_u.loss_media()
+                fps_m = sum(fps_hist) / max(1, len(fps_hist))
+                buf_a = len(agente_a.buffer) / BUFFER_SIZE * 100
+                buf_u = len(agente_u.buffer) / BUFFER_SIZE * 100
+                elapsed = (time.time() - t_ini) / 60.0
 
-            print(
-                f"Ep {ep:>7,} "
-                f"| Win Apolo: {wr:5.1f}% "
-                f"| eA: {eps_a:.3f} eU: {eps_u:.3f} "
-                f"| LossA: {la_m:.4f} LossU: {lu_m:.4f} "
-                f"| rA: {ra_m:+.1f} rU: {ru_m:+.1f} "
-                f"| FPS: {fps_m:,.0f} "
-                f"| Buf: {buf_a:.0f}%/{buf_u:.0f}% "
-                f"| {elapsed:.1f}min"
-            )
+                print(
+                    f"Ep {ep:>7,} "
+                    f"| Win Apolo: {wr:5.1f}% "
+                    f"| eA: {eps_a:.3f} eU: {eps_u:.3f} "
+                    f"| LossA: {la_m:.4f} LossU: {lu_m:.4f} "
+                    f"| rA: {ra_m:+.1f} rU: {ru_m:+.1f} "
+                    f"| FPS: {fps_m:,.0f} "
+                    f"| Buf: {buf_a:.0f}%/{buf_u:.0f}% "
+                    f"| {elapsed:.1f}min"
+                )
 
-    # Salvamento final
-    agente_a.salvar()
-    agente_u.salvar()
-    total_vit = vit_a + vit_u
-    total_min = (time.time() - t_ini) / 60.0
-    print("\n" + "=" * 70)
-    print("  TREINO CONCLUIDO!")
-    print(f"  Tempo total    : {total_min:.1f} min")
-    print(f"  Vitorias Apolo : {vit_a:,} ({vit_a / max(1, total_vit) * 100:.1f}%)")
-    print(f"  Vitorias Umbra : {vit_u:,} ({vit_u / max(1, total_vit) * 100:.1f}%)")
-    print(f"  Pesos salvos   : '{ARQUIVO_APOLO}' e '{ARQUIVO_UMBRA}'")
-    print("=" * 70)
+        # --- Fim natural do loop (MAX_EPISODIOS atingido) ---
+        agente_a.salvar()
+        agente_u.salvar()
+        total_vit = vit_a + vit_u
+        total_min = (time.time() - t_ini) / 60.0
+        print("\n" + "=" * 70)
+        print("  TREINO CONCLUIDO!")
+        print(f"  Tempo total    : {total_min:.1f} min")
+        print(f"  Vitorias Apolo : {vit_a:,} ({vit_a / max(1, total_vit) * 100:.1f}%)")
+        print(f"  Vitorias Umbra : {vit_u:,} ({vit_u / max(1, total_vit) * 100:.1f}%)")
+        print(f"  Pesos salvos   : '{ARQUIVO_APOLO}' e '{ARQUIVO_UMBRA}'")
+        print("=" * 70)
+
+    except KeyboardInterrupt:
+        # --- Encerramento elegante via Ctrl+C ---
+        total_vit = vit_a + vit_u
+        total_min = (time.time() - t_ini) / 60.0
+        print("\n" + "=" * 70)
+        print("  Treinamento interrompido pelo usuario. Salvando pesos finais...")
+        agente_a.salvar()
+        agente_u.salvar()
+        print(f"  Episodios rodados : {ep:,}  |  Tempo: {total_min:.1f} min")
+        print(f"  Vitorias Apolo    : {vit_a:,} ({vit_a / max(1, total_vit) * 100:.1f}%)")
+        print(f"  Vitorias Umbra    : {vit_u:,}")
+        print(f"  Epsilon final     : eA={eps_a:.4f}  eU={eps_u:.4f}")
+        print(f"  Pesos salvos      : '{ARQUIVO_APOLO}' e '{ARQUIVO_UMBRA}'")
+        print("=" * 70)
+        sys.exit(0)
 
 
 # =============================================================================

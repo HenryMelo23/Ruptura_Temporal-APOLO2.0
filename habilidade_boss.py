@@ -106,9 +106,9 @@ class MemoriaEvolutivaUmbra:
             dx = (bx - px) / 1000.0
             dy = (by - py) / 1000.0
             
-        feat_armadilhas = [0.0] * 8
+        feat_armadilhas = [0.0] * 7
         if armadilhas:
-            keys = ['vortice_ativo', 'prisao_ativa', 'caminho_espinhos', 'laser_ativo', 'descarga_eletrica', 'bordas_ativas', 'miasma_ativo']
+            keys = ['vortice_ativo', 'prisao_ativa', 'caminho_espinhos', 'laser_ativo', 'descarga_eletrica', 'miasma_ativo', 'praga_ratos']
             for i, k in enumerate(keys):
                 if armadilhas.get(k): feat_armadilhas[i] = 1.0
                 
@@ -482,7 +482,7 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         acoes_disponiveis.append("CAMINHO_ESPINHOS")
     elif mapa_atual == "Sprites/Fase7.png" and agora - estado_ia.get('ultimo_laser', 0) >= 11000:
         acoes_disponiveis.append("LASER_SOBRECARGA")
-    elif mapa_atual == "Sprites/Fase9.png" and agora - estado_ia.get('ultimo_bordas', 0) >= 12000:
+    elif mapa_atual == "Sprites/Fase9.png" and agora - estado_ia.get('ultimo_praga_ratos', 0) >= 12000:
         acoes_disponiveis.append("PRAGA_RATOS")
 
     decisao = memoria.decidir(estado_composto, acoes_disponiveis)
@@ -515,7 +515,7 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         estado_ia['ultimo_descarga'] = agora
         estado_ia['ultimo_espinhos'] = agora
         estado_ia['ultimo_laser'] = agora
-        estado_ia['ultimo_bordas'] = agora
+        estado_ia['ultimo_praga_ratos'] = agora
         
         dimensao_escolhida = decisao.split("_")[1].lower()
         mapas = {
@@ -558,11 +558,11 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         estado_ia['dano_recente'] = 0
 
     elif decisao == "PRAGA_RATOS":
-        estado_ia['bordas_ativas'] = {
+        estado_ia['praga_ratos'] = {
             'tempo_inicio': agora,
             'duracao': 9000
         }
-        estado_ia['ultimo_bordas'] = agora
+        estado_ia['ultimo_praga_ratos'] = agora
         estado_ia['dano_recente'] = 0
 
     elif decisao == "LASER_SOBRECARGA":

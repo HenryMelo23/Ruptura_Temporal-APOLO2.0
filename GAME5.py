@@ -320,7 +320,6 @@ def atualizar_posicao_personagem(keys, joystick):#APOLO
     global hitbox_boss5, estado_atual_ia, modo_ia_treino
     global tempo_ultimo_disparo, intervalo_disparo, disparos
     global vida, largura_disparo, altura_disparo
-    global tempo_entrada_bordas, tempo_acumulado_bordas, ultimo_tick_dano_bordas, estava_nas_bordas
 
     dx, dy = 0, 0
     direcao_atual = 'stop'
@@ -600,12 +599,6 @@ reducao_cooldown_umbra = 1.0
 resistencia_umbra = 0.0
 bonus_cura_sifon = 1.0
 
-# Rastreadores de tempo nas bordas tóxicas
-tempo_entrada_bordas = 0
-tempo_acumulado_bordas = 0
-ultimo_tick_dano_bordas = 0
-estava_nas_bordas = False
-
 tempo_parado_person = pygame.time.get_ticks()  
 boss_atingido_por_onda = pygame.time.get_ticks()
 tempo_ultimo_disparo = pygame.time.get_ticks()
@@ -661,7 +654,7 @@ class AgenteApolo:
         self.ultima_decisao_frame = 0
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.input_size = 41  # 35 anteriores + 6 novas features de laser (fase, rodada, progresso, num_feixes, sentido, vel_angular, angulo, dist, tempo)
+        self.input_size = 40  # 41 anteriores - 1 feature de bordas_ativas removida
         self.output_size = 5
         
         self.q_network = ApoloDQN(self.input_size, self.output_size).to(self.device)
@@ -762,9 +755,9 @@ class AgenteApolo:
             
         feat_cd_tele = 1.0 if cds.get('teleporte', False) else 0.0
         
-        feat_armadilhas = [0.0] * 7
+        feat_armadilhas = [0.0] * 6
         if estado_ia:
-            keys = ['vortice_ativo', 'prisao_ativa', 'caminho_espinhos', 'laser_ativo', 'descarga_eletrica', 'bordas_ativas', 'miasma_ativo']
+            keys = ['vortice_ativo', 'prisao_ativa', 'caminho_espinhos', 'laser_ativo', 'descarga_eletrica', 'miasma_ativo']
             for i, k in enumerate(keys):
                 if estado_ia.get(k): feat_armadilhas[i] = 1.0
         
