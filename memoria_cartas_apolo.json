@@ -1,16 +1,13 @@
 {
-    "Speed Boost": 1833.2000000001024,
-    "Por\u00e7\u00e3o": 4654.999999999211,
-    "Disparo crescente": 3957.1999999993213,
-    "Trembo": 438.1999999999973,
-    "Tempestade": 2344.6999999997806,
-    "Cura": 500.90000000000435,
-    "Speed Atack": 3803.2999999993563,
-    "Teleporte": 5146.099999998974,
-    "Petro": 1191.800000000056,
-    "Defesa": 1070.0000000000537,
-    "Sorte": 1026.8000000000504,
-    "Poison": 2919.4999999996694,
-    "Coletora": 145.69999999999882,
-    "Mercenaria": 3185.299999999498
+    "Speed Boost": 2.0,
+    "Por\u00e7\u00e3o": 2.0,
+    "Disparo crescente": 2.0,
+    "Trembo": 6.699999999999997,
+    "Tempestade": 2.0,
+    "Cura": 2.0,
+    "Speed Atack": 2.0,
+    "Teleporte": 2.0,
+    "Petro": 2.0,
+    "Defesa": 2.0,
+    "Poison": 2.0
 }

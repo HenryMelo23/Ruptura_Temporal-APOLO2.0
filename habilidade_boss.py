@@ -27,7 +27,7 @@ class MemoriaEvolutivaUmbra:
     def __init__(self, arquivo="memoria_umbra_dqn.pt"):
         self.arquivo = arquivo
         self.gamma = 0.95
-        self.exploracao = 0.2
+        self.exploracao = 0.50
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         self.input_size = 18
@@ -211,50 +211,42 @@ def calcular_poh(player_pos, boss_pos, historico_player, confianca_ia):
 
 def node_ataque_direcionado(agora, estado_ia, bx, by, px, py, historico_player, memoria):
     if agora - estado_ia.get('ultimo_attack', 0) >= estado_ia.get('intervalo', 1250):
-        # CALIBRAÇÃO DE PRECISÃO: Usamos o centro absoluto das hitboxes
         centro_bx = bx + (largura_boss // 2)
         centro_by = by + (altura_boss // 2)
         centro_px = px + (largura_personagem // 2)
         centro_py = py + (altura_personagem // 2)
         
         distancia = math.hypot(centro_px - centro_bx, centro_py - centro_by)
-        vel_projetil = 9
+        vel_projetil = 11  # Projétil mais veloz
         tempo_voo = distancia / vel_projetil
         
-        # O SEGREDO TÁTICO: Umbra detecta se o player está estático ou num canto
-        parado = len(historico_player) >= 5 and all(math.hypot(p[0]-px, p[1]-py) < 5 for p in historico_player[-5:])
-        no_canto = px < 100 or px > largura_mapa - 150 or py < 100 or py > altura_mapa - 150
+        # Detecta estático e canto
+        parado = len(historico_player) >= 5 and all(math.hypot(p[0]-px, p[1]-py) < 4 for p in historico_player[-5:])
+        no_canto = px < 80 or px > largura_mapa - 120 or py < 80 or py > altura_mapa - 120
 
-        # Se parado ou no canto, a Umbra favorece o tiro DIRETO para evitar bugs de predição
-        if parado or no_canto:
-            modo_predict = random.random() > 0.8 # 20% Predict, 80% Direto
+        if parado:
+            # Alvo imóvel: tiro 100% direto ao centro, sem ruído
+            alvo_x, alvo_y = centro_px, centro_py
         else:
-            modo_predict = random.random() > 0.3 # 70% Predict, 30% Direto
-        
-        if len(historico_player) >= 2 and modo_predict:
-            # Cálculo de vetor de movimento do centro do player (corrigido para 1 frame de delta)
-            v_px = (px - historico_player[-2][0]) / 2.0
-            v_py = (py - historico_player[-2][1]) / 2.0
+            # Usa velocidade real dos últimos 2 frames como delta calibrado
+            if len(historico_player) >= 2:
+                vx_real = (centro_px - (historico_player[-2][0] + largura_personagem // 2))
+                vy_real = (centro_py - (historico_player[-2][1] + altura_personagem // 2))
+            else:
+                vx_real, vy_real = 0.0, 0.0
             
-            bias_x, bias_y = memoria.calcular_bias_bayesiano()
-            # O viés Bayesiano causa erro quando o alvo está parado. Anulamos nesse cenário.
-            if parado:
-                bias_x, bias_y = 0.0, 0.0
-                
-            # Fator de lead ajustado: Se o alvo estiver muito distante, reduzimos a hiper-antecipação cega
-            fator_lead = max(0.5, 0.95 - (distancia / 2500.0))
-            
-            # Predição com trava de limites para não atirar fora da arena
-            alvo_x = centro_px + (v_px * tempo_voo * fator_lead) + (bias_x * 40)
-            alvo_y = centro_py + (v_py * tempo_voo * fator_lead) + (bias_y * 40)
-            
-            # Clamp emocional: Não permite que a predição saia do mapa
+            # Lead proporcional: menos lead em distâncias grandes (evita over-shoot)
+            fator_lead = max(0.55, 1.0 - (distancia / 1800.0))
+
+            # Se perto de canto, reduz lead para n atirar na parede
+            if no_canto:
+                fator_lead *= 0.5
+
+            alvo_x = centro_px + vx_real * tempo_voo * fator_lead
+            alvo_y = centro_py + vy_real * tempo_voo * fator_lead
             alvo_x = max(50, min(largura_mapa - 50, alvo_x))
             alvo_y = max(50, min(altura_mapa - 50, alvo_y))
-        else:
-            alvo_x, alvo_y = centro_px, centro_py
 
-        # ÂNGULO ABSOLUTO: Calculado da origem do projétil ao alvo corrigido
         angulo = math.atan2(alvo_y - centro_by, alvo_x - centro_bx)
         
         estado_ia['projeteis'].append({
@@ -267,35 +259,37 @@ def node_ataque_direcionado(agora, estado_ia, bx, by, px, py, historico_player, 
 
 
 def node_caminho_espinhos(agora, estado_ia, bx, by, px, py, historico_player):
-    """Evoca um trilho linear que se alarga gradualmente e engole o jogador ao toque."""
-    # PRECISÃO GEOMÉTRICA: Origem no centro do BOSS
+    """Padrão A (X): 4 raios diagonais do centro. Padrão B (H3): 3 linhas horizontais.
+    Toque = stun 4s + 2 tiros rápidos na Umbra."""
     centro_bx = bx + (largura_boss // 2)
     centro_by = by + (altura_boss // 2)
-    centro_px = px + (largura_personagem // 2)
-    centro_py = py + (altura_personagem // 2)
 
-    alvo_x, alvo_y = centro_px, centro_py
-    
-    if len(historico_player) >= 3:
-        vx_p = px - historico_player[-3][0]
-        vy_p = py - historico_player[-3][1]
-        alvo_x = centro_px + (vx_p * 12)
-        alvo_y = centro_py + (vy_p * 12)
+    padrao = estado_ia.get('espinho_padrao_ultimo', 'B')
+    proximo = 'A' if padrao == 'B' else 'B'
+    estado_ia['espinho_padrao_ultimo'] = proximo
 
-    dx = alvo_x - centro_bx
-    dy = alvo_y - centro_by
-    angulo = math.atan2(dy, dx)
-    
-    estado_ia['caminho_espinhos'] = {
-        'origem': (centro_bx, centro_by),
-        'angulo': angulo,
-        'comprimento': 1500, # Atravessa a arena inteira
-        'largura_maxima': 220,
-        'tempo_inicio': agora,
-        'fase': 'crescimento',
-        'duracao_crescimento': 3500,
-        'duracao_expansao': 2000
-    }
+    if proximo == 'A':
+        raios = []
+        for ang_base in [math.pi*0.25, math.pi*0.75, math.pi*1.25, math.pi*1.75]:
+            raios.append({'origem': (centro_bx, centro_by), 'angulo': ang_base, 'comprimento': 1200})
+        estado_ia['caminho_espinhos'] = {
+            'padrao': 'X', 'raios': raios, 'largura_maxima': 90,
+            'tempo_inicio': agora, 'fase': 'crescimento',
+            'duracao_crescimento': 1800, 'duracao_expansao': 1600,
+            'ultimo_espinho_hit': 0
+        }
+    else:
+        linhas = []
+        for frac in [0.25, 0.50, 0.75]:
+            y_linha = int(altura_mapa * frac)
+            linhas.append({'origem': (0, y_linha), 'angulo': 0, 'comprimento': largura_mapa})
+        estado_ia['caminho_espinhos'] = {
+            'padrao': 'H3', 'raios': linhas, 'largura_maxima': 80,
+            'tempo_inicio': agora, 'fase': 'crescimento',
+            'duracao_crescimento': 1400, 'duracao_expansao': 1600,
+            'ultimo_espinho_hit': 0
+        }
+
     estado_ia['ultimo_espinhos'] = agora
 
 # --- NÓDULOS DE PENSAMENTO (AÇÕES DO GRAFO) ---

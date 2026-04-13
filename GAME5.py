@@ -19,6 +19,7 @@ import habilidade_boss as hb
 import collections
 from vfx_engine_apolo import ApoloVFXManager
 from audio_manager import carregar_config_audio, aplicar_volume_som
+from sistema_ratos_umbra import GerenciadorRatos
 
 pygame.init()
 memoria_umbra = hb.MemoriaEvolutivaUmbra()
@@ -653,8 +654,14 @@ class AgenteApolo:
         self.alvo_x = 0
         self.alvo_y = 0
         
+        # Sistema de persistência de ação para movimentos mais fluidos
+        self.acao_atual = 0
+        self.frames_acao_atual = 0
+        self.frames_minimos_por_acao = 8  # Mantém ação por pelo menos 8 frames (~133ms a 60fps)
+        self.ultima_decisao_frame = 0
+        
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.input_size = 20
+        self.input_size = 41  # 35 anteriores + 6 novas features de laser (fase, rodada, progresso, num_feixes, sentido, vel_angular, angulo, dist, tempo)
         self.output_size = 5
         
         self.q_network = ApoloDQN(self.input_size, self.output_size).to(self.device)
@@ -666,7 +673,7 @@ class AgenteApolo:
         self.vida_jogador_anterior = 0
         self.vida_boss_anterior = 0
         self.arquivo_memoria = "apolo_memoria_dqn.pt"
-        self.taxa_exploracao = 0.20
+        self.taxa_exploracao = 0.50
         self.frames_sobrevividos = 0
         self.carregar_memoria()
         self.atualizar_foco_progressivo()
@@ -717,6 +724,23 @@ class AgenteApolo:
         feat_vida_p = vida_apolo / 1000.0
         feat_vida_b = vida_boss / 1200.0
         
+        # NOVO: Features de proximidade das bordas (CRÍTICO para evitar sair do mapa)
+        margem_perigo = 100  # Pixels de margem considerados perigosos
+        
+        # Distância até cada borda (normalizado 0-1, onde 0 = na borda, 1 = longe)
+        feat_dist_borda_esquerda = min(1.0, px / margem_perigo)
+        feat_dist_borda_direita = min(1.0, (largura_mapa - px) / margem_perigo)
+        feat_dist_borda_cima = min(1.0, py / margem_perigo)
+        feat_dist_borda_baixo = min(1.0, (altura_mapa - py) / margem_perigo)
+        
+        # Detecta se está em canto (situação crítica)
+        em_canto = 0.0
+        if (px < margem_perigo and py < margem_perigo) or \
+           (px > largura_mapa - margem_perigo and py < margem_perigo) or \
+           (px < margem_perigo and py > altura_mapa - margem_perigo) or \
+           (px > largura_mapa - margem_perigo and py > altura_mapa - margem_perigo):
+            em_canto = 1.0
+        
         dist_perigo = 1.0
         dx_perigo = 0.0
         dy_perigo = 0.0
@@ -746,22 +770,182 @@ class AgenteApolo:
         
         feat_vel_p = min(1.0, velocidade_apolo / 15.0)
         
+        # NOVO: Features expandidas para orbes de vida
         qtd_esferas = len(esferas_energia) if esferas_energia else 0
-        feat_esferas = min(1.0, qtd_esferas / 10.0)
+        feat_esferas_qtd = min(1.0, qtd_esferas / 10.0)
+        
+        # Distância até a orbe mais próxima
+        feat_dist_orbe_proxima = 1.0  # 1.0 = muito longe ou não existe
+        feat_dir_orbe_x = 0.0
+        feat_dir_orbe_y = 0.0
+        
+        if esferas_energia and len(esferas_energia) > 0:
+            orbes_com_distancia = []
+            for orbe in esferas_energia:
+                ox, oy = orbe.get('x', px), orbe.get('y', py)
+                dist_orbe = math.hypot(ox - px, oy - py)
+                orbes_com_distancia.append((ox, oy, dist_orbe))
+            
+            if orbes_com_distancia:
+                ox_prox, oy_prox, dist_prox = min(orbes_com_distancia, key=lambda o: o[2])
+                feat_dist_orbe_proxima = min(1.0, dist_prox / 800.0)  # Normaliza até 800 pixels
+                if dist_prox > 0:
+                    feat_dir_orbe_x = (ox_prox - px) / dist_prox  # Direção normalizada
+                    feat_dir_orbe_y = (oy_prox - py) / dist_prox
+        
+        # NOVO: Features para ratos (ameaça adicional)
+        feat_qtd_ratos = 0.0
+        feat_dist_rato_proximo = 1.0  # 1.0 = muito longe ou não existe
+        feat_dir_rato_x = 0.0
+        feat_dir_rato_y = 0.0
+        
+        # Obtém lista de ratos do gerenciador global
+        if 'gerenciador_ratos' in globals():
+            ratos_ativos = gerenciador_ratos.ratos
+            feat_qtd_ratos = min(1.0, len(ratos_ativos) / 20.0)  # Normaliza até 20 ratos
+            
+            if len(ratos_ativos) > 0:
+                ratos_com_distancia = []
+                for rato in ratos_ativos:
+                    rx, ry = rato.pos_x, rato.pos_y
+                    dist_rato = math.hypot(rx - px, ry - py)
+                    ratos_com_distancia.append((rx, ry, dist_rato))
+                
+                if ratos_com_distancia:
+                    rx_prox, ry_prox, dist_prox = min(ratos_com_distancia, key=lambda r: r[2])
+                    feat_dist_rato_proximo = min(1.0, dist_prox / 600.0)  # Normaliza até 600 pixels
+                    if dist_prox > 0:
+                        feat_dir_rato_x = (rx_prox - px) / dist_prox  # Direção do rato mais próximo
+                        feat_dir_rato_y = (ry_prox - py) / dist_prox
         
         feat_vel_b = 0.0
+        
+        # SISTEMA EXPANDIDO DE PERCEPÇÃO DO LASER (CRÍTICO para sobrevivência)
+        feat_laser_fase = 0.0  # 0 = inativo, 0.5 = carregando, 1.0 = disparando
+        feat_laser_rodada = 0.0  # Normalizado 0-1 (rodada/4)
+        feat_laser_progresso = 0.0  # Progresso da fase atual (0-1)
+        feat_laser_num_feixes = 0.0  # Normalizado 0-1 (num_feixes/6)
+        feat_laser_sentido_rotacao = 0.0  # -1 = anti-horário, 0 = parado, 1 = horário
+        feat_laser_velocidade_angular = 0.0  # Velocidade de rotação normalizada
+        feat_laser_angulo_mais_proximo = 0.0  # Ângulo do feixe mais próximo (-1 a 1)
+        feat_laser_dist_feixe_proximo = 1.0  # Distância ao feixe mais próximo (0-1)
+        feat_laser_tempo_ate_atingir = 1.0  # Tempo estimado até feixe atingir posição (0-1)
+        
         if estado_ia:
             vx_b = estado_ia.get('vel_x', 0)
             vy_b = estado_ia.get('vel_y', 0)
             feat_vel_b = min(1.0, math.hypot(vx_b, vy_b) / 5.0)
             
-        features = [feat_px, feat_py, feat_bx, feat_by, feat_vida_p, feat_vida_b, dist_perigo, dx_perigo, dy_perigo, feat_cd_tele, feat_vel_p, feat_esferas, feat_vel_b] + feat_armadilhas
+            laser = estado_ia.get('laser_ativo')
+            if laser:
+                # Fase do laser
+                if laser.get('fase') == 'carregando':
+                    feat_laser_fase = 0.5
+                    tempo_laser = agora - laser['tempo_inicio']
+                    feat_laser_progresso = min(1.0, tempo_laser / laser['duracao_carga'])
+                elif laser.get('fase') == 'disparando':
+                    feat_laser_fase = 1.0
+                    t_disp = agora - laser['tempo_inicio_disparo']
+                    feat_laser_progresso = min(1.0, t_disp / laser['duracao_disparo'])
+                
+                # Rodada atual (1-4)
+                rodada = laser.get('rodada', 1)
+                feat_laser_rodada = rodada / 4.0
+                
+                # Configuração por rodada (mesma lógica do código original)
+                if rodada == 1:
+                    num_feixes = 1
+                    sentido = 1
+                    giro_total = math.pi * 2
+                elif rodada == 2:
+                    num_feixes = 2
+                    sentido = -1
+                    giro_total = math.pi * 2
+                elif rodada == 3:
+                    num_feixes = 4
+                    sentido = 1
+                    giro_total = math.pi * 0.8
+                else:  # Rodada 4
+                    num_feixes = 6
+                    sentido = -1
+                    giro_total = math.pi * 0.8
+                
+                feat_laser_num_feixes = num_feixes / 6.0
+                feat_laser_sentido_rotacao = sentido  # -1 ou 1
+                
+                # Velocidade angular (radianos por segundo, normalizado)
+                if laser.get('fase') == 'disparando':
+                    duracao_disparo = laser.get('duracao_disparo', 4000)
+                    velocidade_angular = giro_total / (duracao_disparo / 1000.0)  # rad/s
+                    feat_laser_velocidade_angular = min(1.0, abs(velocidade_angular) / (2 * math.pi))
+                    
+                    # Calcular posição dos feixes e encontrar o mais próximo
+                    if boss_hitbox:
+                        origem_laser = (boss_hitbox.centerx, boss_hitbox.centery)
+                        angulo_base = giro_total * feat_laser_progresso * sentido
+                        
+                        menor_dist = float('inf')
+                        angulo_feixe_proximo = 0
+                        tempo_ate_atingir = float('inf')
+                        
+                        for i in range(num_feixes):
+                            angulo_atual = angulo_base + i * ((math.pi * 2) / num_feixes)
+                            
+                            # Calcula ponto final do feixe
+                            comp_laser = 2500
+                            fim_x = origem_laser[0] + math.cos(angulo_atual) * comp_laser
+                            fim_y = origem_laser[1] + math.sin(angulo_atual) * comp_laser
+                            
+                            # Distância perpendicular do player à linha do laser
+                            numerador = abs((fim_y - origem_laser[1])*px - (fim_x - origem_laser[0])*py + 
+                                          fim_x*origem_laser[1] - fim_y*origem_laser[0])
+                            denominador = math.hypot(fim_y - origem_laser[1], fim_x - origem_laser[0])
+                            dist_linha = numerador / denominador if denominador > 0 else 9999
+                            
+                            # Verifica se está na frente do laser
+                            dot_product = (px - origem_laser[0]) * math.cos(angulo_atual) + \
+                                        (py - origem_laser[1]) * math.sin(angulo_atual)
+                            
+                            if dot_product > 0 and dist_linha < menor_dist:
+                                menor_dist = dist_linha
+                                angulo_feixe_proximo = angulo_atual
+                                
+                                # Estima tempo até o feixe atingir a posição do player
+                                # Calcula ângulo entre posição atual do feixe e posição do player
+                                angulo_player = math.atan2(py - origem_laser[1], px - origem_laser[0])
+                                diff_angulo = angulo_player - angulo_atual
+                                
+                                # Normaliza diferença de ângulo para -pi a pi
+                                while diff_angulo > math.pi: diff_angulo -= 2 * math.pi
+                                while diff_angulo < -math.pi: diff_angulo += 2 * math.pi
+                                
+                                # Se o laser está girando na direção do player
+                                if (sentido > 0 and diff_angulo > 0) or (sentido < 0 and diff_angulo < 0):
+                                    tempo_ate_atingir = abs(diff_angulo) / abs(velocidade_angular) if velocidade_angular != 0 else 0
+                                else:
+                                    # Laser está se afastando, tempo é grande
+                                    tempo_ate_atingir = 999
+                        
+                        # Normaliza features
+                        feat_laser_dist_feixe_proximo = min(1.0, menor_dist / 400.0)  # 400px = distância segura
+                        feat_laser_angulo_mais_proximo = math.sin(angulo_feixe_proximo)  # -1 a 1
+                        feat_laser_tempo_ate_atingir = min(1.0, tempo_ate_atingir / 3.0)  # Normaliza até 3 segundos
+            
+        features = [feat_px, feat_py, feat_bx, feat_by, feat_vida_p, feat_vida_b, 
+                   feat_dist_borda_esquerda, feat_dist_borda_direita, feat_dist_borda_cima, feat_dist_borda_baixo, em_canto,
+                   dist_perigo, dx_perigo, dy_perigo, feat_cd_tele, feat_vel_p, feat_esferas_qtd, feat_vel_b, 
+                   feat_laser_fase, feat_laser_rodada, feat_laser_progresso, feat_laser_num_feixes,
+                   feat_laser_sentido_rotacao, feat_laser_velocidade_angular, feat_laser_angulo_mais_proximo,
+                   feat_laser_dist_feixe_proximo, feat_laser_tempo_ate_atingir,
+                   feat_dist_orbe_proxima, feat_dir_orbe_x, feat_dir_orbe_y, 
+                   feat_qtd_ratos, feat_dist_rato_proximo, feat_dir_rato_x, feat_dir_rato_y] + feat_armadilhas
         
         tensor = torch.tensor(features, dtype=torch.float32, device=self.device).unsqueeze(0)
         return tensor
 
     def pensar(self, pos_p, boss_hitbox, projeteis_boss, cds, vida_jogador, vida_boss, esferas_energia, velocidade_atual=5, estado_ia=None):
         import random
+        agora = pygame.time.get_ticks()  # Necessário para cálculos de tempo do laser
         self.direcao_x = 0
         self.direcao_y = 0
         self.usar_dash = False
@@ -775,30 +959,212 @@ class AgenteApolo:
 
         # RECOMPENSA EXPANDIDA
         recompensa = 0.5  # Sobrevivência base
+        delta_vida_apolo = 0
+        delta_vida_boss = 0
+        px, py = pos_p  # Define px e py no início para uso em todo o método
         
         if self.vida_jogador_anterior > 0:
             delta_vida_apolo = vida_jogador - self.vida_jogador_anterior
             delta_vida_boss = vida_boss - self.vida_boss_anterior
-            
-            if delta_vida_apolo < 0:
-                recompensa -= 50
-            if delta_vida_boss < 0:
-                recompensa += 30
-            if delta_vida_apolo > 0:
-                recompensa += 100
+
+        if delta_vida_apolo < 0:
+            recompensa -= 50
+        if delta_vida_boss < 0:
+            recompensa += 30
+        if delta_vida_apolo > 0:
+            recompensa += 100
         
-        # Recompensa por evitar bordas perigosas
-        px, py = pos_p
-        if px < 100 or px > largura_mapa - 100 or py < 100 or py > altura_mapa - 100:
-            recompensa -= 2
+        # SISTEMA INTELIGENTE DE RECOMPENSAS PARA O LASER
+        if estado_ia:
+            laser = estado_ia.get('laser_ativo')
+            if laser:
+                # Recompensas durante fase de carregamento (preparação)
+                if laser.get('fase') == 'carregando':
+                    tempo_laser = agora - laser['tempo_inicio']
+                    progresso_carga = min(1.0, tempo_laser / laser['duracao_carga'])
+                    
+                    # Recompensa por se afastar do centro durante carregamento
+                    if boss_hitbox:
+                        dist_centro = math.hypot(boss_hitbox.centerx - px, boss_hitbox.centery - py)
+                        if dist_centro > 400:  # Longe do epicentro
+                            recompensa += 5
+                        elif dist_centro < 200:  # Muito perto (perigoso)
+                            recompensa -= 10
+                    
+                    # Alerta crescente conforme o laser está prestes a disparar
+                    if progresso_carga > 0.8:  # 80% carregado
+                        recompensa += 3  # Recompensa por estar preparado
+                
+                # Recompensas durante disparo (evasão ativa)
+                elif laser.get('fase') == 'disparando':
+                    # Calcula distância ao feixe mais próximo
+                    if boss_hitbox:
+                        origem_laser = (boss_hitbox.centerx, boss_hitbox.centery)
+                        t_disp = agora - laser['tempo_inicio_disparo']
+                        progresso = min(1.0, t_disp / laser['duracao_disparo'])
+                        
+                        # Configuração por rodada
+                        rodada = laser.get('rodada', 1)
+                        if rodada == 1:
+                            num_feixes = 1
+                            sentido = 1
+                            giro_total = math.pi * 2
+                        elif rodada == 2:
+                            num_feixes = 2
+                            sentido = -1
+                            giro_total = math.pi * 2
+                        elif rodada == 3:
+                            num_feixes = 4
+                            sentido = 1
+                            giro_total = math.pi * 0.8
+                        else:
+                            num_feixes = 6
+                            sentido = -1
+                            giro_total = math.pi * 0.8
+                        
+                        angulo_base = giro_total * progresso * sentido
+                        menor_dist = float('inf')
+                        
+                        for i in range(num_feixes):
+                            angulo_atual = angulo_base + i * ((math.pi * 2) / num_feixes)
+                            comp_laser = 2500
+                            fim_x = origem_laser[0] + math.cos(angulo_atual) * comp_laser
+                            fim_y = origem_laser[1] + math.sin(angulo_atual) * comp_laser
+                            
+                            numerador = abs((fim_y - origem_laser[1])*px - (fim_x - origem_laser[0])*py + 
+                                          fim_x*origem_laser[1] - fim_y*origem_laser[0])
+                            denominador = math.hypot(fim_y - origem_laser[1], fim_x - origem_laser[0])
+                            dist_linha = numerador / denominador if denominador > 0 else 9999
+                            
+                            dot_product = (px - origem_laser[0]) * math.cos(angulo_atual) + \
+                                        (py - origem_laser[1]) * math.sin(angulo_atual)
+                            
+                            if dot_product > 0:
+                                menor_dist = min(menor_dist, dist_linha)
+                        
+                        # Sistema de recompensas baseado em distância do feixe
+                        if menor_dist < 50:  # ZONA DE PERIGO EXTREMO
+                            recompensa -= 30
+                        elif menor_dist < 100:  # Zona de perigo
+                            recompensa -= 15
+                        elif menor_dist < 200:  # Zona de alerta
+                            recompensa -= 5
+                        elif 200 <= menor_dist < 350:  # Zona segura próxima
+                            recompensa += 8
+                        elif menor_dist >= 350:  # Zona muito segura
+                            recompensa += 15
+                        
+                        # Recompensa EXTRA por sobreviver sem dano durante laser ativo
+                        if delta_vida_apolo == 0:
+                            recompensa += 25  # Grande recompensa por evasão perfeita
+                        
+                        # Penalidade SEVERA por ser atingido
+                        if delta_vida_apolo < 0:
+                            recompensa -= 200  # Penalidade massiva para aprender a evitar
         
-        # Recompensa por manter distância segura
+        # SISTEMA DE CONSCIÊNCIA DE BORDAS (CRÍTICO)
+        margem_perigo = 100
+        margem_critica = 50
+        
+        # Penalidades progressivas por proximidade das bordas
+        dist_esquerda = px
+        dist_direita = largura_mapa - px
+        dist_cima = py
+        dist_baixo = altura_mapa - py
+        
+        # Zona crítica (muito perto da borda)
+        if dist_esquerda < margem_critica or dist_direita < margem_critica or \
+           dist_cima < margem_critica or dist_baixo < margem_critica:
+            recompensa -= 25  # Penalidade SEVERA
+        # Zona de perigo (perto da borda)
+        elif dist_esquerda < margem_perigo or dist_direita < margem_perigo or \
+             dist_cima < margem_perigo or dist_baixo < margem_perigo:
+            recompensa -= 8  # Penalidade moderada
+        
+        # PENALIDADE EXTREMA POR ESTAR EM CANTOS (situação mais perigosa)
+        em_canto_esq_cima = (dist_esquerda < margem_perigo and dist_cima < margem_perigo)
+        em_canto_dir_cima = (dist_direita < margem_perigo and dist_cima < margem_perigo)
+        em_canto_esq_baixo = (dist_esquerda < margem_perigo and dist_baixo < margem_perigo)
+        em_canto_dir_baixo = (dist_direita < margem_perigo and dist_baixo < margem_perigo)
+        
+        if em_canto_esq_cima or em_canto_dir_cima or em_canto_esq_baixo or em_canto_dir_baixo:
+            recompensa -= 40  # Penalidade EXTREMA por estar em canto
+        
+        # RECOMPENSA por ficar na zona segura (centro do mapa)
+        centro_x = largura_mapa // 2
+        centro_y = altura_mapa // 2
+        dist_centro = math.hypot(px - centro_x, py - centro_y)
+        raio_seguro = min(largura_mapa, altura_mapa) * 0.3  # 30% do mapa é zona segura
+        
+        if dist_centro < raio_seguro:
+            recompensa += 3  # Recompensa por estar no centro
+        
+        # Recompensa por manter distância segura do boss
         if boss_hitbox:
             dist_boss = math.hypot(boss_hitbox.centerx - px, boss_hitbox.centery - py)
             if 300 < dist_boss < 600:
                 recompensa += 1
             elif dist_boss < 200:
                 recompensa -= 3
+        
+        # NOVO: Recompensa por buscar orbes quando está com pouca vida
+        if esferas_energia and len(esferas_energia) > 0:
+            percentual_vida_atual = vida_jogador / 1000.0  # Assumindo vida máxima ~1000
+            
+            # Calcula distância até orbe mais próxima
+            orbe_mais_proxima = None
+            dist_min_orbe = float('inf')
+            for orbe in esferas_energia:
+                ox, oy = orbe.get('x', px), orbe.get('y', py)
+                dist = math.hypot(ox - px, oy - py)
+                if dist < dist_min_orbe:
+                    dist_min_orbe = dist
+                    orbe_mais_proxima = orbe
+            
+            if orbe_mais_proxima and dist_min_orbe < 800:
+                # Se está com pouca vida e se aproximando de orbe: grande recompensa
+                if percentual_vida_atual < 0.3:  # Menos de 30% vida
+                    if dist_min_orbe < 200:  # Muito perto da orbe
+                        recompensa += 15
+                    elif dist_min_orbe < 400:  # Aproximando-se
+                        recompensa += 8
+                elif percentual_vida_atual < 0.5:  # Menos de 50% vida
+                    if dist_min_orbe < 200:
+                        recompensa += 8
+                    elif dist_min_orbe < 400:
+                        recompensa += 4
+                
+                # Penaliza se está com pouca vida mas se afastando da orbe
+                if percentual_vida_atual < 0.4:
+                    # Verifica se está se afastando (comparando com frame anterior)
+                    if hasattr(self, 'dist_orbe_anterior'):
+                        if dist_min_orbe > self.dist_orbe_anterior + 20:  # Se afastou significativamente
+                            recompensa -= 5
+                    self.dist_orbe_anterior = dist_min_orbe
+        
+        # NOVO: Recompensa por evitar ratos (apenas na Dimensão 9)
+        if 'gerenciador_ratos' in globals():
+            ratos_ativos = gerenciador_ratos.ratos
+            if len(ratos_ativos) > 0:
+                # Calcula distância até o rato mais próximo
+                dist_min_rato = float('inf')
+                for rato in ratos_ativos:
+                    dist = math.hypot(rato.pos_x - px, rato.pos_y - py)
+                    if dist < dist_min_rato:
+                        dist_min_rato = dist
+                
+                # Recompensa por manter distância segura dos ratos
+                if dist_min_rato < 100:  # Muito perto (perigo!)
+                    recompensa -= 8
+                elif dist_min_rato < 200:  # Perto (alerta)
+                    recompensa -= 3
+                elif 200 <= dist_min_rato < 400:  # Distância segura
+                    recompensa += 2
+                
+                # Recompensa extra por evitar múltiplos ratos
+                if len(ratos_ativos) >= 10:  # Muitos ratos ativos
+                    if dist_min_rato > 300:  # Mantendo distância boa
+                        recompensa += 5
 
         self.vida_jogador_anterior = vida_jogador
         self.vida_boss_anterior = vida_boss
@@ -820,13 +1186,140 @@ class AgenteApolo:
             loss.backward()
             self.optimizer.step()
 
-        if random.random() < self.taxa_exploracao:
-            acao = random.choice([0, 1, 2, 3, 4])
+        # FILTRAGEM DE AÇÕES INVÁLIDAS (previne sair do mapa)
+        margem_bloqueio = 80  # Pixels de margem onde ações são bloqueadas
+        acoes_validas = [0, 1, 2, 3, 4]  # Todas as ações inicialmente válidas
+        
+        # Remove ações que levam para fora do mapa
+        if py < margem_bloqueio:  # Muito perto da borda superior
+            if 0 in acoes_validas: acoes_validas.remove(0)  # Bloqueia movimento para cima
+        if py > altura_mapa - margem_bloqueio:  # Muito perto da borda inferior
+            if 1 in acoes_validas: acoes_validas.remove(1)  # Bloqueia movimento para baixo
+        if px < margem_bloqueio:  # Muito perto da borda esquerda
+            if 2 in acoes_validas: acoes_validas.remove(2)  # Bloqueia movimento para esquerda
+        if px > largura_mapa - margem_bloqueio:  # Muito perto da borda direita
+            if 3 in acoes_validas: acoes_validas.remove(3)  # Bloqueia movimento para direita
+        
+        # Garante que sempre há pelo menos uma ação válida (dash sempre disponível)
+        if len(acoes_validas) == 0:
+            acoes_validas = [4]  # Apenas dash disponível em situação extrema
+        
+        # SISTEMA DE PERSISTÊNCIA DE AÇÃO (movimentos mais fluidos)
+        self.frames_acao_atual += 1
+        
+        # Condições para forçar nova decisão (situações de emergência)
+        forcar_nova_decisao = False
+        
+        # Emergência 1: Laser ativo e muito próximo
+        if estado_ia:
+            laser = estado_ia.get('laser_ativo')
+            if laser and laser.get('fase') == 'disparando':
+                if boss_hitbox:
+                    origem_laser = (boss_hitbox.centerx, boss_hitbox.centery)
+                    t_disp = agora - laser['tempo_inicio_disparo']
+                    progresso = min(1.0, t_disp / laser['duracao_disparo'])
+                    rodada = laser.get('rodada', 1)
+                    
+                    # Calcula distância ao feixe mais próximo
+                    if rodada == 1:
+                        num_feixes = 1
+                        sentido = 1
+                        giro_total = math.pi * 2
+                    elif rodada == 2:
+                        num_feixes = 2
+                        sentido = -1
+                        giro_total = math.pi * 2
+                    elif rodada == 3:
+                        num_feixes = 4
+                        sentido = 1
+                        giro_total = math.pi * 0.8
+                    else:
+                        num_feixes = 6
+                        sentido = -1
+                        giro_total = math.pi * 0.8
+                    
+                    angulo_base = giro_total * progresso * sentido
+                    menor_dist = float('inf')
+                    
+                    for i in range(num_feixes):
+                        angulo_atual = angulo_base + i * ((math.pi * 2) / num_feixes)
+                        comp_laser = 2500
+                        fim_x = origem_laser[0] + math.cos(angulo_atual) * comp_laser
+                        fim_y = origem_laser[1] + math.sin(angulo_atual) * comp_laser
+                        
+                        numerador = abs((fim_y - origem_laser[1])*px - (fim_x - origem_laser[0])*py + 
+                                      fim_x*origem_laser[1] - fim_y*origem_laser[0])
+                        denominador = math.hypot(fim_y - origem_laser[1], fim_x - origem_laser[0])
+                        dist_linha = numerador / denominador if denominador > 0 else 9999
+                        
+                        dot_product = (px - origem_laser[0]) * math.cos(angulo_atual) + \
+                                    (py - origem_laser[1]) * math.sin(angulo_atual)
+                        
+                        if dot_product > 0:
+                            menor_dist = min(menor_dist, dist_linha)
+                    
+                    # Se laser muito próximo, força nova decisão
+                    if menor_dist < 100:
+                        forcar_nova_decisao = True
+        
+        # Emergência 2: Rato muito próximo
+        if 'gerenciador_ratos' in globals():
+            ratos_ativos = gerenciador_ratos.ratos
+            if len(ratos_ativos) > 0:
+                for rato in ratos_ativos:
+                    dist = math.hypot(rato.pos_x - px, rato.pos_y - py)
+                    if dist < 80:  # Rato muito perto
+                        forcar_nova_decisao = True
+                        break
+        
+        # Emergência 3: Projétil muito próximo
+        for proj in projeteis_boss:
+            if 'rect' in proj:
+                proj_x, proj_y = proj['rect'].centerx, proj['rect'].centery
+            else:
+                proj_x, proj_y = proj.get('x', px), proj.get('y', py)
+            d = math.hypot(proj_x - px, proj_y - py)
+            if d < 80:  # Projétil muito perto
+                forcar_nova_decisao = True
+                break
+        
+        # Emergência 4: Vida crítica
+        if vida_jogador < 200:  # Menos de 20% de vida
+            forcar_nova_decisao = True
+        
+        # Decide se mantém ação atual ou escolhe nova
+        if self.frames_acao_atual < self.frames_minimos_por_acao and not forcar_nova_decisao:
+            # Mantém ação atual se ainda não passou o tempo mínimo
+            acao = self.acao_atual
+            
+            # Verifica se a ação atual ainda é válida
+            if acao not in acoes_validas:
+                # Se não é mais válida, escolhe a mais próxima válida
+                if len(acoes_validas) > 0:
+                    acao = min(acoes_validas, key=lambda a: abs(a - acao))
+                else:
+                    acao = 4  # Dash como fallback
         else:
-            with torch.no_grad():
-                self.q_network.eval()
-                q_vals = self.q_network(estado_tensor)
-                acao = torch.argmax(q_vals).item()
+            # Tempo de escolher nova ação
+            if random.random() < self.taxa_exploracao:
+                acao = random.choice(acoes_validas)  # Explora apenas ações válidas
+            else:
+                with torch.no_grad():
+                    self.q_network.eval()
+                    q_vals = self.q_network(estado_tensor)[0]  # Remove dimensão batch
+                    
+                    # Mascara ações inválidas com valor muito negativo
+                    q_vals_masked = q_vals.clone()
+                    for i in range(5):
+                        if i not in acoes_validas:
+                            q_vals_masked[i] = -1e9  # Valor extremamente negativo
+                    
+                    acao = torch.argmax(q_vals_masked).item()
+            
+            # Reseta contador se mudou de ação
+            if acao != self.acao_atual:
+                self.frames_acao_atual = 0
+                self.acao_atual = acao
 
         self.ultimo_estado_tensor = estado_tensor
         self.acao_anterior = acao
@@ -854,7 +1347,7 @@ def carregar_memoria_cartas():
     pesos_base = {
         "Speed Boost": 10.0, "Porção": 10.0, "Disparo crescente": 10.0, "Trembo": 10.0, 
         "Tempestade": 10.0, "Cura": 10.0, "Speed Atack": 10.0, "Teleporte": 10.0, 
-        "Petro": 10.0, "Defesa": 10.0, "Sorte": 10.0, "Poison": 10.0, "Coletora": 10.0, "Mercenaria": 10.0
+        "Petro": 10.0, "Defesa": 10.0, "Poison": 10.0
     }
     if os.path.exists(arquivo):
         try:
@@ -931,7 +1424,7 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
 
     for carta in cartas_inteligentes:
         if carta == "Speed Boost":
-            velocidade_personagem += 0.02 + (inimigos_eliminados // 200) * 0.002
+            velocidade_personagem += 0.05 + (inimigos_eliminados // 200) * 0.002
         elif carta == "Porção":
             aumento_vida = 650 + (inimigos_eliminados // 50) * 8
             vida_maxima += aumento_vida
@@ -939,7 +1432,7 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
             vida_petro += int(vida_maxima_petro * 0.25)
             if vida_petro > vida_maxima_petro: vida_maxima_petro = vida_petro
         elif carta == "Disparo crescente":
-            dano_person_hit += 15 + (inimigos_eliminados // 50) * 1.5
+            dano_person_hit += 25 + (inimigos_eliminados // 50) * 1.5
         elif carta == "Trembo":
             trembo = True
             Tempo_cura = max(500, int(Tempo_cura * 0.85)) # Em 10 cartas, o tick cai para próximo de 0.5s
@@ -974,16 +1467,7 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
             if vida_petro > vida_maxima_petro: vida_maxima_petro = vida_petro
         elif carta == "Defesa":
             Resistencia = min(60, Resistencia + 2 + (inimigos_eliminados // 200) * 0.25)
-        elif carta == "Sorte":
-            Chance_Sorte += 0.01 + (inimigos_eliminados // 400) * 0.002
-        elif carta == "Poison":
-            Poison_Active = True
-            Dano_Veneno_Acumulado += 0.05
-        elif carta == "Coletora":
-            Executa_inimigo += 0.005
-            Ultimo_Estalo = True
-        elif carta == "Mercenaria":
-            Mercenaria_Active = True
+        
 
     # --- ESCALONAMENTO DINÂMICO DA UMBRA ---
     ataques_por_segundo = 1000 / max(50, intervalo_disparo)
@@ -1026,7 +1510,7 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
     print("="*50 + "\n")
 
 # Invoca a mutação absoluta
-injetar_build_endgame(qtd_cartas_jogador=60)
+injetar_build_endgame(qtd_cartas_jogador=80)
 ###################################################################################################################################################################################################
 # Geração de coordenadas estocásticas para o início do embate
 pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem)
@@ -1035,6 +1519,10 @@ pos_y_petro = pos_y_personagem
 
 ###################################################################################################PRINCIPAL#################################################################################################################
 #LOOP PRINCIPAL
+
+# Inicializar gerenciador de ratos da Umbra
+gerenciador_ratos = GerenciadorRatos(largura_mapa, altura_mapa)
+
 running = True
 while running:
     agora = pygame.time.get_ticks()
@@ -1295,6 +1783,8 @@ while running:
             # Apolo sofre o trauma absoluto do fracasso
             apolo.aplicar_recompensa_direta(-500.0)
             
+            # Reset do sistema de ratos
+            gerenciador_ratos.resetar_partida()
          
             memoria_umbra.treinar(500.0, prioridade=True)
    
@@ -1356,6 +1846,9 @@ while running:
             apolo.aplicar_recompensa_direta(500.0) 
             memoria_umbra.treinar(-500.0, prioridade=True)
             
+            # Reset do sistema de ratos
+            gerenciador_ratos.resetar_partida()
+            
             mostrar_tutorial = False
             pygame.time.delay(2000)
             Musica_tema_fases.stop()
@@ -1378,6 +1871,77 @@ while running:
         
         luta_iniciada = (agora - estado_atual_ia['tempo_start_boss']) >= 2000
         ataque_liberado = (agora - estado_atual_ia['tempo_start_boss']) >= 3000
+        
+        # ============================================================================
+        # SISTEMA DE RATOS DA UMBRA (APENAS DIMENSÃO 9)
+        # ============================================================================
+        if luta_iniciada and mapa_atual_path == "Sprites/Fase9.png":
+            # Calcular centro do Apolo para os ratos perseguirem
+            apolo_centro_x = pos_x_personagem + largura_personagem // 2
+            apolo_centro_y = pos_y_personagem + altura_personagem // 2
+            
+            # Spawnar ratos automaticamente quando cooldown passar
+            if gerenciador_ratos.pode_spawnar(agora):
+                qtd_spawnada = gerenciador_ratos.spawnar_ratos(agora)
+                if qtd_spawnada > 0:
+                    # Feedback visual de spawn
+                    efeitos_texto.append({
+                        "texto": f"RATOS INVOCADOS! ({qtd_spawnada})",
+                        "x": largura_mapa // 2 - 100,
+                        "y": 50,
+                        "tempo_inicio": agora,
+                        "cor": (255, 100, 255)
+                    })
+            
+            # Atualizar posição de todos os ratos
+            gerenciador_ratos.atualizar(agora, apolo_centro_x, apolo_centro_y)
+            
+            # Verificar colisões com o Apolo
+            personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, 
+                                         largura_personagem, altura_personagem)
+            
+            resultado_colisoes = gerenciador_ratos.verificar_colisoes(
+                personagem_rect, 
+                vida_umbra, 
+                vida_maxima_umbra
+            )
+            
+            # Aplicar dano ao Apolo e cura à Umbra
+            if resultado_colisoes['hits'] > 0:
+                vida -= resultado_colisoes['dano_total']
+                vida_umbra = resultado_colisoes['vida_umbra_nova']
+                
+                # Feedback visual de hit
+                for i in range(resultado_colisoes['hits']):
+                    efeitos_texto.append({
+                        "texto": f"-{gerenciador_ratos.dano_rato} RATO!",
+                        "x": pos_x_personagem + random.randint(-20, 20),
+                        "y": pos_y_personagem - 40 - (i * 20),
+                        "tempo_inicio": agora,
+                        "cor": (255, 50, 50)
+                    })
+                
+                # Feedback de cura da Umbra
+                efeitos_texto.append({
+                    "texto": f"+{resultado_colisoes['cura_umbra']} SIFÃO",
+                    "x": pos_x_umbra + largura_boss // 2,
+                    "y": pos_y_umbra - 30,
+                    "tempo_inicio": agora,
+                    "cor": (0, 255, 150)
+                })
+                
+                # Recompensa negativa para Apolo (foi atingido)
+                apolo.aplicar_recompensa_direta(-50.0 * resultado_colisoes['hits'])
+                
+                # Recompensa positiva para Umbra (acertou o alvo)
+                memoria_umbra.treinar(20.0 * resultado_colisoes['hits'], prioridade=True)
+        elif mapa_atual_path != "Sprites/Fase9.png":
+            # Se não está na Dimensão 9, limpa todos os ratos
+            if len(gerenciador_ratos.ratos) > 0:
+                gerenciador_ratos.ratos.clear()
+        
+        # ============================================================================
+        
         # Criamos o dicionário que o 'processar_ia_umbra' espera
         boss_pos_ia = {
             'x': pos_x_umbra,
@@ -1627,6 +2191,9 @@ while running:
             # Desenhar sombra do boss
             desenhar_sombra(tela, pos_x_umbra, pos_y_umbra + offset_y_boss, largura_boss, altura_boss, offset_y=10)
             tela.blit(img_atual_boss, (pos_x_umbra, pos_y_umbra + offset_y_boss))
+            
+            # Desenhar ratos (APÓS o boss, ANTES da barra de vida)
+            gerenciador_ratos.desenhar(tela, agora)
            
             # --- 5. BARRA DE VIDA E PROJÉTEIS ---
             largura_barra = largura_boss * 0.8
@@ -1796,190 +2363,98 @@ while running:
             caminho = estado_atual_ia.get('caminho_espinhos')
             if caminho:
                 tempo_decorrido = agora - caminho['tempo_inicio']
-                origem = caminho['origem']
-                angulo = caminho['angulo']
-                comp_total = caminho['comprimento']
-                
-                # ==========================================================
-                # GESTÃO DE ESTADO E FASES DA ARMADILHA
-                # ==========================================================
+                raios = caminho.get('raios', [])
+                largura_maxima = caminho['largura_maxima']
+
                 if caminho['fase'] == 'crescimento':
-                    # Fase 1: O caule avança até o limite. Inofensivo e fino.
                     progresso = min(1.0, tempo_decorrido / caminho['duracao_crescimento'])
-                    comp_atual = comp_total * progresso
-                    largura_atual = 10 
-                    
+                    comp_frac = progresso
+                    largura_atual = 10
                     if tempo_decorrido >= caminho['duracao_crescimento']:
                         caminho['fase'] = 'expansao'
                         caminho['tempo_inicio_expansao'] = agora
 
                 elif caminho['fase'] == 'expansao':
-                    # Fase 2: O caule desabrocha para os lados. Altamente letal.
                     tempo_exp = agora - caminho['tempo_inicio_expansao']
-                    progresso = min(1.0, tempo_exp / caminho['duracao_expansao'])
-                    comp_atual = comp_total
-                    largura_atual = 10 + (caminho['largura_maxima'] - 10) * progresso
-                    
+                    progresso_exp = min(1.0, tempo_exp / caminho['duracao_expansao'])
+                    comp_frac = 1.0
+                    largura_atual = 10 + (largura_maxima - 10) * progresso_exp
                     if tempo_exp >= caminho['duracao_expansao']:
-                        estado_atual_ia['caminho_espinhos'] = None 
-
-                elif caminho['fase'] == 'recolhimento':
-                    # Fase 3: A armadilha fisgou o jogador. Animação de tortura.
-                    comp_atual = comp_total
-                    largura_atual = 15 # Contração visual imediata
-                    
-                    if 'alvo_puxao' in caminho:
-                        alvo_px, alvo_py = caminho['alvo_puxao']
-                        
-                        # Interpolação Linear: aproxima a personagem do centro 15% a cada frame
-                        pos_x_personagem += (alvo_px - pos_x_personagem) * 0.15
-                        pos_y_personagem += (alvo_py - pos_y_personagem) * 0.15
-                        
-                        # Renderiza raízes dinâmicas amarrando a personagem
-                        cx = int(pos_x_personagem + largura_personagem / 2)
-                        cy = int(pos_y_personagem + altura_personagem / 2)
-                        for j in range(4):
-                            # Rotação em espiral convergente para o centro
-                            ang_raiz = (agora * 0.02) + (j * math.pi / 2)
-                            raio_raiz = max(0, 45 - (agora - caminho['tempo_inicio_recolhimento']) * 0.08)
-                            
-                            rx = cx + math.cos(ang_raiz) * raio_raiz
-                            ry = cy + math.sin(ang_raiz) * raio_raiz
-                            
-                            # Desenha os tentáculos espessos e as farpas
-                            pygame.draw.line(tela, (20, 60, 20), (cx, cy), (rx, ry), 5)
-                            pygame.draw.circle(tela, (180, 200, 120), (int(rx), int(ry)), 3)
-                    
-                    if agora - caminho['tempo_inicio_recolhimento'] >= 600:
                         estado_atual_ia['caminho_espinhos'] = None
+                        caminho = None
+                else:
+                    comp_frac = 1.0
+                    largura_atual = 10
 
-                # ==========================================================
-                # RENDERIZAÇÃO BOTÂNICA PROCEDURAL E COLISÃO VETORIAL
-                # ==========================================================
-                if estado_atual_ia.get('caminho_espinhos'):
-                    dx_comp = math.cos(angulo) * comp_atual
-                    dy_comp = math.sin(angulo) * comp_atual
-                    fim_x = origem[0] + dx_comp
-                    fim_y = origem[1] + dy_comp
-                    
-                    cor_caule_principal = (20, 60, 20)      # Verde escuro e putrefato
-                    cor_caule_secundario = (34, 90, 34)     # Verde mais vivo
-                    cor_espinho = (180, 200, 120)           # Verde-claro/amarelado afiado
-                    cor_flor = (220, 30, 30)                # Vermelho sangue (flores da coroa)
-                    
-                    pontos_caule_1 = []
-                    pontos_caule_2 = []
-                    
-                    # Resolvemos a renderização a cada 15 pixels de distância ao longo da reta
-                    num_segmentos = max(2, int(comp_atual / 15)) 
-                    
-                    for i in range(num_segmentos + 1):
-                        dist = min(i * 15, comp_atual)
-                        base_x = origem[0] + math.cos(angulo) * dist
-                        base_y = origem[1] + math.sin(angulo) * dist
-                        
-                        # A oscilação faz os caules se contorcerem (Ondas Senoidais)
-                        mod_fase = 0.1 if caminho['fase'] == 'recolhimento' else 1.0
-                        wobble_1 = math.sin(i * 0.5 + (agora * 0.003)) * (largura_atual * 0.35) * mod_fase
-                        wobble_2 = math.cos(i * 0.7 - (agora * 0.002)) * (largura_atual * 0.35) * mod_fase
-                        
-                        dx_perp = math.cos(angulo + math.pi/2)
-                        dy_perp = math.sin(angulo + math.pi/2)
-                        
-                        pontos_caule_1.append((base_x + dx_perp * wobble_1, base_y + dy_perp * wobble_1))
-                        pontos_caule_2.append((base_x + dx_perp * wobble_2, base_y + dy_perp * wobble_2))
+                if caminho:
+                    hitou = False
+                    for raio in raios:
+                        origem = raio['origem']
+                        angulo = raio['angulo']
+                        comp_atual = raio['comprimento'] * comp_frac
+                        fim_x = origem[0] + math.cos(angulo) * comp_atual
+                        fim_y = origem[1] + math.sin(angulo) * comp_atual
 
-                    # Renderiza caules, espinhos e flores procedurais
-                    if len(pontos_caule_1) > 1:
-                        for i in range(1, len(pontos_caule_1)):
-                            p_ant1, p_atu1 = pontos_caule_1[i-1], pontos_caule_1[i]
-                            p_ant2, p_atu2 = pontos_caule_2[i-1], pontos_caule_2[i]
-                            
-                            # Espessura afunila até a ponta do caminho
-                            espessura = max(2, int((largura_atual * 0.15) * (1.0 - (i / num_segmentos))))
-                            
-                            # Sombras e Caules entrelaçados
-                            pygame.draw.line(tela, (10, 20, 10), (p_ant1[0]+2, p_ant1[1]+2), (p_atu1[0]+2, p_atu1[1]+2), espessura)
-                            pygame.draw.line(tela, cor_caule_principal, p_ant1, p_atu1, espessura)
-                            pygame.draw.line(tela, cor_caule_secundario, p_ant2, p_atu2, max(1, espessura - 1))
-                            
-                            # Pseudo-aleatoriedade com Hash (Garante geometria fixa sem piscar)
-                            hash_val = (i * 37) % 100 
-                            
-                            # Renderiza Espinhos Afiados
-                            if hash_val < 35 and caminho['fase'] != 'recolhimento':
-                                dir_espinho = 1 if hash_val < 17 else -1
-                                ang_espinho = angulo + (math.pi/2.5 * dir_espinho) + math.sin(agora*0.005 + i)*0.3
-                                tam_espinho = 8 + (largura_atual * 0.15)
-                                
-                                ponta_x = p_atu1[0] + math.cos(ang_espinho) * tam_espinho
-                                ponta_y = p_atu1[1] + math.sin(ang_espinho) * tam_espinho
-                                
-                                base1_x = p_atu1[0] + math.cos(ang_espinho + 1.2) * espessura
-                                base1_y = p_atu1[1] + math.sin(ang_espinho + 1.2) * espessura
-                                base2_x = p_atu1[0] + math.cos(ang_espinho - 1.2) * espessura
-                                base2_y = p_atu1[1] + math.sin(ang_espinho - 1.2) * espessura
-                                
-                                pygame.draw.polygon(tela, cor_espinho, [(ponta_x, ponta_y), (base1_x, base1_y), (base2_x, base2_y)])
+                        # Renderização do raio
+                        num_seg = max(2, int(comp_atual / 15))
+                        pontos1, pontos2 = [], []
+                        for i in range(num_seg + 1):
+                            dist = min(i * 15, comp_atual)
+                            bx_r = origem[0] + math.cos(angulo) * dist
+                            by_r = origem[1] + math.sin(angulo) * dist
+                            perp_x = math.cos(angulo + math.pi/2)
+                            perp_y = math.sin(angulo + math.pi/2)
+                            w1 = math.sin(i * 0.5 + agora * 0.003) * (largura_atual * 0.35)
+                            w2 = math.cos(i * 0.7 - agora * 0.002) * (largura_atual * 0.35)
+                            pontos1.append((bx_r + perp_x * w1, by_r + perp_y * w1))
+                            pontos2.append((bx_r + perp_x * w2, by_r + perp_y * w2))
 
-                            # Renderiza flores desabrochando apenas na Expansão
-                            if caminho['fase'] == 'expansao' and 40 <= hash_val < 55:
-                                pulso_flor = abs(math.sin(agora * 0.003 + i)) * 3
-                                pygame.draw.circle(tela, cor_flor, (int(p_atu2[0]), int(p_atu2[1])), int(2 + pulso_flor))
-                                pygame.draw.circle(tela, (255, 200, 100), (int(p_atu2[0]), int(p_atu2[1])), 1) # Miolo amarelo
-                    
-                    # --------------------------------------------------------
-                    # FÍSICA E COLISÃO (CUIDADO: ATIVA SOMENTE NA EXPANSÃO)
-                    # --------------------------------------------------------
-                    if caminho['fase'] == 'expansao':
-                        px_centro = personagem_rect.centerx
-                        py_centro = personagem_rect.centery
-                        
-                        vetor_linha_x = fim_x - origem[0]
-                        vetor_linha_y = fim_y - origem[1]
-                        vetor_ponto_x = px_centro - origem[0]
-                        vetor_ponto_y = py_centro - origem[1]
-                        
-                        len_sq = vetor_linha_x**2 + vetor_linha_y**2
-                        param = (vetor_ponto_x * vetor_linha_x + vetor_ponto_y * vetor_linha_y) / len_sq if len_sq > 0 else -1
-                            
-                        if param < 0:
-                            ponto_prox_x, ponto_prox_y = origem[0], origem[1]
-                        elif param > 1:
-                            ponto_prox_x, ponto_prox_y = fim_x, fim_y
-                        else:
-                            ponto_prox_x = origem[0] + param * vetor_linha_x
-                            ponto_prox_y = origem[1] + param * vetor_linha_y
-                            
-                        dist_ao_centro_linha = math.hypot(px_centro - ponto_prox_x, py_centro - ponto_prox_y)
-                        
-                        # O Puxão Magnético e o Castigo das Lâminas de Sangue
-                        if dist_ao_centro_linha <= largura_atual / 2:
-                            caminho['fase'] = 'recolhimento'
-                            caminho['tempo_inicio_recolhimento'] = agora
-                            
-                            # 1. Trava o alvo geométrico para o puxão
-                            caminho['alvo_puxao'] = (ponto_prox_x - (largura_personagem / 2), ponto_prox_y - (altura_personagem / 2))
-                            
-                            # 2. Paralisa a personagem cortando o input motor por 600ms
-                            estado_atual_ia['fim_stun'] = agora + 600 
-                            
-                            # 3. Aplica o Sangramento e o Corta-Cura
-                            vida -= 85
-                            player_hemorragia_ativa = True
-                            tempo_fim_hemorragia = agora + 6000 
-                            penalidade_cura_percentual = 0.85 # Aniquila 85% de toda a cura
-                            
-                            # --- PUNIÇÃO APOLO: Punição máxima por cair na armadilha mortal ---
-                            apolo.aplicar_recompensa_direta(-25.0)
-                            
-                            efeitos_texto.append({
-                                "texto": "SANGRAMENTO FATAL!",
-                                "x": pos_x_personagem + random.randint(-20, 20),
-                                "y": pos_y_personagem - 40,
-                                "tempo_inicio": agora,
-                                "cor": (255, 0, 0)
-                            })
+                        if len(pontos1) > 1:
+                            for i in range(1, len(pontos1)):
+                                esp = max(2, int((largura_atual * 0.15) * (1.0 - i / num_seg)))
+                                pygame.draw.line(tela, (10, 20, 10), (int(pontos1[i-1][0]+2), int(pontos1[i-1][1]+2)), (int(pontos1[i][0]+2), int(pontos1[i][1]+2)), esp)
+                                pygame.draw.line(tela, (20, 60, 20), (int(pontos1[i-1][0]), int(pontos1[i-1][1])), (int(pontos1[i][0]), int(pontos1[i][1])), esp)
+                                pygame.draw.line(tela, (34, 90, 34), (int(pontos2[i-1][0]), int(pontos2[i-1][1])), (int(pontos2[i][0]), int(pontos2[i][1])), max(1, esp-1))
+                                hash_v = (i * 37) % 100
+                                if hash_v < 35 and caminho['fase'] == 'expansao':
+                                    dir_e = 1 if hash_v < 17 else -1
+                                    ang_e = angulo + (math.pi/2.5 * dir_e)
+                                    tam_e = 8 + largura_atual * 0.15
+                                    px_e = pontos1[i][0] + math.cos(ang_e) * tam_e
+                                    py_e = pontos1[i][1] + math.sin(ang_e) * tam_e
+                                    b1x = pontos1[i][0] + math.cos(ang_e + 1.2) * esp
+                                    b1y = pontos1[i][1] + math.sin(ang_e + 1.2) * esp
+                                    b2x = pontos1[i][0] + math.cos(ang_e - 1.2) * esp
+                                    b2y = pontos1[i][1] + math.sin(ang_e - 1.2) * esp
+                                    pygame.draw.polygon(tela, (180, 200, 120), [(px_e, py_e), (b1x, b1y), (b2x, b2y)])
+
+                        # Colisão vetorial (apenas na expansão)
+                        if caminho['fase'] == 'expansao' and not hitou:
+                            cx_p = personagem_rect.centerx
+                            cy_p = personagem_rect.centery
+                            vl_x = fim_x - origem[0]
+                            vl_y = fim_y - origem[1]
+                            vp_x = cx_p - origem[0]
+                            vp_y = cy_p - origem[1]
+                            len_sq = vl_x**2 + vl_y**2
+                            param = (vp_x*vl_x + vp_y*vl_y) / len_sq if len_sq > 0 else -1
+                            if 0 <= param <= 1:
+                                prox_x = origem[0] + param * vl_x
+                                prox_y = origem[1] + param * vl_y
+                                dist_linha = math.hypot(cx_p - prox_x, cy_p - prox_y)
+                                if dist_linha <= largura_atual / 2:
+                                    hitou = True
+
+                    if hitou and agora - caminho.get('ultimo_espinho_hit', 0) > 1000:
+                        caminho['ultimo_espinho_hit'] = agora
+                        estado_atual_ia['fim_stun'] = agora + 4000  # STUN 4 SEGUNDOS
+                        vida -= 50
+                        apolo.aplicar_recompensa_direta(-20.0)
+                        # Umbra ganha 2 disparos rápidos
+                        estado_atual_ia['bonus_tiros'] = estado_atual_ia.get('bonus_tiros', 0) + 2
+                        efeitos_texto.append({'texto': 'ESPINHO! ATORDOADO!', 'x': pos_x_personagem, 'y': pos_y_personagem - 40, 'tempo_inicio': agora, 'cor': (180, 200, 120)})
+                        memoria_umbra.treinar(8.0)
+
 
             # --- RENDERIZAÇÃO E FÍSICA DO LASER DE SOBRECARGA (FASE 7) ---
             laser = estado_atual_ia.get('laser_ativo')
@@ -2243,12 +2718,40 @@ while running:
                 tempo_ultima_esfera_umbra = agora
 
             for esfera in esferas_energia_umbra[:]:
+                # Tempo de vida da esfera: 15 segundos
+                tempo_vida_esfera = agora - esfera["tempo_criacao"]
+                if tempo_vida_esfera >= 15000:
+                    esferas_energia_umbra.remove(esfera)
+                    continue
+                
+                # Animação de pulso mais elaborada
                 pulso = math.sin(agora * 0.005) * 5
                 raio_esfera = 15 + pulso
                 
+                # Animação de rotação de partículas ao redor
+                angulo_rotacao = (agora * 0.003) % (2 * math.pi)
+                for i in range(4):
+                    ang = angulo_rotacao + (i * math.pi / 2)
+                    px_particula = esfera["x"] + math.cos(ang) * (raio_esfera + 12)
+                    py_particula = esfera["y"] + math.sin(ang) * (raio_esfera + 12)
+                    pygame.draw.circle(tela, (100, 255, 180), (int(px_particula), int(py_particula)), 3)
+                
+                # Efeito de fade out nos últimos 3 segundos
+                alpha_fade = 255
+                if tempo_vida_esfera >= 12000:
+                    alpha_fade = int(255 * (1.0 - (tempo_vida_esfera - 12000) / 3000))
+                
+                # Desenho da esfera com múltiplas camadas
                 pygame.draw.circle(tela, (0, 255, 150), (int(esfera["x"]), int(esfera["y"])), int(raio_esfera + 8), 2)
                 pygame.draw.circle(tela, (50, 255, 200), (int(esfera["x"]), int(esfera["y"])), int(raio_esfera))
                 pygame.draw.circle(tela, (255, 255, 255), (int(esfera["x"]), int(esfera["y"])), int(raio_esfera * 0.4))
+                
+                # Indicador visual de tempo restante (anel externo que diminui)
+                tempo_restante_percentual = 1.0 - (tempo_vida_esfera / 15000)
+                if tempo_restante_percentual < 0.3:
+                    # Piscar quando está acabando
+                    if (agora // 200) % 2 == 0:
+                        pygame.draw.circle(tela, (255, 100, 100), (int(esfera["x"]), int(esfera["y"])), int(raio_esfera + 12), 3)
                 
                 cx_p = pos_x_personagem + largura_personagem // 2
                 cy_p = pos_y_personagem + altura_personagem // 2
@@ -2257,7 +2760,20 @@ while running:
                 if distancia_coleta <= 45:
                     vida_perdida = vida_maxima - vida
                     cura_aplicada = int(vida_perdida * 0.50)
+                    vida_antes = vida
                     vida += cura_aplicada
+                    
+                    # Recompensa para Apolo se coletou com pouca vida
+                    percentual_vida_antes = vida_antes / vida_maxima
+                    if percentual_vida_antes < 0.3:  # Menos de 30% de vida
+                        recompensa_coleta = 80.0  # Grande recompensa por decisão tática
+                        apolo.aplicar_recompensa_direta(recompensa_coleta)
+                    elif percentual_vida_antes < 0.5:  # Menos de 50% de vida
+                        recompensa_coleta = 40.0  # Recompensa moderada
+                        apolo.aplicar_recompensa_direta(recompensa_coleta)
+                    else:
+                        recompensa_coleta = 10.0  # Pequena recompensa
+                        apolo.aplicar_recompensa_direta(recompensa_coleta)
                     
                     efeitos_texto.append({
                         "texto": f"+{cura_aplicada} RESTAURAÇÃO!",
@@ -2499,6 +3015,23 @@ while running:
     # --- PROCESSAMENTO DE PROJÉTEIS DA BOSS 5 ---
     rect_personagem = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
     novos_projeteis_boss = []
+
+    # DISPAROS BÔNUS DA UMBRA (concedidos por espinhos)
+    bonus = estado_atual_ia.get('bonus_tiros', 0)
+    if bonus > 0 and luta_iniciada:
+        centro_bx = pos_x_umbra + largura_boss // 2
+        centro_by = pos_y_umbra + altura_boss // 2
+        centro_px = pos_x_personagem + largura_personagem // 2
+        centro_py = pos_y_personagem + altura_personagem // 2
+        ang_bonus = math.atan2(centro_py - centro_by, centro_px - centro_bx)
+        for spread in [-0.15, 0, 0.15]:
+            estado_atual_ia['projeteis'].append({
+                "rect": pygame.Rect(centro_bx - 6, centro_by - 6, 12, 12),
+                "angulo": ang_bonus + spread,
+                "velocidade": 11,
+                "tipo": "bonus"
+            })
+        estado_atual_ia['bonus_tiros'] = bonus - 1
 
     # Renderizar os disparos (NOVO MOTOR PROCEDURAL)
     for disparo in disparos:
