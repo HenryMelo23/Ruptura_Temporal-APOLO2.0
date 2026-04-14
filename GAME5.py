@@ -597,7 +597,7 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
 multiplicador_dano_umbra = 1.0
 reducao_cooldown_umbra = 1.0
 resistencia_umbra = 0.0
-bonus_cura_sifon = 1.0
+bonus_cura_sifon = 0.5
 
 tempo_parado_person = pygame.time.get_ticks()  
 boss_atingido_por_onda = pygame.time.get_ticks()
@@ -1114,26 +1114,27 @@ class AgenteApolo:
                     dist_min_orbe = dist
                     orbe_mais_proxima = orbe
             
-            if orbe_mais_proxima and dist_min_orbe < 800:
-                # Se está com pouca vida e se aproximando de orbe: grande recompensa
-                if percentual_vida_atual < 0.3:  # Menos de 30% vida
-                    if dist_min_orbe < 200:  # Muito perto da orbe
-                        recompensa += 15
-                    elif dist_min_orbe < 400:  # Aproximando-se
-                        recompensa += 8
-                elif percentual_vida_atual < 0.5:  # Menos de 50% vida
-                    if dist_min_orbe < 200:
-                        recompensa += 8
-                    elif dist_min_orbe < 400:
-                        recompensa += 4
+            if orbe_mais_proxima:
+                # Dense Reward (Guia de Migalhas): Apolo ganha pontos a cada pixel que se aproxima da orbe
+                # e perde pontos a cada pixel que se afasta, guiando ele exatamente para o local!
+                if hasattr(self, 'dist_orbe_anterior'):
+                    delta_distancia = self.dist_orbe_anterior - dist_min_orbe
+                    
+                    # Fator de desespero: quanto menos vida, mais forte o bônus/penalidade
+                    fator_necessidade = 1.0
+                    if percentual_vida_atual < 0.3:
+                        fator_necessidade = 5.0
+                    elif percentual_vida_atual < 0.6:
+                        fator_necessidade = 2.5
+                        
+                    # Se aproximou (delta_distancia > 0) = ganha dopamina
+                    # Se afastou (delta_distancia < 0) = perde dopamina
+                    recompensa += (delta_distancia * 0.5) * fator_necessidade
+                    
+                    if dist_min_orbe < 100 and percentual_vida_atual < 0.5:
+                        recompensa += 5 # Extremo reforço quando já tá na cara da orbe
                 
-                # Penaliza se está com pouca vida mas se afastando da orbe
-                if percentual_vida_atual < 0.4:
-                    # Verifica se está se afastando (comparando com frame anterior)
-                    if hasattr(self, 'dist_orbe_anterior'):
-                        if dist_min_orbe > self.dist_orbe_anterior + 20:  # Se afastou significativamente
-                            recompensa -= 5
-                    self.dist_orbe_anterior = dist_min_orbe
+                self.dist_orbe_anterior = dist_min_orbe
         
         # NOVO: Recompensa por evitar ratos (apenas na Dimensão 9)
         if 'gerenciador_ratos' in globals():
@@ -1340,7 +1341,7 @@ def carregar_memoria_cartas():
     pesos_base = {
         "Speed Boost": 10.0, "Porção": 10.0, "Disparo crescente": 10.0, "Trembo": 10.0, 
         "Tempestade": 10.0, "Cura": 10.0, "Speed Atack": 10.0, "Teleporte": 10.0, 
-        "Petro": 10.0, "Defesa": 10.0, "Poison": 10.0
+        "Defesa": 10.0
     }
     if os.path.exists(arquivo):
         try:
@@ -1371,7 +1372,6 @@ def inteligencia_escolha_cartas_apolo(qtd):
     opcoes = list(pesos.keys())
 
     for _ in range(qtd):
-        if escolhas.count("Petro") >= 5: pesos["Petro"] = 0
         if escolhas.count("Trembo") >= 1: pesos["Trembo"] = 0
         if escolhas.count("Cura") >= 10: pesos["Cura"] = 0
         if escolhas.count("Defesa") >= 10: pesos["Defesa"] = 0
@@ -1417,7 +1417,8 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
 
     for carta in cartas_inteligentes:
         if carta == "Speed Boost":
-            velocidade_personagem += 0.05 + (inimigos_eliminados // 200) * 0.002
+            velocidade_personagem += 0.09 + (inimigos_eliminados // 200) * 0.002
+            dano_person_hit += 10 + (inimigos_eliminados // 50) * 1.0
         elif carta == "Porção":
             aumento_vida = 650 + (inimigos_eliminados // 50) * 8
             vida_maxima += aumento_vida
@@ -1425,7 +1426,7 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
             vida_petro += int(vida_maxima_petro * 0.25)
             if vida_petro > vida_maxima_petro: vida_maxima_petro = vida_petro
         elif carta == "Disparo crescente":
-            dano_person_hit += 25 + (inimigos_eliminados // 50) * 1.5
+            dano_person_hit += 65 + (inimigos_eliminados // 50) * 1.5
         elif carta == "Trembo":
             trembo = True
             Tempo_cura = max(500, int(Tempo_cura * 0.85)) # Em 10 cartas, o tick cai para próximo de 0.5s
@@ -1434,32 +1435,16 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
             dano_person_hit += 5 + (inimigos_eliminados // 100) * 1
             chance_critico += 0.01 + (inimigos_eliminados // 300) * 0.002
         elif carta == "Cura":
-            roubo_de_vida += 0.10 + (inimigos_eliminados // 500) * 0.001
+            roubo_de_vida += 0.25 + (inimigos_eliminados // 500) * 0.001
             quantidade_roubo_vida += 0.30 + (inimigos_eliminados // 500) * 0.001
         elif carta == "Speed Atack":
             intervalo_disparo = max(50, int(intervalo_disparo * 0.88))
         elif carta == "Teleporte":
             reducao = 0.95 - min(0.15, (inimigos_eliminados // 1000) * 0.02)
             tempo_cooldown_dash = max(0.4, tempo_cooldown_dash * reducao)
-        elif carta == "Petro":
-            Petro_active = True
-            dano_petro += 8 + (inimigos_eliminados // 80) * 2
-            if 0 < petro_evolucao <= 8:
-                xp_petro = "nivel_1"
-                petro_evolucao += 4
-            elif 8 < petro_evolucao <= 16:
-                xp_petro = "nivel_2"
-                vida_maxima_petro += 600
-                petro_evolucao += 4
-            elif petro_evolucao > 16:
-                xp_petro = "nivel_3"
-                vida_maxima_petro += 1200
-                Resistencia_petro += 12
-                dano_petro += 150
-            if vida_petro < vida_maxima_petro: vida_petro += int(vida_maxima_petro * 0.40)
-            if vida_petro > vida_maxima_petro: vida_maxima_petro = vida_petro
+        
         elif carta == "Defesa":
-            Resistencia = min(60, Resistencia + 2 + (inimigos_eliminados // 200) * 0.25)
+            Resistencia = min(60, Resistencia + 10 + (inimigos_eliminados // 200) * 0.25)
         
 
     # --- ESCALONAMENTO DINÂMICO DA UMBRA ---
@@ -2756,17 +2741,20 @@ while running:
                     vida_antes = vida
                     vida += cura_aplicada
                     
-                    # Recompensa para Apolo se coletou com pouca vida
+                    # Recompensa para Apolo MÁXIMA para ele viciar em coletar as orbes!
                     percentual_vida_antes = vida_antes / vida_maxima
                     if percentual_vida_antes < 0.3:  # Menos de 30% de vida
-                        recompensa_coleta = 80.0  # Grande recompensa por decisão tática
+                        recompensa_coleta = 500.0  # RECOMPENSA COLOSSAL QUANDO ESTIVER MORRENDO
                         apolo.aplicar_recompensa_direta(recompensa_coleta)
-                    elif percentual_vida_antes < 0.5:  # Menos de 50% de vida
-                        recompensa_coleta = 40.0  # Recompensa moderada
+                        efeitos_texto.append({"texto": "+500 DOPAMINA REWARD!", "x": pos_x_personagem, "y": pos_y_personagem - 50, "tempo_inicio": agora, "cor": (255, 215, 0)})
+                    elif percentual_vida_antes < 0.6:  # Menos de 60% de vida
+                        recompensa_coleta = 300.0  # RECOMPENSA MASSIVA
                         apolo.aplicar_recompensa_direta(recompensa_coleta)
+                        efeitos_texto.append({"texto": "+300 DOPAMINA REWARD!", "x": pos_x_personagem, "y": pos_y_personagem - 50, "tempo_inicio": agora, "cor": (255, 215, 0)})
                     else:
-                        recompensa_coleta = 10.0  # Pequena recompensa
+                        recompensa_coleta = 150.0  # RECOMPENSA ENORME MESMO COM VIDA CHEIA
                         apolo.aplicar_recompensa_direta(recompensa_coleta)
+                        efeitos_texto.append({"texto": "+150 DOPAMINA REWARD!", "x": pos_x_personagem, "y": pos_y_personagem - 50, "tempo_inicio": agora, "cor": (255, 215, 0)})
                     
                     efeitos_texto.append({
                         "texto": f"+{cura_aplicada} RESTAURAÇÃO!",
@@ -2870,6 +2858,25 @@ while running:
                 if estado_atual_ia.get('parede_ativa'):
                     dano_final *= 0.75
                     cor_feedback = (0, 200, 255) # Azul de Escudo
+
+                # Aplicação da Resistência Passiva da Umbra
+                if 'resistencia_umbra' in globals() and resistencia_umbra > 0:
+                    dano_final *= max(0.1, 1.0 - (resistencia_umbra / 100.0))
+
+                # O Escudo de Atrito (Reduz dano em 70% e carrega a fúria)
+                if estado_atual_ia.get('dimensao_ativa') == "atrito":
+                    dano_final *= 0.3
+                    estado_atual_ia['carga_atrito'] = estado_atual_ia.get('carga_atrito', 0) + 8
+                    
+                    if estado_atual_ia['carga_atrito'] >= 100 and not estado_atual_ia.get('laser_ativo'):
+                        estado_atual_ia['laser_ativo'] = {
+                            'tempo_inicio': agora,
+                            'fase': 'carregando',
+                            'rodada': 1,              # Inicia na Rodada 1
+                            'duracao_carga': 1500,    # 1.5s de carga entre cada estágio
+                            'duracao_disparo': 4000   # 4s atirando por estágio
+                        }
+                        estado_atual_ia['carga_atrito'] = 0
 
                 # Aplicação de Dano e Treino
                 if vida_umbra > 0:
@@ -2976,25 +2983,6 @@ while running:
                     atingiu_boss = True
                     estado_atual_ia['tomou_tiro_no_dash'] = True
 
-
-                # O Escudo de Atrito (Reduz dano em 70% e carrega a fúria)
-                if estado_atual_ia.get('dimensao_ativa') == "atrito":
-                    dano_final *= 0.3
-                    estado_atual_ia['carga_atrito'] = estado_atual_ia.get('carga_atrito', 0) + 8
-                    
-                    if estado_atual_ia['carga_atrito'] >= 100 and not estado_atual_ia.get('laser_ativo'):
-                        pos_x_umbra = (largura_mapa // 2) - (largura_boss // 2)
-                        pos_y_umbra = (altura_mapa // 2) - (altura_boss // 2)
-                        
-                        estado_atual_ia['laser_ativo'] = {
-                            'tempo_inicio': agora,
-                            'fase': 'carregando',
-                            'rodada': 1,              # Inicia na Rodada 1
-                            'duracao_carga': 1500,    # 1.5s de carga entre cada estágio
-                            'duracao_disparo': 4000   # 4s atirando por estágio
-                        }
-                        estado_atual_ia['carga_atrito'] = 0
-                
 
         # 5. Manutenção de Projéteis no Mapa
         dentro_mapa = 0 <= disparo["rect"].x < largura_mapa and 0 <= disparo["rect"].y < altura_mapa

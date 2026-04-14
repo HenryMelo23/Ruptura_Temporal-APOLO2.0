@@ -106,9 +106,9 @@ class MemoriaEvolutivaUmbra:
             dx = (bx - px) / 1000.0
             dy = (by - py) / 1000.0
             
-        feat_armadilhas = [0.0] * 7
+        feat_armadilhas = [0.0] * 8
         if armadilhas:
-            keys = ['vortice_ativo', 'prisao_ativa', 'caminho_espinhos', 'laser_ativo', 'descarga_eletrica', 'miasma_ativo', 'praga_ratos']
+            keys = ['vortice_ativo', 'prisao_ativa', 'caminho_espinhos', 'laser_ativo', 'descarga_eletrica', 'miasma_ativo', 'praga_ratos', 'parede_ativa']
             for i, k in enumerate(keys):
                 if armadilhas.get(k): feat_armadilhas[i] = 1.0
                 
