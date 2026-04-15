@@ -30,7 +30,7 @@ class MemoriaEvolutivaUmbra:
         self.exploracao = 0.50
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        self.input_size = 18
+        self.input_size = 24
         self.acoes_base = [
             "FUGIR", "INTERCEPTAR", "ORBITAR", "CERCAR", "ATAQUE", "SIFON", "TELEPORTE",
             "TRANSMUTAR_VORTICE", "TRANSMUTAR_GRAVIDADE", "TRANSMUTAR_NECROSE", 
@@ -98,6 +98,9 @@ class MemoriaEvolutivaUmbra:
         feat_vy = max(-1.0, min(1.0, vy_p))
         
         dx, dy = 0.0, 0.0
+        p_borda_x, p_borda_y, b_borda_x, b_borda_y = 1.0, 1.0, 1.0, 1.0
+        p_canto, p_dist_centro = 0.0, 0.0
+
         if player_pos and boss_pos:
             px = player_pos[0] if isinstance(player_pos, (tuple, list)) else player_pos.get('x', 0)
             py = player_pos[1] if isinstance(player_pos, (tuple, list)) else player_pos.get('y', 0)
@@ -105,6 +108,16 @@ class MemoriaEvolutivaUmbra:
             by = boss_pos[1] if isinstance(boss_pos, (tuple, list)) else boss_pos.get('y', 0)
             dx = (bx - px) / 1000.0
             dy = (by - py) / 1000.0
+            
+            # Novos Features (Visão Espacial)
+            meio_w, meio_h = largura_mapa / 2.0, altura_mapa / 2.0
+            p_borda_x = min(px, largura_mapa - px) / max(1.0, meio_w)
+            p_borda_y = min(py, altura_mapa - py) / max(1.0, meio_h)
+            b_borda_x = min(bx, largura_mapa - bx) / max(1.0, meio_w)
+            b_borda_y = min(by, altura_mapa - by) / max(1.0, meio_h)
+            if p_borda_x < 0.25 and p_borda_y < 0.25:
+                p_canto = 1.0
+            p_dist_centro = math.hypot(px - meio_w, py - meio_h) / max(1.0, math.hypot(meio_w, meio_h))
             
         feat_armadilhas = [0.0] * 8
         if armadilhas:
@@ -119,7 +132,7 @@ class MemoriaEvolutivaUmbra:
                 num = ''.join(filter(str.isdigit, map_str))
                 if num: map_val = float(num) / 10.0
                 
-        features = [feat_vida, feat_dist, feat_fogo, feat_vx, feat_vy, dx, dy] + feat_armadilhas + [map_val, ameaca_vec[0], ameaca_vec[1]]
+        features = [feat_vida, feat_dist, feat_fogo, feat_vx, feat_vy, dx, dy] + feat_armadilhas + [map_val, ameaca_vec[0], ameaca_vec[1], p_borda_x, p_borda_y, b_borda_x, b_borda_y, p_canto, p_dist_centro]
         tensor = torch.tensor(features, dtype=torch.float32, device=self.device).unsqueeze(0)
         return tensor
 
@@ -378,7 +391,7 @@ def node_teleporte(agora, estado_ia, boss_pos, player_pos, historico_player, tip
     estado_ia['ultimo_teleporte'] = agora
     estado_ia['fase_tele'] = "disparando"
 
-def node_teleporte_sinalizador(agora, estado_ia, boss_pos, alvo_pos):
+def node_teleporte_sinalizador(agora, estado_ia, boss_pos, alvo_pos, tipo_teleporte='real'):
     """
     Cria o 'Sinalizador de Translocação' (Círculo Azul).
     Ele viajará da posição atual até o alvo_pos.
@@ -398,10 +411,11 @@ def node_teleporte_sinalizador(agora, estado_ia, boss_pos, alvo_pos):
         'start_pos': (start_x, start_y),  # Origem
         'target_pos': (target_x, target_y), # Destino final
         'angulo': ang,
-        'velocidade': 17,                 # Aumentado para maior fluidez
+        'velocidade': 8,                  # Reduzido a pedido para tempo de respiro
         'dist_total': dist_total,
         'dist_percorrida': 0,
-        'cor_sinal': (0, 120, 255),       # Azul Neon
+        'tipo': tipo_teleporte,           # 'real' ou 'falso' (Juke)
+        'cor_sinal': (0, 255, 180),       # Ciano/Verde Neon
         'raio': 15 
     }
     
@@ -455,12 +469,40 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
     acoes_disponiveis = ["ATAQUE"]
 
     if agora - estado_ia.get('ultimo_teleporte', 0) >= 10000:
-        acoes_disponiveis.append("TELEPORTE")
+        acoes_disponiveis.extend(["TELEPORTE", "TELEPORTE_JUKE"])
         
-    if agora - estado_ia.get('ultimo_sifon_fim', 0) >= 15000 or estado_ia.get('ultimo_sifon_fim') == 0:
+    # SISTEMA INTELIGENTE DE SIFÃO
+    # Pré-cooldown: Não pode usar nos primeiros 15s da fase
+    tempo_desde_inicio_fase = agora - estado_ia.get('tempo_inicio_fase', 0)
+    cooldown_sifao_ok = agora - estado_ia.get('ultimo_sifon_fim', 0) >= 15000
+    
+    # Só adiciona Sifão se passou o pré-cooldown E o cooldown normal
+    if tempo_desde_inicio_fase >= 15000 and (cooldown_sifao_ok or estado_ia.get('ultimo_sifon_fim') == 0):
         acoes_disponiveis.append("SIFON")
 
-    if agora - estado_ia.get('ultimo_transmutar', 0) >= 25000:
+    # SISTEMA DE BLOQUEIO DE COMBOS ENTRE DIMENSÕES
+    # Previne que Umbra use transmutação enquanto habilidade dimensional está ativa
+    # ou logo após usar uma habilidade (tempo mínimo de 5s na dimensão)
+    
+    tempo_na_dimensao_atual = agora - estado_ia.get('tempo_inicio_dimensao', 0)
+    habilidade_dimensional_ativa = (
+        estado_ia.get('vortice_ativo') or
+        estado_ia.get('prisao_ativa') or
+        estado_ia.get('caminho_espinhos') or
+        estado_ia.get('laser_ativo') or
+        estado_ia.get('descarga_eletrica') or
+        estado_ia.get('miasma_ativo') or
+        estado_ia.get('praga_ratos')
+    )
+    
+    # Verifica se pode transmutar
+    pode_transmutar = (
+        agora - estado_ia.get('ultimo_transmutar', 0) >= 25000 and  # Cooldown base
+        tempo_na_dimensao_atual >= 5000 and  # Mínimo 5s na dimensão atual
+        not habilidade_dimensional_ativa  # Nenhuma habilidade ativa
+    )
+    
+    if pode_transmutar:
         ultima_dim = estado_ia.get('ultima_dimensao_usada', "")
         if ultima_dim != "vortice": acoes_disponiveis.append("TRANSMUTAR_VORTICE")
         if ultima_dim != "gravidade": acoes_disponiveis.append("TRANSMUTAR_GRAVIDADE")
@@ -498,7 +540,34 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
     if decisao == "SIFON":
         estado_ia['parede_ativa'] = True
         estado_ia['ultimo_parede'] = agora
-        estado_ia['dano_recente'] = 0 
+        estado_ia['dano_recente'] = 0
+        
+        # SISTEMA DE RECOMPENSA INTELIGENTE PARA SIFÃO
+        # Calcula vida percentual da Umbra
+        vida_atual_umbra = config_boss.get('vida_atual', 1200)
+        vida_max_umbra = config_boss.get('vida_max', 1200)
+        percentual_vida = vida_atual_umbra / vida_max_umbra
+        
+        # Calcula cura que será recebida (5% da vida máxima)
+        cura_esperada = vida_max_umbra * 0.05
+        
+        # Sistema de recompensa baseado em necessidade
+        if percentual_vida < 0.3:  # Vida crítica (<30%)
+            # EXCELENTE uso: Grande recompensa
+            recompensa_sifao = 50.0
+        elif percentual_vida < 0.5:  # Vida baixa (<50%)
+            # BOM uso: Recompensa moderada
+            recompensa_sifao = 25.0
+        elif percentual_vida < 0.7:  # Vida média (<70%)
+            # USO OK: Pequena recompensa
+            recompensa_sifao = 10.0
+        else:  # Vida alta (>70%)
+            # DESPERDÍCIO: Penalidade proporcional à cura desperdiçada
+            # Quanto mais vida tem, maior a penalidade
+            fator_desperdicio = (percentual_vida - 0.7) / 0.3  # 0 a 1
+            recompensa_sifao = -cura_esperada * fator_desperdicio * 0.5  # Penalidade proporcional
+        
+        memoria.treinar(recompensa_sifao)
         node_sifon(agora, estado_ia, boss_pos, centro_mapa)
 
     elif decisao.startswith("TRANSMUTAR_"):
@@ -507,15 +576,18 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         estado_ia['primeira_transmutacao_feita'] = True
         estado_ia['dano_recente'] = 0 
         estado_ia['tempo_inicio_dimensao'] = agora
+        estado_ia['tempo_inicio_fase'] = agora  # Marca início da nova fase para pré-cooldown do Sifão
         estado_ia['duracao_dimensao'] = 30000
         
-        estado_ia['ultimo_vortice'] = agora
-        estado_ia['ultimo_prisao'] = agora
-        estado_ia['ultimo_miasma'] = agora
-        estado_ia['ultimo_descarga'] = agora
-        estado_ia['ultimo_espinhos'] = agora
-        estado_ia['ultimo_laser'] = agora
-        estado_ia['ultimo_praga_ratos'] = agora
+        # Reseta cooldowns de TODAS as habilidades dimensionais
+        # Isso permite usar a habilidade da nova dimensão imediatamente
+        estado_ia['ultimo_vortice'] = 0  # Permite usar imediatamente
+        estado_ia['ultimo_prisao'] = 0
+        estado_ia['ultimo_miasma'] = 0
+        estado_ia['ultimo_descarga'] = 0
+        estado_ia['ultimo_espinhos'] = 0
+        estado_ia['ultimo_laser'] = 0
+        estado_ia['ultimo_praga_ratos'] = 0
         
         dimensao_escolhida = decisao.split("_")[1].lower()
         mapas = {
@@ -593,7 +665,18 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         alvo_x_f = max(espacamento, min(largura_mapa - 100, alvo_x))
         alvo_y_f = max(espacamento, min(altura_mapa - 150, alvo_y))
         
-        node_teleporte_sinalizador(agora, estado_ia, boss_pos, (alvo_x_f, alvo_y_f))
+        node_teleporte_sinalizador(agora, estado_ia, boss_pos, (alvo_x_f, alvo_y_f), tipo_teleporte='real')
+
+    elif decisao == "TELEPORTE_JUKE":
+        # Fake teleporte, finge ir para o outro lado de Apolo
+        vec_x, vec_y = bx - px, by - py
+        mag = math.hypot(vec_x, vec_y)
+        alvo_x, alvo_y = bx - (vec_x/max(1, mag))*500, by - (vec_y/max(1, mag))*500
+        from Variaveis import espacamento, largura_mapa, altura_mapa
+        alvo_x_f = max(espacamento, min(largura_mapa - 100, alvo_x))
+        alvo_y_f = max(espacamento, min(altura_mapa - 150, alvo_y))
+        
+        node_teleporte_sinalizador(agora, estado_ia, boss_pos, (alvo_x_f, alvo_y_f), tipo_teleporte='falso')
 
     elif decisao == "CAMINHO_ESPINHOS":
         node_caminho_espinhos(agora, estado_ia, bx, by, px, py, historico_player)
@@ -691,18 +774,51 @@ def movimentacao_inteligente_umbra(agora, boss_pos, player_pos, disparos, estado
     estrategias = ["FUGIR", "INTERCEPTAR", "ORBITAR", "CERCAR"]
     decisao = memoria.decidir(estado_atual, estrategias)
 
-    # MOVIMENTO PADRAO (Se chegou aqui n deu dash)
+    meio_w, meio_h = largura_mapa / 2.0, altura_mapa / 2.0
+
     if decisao == "FUGIR":
-        ang_fuga = math.atan2(by - py, bx - px)
-        alvo_x, alvo_y = bx + math.cos(ang_fuga) * 600, by + math.sin(ang_fuga) * 600
+        # Fuga Inteligente: Evitar cantos! Procurar o nó mais distante do jogador e seguro das bordas.
+        ang_fuga = math.atan2(by - py, bx - px) + random.uniform(-0.2, 0.2)
+        distancia_alvo = 600
+        alvo_x = bx + math.cos(ang_fuga) * distancia_alvo
+        alvo_y = by + math.sin(ang_fuga) * distancia_alvo
+        
+        # Fuga vetorial para o centro se a fuga linear nos jogar contra a parede
+        if alvo_x < 150 or alvo_x > largura_mapa - 150 or alvo_y < 150 or alvo_y > altura_mapa - 150:
+            alvo_x = alvo_x * 0.5 + meio_w * 0.5
+            alvo_y = alvo_y * 0.5 + meio_h * 0.5
+
     elif decisao == "INTERCEPTAR":
-        alvo_x = px + (px - bx) * 0.3; alvo_y = py + (py - by) * 0.3
+        # Lead Pursuit (Interceptação por Vetor Preditivo)
+        vx_p, vy_p = 0.0, 0.0
+        if historico_player and len(historico_player) > 3:
+            vx_p = (px - historico_player[-3][0]) / 3
+            vy_p = (py - historico_player[-3][1]) / 3
+        
+        tempo_intercept = dist_p / max(1.0, VEL_MAX)
+        alvo_x = px + (vx_p * tempo_intercept * 0.6) + random.uniform(-30, 30)
+        alvo_y = py + (vy_p * tempo_intercept * 0.6) + random.uniform(-30, 30)
+
     elif decisao == "ORBITAR":
-        ang = math.atan2(by - py, bx - px) + 0.7
-        alvo_x, alvo_y = px + math.cos(ang) * 450, py + math.sin(ang) * 450
-    else: 
-        ang = math.atan2(by - py, bx - px)
-        alvo_x, alvo_y = px + math.cos(ang) * 300, py + math.sin(ang) * 300
+        # Orbitar matematicamente perpendicular ao jogador
+        ang = math.atan2(by - py, bx - px) + 1.2 + random.uniform(-0.1, 0.1)
+        raio_variavel = 450
+        alvo_x = px + math.cos(ang) * raio_variavel
+        alvo_y = py + math.sin(ang) * raio_variavel
+        
+    else:  # CERCAR
+        # Posicionar-se ativamente entre o Apolo e o centro do mapa para imprensá-lo
+        dx_centro = meio_w - px
+        dy_centro = meio_h - py
+        dist_c = math.hypot(dx_centro, dy_centro)
+        
+        # O vetor norm_x/y aponta do jogador *para* o centro. A Umbra se coloca neste caminho.
+        norm_x = dx_centro / max(1.0, dist_c)
+        norm_y = dy_centro / max(1.0, dist_c)
+        
+        distancia_cerco = 300 + random.uniform(-40, 40)
+        alvo_x = px + (norm_x * distancia_cerco)
+        alvo_y = py + (norm_y * distancia_cerco)
 
     limite_x_min = int(espacamento)
     limite_x_max = int(largura_mapa - largura_boss - espacamento)
@@ -718,15 +834,22 @@ def movimentacao_inteligente_umbra(agora, boss_pos, player_pos, disparos, estado
     rx, ry = bx - px, by - py
     dist_r = math.hypot(rx, ry)
     f_rep_x = f_rep_y = 0
-    if dist_r < RAIO_SEGURANCA:
-        f_rep_x, f_rep_y = (rx/dist_r) * 1.5, (ry/dist_r) * 1.5
+    
+    # Repulsão graduada e suave (Evita a "parede invisível" que fazia ela tremer)
+    if dist_r < RAIO_SEGURANCA and dist_r > 0:
+        intensidade_repulsao = 2.0 * (1.0 - (dist_r / RAIO_SEGURANCA)) ** 2  # Curva quadrática mais orgânica
+        f_rep_x, f_rep_y = (rx / dist_r) * intensidade_repulsao, (ry / dist_r) * intensidade_repulsao
 
     v_desejada_x = (vec_alvo_x + f_rep_x) * VEL_MAX
     v_desejada_y = (vec_alvo_y + f_rep_y) * VEL_MAX
-    vx = estado_mov.get('vel_x', 0)
-    vy = estado_mov.get('vel_y', 0)
-    vx += (v_desejada_x - vx) * AGILIDADE
-    vy += (v_desejada_y - vy) * AGILIDADE
+    
+    vx = estado_mov.get('vel_x', 0.0)
+    vy = estado_mov.get('vel_y', 0.0)
+    
+    # Agilidade reduzida para 0.08 cria forte Inércia (Simula peso e curvas mais orgânicas)
+    AGILIDADE_NATURAL = 0.08
+    vx += (v_desejada_x - vx) * AGILIDADE_NATURAL
+    vy += (v_desejada_y - vy) * AGILIDADE_NATURAL
     estado_mov['vel_x'], estado_mov['vel_y'] = vx, vy
 
     nx = max(int(espacamento), min(int(largura_mapa - largura_boss - espacamento), int(bx + vx)))

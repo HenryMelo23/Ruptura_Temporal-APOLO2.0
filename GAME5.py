@@ -175,6 +175,57 @@ def gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altur
     return x, y
 
 
+def renderizar_portal_teleporte_umbra(tela, agora, cx, cy, cfg_graficos):
+    cx, cy = int(cx), int(cy)
+    qualidade = cfg_graficos.get("qualidade_grafica", "media")
+    estatico = (qualidade == "desligado" or not cfg_graficos.get("particulas_ativas", True))
+
+    if estatico:
+        # Círculo Simples (Máximo Desempenho)
+        pygame.draw.circle(tela, (0, 25, 40), (cx, cy), 60)
+        pygame.draw.circle(tela, (0, 200, 200), (cx, cy), 60, 3)
+        return
+
+    # Efeitos Rotativos LÍQUIDOS (Médio / Alto)
+    raio_base = 60 + math.sin(agora * 0.005) * 8
+    
+    # Camada de Fundo escura azulada/esverdeada
+    pygame.draw.circle(tela, (0, 15, 30), (cx, cy), int(raio_base))
+    
+    # Anéis Vortex desenhados de forma procedural
+    q_aneis = 4 if qualidade == "alta" else 2
+    
+    for i in range(q_aneis):
+        offset_ang = agora * 0.003 * (i + 1)
+        r = raio_base * (0.8 - i*0.15)
+        
+        for ang in range(0, 360, 30 if qualidade == "alta" else 60):
+            rad_inicio = math.radians(ang) + offset_ang
+            # Arcos mais alongados dão sensação fluida
+            rad_fim = math.radians(ang + 45) + offset_ang
+            px1 = cx + math.cos(rad_inicio) * r
+            py1 = cy + math.sin(rad_inicio) * r
+            px2 = cx + math.cos(rad_fim) * r * 0.95 # Puxando para o centro
+            py2 = cy + math.sin(rad_fim) * r * 0.95
+            
+            # Subtil gradient entre verde neon e azul ciano
+            t_cor = (math.sin(agora * 0.002 + i) + 1) / 2
+            cor = (int(0 + t_cor * 50), int(255 - t_cor * 50), int(150 + t_cor * 105)) 
+            
+            pygame.draw.line(tela, cor, (int(px1), int(py1)), (int(px2), int(py2)), 5 - i)
+
+    # Partículas no Vortex (Alta Qualidade)
+    if qualidade == "alta":
+        for i in range(12):
+            seed = (agora // 15 + i * 40) 
+            ang = (seed * 0.15 + i * 0.5) % (math.pi * 2)
+            dist = 90 - (seed % 90)  # Sugado para o centro do vortex
+            if dist > 5:
+                px = cx + math.cos(ang) * dist
+                py = cy + math.sin(ang) * dist
+                tamanho = max(1, int(4 * (dist / 90)))
+                pygame.draw.circle(tela, (50, 255, 200), (int(px), int(py)), tamanho)
+
 def limpar_salvamento():
     if os.path.exists('atributos.json'):
         os.remove('atributos.json')
@@ -374,8 +425,23 @@ def atualizar_posicao_personagem(keys, joystick):#APOLO
     if dx != 0 or dy != 0:
         movimento_pressionado = True
         direcao_atual = ultima_tecla_movimento
-        pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem + dx * velocidade_personagem))
-        pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem + dy * velocidade_personagem))
+        
+        # NORMALIZAÇÃO DE MOVIMENTO DIAGONAL
+        # Quando movendo na diagonal (dx e dy ambos != 0), normaliza o vetor
+        # para manter velocidade constante em todas as direções
+        if dx != 0 and dy != 0:
+            # Fator de normalização para diagonal: 1/sqrt(2) ≈ 0.7071
+            fator_normalizacao = 0.7071
+            pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
+                                         pos_x_personagem + dx * velocidade_personagem * fator_normalizacao))
+            pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
+                                         pos_y_personagem + dy * velocidade_personagem * fator_normalizacao))
+        else:
+            # Movimento cardinal (apenas uma direção)
+            pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
+                                         pos_x_personagem + dx * velocidade_personagem))
+            pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
+                                         pos_y_personagem + dy * velocidade_personagem))
 
     ia_precisa_dash = modo_ia_treino and getattr(apolo, 'usar_dash', False)
     
@@ -650,12 +716,12 @@ class AgenteApolo:
         # Sistema de persistência de ação para movimentos mais fluidos
         self.acao_atual = 0
         self.frames_acao_atual = 0
-        self.frames_minimos_por_acao = 8  # Mantém ação por pelo menos 8 frames (~133ms a 60fps)
+        self.frames_minimos_por_acao = 15  # Aumentado de 8 para 15 frames (~250ms a 60fps) para movimentos mais fluidos
         self.ultima_decisao_frame = 0
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.input_size = 40  # 41 anteriores - 1 feature de bordas_ativas removida
-        self.output_size = 5
+        self.output_size = 9  # Revertido para 9 (Movimento independente da Mira algorítmica)
         
         self.q_network = ApoloDQN(self.input_size, self.output_size).to(self.device)
         self.optimizer = optim.Adam(self.q_network.parameters(), lr=0.001)
@@ -665,6 +731,20 @@ class AgenteApolo:
         self.acao_anterior = 0
         self.vida_jogador_anterior = 0
         self.vida_boss_anterior = 0
+        self.bonus_dopamina = 0.0 # Acumulador de recompensas periféricas
+        self.ultima_pos_umbra_conhecida = (1000, 500)
+        self.ultima_vida_b_conhecida = 1200
+        
+        # Action Repetition e Steering Heurístico
+        self.frames_pulo = 4
+        self.frame_atual_skip = 0
+        self.acao_persistente = 8 # Inicia neutro ou com fallback seguro
+        self.foco_orbe = None
+        
+        # Tracking do Dense Reward Shaping do Laser
+        self.ultima_dist_perp_laser = None
+        self.laser_estava_carregando = False
+        
         self.arquivo_memoria = "apolo_memoria_dqn.pt"
         self.taxa_exploracao = 0.50
         self.frames_sobrevividos = 0
@@ -704,10 +784,27 @@ class AgenteApolo:
 
     def obter_estado_expandido(self, pos_p, boss_hitbox, projeteis_boss, cds, esferas_energia, vida_apolo, vida_boss, velocidade_apolo, estado_ia):
         import math
+        import pygame
+        agora = pygame.time.get_ticks()
         px, py = pos_p
+        
+        # Inteligência de Miasma: Apolo pode ficar "cego"
+        visao_umbra = True
+        if estado_ia and estado_ia.get('miasma_ativo'):
+            if agora % 3000 < 2000:
+                visao_umbra = False
+                
         bx, by = largura_mapa // 2, altura_mapa // 2
-        if boss_hitbox:
-            bx, by = boss_hitbox.centerx, boss_hitbox.centery
+        
+        if not visao_umbra and hasattr(self, 'ultima_pos_umbra_conhecida'):
+            bx, by = self.ultima_pos_umbra_conhecida
+            vida_b_calc = self.ultima_vida_b_conhecida
+        else:
+            if boss_hitbox:
+                bx, by = boss_hitbox.centerx, boss_hitbox.centery
+                self.ultima_pos_umbra_conhecida = (bx, by)
+                self.ultima_vida_b_conhecida = vida_boss
+            vida_b_calc = vida_boss
             
         feat_px = px / max(1, largura_mapa)
         feat_py = py / max(1, altura_mapa)
@@ -715,7 +812,7 @@ class AgenteApolo:
         feat_by = by / max(1, altura_mapa)
         
         feat_vida_p = vida_apolo / 1000.0
-        feat_vida_b = vida_boss / 1200.0
+        feat_vida_b = vida_b_calc / 1200.0
         
         # NOVO: Features de proximidade das bordas (CRÍTICO para evitar sair do mapa)
         margem_perigo = 100  # Pixels de margem considerados perigosos
@@ -938,23 +1035,95 @@ class AgenteApolo:
 
     def pensar(self, pos_p, boss_hitbox, projeteis_boss, cds, vida_jogador, vida_boss, esferas_energia, velocidade_atual=5, estado_ia=None):
         import random
+        import math  # Movido para o início para estar disponível em todo o método
         agora = pygame.time.get_ticks()  # Necessário para cálculos de tempo do laser
+        
         self.direcao_x = 0
         self.direcao_y = 0
         self.usar_dash = False
         self.mouse_simulado[0] = False
         self.frames_sobrevividos += 1
+        
+        px, py = pos_p  # Define px e py no início para uso em todo o método
+        
+        # --- MIRA MATEMÁTICA PREDITIVA (Igual ao da Umbra) ---
+        tx, ty = px, py
+        vx, vy = 0.0, 0.0
+        # Apolo usa a última memória para mirar no escuro, se aplicável
+        if hasattr(self, 'ultima_pos_umbra_conhecida'):
+            tx, ty = self.ultima_pos_umbra_conhecida
+        elif boss_hitbox:
+            tx, ty = boss_hitbox.centerx, boss_hitbox.centery
+            
+        if estado_ia:
+            vx = estado_ia.get('vel_x', 0.0)
+            vy = estado_ia.get('vel_y', 0.0)
+            
+        distancia = math.hypot(tx - px, ty - py)
+        tempo_bala = max(1.0, distancia / 10.0) # Velocidade da bala de Apolo = 10
+        
+        self.alvo_x = tx + (vx * tempo_bala * 0.7) # Trava 70% na velocidade do alvo simulando predição
+        self.alvo_y = ty + (vy * tempo_bala * 0.7)
+        
+        if cds.get("disparo", False) == False and boss_hitbox is not None: 
+            self.mouse_simulado[0] = True
 
-        if boss_hitbox:
-            self.alvo_x, self.alvo_y = boss_hitbox.center
-            if cds.get("disparo", False) == False: 
-                self.mouse_simulado[0] = True
+        # --- HIERARQUIA DE PERSISTÊNCIA (FOCO NA ORBE) ---
+        perigo_iminente = False
+        raio_perigo = 80
+        
+        # 1. Escaneamento de Emergência Crítica
+        for proj in projeteis_boss:
+            px_proj = proj['rect'].centerx if 'rect' in proj else proj.get('x', px)
+            py_proj = proj['rect'].centery if 'rect' in proj else proj.get('y', py)
+            if math.hypot(px_proj - px, py_proj - py) < raio_perigo:
+                perigo_iminente = True
+                break
+                
+        if estado_ia and estado_ia.get('laser_ativo') and estado_ia['laser_ativo'].get('fase') == 'carregando':
+            perigo_iminente = True
+            
+        if perigo_iminente:
+            self.foco_orbe = None # Aborta coleta para evadir (Restaura autonomia DQN)
+            
+        # 2. Gatilho de Assunção de Controle
+        # Aumentado para 80%: Apolo agora é proativo e busca orbes antes que elas desapareçam
+        if vida_jogador < 800 and esferas_energia and not perigo_iminente:
+            # Correção de KeyError: 'rect' - Suporta tanto objetos com rect quanto dicionários x/y
+            orbe_alvo = min(esferas_energia, key=lambda o: math.hypot(
+                (o['rect'].centerx if 'rect' in o else o.get('x', px)) - px, 
+                (o['rect'].centery if 'rect' in o else o.get('y', py)) - py
+            ))
+            self.foco_orbe = (
+                orbe_alvo['rect'].centerx if 'rect' in orbe_alvo else orbe_alvo.get('x', px),
+                orbe_alvo['rect'].centery if 'rect' in orbe_alvo else orbe_alvo.get('y', py)
+            )
+            
+        # 3. Execução de Steering
+        if self.foco_orbe and not perigo_iminente:
+            ox, oy = self.foco_orbe
+            dist_orbe = math.hypot(ox - px, oy - py)
+            
+            if dist_orbe < 30:
+                self.foco_orbe = None # Capturou ou está prestes a capturar
+            else:
+                if ox > px + 10: self.direcao_x = 1
+                elif ox < px - 10: self.direcao_x = -1
+                if oy > py + 10: self.direcao_y = 1
+                elif oy < py - 10: self.direcao_y = -1
+                
+                if dist_orbe > 150 and cds.get("dash", False) == False:
+                    self.usar_dash = True
+                
+                # Interrupção de Fluxo: Apolo ignora treinamento e inferência DQN para garantir a sobrevivência
+                return
 
         # RECOMPENSA EXPANDIDA
         recompensa = 0.5  # Sobrevivência base
+        recompensa += getattr(self, 'bonus_dopamina', 0.0) # Adiciona sistema de tiro e ricochete!
+        self.bonus_dopamina = 0.0 # Zera para não somar duplo no prox frame
         delta_vida_apolo = 0
         delta_vida_boss = 0
-        px, py = pos_p  # Define px e py no início para uso em todo o método
         
         if self.vida_jogador_anterior > 0:
             delta_vida_apolo = vida_jogador - self.vida_jogador_anterior
@@ -965,95 +1134,99 @@ class AgenteApolo:
         if delta_vida_boss < 0:
             recompensa += 30
         if delta_vida_apolo > 0:
-            recompensa += 100
+            recompensa += 300
         
-        # SISTEMA INTELIGENTE DE RECOMPENSAS PARA O LASER
+        # SISTEMA INTELIGENTE DE RECOMPENSAS PARA O LASER (DENSE SHAPING HUB)
         if estado_ia:
             laser = estado_ia.get('laser_ativo')
-            if laser:
-                # Recompensas durante fase de carregamento (preparação)
-                if laser.get('fase') == 'carregando':
+            
+            if not laser or laser.get('fase') == 'inativo' or not boss_hitbox:
+                self.ultima_dist_perp_laser = None
+                self.laser_estava_carregando = False
+            else:
+                fase_laser = laser.get('fase')
+                origem_laser = (boss_hitbox.centerx, boss_hitbox.centery)
+                
+                # Variáveis de Configuração Geométrica
+                rodada = laser.get('rodada', 1)
+                num_feixes, sentido, giro_total = 1, 1, math.pi * 2
+                if rodada == 2: num_feixes, sentido = 2, -1
+                elif rodada == 3: num_feixes, giro_total = 4, math.pi * 0.8
+                elif rodada == 4: num_feixes, sentido, giro_total = 6, -1, math.pi * 0.8
+                
+                # Progresso de Rotação (Apenas na fase disparando gera giro real)
+                progresso_rotacao = 0.0
+                if fase_laser == 'disparando':
+                    t_disp = agora - laser['tempo_inicio_disparo']
+                    progresso_rotacao = min(1.0, t_disp / laser['duracao_disparo'])
+                
+                angulo_base = giro_total * progresso_rotacao * sentido
+                menor_dist = float('inf')
+                em_frente = False
+                
+                # Escaneamento vetorial (Acha a linha de morte mais próxima do jogador no ângulo atual/futuro)
+                for i in range(num_feixes):
+                    angulo_atual = angulo_base + i * ((math.pi * 2) / num_feixes)
+                    comp_laser = 2500
+                    fim_x = origem_laser[0] + math.cos(angulo_atual) * comp_laser
+                    fim_y = origem_laser[1] + math.sin(angulo_atual) * comp_laser
+                    
+                    num = abs((fim_y - origem_laser[1])*px - (fim_x - origem_laser[0])*py + fim_x*origem_laser[1] - fim_y*origem_laser[0])
+                    den = math.hypot(fim_y - origem_laser[1], fim_x - origem_laser[0])
+                    dist_linha = num / den if den > 0 else 9999
+                    
+                    dot_product = (px - origem_laser[0]) * math.cos(angulo_atual) + (py - origem_laser[1]) * math.sin(angulo_atual)
+                    
+                    if dot_product > 0:
+                        em_frente = True
+                        menor_dist = min(menor_dist, dist_linha)
+                
+                largura_laser = 100 # Laser base: 50 de Raio Crítico
+                
+                # --- APPLY DENSE REWARD SHAPING ---
+                if fase_laser == 'carregando':
+                    self.laser_estava_carregando = True
                     tempo_laser = agora - laser['tempo_inicio']
                     progresso_carga = min(1.0, tempo_laser / laser['duracao_carga'])
                     
-                    # Recompensa por se afastar do centro durante carregamento
-                    if boss_hitbox:
-                        dist_centro = math.hypot(boss_hitbox.centerx - px, boss_hitbox.centery - py)
-                        if dist_centro > 400:  # Longe do epicentro
-                            recompensa += 5
-                        elif dist_centro < 200:  # Muito perto (perigoso)
-                            recompensa -= 10
+                    if em_frente:
+                        # Regra 1: Guia de Migalhas (Deltas direcionais)
+                        if self.ultima_dist_perp_laser is not None:
+                            if menor_dist > self.ultima_dist_perp_laser:
+                                recompensa += 2.0
+                            elif menor_dist < self.ultima_dist_perp_laser:
+                                recompensa -= 3.0
+                                
+                        # Regra 2: Zona Total Segura Contínua (Acima da borda da Hitbox)
+                        if menor_dist > (largura_laser / 2 + 50):
+                            recompensa += 1.0
+                            
+                        # Regra 3: Punição de Pânico por Dash Prematuro (Ação 8)
+                        if self.acao_anterior == 8:
+                            if progresso_carga < 0.8:
+                                recompensa -= 15.0 # Tremedeira fatal
+                            else:
+                                recompensa += 5.0 # Precisão cirúrgica de última hora
+                                
+                    self.ultima_dist_perp_laser = menor_dist
                     
-                    # Alerta crescente conforme o laser está prestes a disparar
-                    if progresso_carga > 0.8:  # 80% carregado
-                        recompensa += 3  # Recompensa por estar preparado
-                
-                # Recompensas durante disparo (evasão ativa)
-                elif laser.get('fase') == 'disparando':
-                    # Calcula distância ao feixe mais próximo
-                    if boss_hitbox:
-                        origem_laser = (boss_hitbox.centerx, boss_hitbox.centery)
-                        t_disp = agora - laser['tempo_inicio_disparo']
-                        progresso = min(1.0, t_disp / laser['duracao_disparo'])
-                        
-                        # Configuração por rodada
-                        rodada = laser.get('rodada', 1)
-                        if rodada == 1:
-                            num_feixes = 1
-                            sentido = 1
-                            giro_total = math.pi * 2
-                        elif rodada == 2:
-                            num_feixes = 2
-                            sentido = -1
-                            giro_total = math.pi * 2
-                        elif rodada == 3:
-                            num_feixes = 4
-                            sentido = 1
-                            giro_total = math.pi * 0.8
+                elif fase_laser == 'disparando':
+                    # Regra 4: Bônus Esparso de Evasão Perfeita
+                    if self.laser_estava_carregando:
+                        self.laser_estava_carregando = False
+                        if not em_frente or menor_dist > (largura_laser / 2 + 20):
+                            recompensa += 50.0  # Prêmio de Transição Segura Lendária!
+                    
+                    self.ultima_dist_perp_laser = None # Reseta as migalhas pro próximo combate
+                    
+                    # Regra 5: Penalidade Genuína de Ferimento Letal
+                    if em_frente:
+                        if menor_dist <= (largura_laser / 2 + 10):
+                            recompensa -= 100.0 # Bateu de frente na morte
+                        elif menor_dist < 150:
+                            recompensa -= 5.0 # Tremendo mto perto
                         else:
-                            num_feixes = 6
-                            sentido = -1
-                            giro_total = math.pi * 0.8
-                        
-                        angulo_base = giro_total * progresso * sentido
-                        menor_dist = float('inf')
-                        
-                        for i in range(num_feixes):
-                            angulo_atual = angulo_base + i * ((math.pi * 2) / num_feixes)
-                            comp_laser = 2500
-                            fim_x = origem_laser[0] + math.cos(angulo_atual) * comp_laser
-                            fim_y = origem_laser[1] + math.sin(angulo_atual) * comp_laser
-                            
-                            numerador = abs((fim_y - origem_laser[1])*px - (fim_x - origem_laser[0])*py + 
-                                          fim_x*origem_laser[1] - fim_y*origem_laser[0])
-                            denominador = math.hypot(fim_y - origem_laser[1], fim_x - origem_laser[0])
-                            dist_linha = numerador / denominador if denominador > 0 else 9999
-                            
-                            dot_product = (px - origem_laser[0]) * math.cos(angulo_atual) + \
-                                        (py - origem_laser[1]) * math.sin(angulo_atual)
-                            
-                            if dot_product > 0:
-                                menor_dist = min(menor_dist, dist_linha)
-                        
-                        # Sistema de recompensas baseado em distância do feixe
-                        if menor_dist < 50:  # ZONA DE PERIGO EXTREMO
-                            recompensa -= 30
-                        elif menor_dist < 100:  # Zona de perigo
-                            recompensa -= 15
-                        elif menor_dist < 200:  # Zona de alerta
-                            recompensa -= 5
-                        elif 200 <= menor_dist < 350:  # Zona segura próxima
-                            recompensa += 8
-                        elif menor_dist >= 350:  # Zona muito segura
-                            recompensa += 15
-                        
-                        # Recompensa EXTRA por sobreviver sem dano durante laser ativo
-                        if delta_vida_apolo == 0:
-                            recompensa += 25  # Grande recompensa por evasão perfeita
-                        
-                        # Penalidade SEVERA por ser atingido
-                        if delta_vida_apolo < 0:
-                            recompensa -= 200  # Penalidade massiva para aprender a evitar
+                            recompensa += 5.0 # Evasão mantida com sucesso
         
         # SISTEMA DE CONSCIÊNCIA DE BORDAS (CRÍTICO)
         margem_perigo = 100
@@ -1073,6 +1246,16 @@ class AgenteApolo:
         elif dist_esquerda < margem_perigo or dist_direita < margem_perigo or \
              dist_cima < margem_perigo or dist_baixo < margem_perigo:
             recompensa -= 8  # Penalidade moderada
+            
+        # Penalidade Anti-Encurralamento (Edge Awareness + Proximity)
+        margem_encurralado = 150
+        em_borda = (dist_esquerda < margem_encurralado or dist_direita < margem_encurralado or 
+                    dist_cima < margem_encurralado or dist_baixo < margem_encurralado)
+                    
+        dist_boss_direta = math.hypot(boss_hitbox.centerx - px, boss_hitbox.centery - py) if boss_hitbox else 9999
+        
+        if em_borda and dist_boss_direta < 300:
+            recompensa -= 20.0 # Força associação de Parede + Boss = Morte Iminente, incitando DASH pro centro
         
         # PENALIDADE EXTREMA POR ESTAR EM CANTOS (situação mais perigosa)
         em_canto_esq_cima = (dist_esquerda < margem_perigo and dist_cima < margem_perigo)
@@ -1092,13 +1275,21 @@ class AgenteApolo:
         if dist_centro < raio_seguro:
             recompensa += 3  # Recompensa por estar no centro
         
-        # Recompensa por manter distância segura do boss
+        # Fator de "Kiting" (Distância Baseada na Vida e Sobrevivência Macro)
         if boss_hitbox:
-            dist_boss = math.hypot(boss_hitbox.centerx - px, boss_hitbox.centery - py)
-            if 300 < dist_boss < 600:
-                recompensa += 1
-            elif dist_boss < 200:
-                recompensa -= 3
+            vida_p = vida_jogador / 1000.0  # Usa 1000.0 por ser o Max atual
+            if vida_p > 0.5:
+                # Regra Normal (DPS seguro)
+                if 300 < dist_boss_direta < 600:
+                    recompensa += 1.0
+                elif dist_boss_direta < 200:
+                    recompensa -= 5.0
+            else:
+                # Vida Baixa (Kiting Crítico e Fuga tática)
+                if dist_boss_direta < 350:
+                    recompensa -= 15.0 * (1.0 - vida_p)  # Punição escala inversamente com HP
+                elif dist_boss_direta > 600:
+                    recompensa += 5.0  # Prêmio grande por manter a Umbra fora do encalço
         
         # NOVO: Recompensa por buscar orbes quando está com pouca vida
         if esferas_energia and len(esferas_energia) > 0:
@@ -1120,21 +1311,27 @@ class AgenteApolo:
                 if hasattr(self, 'dist_orbe_anterior'):
                     delta_distancia = self.dist_orbe_anterior - dist_min_orbe
                     
-                    # Fator de desespero: quanto menos vida, mais forte o bônus/penalidade
-                    fator_necessidade = 1.0
-                    if percentual_vida_atual < 0.3:
-                        fator_necessidade = 5.0
-                    elif percentual_vida_atual < 0.6:
-                        fator_necessidade = 2.5
+                    # Evita o trauma neural: Se a distância pular absurdamente (orbe coletada ou despawnou) ignoramos a punição desse frame
+                    if abs(delta_distancia) < 50:
+                        # Fator de desespero: quanto menos vida, mais forte o bônus/penalidade
+                        fator_necessidade = 1.0
+                        if percentual_vida_atual < 0.3:
+                            fator_necessidade = 5.0
+                        elif percentual_vida_atual < 0.6:
+                            fator_necessidade = 2.5
+                            
+                        # Se aproximou (delta_distancia > 0) = ganha dopamina
+                        # Se afastou (delta_distancia < 0) = perde dopamina
+                        recompensa += (delta_distancia * 0.5) * fator_necessidade
                         
-                    # Se aproximou (delta_distancia > 0) = ganha dopamina
-                    # Se afastou (delta_distancia < 0) = perde dopamina
-                    recompensa += (delta_distancia * 0.5) * fator_necessidade
-                    
-                    if dist_min_orbe < 100 and percentual_vida_atual < 0.5:
-                        recompensa += 5 # Extremo reforço quando já tá na cara da orbe
+                        if dist_min_orbe < 100 and percentual_vida_atual < 0.5:
+                            recompensa += 5 # Extremo reforço quando já tá na cara da orbe
                 
                 self.dist_orbe_anterior = dist_min_orbe
+        else:
+            # Limpa do cérebro para evitar fobia quando uma nova orbe nascer
+            if hasattr(self, 'dist_orbe_anterior'):
+                delattr(self, 'dist_orbe_anterior')
         
         # NOVO: Recompensa por evitar ratos (apenas na Dimensão 9)
         if 'gerenciador_ratos' in globals():
@@ -1170,33 +1367,30 @@ class AgenteApolo:
         )
 
         if self.ultimo_estado_tensor is not None:
-            self.q_network.train()
-            q_values = self.q_network(self.ultimo_estado_tensor)
-            q_val = q_values[0, self.acao_anterior]
-            alvo = q_val.item() + 0.15 * (recompensa - q_val.item())
-            alvo_tensor = torch.tensor(alvo, dtype=torch.float32, device=self.device)
-            loss = self.criterion(q_val, alvo_tensor)
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
-
-        # FILTRAGEM DE AÇÕES INVÁLIDAS (previne sair do mapa)
-        margem_bloqueio = 80  # Pixels de margem onde ações são bloqueadas
-        acoes_validas = [0, 1, 2, 3, 4]  # Todas as ações inicialmente válidas
+            self.bonus_dopamina += recompensa # Acumula as recompensas dos frames pulados!
+        # FILTRAGEM DE AÇÕES INVÁLIDAS (previne sair do mapa com as 9 outputs)
+        margem_bloqueio = 80
         
-        # Remove ações que levam para fora do mapa
-        if py < margem_bloqueio:  # Muito perto da borda superior
-            if 0 in acoes_validas: acoes_validas.remove(0)  # Bloqueia movimento para cima
-        if py > altura_mapa - margem_bloqueio:  # Muito perto da borda inferior
-            if 1 in acoes_validas: acoes_validas.remove(1)  # Bloqueia movimento para baixo
-        if px < margem_bloqueio:  # Muito perto da borda esquerda
-            if 2 in acoes_validas: acoes_validas.remove(2)  # Bloqueia movimento para esquerda
-        if px > largura_mapa - margem_bloqueio:  # Muito perto da borda direita
-            if 3 in acoes_validas: acoes_validas.remove(3)  # Bloqueia movimento para direita
+        # Variáveis definidas para leitura das posições
+        perto_esquerda = px < margem_bloqueio
+        perto_direita = px > largura_mapa - margem_bloqueio
+        perto_topo = py < margem_bloqueio
+        perto_baixo = py > altura_mapa - margem_bloqueio
         
-        # Garante que sempre há pelo menos uma ação válida (dash sempre disponível)
+        acoes_validas = list(range(9))
+        
+        if perto_esquerda and 2 in acoes_validas: acoes_validas.remove(2)
+        if perto_direita and 3 in acoes_validas: acoes_validas.remove(3)
+        if (perto_topo or perto_esquerda) and 4 in acoes_validas: acoes_validas.remove(4)
+        if (perto_topo or perto_direita) and 5 in acoes_validas: acoes_validas.remove(5)
+        if (perto_baixo or perto_esquerda) and 6 in acoes_validas: acoes_validas.remove(6)
+        if (perto_baixo or perto_direita) and 7 in acoes_validas: acoes_validas.remove(7)
+        if perto_topo and 0 in acoes_validas: acoes_validas.remove(0)
+        if perto_baixo and 1 in acoes_validas: acoes_validas.remove(1)
+        
+        # Garante que sempre há pelo menos uma ação válida (dash como fallback)
         if len(acoes_validas) == 0:
-            acoes_validas = [4]  # Apenas dash disponível em situação extrema
+            acoes_validas = [8]  # Dash
         
         # SISTEMA DE PERSISTÊNCIA DE AÇÃO (movimentos mais fluidos)
         self.frames_acao_atual += 1
@@ -1281,22 +1475,30 @@ class AgenteApolo:
         if vida_jogador < 200:  # Menos de 20% de vida
             forcar_nova_decisao = True
         
+        self.frame_atual_skip += 1
+        
         # Decide se mantém ação atual ou escolhe nova
-        if self.frames_acao_atual < self.frames_minimos_por_acao and not forcar_nova_decisao:
-            # Mantém ação atual se ainda não passou o tempo mínimo
-            acao = self.acao_atual
-            
-            # Verifica se a ação atual ainda é válida
-            if acao not in acoes_validas:
-                # Se não é mais válida, escolhe a mais próxima válida
-                if len(acoes_validas) > 0:
-                    acao = min(acoes_validas, key=lambda a: abs(a - acao))
-                else:
-                    acao = 4  # Dash como fallback
-        else:
-            # Tempo de escolher nova ação
+        if self.frame_atual_skip >= self.frames_pulo or forcar_nova_decisao:
+            # TREINAMENTO ATRASADO DA ÚLTIMA DECISÃO (Uma vez a cada pulo)
+            if self.ultimo_estado_tensor is not None:
+                self.q_network.train()
+                q_values = self.q_network(self.ultimo_estado_tensor)
+                q_val = q_values[0, self.acao_anterior]
+                
+                # Consome o pool acumulado de dopamina dos frames que pulamos
+                recompensa_final = self.bonus_dopamina
+                self.bonus_dopamina = 0.0 # Reseta o pool
+                
+                alvo = q_val.item() + 0.15 * (recompensa_final - q_val.item())
+                alvo_tensor = torch.tensor(alvo, dtype=torch.float32, device=self.device)
+                loss = self.criterion(q_val, alvo_tensor)
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+                
+            # INFERÊNCIA DA NOVA AÇÃO
             if random.random() < self.taxa_exploracao:
-                acao = random.choice(acoes_validas)  # Explora apenas ações válidas
+                acao = random.choice(acoes_validas) if acoes_validas else random.randint(0, 8)
             else:
                 with torch.no_grad():
                     self.q_network.eval()
@@ -1304,25 +1506,53 @@ class AgenteApolo:
                     
                     # Mascara ações inválidas com valor muito negativo
                     q_vals_masked = q_vals.clone()
-                    for i in range(5):
+                    for i in range(9):  # Atualizado para 9 ações
                         if i not in acoes_validas:
                             q_vals_masked[i] = -1e9  # Valor extremamente negativo
                     
                     acao = torch.argmax(q_vals_masked).item()
             
-            # Reseta contador se mudou de ação
-            if acao != self.acao_atual:
-                self.frames_acao_atual = 0
-                self.acao_atual = acao
+            # Reseta contador e salva a nova ação mestre do ciclo
+            self.frame_atual_skip = 0
+            self.acao_persistente = acao
+            self.ultimo_estado_tensor = estado_tensor
+            self.acao_anterior = acao
+            
+        else:
+            # Action Repetition Clássico (Apenas retorna a última decisão)
+            acao = self.acao_persistente
+            # Assegura que persistência não o faça debater-se numa parede que acabou de encostar
+            if acao not in acoes_validas:
+                if len(acoes_validas) > 0:
+                    acao = min(acoes_validas, key=lambda a: abs(a - acao))
+                else:
+                    acao = 8
 
-        self.ultimo_estado_tensor = estado_tensor
-        self.acao_anterior = acao
+        # Acabamos a Inferência e Repetição
 
-        if acao == 0: self.direcao_y = -1   
-        elif acao == 1: self.direcao_y = 1  
-        elif acao == 2: self.direcao_x = -1 
-        elif acao == 3: self.direcao_x = 1  
-        elif acao == 4: self.usar_dash = True
+        # EXECUÇÃO DE AÇÕES MATEMÁTICO (9 Output)
+        if acao == 0:  # Cima
+            self.direcao_y = -1
+        elif acao == 1:  # Baixo
+            self.direcao_y = 1
+        elif acao == 2:  # Esquerda
+            self.direcao_x = -1
+        elif acao == 3:  # Direita
+            self.direcao_x = 1
+        elif acao == 4:  # Cima-Esquerda (diagonal)
+            self.direcao_x = -1
+            self.direcao_y = -1
+        elif acao == 5:  # Cima-Direita (diagonal)
+            self.direcao_x = 1
+            self.direcao_y = -1
+        elif acao == 6:  # Baixo-Esquerda (diagonal)
+            self.direcao_x = -1
+            self.direcao_y = 1
+        elif acao == 7:  # Baixo-Direita (diagonal)
+            self.direcao_x = 1
+            self.direcao_y = 1
+        elif acao == 8:  # Dash
+            self.usar_dash = True
 
 apolo = AgenteApolo()
 
@@ -1426,19 +1656,19 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
             vida_petro += int(vida_maxima_petro * 0.25)
             if vida_petro > vida_maxima_petro: vida_maxima_petro = vida_petro
         elif carta == "Disparo crescente":
-            dano_person_hit += 65 + (inimigos_eliminados // 50) * 1.5
+            dano_person_hit += 10 + (inimigos_eliminados // 50) * 1.5
         elif carta == "Trembo":
             trembo = True
             Tempo_cura = max(500, int(Tempo_cura * 0.85)) # Em 10 cartas, o tick cai para próximo de 0.5s
             porcentagem_cura += 0.005 + (inimigos_eliminados // 400) * 0.001 # Garante uma base inicial mais forte (0.5%)
         elif carta == "Tempestade":
-            dano_person_hit += 5 + (inimigos_eliminados // 100) * 1
+            dano_person_hit += 2.5 + (inimigos_eliminados // 100) * 1
             chance_critico += 0.01 + (inimigos_eliminados // 300) * 0.002
         elif carta == "Cura":
             roubo_de_vida += 0.25 + (inimigos_eliminados // 500) * 0.001
             quantidade_roubo_vida += 0.30 + (inimigos_eliminados // 500) * 0.001
         elif carta == "Speed Atack":
-            intervalo_disparo = max(50, int(intervalo_disparo * 0.88))
+            intervalo_disparo = max(70, int(intervalo_disparo * 0.95))
         elif carta == "Teleporte":
             reducao = 0.95 - min(0.15, (inimigos_eliminados // 1000) * 0.02)
             tempo_cooldown_dash = max(0.4, tempo_cooldown_dash * reducao)
@@ -1452,7 +1682,10 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
     multiplicador_critico = 1 + (chance_critico * 2.0)
     dps_teorico_apolo = dano_person_hit * ataques_por_segundo * multiplicador_critico
     
-    vida_maxima_umbra = int(25000 + (dps_teorico_apolo * 24) + (inimigos_eliminados * 25))
+    # Cap no dps para o boss não ficar imortal com muito dano
+    dps_escalonamento = min(dps_teorico_apolo, 1200) 
+    
+    vida_maxima_umbra = int(25000 + (dps_escalonamento * 24) + (inimigos_eliminados * 25))
 
     # --- O ESPELHO CORROMPIDO (CARTAS DA UMBRA) ---
     qtd_cartas_umbra = qtd_cartas_jogador // 3
@@ -1977,7 +2210,7 @@ while running:
             if estado_atual_ia.get('parede_ativa'):
                 if agora - estado_atual_ia.get('ultimo_tick_cura', 0) >= 600:
                     # Reduzimos para 2% para permitir o counter-play tático
-                    valor_cura = (vida_maxima_umbra-vida_umbra) * 0.01
+                    valor_cura = (vida_maxima_umbra-vida_umbra) * 0.05
                     memoria_umbra.treinar(1.5)
                     # A cura não pode ultrapassar o limite máximo
                     vida_umbra = min(vida_maxima_umbra, vida_umbra + valor_cura)
@@ -2109,7 +2342,7 @@ while running:
             if estado_atual_ia.get('fase_tele') == "projetil_viajando":
                 sinal = estado_atual_ia.get('proj_tele')
                 if sinal:
-                    # A. Movimentação do Sinalizador Azul
+                    # A. Movimentação do Sinalizador
                     dx_sinal = sinal['velocidade'] * math.cos(sinal['angulo'])
                     dy_sinal = sinal['velocidade'] * math.sin(sinal['angulo'])
                     sinal['x'] += dx_sinal
@@ -2117,19 +2350,55 @@ while running:
                     sinal['dist_percorrida'] += math.hypot(dx_sinal, dy_sinal)
                     memoria_umbra.treinar(0.5)
 
-                    # B. Renderização do Sinalizador (Brilho Neon)
-                    pygame.draw.circle(tela, (200, 230, 255), (int(sinal['x']), int(sinal['y'])), 8)
-                    pygame.draw.circle(tela, (0, 150, 255), (int(sinal['x']), int(sinal['y'])), 15, 2)
-
-                    # C. O SALTO REAL (Quando o projétil chega ao destino)
+                    # B. Renderização da Orbe do Sinalizador (Verde/Azul)
+                    cor_sinal = sinal.get('cor_sinal', (0, 255, 150))
+                    pygame.draw.circle(tela, (100, 255, 200), (int(sinal['x']), int(sinal['y'])), 8)
+                    pygame.draw.circle(tela, cor_sinal, (int(sinal['x']), int(sinal['y'])), 15, 2)
+                    
+                    # C. O INÍCIO DA FENDA (Quando a orbe chega)
                     if sinal['dist_percorrida'] >= sinal['dist_total']:
-                        pos_x_umbra = sinal['target_pos'][0]
-                        pos_y_umbra = sinal['target_pos'][1]
+                        estado_atual_ia['fase_tele'] = "portal_abrindo"
+                        sinal['tempo_chegada'] = agora
                         
-                        # Reset dos estados para permitir o próximo ciclo
-                        estado_atual_ia['fase_tele'] = "espera"
-                        estado_atual_ia['proj_tele'] = None
-                        estado_atual_ia['dano_recente'] = 0 
+            elif estado_atual_ia.get('fase_tele') == "portal_abrindo":
+                sinal = estado_atual_ia.get('proj_tele')
+                if sinal:
+                    tx, ty = sinal['target_pos'][0], sinal['target_pos'][1]
+                    renderizar_portal_teleporte_umbra(tela, agora, tx, ty, config_graficos)
+                    
+                    # Inteligência Analítica do Juke: Mapear se Apolo atirou no portal
+                    tiros_no_portal_agora = 0
+                    for d in disparos:
+                        if math.hypot(d["rect"].centerx - tx, d["rect"].centery - ty) < 80:
+                            tiros_no_portal_agora += 1
+                    sinal['engano_jogador'] = sinal.get('engano_jogador', 0) + tiros_no_portal_agora
+                    
+                    # Detecção de Farsa Quebrada (Surra durante Falso Teleporte)
+                    if sinal.get('tipo') == 'falso' and estado_atual_ia.get('dano_recente', 0) > 0:
+                        sinal['tipo'] = 'real' # Aborta o blefe, entra em desespero e foge pelo portal!
+                        memoria_umbra.treinar(-20.0) # Punição por falhar no blefe
+                    
+                    if agora - sinal.get('tempo_chegada', agora) >= 450:
+                        if sinal.get('tipo', 'real') == 'falso':
+                            # CONCLUSÃO DO JUKE!
+                            if sinal.get('engano_jogador', 0) > 0:
+                                memoria_umbra.treinar(15.0 * sinal['engano_jogador']) # Recompensa maciça por trollar
+                            estado_atual_ia['fase_tele'] = "espera"
+                            estado_atual_ia['proj_tele'] = None
+                            
+                        else:
+                            # O SALTO REAL DEFINITIVO
+                            pos_x_umbra = tx
+                            pos_y_umbra = ty
+                            
+                            # Efeito visual de entrada ao chegar
+                            vfx_apolo.criar_impacto_fragmentado(pos_x_umbra + largura_boss // 2, pos_y_umbra + altura_boss // 2)
+                            Som_portal.play()
+                            
+                            estado_atual_ia['chegada_teleporte'] = agora # Timestamp de vulnerabilidade!
+                            estado_atual_ia['fase_tele'] = "espera"
+                            estado_atual_ia['proj_tele'] = None
+                            estado_atual_ia['dano_recente'] = 0 
 
             else:
                 # SÓ SE MOVE NORMALMENTE SE NÃO ESTIVER TELEPORTANDO
@@ -2881,11 +3150,17 @@ while running:
                 # Aplicação de Dano e Treino
                 if vida_umbra > 0:
                     vida_umbra -= dano_final
+                    estado_atual_ia['dano_recente'] = estado_atual_ia.get('dano_recente', 0) + dano_final
                     
                     # --- NOVO MOTOR DE VFX: Desfragmentação de Impacto ---
                     vfx_apolo.criar_impacto_fragmentado(disparo["rect"].centerx, disparo["rect"].centery)
                     
                     punicao = -2.0 
+                    
+                    # Punição por dano pós-teleporte (falha no reposicionamento)
+                    if agora - estado_atual_ia.get('chegada_teleporte', 0) < 1500:
+                        punicao -= 10.0 # Punição severa por apanhar logo após o salto
+                        
                     memoria_umbra.treinar(punicao, prioridade=True)
     
                     if random.random() < roubo_de_vida:
@@ -2981,6 +3256,7 @@ while running:
                         "cor": cor_feedback
                     })
                     atingiu_boss = True
+                    apolo.bonus_dopamina += 150.0  # Massiva recompensa por prever a movimentação de Umbra!
                     estado_atual_ia['tomou_tiro_no_dash'] = True
 
 
@@ -2989,6 +3265,8 @@ while running:
         if dentro_mapa and not atingiu_boss and not interceptado:
             novos_disparos.append(disparo)
         elif not atingiu_boss and not interceptado:
+            # Punição por tiro perdido na borda (Ensina ele a poupar munição e atirar só com mira certa)
+            apolo.bonus_dopamina -= 20.0
             erros_player_contagem += 1 
 
     disparos = novos_disparos
@@ -3168,7 +3446,7 @@ while running:
     tela.blit(cursor_imagem, (mouse_x, mouse_y))
     exibir_cronometro(tela)
     pygame.display.flip()
-    FPS.tick(100)  # Limita a 60 FPS
+    FPS.tick(900)  # Limita a 60 FPS
 
 
 # Encerrar o Pygame
