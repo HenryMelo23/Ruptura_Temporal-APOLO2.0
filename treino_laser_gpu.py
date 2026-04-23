@@ -202,19 +202,24 @@ class ApoloTreinoLaserGPU:
         self.q_target = ApoloDQN(self.INPUT_SIZE, self.OUTPUT_SIZE).to(self.device)
 
         # torch.compile (PyTorch 2.0+, ~10-20% speedup)
-        try:
-            self.q_online = torch.compile(self.q_online)
-            self._compiled = True
-            print("[GPU] torch.compile ativado")
-        except Exception:
+        # Desativado no Windows pois o backend default 'inductor' requer Triton
+        if sys.platform != "win32":
+            try:
+                self.q_online = torch.compile(self.q_online)
+                self._compiled = True
+                print("[GPU] torch.compile ativado")
+            except Exception:
+                self._compiled = False
+                print("[GPU] torch.compile indisponivel (PyTorch < 2.0)")
+        else:
             self._compiled = False
-            print("[GPU] torch.compile indisponivel (PyTorch < 2.0)")
+            print("[GPU] torch.compile desativado (Windows sem Triton nativo)")
 
         self.optimizer = optim.Adam(self.q_online.parameters(), lr=self.LR)
         self.criterion = nn.SmoothL1Loss()
 
         # AMP (Mixed Precision FP16)
-        self.scaler   = torch.cuda.amp.GradScaler()
+        self.scaler   = torch.amp.GradScaler('cuda')
         self.amp_dtype= torch.float16
 
         self.replay   = ReplayBufferGPU(capacidade=200_000)
@@ -267,7 +272,7 @@ class ApoloTreinoLaserGPU:
         stacked = torch.cat(tensores, dim=0).to(self.device)  # (N, 40)
 
         self.q_online.eval()
-        with torch.cuda.amp.autocast(dtype=self.amp_dtype):
+        with torch.amp.autocast('cuda', dtype=self.amp_dtype):
             q_vals = self.q_online(stacked)  # (N, 9)
 
         acoes = []
@@ -278,7 +283,7 @@ class ApoloTreinoLaserGPU:
                 q = q_vals[i].clone()
                 for j in range(self.OUTPUT_SIZE):
                     if j not in validas:
-                        q[j] = -1e9
+                        q[j] = -60000.0
                 acoes.append(int(torch.argmax(q).item()))
         return acoes
 
@@ -292,7 +297,7 @@ class ApoloTreinoLaserGPU:
 
         self.q_online.train()
 
-        with torch.cuda.amp.autocast(dtype=self.amp_dtype):
+        with torch.amp.autocast('cuda', dtype=self.amp_dtype):
             q_current = self.q_online(estados)
             q_atual   = q_current.gather(1, acoes.unsqueeze(1)).squeeze(1)
 
@@ -706,7 +711,8 @@ class VectorLaserEnv:
         for i, (env, acao) in enumerate(zip(self.envs, acoes)):
             s_ant  = self.estados[i]
             s_prox, r, done = env.step(acao)
-            transicoes.append((s_ant, acao, r, s_prox, done))
+            info = {'rodadas': env.rodadas_sobrevividas, 'rodada_max': env.rodada_max}
+            transicoes.append((s_ant, acao, r, s_prox, done, info))
 
             if done:
                 self.estados[i] = env.reset()
@@ -744,8 +750,10 @@ def treinar_gpu(num_geracoes: int = 2000, n_envs: int = 8,
     melhor_recomp= -float('inf')
     melhor_rodada= 0
 
-    fase1_fim = num_geracoes // 3
-    fase2_fim = (num_geracoes * 2) // 3
+    # --- NOVO SISTEMA CURRICULUM (PERFORMANCE-BASED) ---
+    fase_atual       = 1
+    ep_ultimo_avanco = 0
+    historico_fases  = {1: 0, 2: None, 4: None}
 
     # Contador de "episodios completos" (um env por vez pode terminar, conta como ep)
     ep_total     = 0
@@ -762,11 +770,12 @@ def treinar_gpu(num_geracoes: int = 2000, n_envs: int = 8,
     print(f"  AMP FP16:      SIM")
     print(f"  Geracoes:      {num_geracoes}")
     if curriculum:
-        print(f"  CURRICULUM:    ep 1-{fase1_fim} Rod1 | {fase1_fim+1}-{fase2_fim} Rod1-2 | {fase2_fim+1}+ Rod1-4")
+        print(f"  CURRICULUM:    Performance-Based (Exige >75% sobrevivencia para avancar)")
     print("=" * 65 + "\n")
 
     inicio        = time.time()
     ultimo_log    = inicio
+    ultimo_log_ep = -1
     transicoes_s  = 0
 
     # Warmup: preenche o buffer antes de comecar a treinar
@@ -776,21 +785,41 @@ def treinar_gpu(num_geracoes: int = 2000, n_envs: int = 8,
         avs     = venvs.get_acoes_validas()
         acoes   = [random.choice(av) for av in avs]
         trans   = venvs.step_todos(acoes)
-        for s, a, r, s_, done in trans:
+        for s, a, r, s_, done, info in trans:
             agente.adicionar_transicao(s, a, r, s_, done)
     print(f"[GPU] Buffer aquecido ({len(agente.replay)} transicoes). Iniciando treino...\n")
 
     while ep_total < num_geracoes:
-        # Curriculum
+        # 1. CURRICULUM BASEADO EM DESEMPENHO REAL
         if curriculum:
-            rod_max = 1 if ep_total <= fase1_fim else \
-                      2 if ep_total <= fase2_fim else 4
+            if len(hist_rod[fase_atual]) >= 50:
+                sucesso_fase = sum(hist_rod[fase_atual][-50:]) / 50.0
+            else:
+                sucesso_fase = 0.0
+
+            # Só avança se dominar a fase atual (>= 75%) e já treinou um pouco nela (> 100 eps)
+            if sucesso_fase >= 0.75 and (ep_total - ep_ultimo_avanco) > 100:
+                if fase_atual == 1:
+                    fase_atual = 2
+                    ep_ultimo_avanco = ep_total
+                    historico_fases[2] = ep_total
+                    print(f"\n[CURRICULUM] Excelente! Apolo dominou a Rodada 1. Avancando para Rodada 2. (Ep {ep_total})")
+                elif fase_atual == 2:
+                    fase_atual = 4
+                    ep_ultimo_avanco = ep_total
+                    historico_fases[4] = ep_total
+                    print(f"\n[CURRICULUM] Excelente! Apolo dominou a Rodada 2. Avancando para Rodada 4. (Ep {ep_total})")
+            rod_max = fase_atual
         else:
             rod_max = 4
+            fase_atual = 4
         venvs.rodada_max = rod_max
 
-        # Epsilon annealing
-        agente.taxa_exp = max(0.10, 0.80 * (0.998 ** ep_total))
+        # 2. EPSILON DECADENTE COM "BUMP" (Sem Espiral da Morte)
+        # Decai de 80% para 10% suavemente (0.995 precisa de ~400 eps para chegar a 10%).
+        # Ao avancar de fase, ele recebe um "choque" de 40% de exploracao para testar a fase nova.
+        eps_base = 0.80 if fase_atual == 1 else 0.40
+        agente.taxa_exp = max(0.10, eps_base * (0.995 ** (ep_total - ep_ultimo_avanco)))
 
         # === UM STEP VETORIZADO ===
         estados   = venvs.get_estados()
@@ -798,10 +827,13 @@ def treinar_gpu(num_geracoes: int = 2000, n_envs: int = 8,
         acoes     = agente.decidir_batch(estados, avs)
         trans     = venvs.step_todos(acoes)
 
-        for s, a, r, s_, done in trans:
+        for s, a, r, s_, done, info in trans:
             agente.adicionar_transicao(s, a, r, s_, done)
             if done:
                 ep_total += 1
+                hist_sv.append(1 if info['rodadas'] >= info['rodada_max'] else 0)
+                for r_idx in range(1, 5):
+                    hist_rod[r_idx].append(1 if info['rodadas'] >= r_idx else 0)
             transicoes_s += 1
 
         # === TREINO ===
@@ -810,7 +842,7 @@ def treinar_gpu(num_geracoes: int = 2000, n_envs: int = 8,
 
         # === LOG a cada 5s ou a cada 50 episodios ===
         agora = time.time()
-        if ep_total > 0 and (agora - ultimo_log > 5.0 or ep_total % 50 == 0):
+        if ep_total > 0 and (agora - ultimo_log > 5.0 or (ep_total % 50 == 0 and ep_total != ultimo_log_ep)):
             elapsed  = agora - inicio
             ep_s     = ep_total / max(1.0, elapsed)
             trans_s  = transicoes_s / max(1.0, elapsed)
@@ -818,8 +850,7 @@ def treinar_gpu(num_geracoes: int = 2000, n_envs: int = 8,
 
             sv_r = {r: sum(hist_rod[r][-50:]) / max(1, len(hist_rod[r][-50:])) * 100
                     for r in range(1, 5)} if hist_rod[1] else {1:0,2:0,3:0,4:0}
-            fase_c = ("Rod1" if curriculum and ep_total <= fase1_fim else
-                      "Rod1-2" if curriculum and ep_total <= fase2_fim else "Rod1-4")
+            fase_c = f"Rod1" if fase_atual == 1 else f"Rod1-2" if fase_atual == 2 else f"Rod1-4"
 
             # Identifica o melhor env ativo
             recomps, rodadas = venvs.get_stats()
@@ -834,7 +865,8 @@ def treinar_gpu(num_geracoes: int = 2000, n_envs: int = 8,
                 f"eps:{agente.taxa_exp:.3f} buf:{buf_sz:>6} | "
                 f"{ep_s:.1f}ep/s {trans_s:.0f}t/s"
             )
-            ultimo_log = agora
+            ultimo_log    = agora
+            ultimo_log_ep = ep_total
 
         # Salva pesos
         if ep_total > 0 and ep_total % salvar_intervalo == 0:
@@ -844,14 +876,35 @@ def treinar_gpu(num_geracoes: int = 2000, n_envs: int = 8,
     # Final
     agente.salvar_pesos()
     dur    = time.time() - inicio
+    
+    # Calcular taxa de sobrevivencia final (ultimos 100 episodios se possivel)
+    sv_final = {r: sum(hist_rod[r][-100:]) / max(1, len(hist_rod[r][-100:])) * 100 for r in range(1, 5)} if hist_rod[1] else {1:0,2:0,3:0,4:0}
+
     print("\n" + "=" * 65)
-    print("  TREINO GPU CONCLUIDO!")
+    print("  RELATORIO FINAL DE TREINAMENTO (GPU)")
     print("=" * 65)
+    print(f"  [METRICAS GERAIS]")
     print(f"  Total episodios:    {ep_total}")
     print(f"  Duracao:            {dur:.1f}s  ({dur/60:.1f} min)")
     print(f"  Throughput medio:   {ep_total/dur:.1f} ep/s | {passos_total*n_envs/dur:.0f} t/s")
     print(f"  Melhor rodada:      {melhor_rodada}/4")
-    print(f"  Pesos salvos em:    apolo_memoria_dqn.pt")
+    print(f"  Epsilon final:      {agente.taxa_exp:.3f} ({agente.taxa_exp*100:.1f}% exploracao)")
+    
+    print(f"\n  [CURRICULUM MILESTONES]")
+    if not curriculum:
+        print(f"  Curriculum desativado.")
+    else:
+        print(f"  - Iniciou Rodada 1: Episodio {historico_fases.get(1, 0)}")
+        print(f"  - Alcancou Rodada 2: " + (f"Episodio {historico_fases[2]}" if historico_fases.get(2) else "(Nao atingido)"))
+        print(f"  - Alcancou Rodada 4: " + (f"Episodio {historico_fases[4]}" if historico_fases.get(4) else "(Nao atingido)"))
+            
+    print(f"\n  [TAXA DE SOBREVIVENCIA FINAL (Ultimos 100 eps)]")
+    print(f"  Rodada 1 (R1):      {sv_final[1]:.1f}%")
+    print(f"  Rodada 2 (R2):      {sv_final[2]:.1f}%")
+    print(f"  Rodada 3 (R3):      {sv_final[3]:.1f}%")
+    print(f"  Rodada 4 (R4):      {sv_final[4]:.1f}%")
+    
+    print(f"\n  Pesos salvos em:    apolo_memoria_dqn.pt")
     print("=" * 65)
 
 
