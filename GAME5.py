@@ -968,68 +968,108 @@ class AgenteApolo:
                     duracao_disparo = laser.get('duracao_disparo', 4000)
                     velocidade_angular = giro_total / (duracao_disparo / 1000.0)  # rad/s
                     feat_laser_velocidade_angular = min(1.0, abs(velocidade_angular) / (2 * math.pi))
-                    
-                    # Calcular posição dos feixes e encontrar o mais próximo
+
+                    # Calcular posição dos feixes usando angulo_base_inicio real
                     if boss_hitbox:
                         origem_laser = (boss_hitbox.centerx, boss_hitbox.centery)
-                        angulo_base = giro_total * feat_laser_progresso * sentido
-                        
-                        menor_dist = float('inf')
-                        angulo_feixe_proximo = 0
-                        tempo_ate_atingir = float('inf')
-                        
+                        ang_base_real = laser.get('angulo_base_inicio', 0.0)
+                        angulo_base   = ang_base_real + giro_total * feat_laser_progresso * sentido
+
+                        menor_dist   = float('inf')
+                        ang_proximo  = 0.0
+                        ang_2nd      = 0.0
+                        dist_2nd     = float('inf')
+                        feixes_info  = []  # (dist, ang) de cada feixe na frente
+
                         for i in range(num_feixes):
                             angulo_atual = angulo_base + i * ((math.pi * 2) / num_feixes)
-                            
+
                             # Calcula ponto final do feixe
                             comp_laser = 2500
                             fim_x = origem_laser[0] + math.cos(angulo_atual) * comp_laser
                             fim_y = origem_laser[1] + math.sin(angulo_atual) * comp_laser
-                            
-                            # Distância perpendicular do player à linha do laser
-                            numerador = abs((fim_y - origem_laser[1])*px - (fim_x - origem_laser[0])*py + 
-                                          fim_x*origem_laser[1] - fim_y*origem_laser[0])
+
+                            # Distancia perpendicular do player a linha do laser
+                            numerador   = abs((fim_y - origem_laser[1])*px - (fim_x - origem_laser[0])*py +
+                                             fim_x*origem_laser[1] - fim_y*origem_laser[0])
                             denominador = math.hypot(fim_y - origem_laser[1], fim_x - origem_laser[0])
-                            dist_linha = numerador / denominador if denominador > 0 else 9999
-                            
-                            # Verifica se está na frente do laser
-                            dot_product = (px - origem_laser[0]) * math.cos(angulo_atual) + \
-                                        (py - origem_laser[1]) * math.sin(angulo_atual)
-                            
-                            if dot_product > 0 and dist_linha < menor_dist:
-                                menor_dist = dist_linha
-                                angulo_feixe_proximo = angulo_atual
-                                
-                                # Estima tempo até o feixe atingir a posição do player
-                                # Calcula ângulo entre posição atual do feixe e posição do player
-                                angulo_player = math.atan2(py - origem_laser[1], px - origem_laser[0])
-                                diff_angulo = angulo_player - angulo_atual
-                                
-                                # Normaliza diferença de ângulo para -pi a pi
-                                while diff_angulo > math.pi: diff_angulo -= 2 * math.pi
-                                while diff_angulo < -math.pi: diff_angulo += 2 * math.pi
-                                
-                                # Se o laser está girando na direção do player
-                                if (sentido > 0 and diff_angulo > 0) or (sentido < 0 and diff_angulo < 0):
-                                    tempo_ate_atingir = abs(diff_angulo) / abs(velocidade_angular) if velocidade_angular != 0 else 0
-                                else:
-                                    # Laser está se afastando, tempo é grande
-                                    tempo_ate_atingir = 999
-                        
-                        # Normaliza features
-                        feat_laser_dist_feixe_proximo = min(1.0, menor_dist / 400.0)  # 400px = distância segura
-                        feat_laser_angulo_mais_proximo = math.sin(angulo_feixe_proximo)  # -1 a 1
-                        feat_laser_tempo_ate_atingir = min(1.0, tempo_ate_atingir / 3.0)  # Normaliza até 3 segundos
-            
-        features = [feat_px, feat_py, feat_bx, feat_by, feat_vida_p, feat_vida_b, 
+                            dist_linha  = numerador / denominador if denominador > 0 else 9999
+
+                            # Verifica se esta na frente do laser
+                            dot = (px - origem_laser[0]) * math.cos(angulo_atual) + \
+                                  (py - origem_laser[1]) * math.sin(angulo_atual)
+                            if dot > 0:
+                                feixes_info.append((dist_linha, angulo_atual))
+
+                        # Ordena por distancia para achar 1o e 2o feixes
+                        feixes_info.sort(key=lambda x: x[0])
+                        if feixes_info:
+                            menor_dist  = feixes_info[0][0]
+                            ang_proximo = feixes_info[0][1]
+                        if len(feixes_info) >= 2:
+                            dist_2nd = feixes_info[1][0]
+                            ang_2nd  = feixes_info[1][1]
+
+                        # --- FEATURE [24]: signed approach angle (substituiu sin ambiguo) ---
+                        # Positivo = feixe se aproximando de mim na direcao de rotacao
+                        # Negativo = feixe se afastando / ja passou
+                        ang_player = math.atan2(py - origem_laser[1], px - origem_laser[0])
+                        diff1 = ang_player - ang_proximo
+                        while diff1 >  math.pi: diff1 -= 2 * math.pi
+                        while diff1 < -math.pi: diff1 += 2 * math.pi
+                        signed_approach = max(-1.0, min(1.0, (diff1 * sentido) / math.pi))
+                        feat_laser_angulo_mais_proximo = signed_approach
+
+                        # --- FEATURE [26]: cos do angulo do feixe mais proximo ---
+                        feat_laser_tempo_ate_atingir = math.cos(ang_proximo)
+
+                        # Normaliza features de distancia
+                        feat_laser_dist_feixe_proximo = min(1.0, menor_dist / 400.0)
+
+                        # --- FEATURES GEOMETRICAS [30-33]: identicas ao treino ---
+                        # [30] fuga_x: componente X do vetor perpendicular ao feixe (direcao de fuga)
+                        ang_fuga = ang_proximo + (math.pi / 2) * sentido
+                        feat_fuga_x = math.cos(ang_fuga)
+                        feat_fuga_y = math.sin(ang_fuga)
+
+                        # [32] in_sweep_zone: 1 se o player ainda sera varrido pelo laser nesta rodada
+                        ang_restante = giro_total * (1.0 - feat_laser_progresso)
+                        diff_sweep = diff1 * sentido  # quanto falta ate o feixe chegar ao player
+                        if diff_sweep < 0: diff_sweep += 2 * math.pi
+                        in_sweep_zone = 1.0 if 0 < diff_sweep <= ang_restante else 0.0
+
+                        # [33] signed approach do 2o feixe mais proximo
+                        if dist_2nd < float('inf'):
+                            diff2 = ang_player - ang_2nd
+                            while diff2 >  math.pi: diff2 -= 2 * math.pi
+                            while diff2 < -math.pi: diff2 += 2 * math.pi
+                            signed_2nd = max(-1.0, min(1.0, (diff2 * sentido) / math.pi))
+                        else:
+                            signed_2nd = -1.0  # sem 2o feixe = seguro
+        
+        # ==============================================================
+        # FEATURES GEOMETRICAS DO LASER (ativas apenas quando disparando)
+        # Posicoes 30-33 sao identicas entre treino e jogo
+        # ==============================================================
+        if estado_ia and estado_ia.get('laser_ativo') and \
+           estado_ia['laser_ativo'].get('fase') == 'disparando' and boss_hitbox:
+            # Variaveis ja calculadas no bloco acima
+            pass  # feat_fuga_x, feat_fuga_y, in_sweep_zone, signed_2nd definidos acima
+        else:
+            feat_fuga_x    = 0.0
+            feat_fuga_y    = 0.0
+            in_sweep_zone  = 0.0
+            signed_2nd     = -1.0  # seguro por padrao
+
+        features = [feat_px, feat_py, feat_bx, feat_by, feat_vida_p, feat_vida_b,
                    feat_dist_borda_esquerda, feat_dist_borda_direita, feat_dist_borda_cima, feat_dist_borda_baixo, em_canto,
-                   dist_perigo, dx_perigo, dy_perigo, feat_cd_tele, feat_vel_p, feat_esferas_qtd, feat_vel_b, 
+                   dist_perigo, dx_perigo, dy_perigo, feat_cd_tele, feat_vel_p, feat_esferas_qtd, feat_vel_b,
                    feat_laser_fase, feat_laser_rodada, feat_laser_progresso, feat_laser_num_feixes,
                    feat_laser_sentido_rotacao, feat_laser_velocidade_angular, feat_laser_angulo_mais_proximo,
                    feat_laser_dist_feixe_proximo, feat_laser_tempo_ate_atingir,
-                   feat_dist_orbe_proxima, feat_dir_orbe_x, feat_dir_orbe_y, 
-                   feat_qtd_ratos, feat_dist_rato_proximo, feat_dir_rato_x, feat_dir_rato_y] + feat_armadilhas
-        
+                   feat_dist_orbe_proxima, feat_dir_orbe_x, feat_dir_orbe_y,
+                   feat_fuga_x, feat_fuga_y, in_sweep_zone, signed_2nd] + feat_armadilhas
+
         tensor = torch.tensor(features, dtype=torch.float32, device=self.device).unsqueeze(0)
         return tensor
 
@@ -2479,7 +2519,7 @@ while running:
                     cor_frag = (138, 43, 226) if p.get('tipo') == 'furia' else (0, 191, 255)
                     hb.gerar_burst_desfragmentacao(p["rect"].centerx, p["rect"].centery, estado_atual_ia, cor_frag)
                     
-                    dano_bruto = (420 + (inimigos_eliminados * 0.10)) * multiplicador_dano_umbra
+                    dano_bruto = (200 + (inimigos_eliminados *0.05)) * multiplicador_dano_umbra
                     dano_recebido = int(dano_bruto - Resistencia)
                     
                     if dano_recebido < 0: 
@@ -3139,11 +3179,12 @@ while running:
                     
                     if estado_atual_ia['carga_atrito'] >= 100 and not estado_atual_ia.get('laser_ativo'):
                         estado_atual_ia['laser_ativo'] = {
-                            'tempo_inicio': agora,
-                            'fase': 'carregando',
-                            'rodada': 1,              # Inicia na Rodada 1
-                            'duracao_carga': 1500,    # 1.5s de carga entre cada estágio
-                            'duracao_disparo': 4000   # 4s atirando por estágio
+                            'tempo_inicio':          agora,
+                            'fase':                  'carregando',
+                            'rodada':                1,
+                            'duracao_carga':         1500,
+                            'duracao_disparo':       4000,
+                            'angulo_base_inicio':    random.uniform(0, math.pi * 2)  # angulo real do inicio
                         }
                         estado_atual_ia['carga_atrito'] = 0
 

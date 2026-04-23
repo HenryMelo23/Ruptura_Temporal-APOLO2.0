@@ -172,7 +172,7 @@ class GerenciadorRatos:
         
         # Configurações de dano e cura
         self.dano_rato = 80  # Dano causado ao Apolo
-        self.cura_umbra_percentual = 0.04  # 4% da vida máxima da Umbra
+        self.cura_umbra_percentual = 0.005  # 0.5% da vida máxima da Umbra
         
         # Dimensões do mapa
         self.largura_mapa = largura_mapa
