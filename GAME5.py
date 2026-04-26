@@ -708,16 +708,21 @@ class AgenteApolo:
         self.alvo_y = 0
 
         # Action Repetition / frame skip adaptativo
-        self.frames_pulo          = 6   # normal (laser inativo)
-        self.frames_pulo_emergencia = 2  # emergencia (laser < 100px, projétil < 80px)
-        self.frame_atual_skip     = 0
-        self.acao_persistente     = 8
-        self.foco_orbe            = None
+        self.frames_pulo            = 6   # normal (laser inativo)
+        self.frames_pulo_emergencia = 2   # emergencia (laser < 100px, projétil < 80px)
+        self.frame_atual_skip       = 0
+        self.frames_acao_atual      = 0   # contador legado (compatibilidade)
+        self.acao_persistente       = 8
+        self.foco_orbe              = None
 
         # Tracking de recompensas acumuladas entre skips
         self.bonus_dopamina       = 0.0
         self.ultimo_estado_tensor = None
         self.acao_anterior        = 0
+
+        # Tracking de vida para reward shaping (delta de vida entre frames)
+        self.vida_jogador_anterior = 0
+        self.vida_boss_anterior    = 0
 
         # Memoria de posicoes para recompensa de evasao
         self.ultima_dist_perp_laser  = None
