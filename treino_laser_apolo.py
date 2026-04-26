@@ -161,6 +161,23 @@ class ApoloTreinoLaser:
         """Copia pesos da rede online para a rede alvo (hard update)."""
         self.q_target.load_state_dict(self.q_online.state_dict())
 
+    def _limpar_pesos(self):
+        """Reinicializa pesos do zero (Kaiming). Use quando features mudaram semantica."""
+        if os.path.exists(self.ARQUIVO_PESOS):
+            import shutil
+            bak = self.ARQUIVO_PESOS.replace('.pt', '_backup_antes_limpar.pt')
+            shutil.copy2(self.ARQUIVO_PESOS, bak)
+            print(f"[APOLO] Backup salvo em '{bak}'")
+
+        def _kaiming_init(m):
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='leaky_relu')
+                nn.init.zeros_(m.bias)
+
+        self.q_online.apply(_kaiming_init)
+        self._sincronizar_target()
+        print("[APOLO] Pesos REINICIALIZADOS (Kaiming Normal). Pronto para treino fresco.")
+
     def salvar_pesos(self):
         torch.save(self.q_online.state_dict(), self.ARQUIVO_PESOS)
 
@@ -754,57 +771,78 @@ class RenderizadorLaser:
 # LOOP PRINCIPAL DE TREINO
 # =============================================================================
 def treinar(num_geracoes: int = 500, visual: bool = False,
-            salvar_intervalo: int = 10, curriculum: bool = False):
+            salvar_intervalo: int = 10, curriculum: bool = False,
+            limpar_pesos: bool = False):
     """
-    curriculum=True: progressivamente desafia rodadas mais difíceis.
-      ep 1 ~ 33%:    apenas Rodada 1 (1 feixe)  — aprende desvio básico
-      ep 34% ~ 66%:  Rodadas 1-2 (1+2 feixes)   — aprende inversão de sentido
-      ep 67% ~ 100%: Rodadas 1-4 (completo)      — desafio final
+    curriculum=True: avanca de fase automaticamente pela taxa de sobrevivencia.
+      Fase 1: apenas Rodada 1 (sv > 50%)  -- aprende desvio basico
+      Fase 2: Rodadas 1-2   (sv > 40%)   -- aprende inversao de sentido
+      Fase 3: Rodadas 1-4   (sv > 30%)   -- desafio completo
+    Epsilon e resetado a 0.60 a cada transicao de fase.
     """
     env          = LaserEnv()
     agente       = ApoloTreinoLaser()
     renderizador = RenderizadorLaser() if visual else None
 
+    if limpar_pesos:
+        agente._limpar_pesos()
+
     hist_recomp   = []
-    hist_sv       = []    # 1 = sobreviveu 4 rodadas, 0 = nao
-    hist_rod      = {1: [], 2: [], 3: [], 4: []}  # sv por rodada individual
+    hist_sv       = []
+    hist_rod      = {1: [], 2: [], 3: [], 4: []}
     melhor_recomp = -float('inf')
     melhor_rodada = 0
 
-    # Limites de currículo
-    fase1_fim  = num_geracoes // 3
-    fase2_fim  = (num_geracoes * 2) // 3
+    # Curriculum com fase explicita (nao baseado em ep_total)
+    fase_curr   = 1  # 1=rod1 | 2=rod1-2 | 3=rod1-4 | 4=completo
+    rod_max_ant = 0  # detecta transicao
 
     print("\n" + "=" * 60)
-    print("  TREINO LASER v3 -- APOLO  (Curriculum + 2nd Beam)")
+    print("  TREINO LASER v4 -- APOLO  (Curriculum Adaptativo)")
     print("=" * 60)
     print(f"  Geracoes:      {num_geracoes}")
     print(f"  Visual:        {'SIM' if visual else 'NAO (headless)'}")
     print(f"  Dispositivo:   {agente.device}")
     print(f"  Replay buffer: 50.000 transicoes | batch = 64")
-    print(f"  Epsilon:       0.80 -> 0.10 (decay 0.998/ep)")
+    print(f"  Pesos limpos:  {'SIM (treinando do zero)' if limpar_pesos else 'NAO (continuando treino)'}")
     if curriculum:
-        print(f"  CURRICULUM:    ep 1-{fase1_fim} Rod1 | ep {fase1_fim+1}-{fase2_fim} Rod1-2 | ep {fase2_fim+1}+ Rod1-4")
+        print(f"  CURRICULUM:    Fase1=Rod1(sv>50%) | Fase2=Rod1-2(sv>40%) | Fase3=Rod1-4")
+        print(f"                 Epsilon resetado a 0.60 em cada transicao de fase.")
     print("=" * 60 + "\n")
 
     inicio = time.time()
 
     for ep in range(1, num_geracoes + 1):
-        # -- Curriculum: define rodada máxima do episódio ----------------------
+
+        # -- Curriculum adaptativo: avanca pela taxa de sv -------------------
         if curriculum:
-            if ep <= fase1_fim:
-                env.rodada_max = 1    # só Rodada 1
-            elif ep <= fase2_fim:
-                env.rodada_max = 2    # Rodadas 1-2
-            else:
-                env.rodada_max = 4    # completo
+            sv1 = sum(hist_rod[1][-100:]) / max(1, len(hist_rod[1][-100:]))
+            sv2 = sum(hist_rod[2][-100:]) / max(1, len(hist_rod[2][-100:]))
+            sv3 = sum(hist_rod[3][-100:]) / max(1, len(hist_rod[3][-100:]))
+            if   fase_curr == 1 and sv1 >= 0.50 and ep >= 300:
+                fase_curr = 2
+            elif fase_curr == 2 and sv2 >= 0.40 and ep >= 600:
+                fase_curr = 3
+            elif fase_curr == 3 and sv3 >= 0.30 and ep >= 1000:
+                fase_curr = 4
+            rod_max = {1: 1, 2: 2, 3: 4, 4: 4}[fase_curr]
         else:
-            env.rodada_max = 4        # sempre completo
+            rod_max = 4
+
+        env.rodada_max = rod_max
+
+        # -- Detecta transicao de fase -> re-explora -------------------------
+        if rod_max != rod_max_ant:
+            if rod_max_ant > 0:
+                agente.taxa_exp = 0.60
+                print(f"\n  [CURRICULUM] Fase {fase_curr}: rod_max={rod_max}, "
+                      f"eps -> {agente.taxa_exp:.2f} (re-explorando)\n")
+            rod_max_ant = rod_max
+
+        # -- Epsilon annealing -----------------------------------------------
+        agente.taxa_exp = max(0.08, agente.taxa_exp * 0.9998)
 
         s = env.reset()
-
-        # Epsilon annealing lento (0.998 por ep, min 0.10)
-        agente.taxa_exp = max(0.10, 0.80 * (0.998 ** ep))
 
         while not env.done:
             acoes = env.acoes_validas()
@@ -841,11 +879,10 @@ def treinar(num_geracoes: int = 500, visual: bool = False,
             sv_r = {r: sum(hist_rod[r][-50:]) / max(1, len(hist_rod[r][-50:])) * 100
                     for r in range(1, 5)}
 
-            fase_curr = ("Rod1" if curriculum and ep <= fase1_fim else
-                         "Rod1-2" if curriculum and ep <= fase2_fim else "Rod1-4")
+            fase_label = f"F{fase_curr}/Rod{env.rodada_max}" if curriculum else f"Rod{env.rodada_max}"
 
             print(
-                f"[Ep {ep:>5}/{fase_curr}] "
+                f"[Ep {ep:>5}/{fase_label}] "
                 f"Recomp:{env.recompensa_acumulada:>8.1f} | "
                 f"Med:{media:>8.1f} | "
                 f"Rod:{env.rodadas_sobrevividas}/4 | "
@@ -921,7 +958,9 @@ if __name__ == "__main__":
     parser.add_argument("--verificar",  action="store_true",
                         help="Verifica tensor/pesos e sai")
     parser.add_argument("--curriculum", action="store_true",
-                        help="Treino progressivo: Rod1 -> Rod1-2 -> Rod1-4")
+                        help="Treino progressivo adaptativo: Rod1 -> Rod1-2 -> Rod1-4")
+    parser.add_argument("--limpar",     action="store_true",
+                        help="Reinicia pesos do zero (use quando features mudaram)")
     args = parser.parse_args()
 
     if args.verificar:
@@ -940,4 +979,5 @@ if __name__ == "__main__":
         visual          = args.visual,
         salvar_intervalo= args.salvar,
         curriculum      = args.curriculum,
+        limpar_pesos    = args.limpar,
     )

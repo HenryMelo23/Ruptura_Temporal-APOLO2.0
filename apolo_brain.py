@@ -1,0 +1,437 @@
+"""
+apolo_brain.py  —  Nucleo de Inteligencia de Apolo v2.0
+=========================================================
+Modulo CENTRAL e UNICO de IA do Apolo.
+Importado por GAME5.py e treino_laser_gpu.py.
+
+NEUROGENESE ATIVA:
+  Apolo monitora sua propria confusao (entropia dos Q-values).
+  Quando confuso por muito tempo, CRIA novos neuronios automaticamente.
+  Se a arquitetura mudar, faz backup e reinicia pesos sem conflito.
+
+  Arquitetura salva em: apolo_arq.json
+  Pesos salvos em:      apolo_memoria_dqn.pt
+"""
+
+import math, random, collections, os, json, shutil
+import torch
+import torch.nn as nn
+
+# =============================================================================
+# CONSTANTES CANONICAS
+# =============================================================================
+INPUT_SIZE  = 40
+OUTPUT_SIZE = 9
+ARQ_FILE    = "apolo_arq.json"   # Metadata da arquitetura atual
+PESOS_FILE  = "apolo_memoria_dqn.pt"
+
+# Limites de crescimento (GTX 1650: 4GB VRAM — 512 eh o teto seguro)
+HIDDEN_MIN  = 128
+HIDDEN_MAX  = 512
+HIDDEN_STEP = 64   # Cresce 64 neuronios por vez
+
+# Neurogenese: se entropia media > ENTROPIA_LIMIAR por JANELA_ENTROPIA passos -> cresce
+ENTROPIA_LIMIAR  = 1.8   # Entropia maxima em 9 acoes = ln(9) ~ 2.2
+JANELA_ENTROPIA  = 1000  # Avalia a cada 1000 passos
+
+
+# =============================================================================
+# GERENCIADOR DE ARQUITETURA  (unica fonte de verdade)
+# =============================================================================
+class GerenciadorArquitetura:
+    """
+    Le e escreve a configuracao da rede em apolo_arq.json.
+    Detecta incompatibilidade ao carregar pesos e dispara reset automatico.
+    """
+
+    @staticmethod
+    def _padrao():
+        return {"hidden": 256, "version": 1}
+
+    @staticmethod
+    def carregar() -> dict:
+        if os.path.exists(ARQ_FILE):
+            try:
+                with open(ARQ_FILE, "r") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return GerenciadorArquitetura._padrao()
+
+    @staticmethod
+    def salvar(cfg: dict):
+        with open(ARQ_FILE, "w") as f:
+            json.dump(cfg, f, indent=2)
+
+    @staticmethod
+    def crescer(cfg: dict) -> dict:
+        """Aumenta hidden em HIDDEN_STEP, respeitando o teto."""
+        novo = min(cfg["hidden"] + HIDDEN_STEP, HIDDEN_MAX)
+        if novo == cfg["hidden"]:
+            return cfg  # Ja no teto
+        novo_cfg = {"hidden": novo, "version": cfg.get("version", 1) + 1}
+        print(f"\n[NEUROGENESE] Arquitetura cresceu: {cfg['hidden']} -> {novo} neuronios!")
+        print(f"[NEUROGENESE] Memoria reiniciada para evitar conflito.\n")
+        GerenciadorArquitetura.salvar(novo_cfg)
+        # Limpa pesos antigos (incompativeis)
+        if os.path.exists(PESOS_FILE):
+            bak = PESOS_FILE.replace(".pt", f"_bak_v{cfg.get('version',1)}.pt")
+            shutil.copy2(PESOS_FILE, bak)
+            os.remove(PESOS_FILE)
+        return novo_cfg
+
+
+# =============================================================================
+# REDE NEURAL  —  Dueling DQN com tamanho dinamico
+# =============================================================================
+class ApoloDQN(nn.Module):
+    """
+    Dueling DQN com hidden_dim configuravel.
+
+    Fluxo:
+      Input[40] -> FC[H] + LN + LReLU -> FC[H] + LN + LReLU
+        -> Value[H//2 -> 1]  +  Advantage[H//2 -> 9]
+        -> Q = V + (A - mean(A))
+
+    hidden_dim aumenta automaticamente via Neurogenese.
+    """
+
+    def __init__(self, hidden_dim: int = 256,
+                 input_size: int = INPUT_SIZE,
+                 output_size: int = OUTPUT_SIZE):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        h2 = max(64, hidden_dim // 2)
+
+        self.shared = nn.Sequential(
+            nn.Linear(input_size, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.LeakyReLU(0.01),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.LeakyReLU(0.01),
+        )
+        self.value_stream = nn.Sequential(
+            nn.Linear(hidden_dim, h2),
+            nn.LeakyReLU(0.01),
+            nn.Linear(h2, 1),
+        )
+        self.advantage_stream = nn.Sequential(
+            nn.Linear(hidden_dim, h2),
+            nn.LeakyReLU(0.01),
+            nn.Linear(h2, output_size),
+        )
+        self._init_kaiming()
+
+    def _init_kaiming(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='leaky_relu')
+                nn.init.zeros_(m.bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        s   = self.shared(x)
+        val = self.value_stream(s)
+        adv = self.advantage_stream(s)
+        return val + (adv - adv.mean(dim=1, keepdim=True))
+
+
+# =============================================================================
+# REPLAY BUFFERS
+# =============================================================================
+class PrioritizedReplay:
+    """PER: amostragem proporcional ao TD-error."""
+
+    def __init__(self, capacidade=200_000, alpha=0.6, beta=0.4,
+                 beta_inc=0.0001, pin=True):
+        self.capacidade = capacidade
+        self.alpha      = alpha
+        self.beta       = beta
+        self.beta_inc   = beta_inc
+        self.pin        = pin and torch.cuda.is_available()
+        self.buffer     = []
+        self.prios      = []
+        self.pos        = 0
+        self.max_prio   = 1.0
+
+    def adicionar(self, s, a, r, s_, done):
+        item = (s.cpu().detach(), int(a), float(r), s_.cpu().detach(), float(done))
+        if len(self.buffer) < self.capacidade:
+            self.buffer.append(item)
+            self.prios.append(self.max_prio)
+        else:
+            self.buffer[self.pos] = item
+            self.prios[self.pos]  = self.max_prio
+        self.pos = (self.pos + 1) % self.capacidade
+
+    def amostrar(self, batch_size, device):
+        n     = len(self.buffer)
+        p     = torch.tensor(self.prios[:n], dtype=torch.float32)
+        probs = (p ** self.alpha)
+        probs = probs / probs.sum()
+
+        idx   = torch.multinomial(probs, batch_size, replacement=False).tolist()
+        self.beta = min(1.0, self.beta + self.beta_inc)
+        pesos = (n * probs[idx]) ** (-self.beta)
+        pesos = pesos / pesos.max()
+
+        s, a, r, s_, d = zip(*[self.buffer[i] for i in idx])
+        st  = torch.cat(list(s))
+        st_ = torch.cat(list(s_))
+        if self.pin:
+            st  = st.pin_memory()
+            st_ = st_.pin_memory()
+        return (
+            st.to(device, non_blocking=True),
+            torch.tensor(a, dtype=torch.long,    device=device),
+            torch.tensor(r, dtype=torch.float32, device=device),
+            st_.to(device, non_blocking=True),
+            torch.tensor(d, dtype=torch.float32, device=device),
+            idx,
+            pesos.to(device),
+        )
+
+    def atualizar_prioridades(self, indices, td_errors):
+        for i, e in zip(indices, td_errors):
+            p = (abs(float(e)) + 1e-6) ** self.alpha
+            self.prios[i] = p
+            if p > self.max_prio:
+                self.max_prio = p
+
+    def __len__(self):
+        return len(self.buffer)
+
+
+class MiniReplayBuffer:
+    """Buffer simples para uso online no GAME5 (sem overhead de PER)."""
+
+    def __init__(self, capacidade=10_000):
+        self.buffer = collections.deque(maxlen=capacidade)
+
+    def adicionar(self, s, a, r, s_, done):
+        self.buffer.append((s.cpu().detach(), int(a), float(r),
+                            s_.cpu().detach(), float(done)))
+
+    def amostrar(self, batch_size, device):
+        am = random.sample(self.buffer, min(batch_size, len(self.buffer)))
+        s, a, r, s_, d = zip(*am)
+        return (
+            torch.cat(list(s)).to(device),
+            torch.tensor(a, dtype=torch.long,    device=device),
+            torch.tensor(r, dtype=torch.float32, device=device),
+            torch.cat(list(s_)).to(device),
+            torch.tensor(d, dtype=torch.float32, device=device),
+        )
+
+    def __len__(self):
+        return len(self.buffer)
+
+
+# =============================================================================
+# AGENTE APOLO  —  Double DQN + Neurogenese
+# =============================================================================
+class ApoloAgent:
+    """
+    Agente completo com:
+      - Double DQN + target network
+      - Neurogenese: cresce automaticamente quando confuso
+      - Auto-reset de pesos ao detectar incompatibilidade de arquitetura
+    """
+
+    GAMMA        = 0.97
+    LR           = 2e-4
+    TARGET_UPDATE = 200
+
+    def __init__(self, device=None, batch_size=64,
+                 taxa_exploracao=0.50, replay_buffer=None):
+        self.device     = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.batch_size = batch_size
+
+        # Carrega (ou cria) configuracao da arquitetura
+        self.arq_cfg = GerenciadorArquitetura.carregar()
+
+        self.q_online = ApoloDQN(self.arq_cfg["hidden"]).to(self.device)
+        self.q_target = ApoloDQN(self.arq_cfg["hidden"]).to(self.device)
+        self.q_target.eval()
+
+        self.optimizer = torch.optim.Adam(self.q_online.parameters(), lr=self.LR)
+        self.criterion = nn.SmoothL1Loss(reduction='none')
+
+        self.replay   = replay_buffer or MiniReplayBuffer()
+        self.taxa_exp = taxa_exploracao
+        self.passos   = 0
+
+        # Neurogenese: acumulador de entropia
+        self._entropia_acum  = 0.0
+        self._entropia_count = 0
+
+        self._carregar_pesos()
+        self._sincronizar_target()
+
+    # ---- Persistencia ------------------------------------------------------
+    def _carregar_pesos(self):
+        if not os.path.exists(PESOS_FILE):
+            print("[APOLO] Sem pesos salvos — iniciando zerado.")
+            return
+        try:
+            state = torch.load(PESOS_FILE, map_location=self.device, weights_only=True)
+            self.q_online.load_state_dict(state)
+            print(f"[APOLO] Pesos carregados (hidden={self.arq_cfg['hidden']}).")
+        except Exception as e:
+            # Arquitetura incompativel -> backup + reset automatico
+            print(f"[APOLO] Pesos incompativeis: {e}")
+            print("[APOLO] Fazendo backup e reiniciando pesos...")
+            bak = PESOS_FILE.replace(".pt", "_bak_incompat.pt")
+            shutil.copy2(PESOS_FILE, bak)
+            os.remove(PESOS_FILE)
+
+    def _sincronizar_target(self):
+        self.q_target.load_state_dict(self.q_online.state_dict())
+
+    def salvar_pesos(self):
+        torch.save(self.q_online.state_dict(), PESOS_FILE)
+        GerenciadorArquitetura.salvar(self.arq_cfg)
+
+    # ---- Neurogenese -------------------------------------------------------
+    def _avaliar_neurogenese(self, q_vals: torch.Tensor):
+        """
+        Calcula a entropia dos Q-values (confusao do agente).
+        Alta entropia = agente nao tem preferencia clara = confuso.
+        Se confuso por JANELA_ENTROPIA passos, cresce a rede.
+        """
+        with torch.no_grad():
+            probs    = torch.softmax(q_vals.float(), dim=-1)
+            log_p    = torch.log(probs + 1e-8)
+            entropia = -(probs * log_p).sum(dim=-1).mean().item()
+
+        self._entropia_acum  += entropia
+        self._entropia_count += 1
+
+        if self._entropia_count >= JANELA_ENTROPIA:
+            media = self._entropia_acum / self._entropia_count
+            self._entropia_acum  = 0.0
+            self._entropia_count = 0
+
+            if media > ENTROPIA_LIMIAR and self.arq_cfg["hidden"] < HIDDEN_MAX:
+                # Dispara neurogenese!
+                self.arq_cfg = GerenciadorArquitetura.crescer(self.arq_cfg)
+                # Reconstroi redes com nova arquitetura
+                self.q_online = ApoloDQN(self.arq_cfg["hidden"]).to(self.device)
+                self.q_target = ApoloDQN(self.arq_cfg["hidden"]).to(self.device)
+                self.q_target.eval()
+                self.optimizer = torch.optim.Adam(
+                    self.q_online.parameters(), lr=self.LR)
+                self._sincronizar_target()
+                # Reseta exploracao para redescobrir o ambiente com mais neuronios
+                self.taxa_exp = max(self.taxa_exp, 0.40)
+                return True  # Cresceu
+        return False
+
+    # ---- Inferencia --------------------------------------------------------
+    @torch.no_grad()
+    def decidir(self, estado: torch.Tensor, acoes_validas: list) -> int:
+        if random.random() < self.taxa_exp:
+            return random.choice(acoes_validas)
+        self.q_online.eval()
+        q = self.q_online(estado.to(self.device))[0]
+        self._avaliar_neurogenese(q.unsqueeze(0))
+        for i in range(OUTPUT_SIZE):
+            if i not in acoes_validas:
+                q[i] = -1e9
+        return int(q.argmax().item())
+
+    @torch.no_grad()
+    def decidir_batch(self, tensores: list, acoes_validas_batch: list) -> list:
+        stacked = torch.cat(tensores, dim=0).to(self.device)
+        self.q_online.eval()
+        q_vals = self.q_online(stacked)
+        self._avaliar_neurogenese(q_vals)
+
+        acoes = []
+        for i, validas in enumerate(acoes_validas_batch):
+            if random.random() < self.taxa_exp:
+                acoes.append(random.choice(validas))
+            else:
+                q = q_vals[i].clone()
+                for j in range(OUTPUT_SIZE):
+                    if j not in validas:
+                        q[j] = -1e9
+                acoes.append(int(q.argmax().item()))
+        return acoes
+
+    # ---- Treinamento -------------------------------------------------------
+    def adicionar_transicao(self, s, a, r, s_, done):
+        self.replay.adicionar(s, a, r, s_, done)
+
+    def treinar_passo(self, scaler=None) -> float:
+        if len(self.replay) < self.batch_size:
+            return 0.0
+
+        use_per = isinstance(self.replay, PrioritizedReplay)
+
+        if use_per:
+            s, a, r, s_, done, idx, pesos = self.replay.amostrar(
+                self.batch_size, self.device)
+        else:
+            s, a, r, s_, done = self.replay.amostrar(self.batch_size, self.device)
+            pesos = torch.ones(len(r), device=self.device)
+            idx   = None
+
+        self.q_online.train()
+
+        # Double DQN target
+        with torch.no_grad():
+            acoes_next = self.q_online(s_).argmax(dim=1, keepdim=True)
+            q_next     = self.q_target(s_).gather(1, acoes_next).squeeze(1)
+            target     = r + self.GAMMA * q_next * (1.0 - done)
+
+        def _loss():
+            q_pred    = self.q_online(s).gather(1, a.unsqueeze(1)).squeeze(1)
+            loss_elem = self.criterion(q_pred, target)
+            return loss_elem, (loss_elem * pesos).mean()
+
+        if scaler is not None:
+            with torch.cuda.amp.autocast(dtype=torch.float16):
+                le, lw = _loss()
+            self.optimizer.zero_grad()
+            scaler.scale(lw).backward()
+            scaler.unscale_(self.optimizer)
+            torch.nn.utils.clip_grad_norm_(self.q_online.parameters(), 10.0)
+            scaler.step(self.optimizer)
+            scaler.update()
+        else:
+            le, lw = _loss()
+            self.optimizer.zero_grad()
+            lw.backward()
+            torch.nn.utils.clip_grad_norm_(self.q_online.parameters(), 10.0)
+            self.optimizer.step()
+
+        if use_per and idx is not None:
+            self.replay.atualizar_prioridades(idx, le.detach().cpu().tolist())
+
+        self.passos += 1
+        if self.passos % self.TARGET_UPDATE == 0:
+            self._sincronizar_target()
+
+        return float(lw.item())
+
+
+# =============================================================================
+# VERIFICACAO
+# =============================================================================
+def verificar_compatibilidade():
+    cfg    = GerenciadorArquitetura.carregar()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    rede   = ApoloDQN(cfg["hidden"]).to(device)
+    t      = torch.zeros(1, INPUT_SIZE, device=device)
+    with torch.no_grad():
+        q = rede(t)
+    n = sum(p.numel() for p in rede.parameters())
+    print(f"[OK] ApoloDQN Dueling: hidden={cfg['hidden']} | params={n:,}")
+    print(f"[OK] {t.shape} -> {q.shape} | device={device}")
+    print(f"[OK] Neurogenese: limiar={ENTROPIA_LIMIAR} janela={JANELA_ENTROPIA}")
+    print(f"[OK] Teto: {HIDDEN_MAX} neuronios | passo: {HIDDEN_STEP}")
+
+
+if __name__ == "__main__":
+    verificar_compatibilidade()

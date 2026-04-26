@@ -1,6 +1,6 @@
 """
-treino_laser_gpu.py  —  Versao GPU (GTX 1650 / RTX serie Turing+)
-==================================================================
+treino_laser_gpu.py  —  Versao GPU v5 (Dueling DQN + PER + Neurogenese)
+=========================================================================
 Versao do treino laser otimizada para GPU NVIDIA.
 
 Hardware alvo:
@@ -8,35 +8,28 @@ Hardware alvo:
   CPU:  AMD Ryzen 5 4600G (6C / 12T)
   RAM:  16 GB
 
-Otimizacoes ativas vs versao CPU:
-  [1] 8 Ambientes paralelos (VectorEnv) ........... ~4-6x mais transicoes/s
-  [2] Mixed Precision FP16 (AMP torch.cuda.amp) ... ~1.5x speedup GPU
-  [3] Batch size 256 (vs 64) ...................... GPU subutilizada com 64
-  [4] Replay buffer 200k (vs 50k) ................. 16GB RAM tem espaco
-  [5] torch.backends.cudnn.benchmark = True ....... Kernels otimizados
-  [6] torch.compile (PyTorch 2.0+) ................ Lazy JIT ~10-20% boost
-  [7] Pin memory no replay buffer ................. Transferencia CPU->GPU rapida
-  [8] Target network update a cada 500 steps ...... Escala com volume de dados
+Otimizacoes v5 (vs v4):
+  [+] Dueling DQN 256x256 (via apolo_brain.py) ... separa V(s) de A(s,a)
+  [+] Prioritized Experience Replay (PER) ......... eventos raros super-amostrados
+  [+] Double DQN ................................. sem overestimation de Q
+  [+] Neurogenese automatica ..................... rede cresce sozinha se confusa
+  [+] Auto-reset em incompatibilidade ............ sem conflito de pesos
+  [+] Recompensas mais granulares ................ gradiente desde dist=200
 
-Resultado esperado:
-  CPU (v3): ~2 ep/s
-  GPU (v4): ~10-20 ep/s (dependendo do overhead Python)
-
-Compatibilidade:
-  Usa o MESMO arquivo 'apolo_memoria_dqn.pt' do GAME5.py e treino_laser_apolo.py
-  Mesma arquitetura ApoloDQN (40->128->64->9)
-  Identico conjunto de features (v4: signed_approach, in_sweep_zone, etc.)
+Arquitetura (apolo_brain.py):
+  Inicio: hidden=256 (configuravel via apolo_arq.json)
+  Cresce: +64 neuronios quando entropia media > 1.8 por 1000 passos
+  Teto:   512 neuronios (GTX 1650 4GB)
 
 SETUP (rode setup_gpu.bat primeiro):
   Este script requer Python 3.12 + PyTorch-CUDA.
-  Python 3.14 NAO e suportado pelo PyTorch CUDA.
   Veja setup_gpu.bat para instalar o ambiente correto.
 
 Uso:
     .venv312\\Scripts\\python treino_laser_gpu.py
     .venv312\\Scripts\\python treino_laser_gpu.py --curriculum --geracoes 3000
     .venv312\\Scripts\\python treino_laser_gpu.py --verificar
-    .venv312\\Scripts\\python treino_laser_gpu.py --visual
+    .venv312\\Scripts\\python treino_laser_gpu.py --limpar
 """
 
 import math
@@ -51,6 +44,15 @@ import threading
 import torch
 import torch.nn as nn
 import torch.optim as optim
+
+# =============================================================================
+# IMPORTA O CEREBRO CENTRAL DE APOLO
+# =============================================================================
+from apolo_brain import (
+    ApoloDQN, ApoloAgent, PrioritizedReplay,
+    INPUT_SIZE, OUTPUT_SIZE,
+    GerenciadorArquitetura,
+)
 
 # -----------------------------------------------------------------------
 # Verifica CUDA antes de qualquer coisa
@@ -113,212 +115,76 @@ DURACAO_DISPARO_MS = 4000
 RAIO_MORTE_LASER   = 50
 
 # =============================================================================
-# REDE NEURAL  (identica ao GAME5.py)
-# =============================================================================
-class ApoloDQN(nn.Module):
-    def __init__(self, input_size: int = 40, output_size: int = 9):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_size, 128),
-            nn.LeakyReLU(),
-            nn.Linear(128, 64),
-            nn.LeakyReLU(),
-            nn.Linear(64, output_size),
-        )
-
-    def forward(self, x):
-        return self.net(x)
-
-
-# =============================================================================
-# REPLAY BUFFER com PIN MEMORY (CPU->GPU mais rapido)
-# =============================================================================
-class ReplayBufferGPU:
-    """
-    Buffer circular com suporte a pin_memory para transferencia rapida.
-    Armazena tensores na CPU (RAM) e transfere para GPU em batches.
-    16GB RAM suporta facilmente 200k transicoes (apenas ~120MB).
-    """
-
-    def __init__(self, capacidade: int = 200_000, pin: bool = True):
-        self.buffer  = collections.deque(maxlen=capacidade)
-        self.pin     = pin and torch.cuda.is_available()
-
-    def adicionar(self, estado, acao, recompensa, prox_estado, done):
-        # Armazena na CPU (float32, desanexado do grafo)
-        self.buffer.append((
-            estado.cpu().detach(),
-            acao,
-            float(recompensa),
-            prox_estado.cpu().detach(),
-            float(done)
-        ))
-
-    def amostrar(self, batch_size: int, device: torch.device):
-        amostra = random.sample(self.buffer, batch_size)
-        estados, acoes, recompensas, prox_estados, dones = zip(*amostra)
-
-        # Concatena no CPU primeiro (mais eficiente)
-        s  = torch.cat(estados)
-        s_ = torch.cat(prox_estados)
-
-        if self.pin:
-            # Pin memory: permite transferencia assincrona GPU
-            s  = s.pin_memory()
-            s_ = s_.pin_memory()
-
-        return (
-            s.to(device,  non_blocking=True),
-            torch.tensor(acoes,      dtype=torch.long,    device=device),
-            torch.tensor(recompensas,dtype=torch.float32, device=device),
-            s_.to(device, non_blocking=True),
-            torch.tensor(dones,      dtype=torch.float32, device=device),
-        )
-
-    def __len__(self):
-        return len(self.buffer)
-
-
-# =============================================================================
-# AGENTE GPU  —  DQN + AMP + torch.compile
+# AGENTE GPU  —  Wrapper fino sobre ApoloAgent para AMP + torch.compile
 # =============================================================================
 class ApoloTreinoLaserGPU:
-    ARQUIVO_PESOS    = "apolo_memoria_dqn.pt"
-    INPUT_SIZE       = 40
-    OUTPUT_SIZE      = 9
-    GAMMA            = 0.97
-    LR               = 3e-4          # AMP permite LR um pouco maior
-    TARGET_UPDATE    = 500           # Hard update a cada 500 passos (mais dados = update mais frequente)
+    """Wrapper que adiciona AMP (FP16) e torch.compile ao ApoloAgent base."""
 
-    def __init__(self, batch_size: int = 256, taxa_exploracao: float = 0.80):
+    def __init__(self, batch_size: int = 256, taxa_exploracao: float = 0.80,
+                 limpar_pesos: bool = False):
         self.device     = torch.device("cuda")
         self.batch_size = batch_size
 
-        # Ativa cudnn benchmark (kernels otimizados para tamanho fixo de batch)
         torch.backends.cudnn.benchmark = True
 
-        # Redes
-        self.q_online = ApoloDQN(self.INPUT_SIZE, self.OUTPUT_SIZE).to(self.device)
-        self.q_target = ApoloDQN(self.INPUT_SIZE, self.OUTPUT_SIZE).to(self.device)
+        if limpar_pesos:
+            import shutil, os
+            from apolo_brain import PESOS_FILE
+            if os.path.exists(PESOS_FILE):
+                bak = PESOS_FILE.replace('.pt', '_backup_antes_limpar.pt')
+                shutil.copy2(PESOS_FILE, bak)
+                os.remove(PESOS_FILE)
+                print(f"[APOLO] Backup salvo em '{bak}' — iniciando zerado.")
 
-        # torch.compile (PyTorch 2.0+, ~10-20% speedup)
+        per = PrioritizedReplay(
+            capacidade=200_000,
+            alpha=0.6,
+            beta=0.4,
+            beta_inc=0.0001,
+            pin=True,
+        )
+        self._agente = ApoloAgent(
+            device=self.device,
+            batch_size=batch_size,
+            taxa_exploracao=taxa_exploracao,
+            replay_buffer=per,
+        )
+
+        # AMP scaler
+        self.scaler    = torch.cuda.amp.GradScaler()
+        self.taxa_exp  = self._agente.taxa_exp
+        self.passos    = 0
+
+        # torch.compile
         try:
-            self.q_online = torch.compile(self.q_online)
-            self._compiled = True
+            self._agente.q_online = torch.compile(self._agente.q_online)
             print("[GPU] torch.compile ativado")
         except Exception:
-            self._compiled = False
             print("[GPU] torch.compile indisponivel (PyTorch < 2.0)")
 
-        self.optimizer = optim.Adam(self.q_online.parameters(), lr=self.LR)
-        self.criterion = nn.SmoothL1Loss()
+    @property
+    def replay(self):
+        return self._agente.replay
 
-        # AMP (Mixed Precision FP16)
-        self.scaler   = torch.cuda.amp.GradScaler()
-        self.amp_dtype= torch.float16
+    @property
+    def taxa_exp(self):
+        return self._agente.taxa_exp
 
-        self.replay   = ReplayBufferGPU(capacidade=200_000)
-        self.taxa_exp = taxa_exploracao
-        self.passos   = 0
+    @taxa_exp.setter
+    def taxa_exp(self, v):
+        self._agente.taxa_exp = v
 
-        self._carregar_pesos()
-        self._sincronizar_target()
-
-    # -- Persistencia --------------------------------------------------------
-    def _carregar_pesos(self):
-        if os.path.exists(self.ARQUIVO_PESOS):
-            try:
-                state = torch.load(self.ARQUIVO_PESOS,
-                                   map_location=self.device,
-                                   weights_only=True)
-                # Desembrulha se compilado
-                try:
-                    self.q_online.load_state_dict(state)
-                except Exception:
-                    self.q_online._orig_mod.load_state_dict(state)
-                print(f"[APOLO] Pesos carregados de '{self.ARQUIVO_PESOS}'")
-            except Exception as e:
-                print(f"[APOLO] Falha ao carregar pesos: {e} -- iniciando zerado.")
-        else:
-            print("[APOLO] Nenhum arquivo de pesos -- iniciando zerado.")
-
-    def _sincronizar_target(self):
-        try:
-            self.q_target.load_state_dict(self.q_online.state_dict())
-        except Exception:
-            # Fallback para modelo compilado
-            self.q_target.load_state_dict(self.q_online._orig_mod.state_dict())
-
-    def salvar_pesos(self):
-        try:
-            state = self.q_online.state_dict()
-        except Exception:
-            state = self.q_online._orig_mod.state_dict()
-        torch.save(state, self.ARQUIVO_PESOS)
-
-    # -- Inferencia em lote (para VectorEnv) ---------------------------------
-    @torch.no_grad()
-    def decidir_batch(self, tensores: list, acoes_validas_batch: list) -> list:
-        """
-        Decide para N ambientes de uma vez (um unico forward pass na GPU).
-        tensores: lista de tensors shape (1, 40)
-        Retorna: lista de acoes inteiras
-        """
-        stacked = torch.cat(tensores, dim=0).to(self.device)  # (N, 40)
-
-        self.q_online.eval()
-        with torch.cuda.amp.autocast(dtype=self.amp_dtype):
-            q_vals = self.q_online(stacked)  # (N, 9)
-
-        acoes = []
-        for i, validas in enumerate(acoes_validas_batch):
-            if random.random() < self.taxa_exp:
-                acoes.append(random.choice(validas))
-            else:
-                q = q_vals[i].clone()
-                for j in range(self.OUTPUT_SIZE):
-                    if j not in validas:
-                        q[j] = -1e9
-                acoes.append(int(torch.argmax(q).item()))
-        return acoes
-
-    # -- Aprendizado com AMP -------------------------------------------------
-    def treinar_passo(self):
-        if len(self.replay) < self.batch_size:
-            return None
-
-        estados, acoes, recompensas, prox_estados, dones = \
-            self.replay.amostrar(self.batch_size, self.device)
-
-        self.q_online.train()
-
-        with torch.cuda.amp.autocast(dtype=self.amp_dtype):
-            q_current = self.q_online(estados)
-            q_atual   = q_current.gather(1, acoes.unsqueeze(1)).squeeze(1)
-
-            with torch.no_grad():
-                self.q_target.eval()
-                q_next  = self.q_target(prox_estados)
-                q_alvo  = recompensas + self.GAMMA * q_next.max(1)[0] * (1 - dones)
-
-            loss = self.criterion(q_atual, q_alvo.detach())
-
-        self.optimizer.zero_grad(set_to_none=True)  # set_to_none=True: mais rapido que zero_grad()
-        self.scaler.scale(loss).backward()
-        self.scaler.unscale_(self.optimizer)
-        torch.nn.utils.clip_grad_norm_(self.q_online.parameters(), max_norm=10.0)
-        self.scaler.step(self.optimizer)
-        self.scaler.update()
-
-        self.passos += 1
-        if self.passos % self.TARGET_UPDATE == 0:
-            self._sincronizar_target()
-
-        return loss.item()
+    def decidir_batch(self, tensores, acoes_validas_batch):
+        return self._agente.decidir_batch(tensores, acoes_validas_batch)
 
     def adicionar_transicao(self, s, a, r, s_, done):
-        self.replay.adicionar(s, a, r, s_, done)
+        self._agente.adicionar_transicao(s, a, r, s_, done)
 
+    def treinar_passo(self):
+        return self._agente.treinar_passo(scaler=self.scaler)
+
+    def salvar_pesos(self):
+        self._agente.salvar_pesos()
 
 # =============================================================================
 # AMBIENTE DO LASER  (copiado do treino_laser_apolo.py v4 — features identicas)
@@ -700,13 +566,19 @@ class VectorLaserEnv:
         """
         Executa uma acao em cada ambiente.
         Ambientes terminados sao automaticamente resetados.
-        Retorna: lista de (s, a, r, s', done) para cada env.
+        Retorna: lista de (s, a, r, s', done, rodadas_ep, recomp_ep)
+          rodadas_ep/recomp_ep sao None se o env ainda nao terminou.
         """
         transicoes = []
         for i, (env, acao) in enumerate(zip(self.envs, acoes)):
             s_ant  = self.estados[i]
             s_prox, r, done = env.step(acao)
-            transicoes.append((s_ant, acao, r, s_prox, done))
+
+            # Captura stats ANTES do reset (done=True apaga tudo no reset)
+            rodadas_ep = env.rodadas_sobrevividas if done else None
+            recomp_ep  = env.recompensa_acumulada if done else None
+
+            transicoes.append((s_ant, acao, r, s_prox, done, rodadas_ep, recomp_ep))
 
             if done:
                 self.estados[i] = env.reset()
@@ -732,22 +604,21 @@ class VectorLaserEnv:
 # LOOP PRINCIPAL DE TREINO GPU
 # =============================================================================
 def treinar_gpu(num_geracoes: int = 2000, n_envs: int = 8,
-                salvar_intervalo: int = 100, curriculum: bool = False):
+                salvar_intervalo: int = 100, curriculum: bool = False,
+                limpar_pesos: bool = False):
 
     batch_size  = checar_gpu()
     venvs       = VectorLaserEnv(n_envs=n_envs)
-    agente      = ApoloTreinoLaserGPU(batch_size=batch_size)
+    agente      = ApoloTreinoLaserGPU(batch_size=batch_size,
+                                       limpar_pesos=limpar_pesos)
 
-    hist_recomp  = []
-    hist_sv      = []
-    hist_rod     = {1: [], 2: [], 3: [], 4: []}
-    melhor_recomp= -float('inf')
+    hist_rod     = {1: [], 2: [], 3: [], 4: []}  # lista de bool (sobreviveu rodada?)
     melhor_rodada= 0
 
-    fase1_fim = num_geracoes // 3
-    fase2_fim = (num_geracoes * 2) // 3
+    # Curriculum com estado explícito de fase (evita recalculo por ep_total)
+    fase_curr    = 1   # fase atual: 1 = so rod1 | 2 = rod1-2 | 3 = rod1-4
+    rod_max_ant  = 0   # detecta transicao de fase
 
-    # Contador de "episodios completos" (um env por vez pode terminar, conta como ep)
     ep_total     = 0
     passos_total = 0
 
@@ -760,97 +631,121 @@ def treinar_gpu(num_geracoes: int = 2000, n_envs: int = 8,
     print(f"  Batch size:    {batch_size}")
     print(f"  Replay buffer: 200.000 transicoes")
     print(f"  AMP FP16:      SIM")
+    print(f"  Pesos limpos:  {'SIM (treinando do zero)' if limpar_pesos else 'NAO (continuando treino)'}")
     print(f"  Geracoes:      {num_geracoes}")
     if curriculum:
-        print(f"  CURRICULUM:    ep 1-{fase1_fim} Rod1 | {fase1_fim+1}-{fase2_fim} Rod1-2 | {fase2_fim+1}+ Rod1-4")
+        print(f"  CURRICULUM:    Fase1=Rod1(sv>50%) | Fase2=Rod1-2(sv>40%) | Fase3=Rod1-4")
+        print(f"                 Epsilon e resetado a 0.60 em cada transicao de fase.")
     print("=" * 65 + "\n")
 
     inicio        = time.time()
     ultimo_log    = inicio
     transicoes_s  = 0
 
-    # Warmup: preenche o buffer antes de comecar a treinar
+    # Warmup: preenche o buffer com experiencias aleatorias antes de treinar
     print("[GPU] Aquecendo replay buffer...")
     while len(agente.replay) < batch_size * 4:
         estados = venvs.get_estados()
         avs     = venvs.get_acoes_validas()
         acoes   = [random.choice(av) for av in avs]
         trans   = venvs.step_todos(acoes)
-        for s, a, r, s_, done in trans:
+        for s, a, r, s_, done, rod_ep, rec_ep in trans:
             agente.adicionar_transicao(s, a, r, s_, done)
     print(f"[GPU] Buffer aquecido ({len(agente.replay)} transicoes). Iniciando treino...\n")
 
     while ep_total < num_geracoes:
-        # Curriculum
+
+        # ---- Curriculum adaptativo -----------------------------------------
         if curriculum:
-            rod_max = 1 if ep_total <= fase1_fim else \
-                      2 if ep_total <= fase2_fim else 4
+            # Avanca fase baseado em taxa de sobrevivencia das ultimas 100 eps
+            sv1 = sum(hist_rod[1][-100:]) / max(1, len(hist_rod[1][-100:]))
+            sv2 = sum(hist_rod[2][-100:]) / max(1, len(hist_rod[2][-100:]))
+            sv3 = sum(hist_rod[3][-100:]) / max(1, len(hist_rod[3][-100:]))
+
+            if   fase_curr == 1 and sv1 >= 0.50 and ep_total >= 300:
+                fase_curr = 2   # Passou 50% em rod1 + minimo de 300 ep
+            elif fase_curr == 2 and sv2 >= 0.40 and ep_total >= 600:
+                fase_curr = 3   # Passou 40% em rod2
+            elif fase_curr == 3 and sv3 >= 0.30 and ep_total >= 1000:
+                fase_curr = 4   # Passou 30% em rod3 — treino completo
+
+            rod_max = {1: 1, 2: 2, 3: 4, 4: 4}[fase_curr]
         else:
             rod_max = 4
+
         venvs.rodada_max = rod_max
 
-        # Epsilon annealing
-        agente.taxa_exp = max(0.10, 0.80 * (0.998 ** ep_total))
+        # ---- Deteccao de transicao de fase → reset epsilon -----------------
+        if rod_max != rod_max_ant:
+            if rod_max_ant > 0:   # nao e o inicio
+                agente.taxa_exp = 0.60  # boost de exploracao para a nova fase
+                print(f"\n  [CURRICULUM] Fase {fase_curr}: rod_max={rod_max}, "
+                      f"epsilon -> {agente.taxa_exp:.2f} (re-explorando novo padrao)\n")
+            rod_max_ant = rod_max
 
-        # === UM STEP VETORIZADO ===
+        # ---- Epsilon annealing global ---------------------------------------
+        agente.taxa_exp = max(0.08, agente.taxa_exp * 0.9998)
+
+        # ---- Step vetorizado ------------------------------------------------
         estados   = venvs.get_estados()
         avs       = venvs.get_acoes_validas()
         acoes     = agente.decidir_batch(estados, avs)
         trans     = venvs.step_todos(acoes)
 
-        for s, a, r, s_, done in trans:
+        for s, a, r, s_, done, rod_ep, rec_ep in trans:
             agente.adicionar_transicao(s, a, r, s_, done)
-            if done:
-                ep_total += 1
             transicoes_s += 1
 
-        # === TREINO ===
+            if done:
+                ep_total += 1
+                # Registra em hist_rod quais rodadas foram concluidas neste episodio
+                if rod_ep is not None:
+                    for rr in range(1, 5):
+                        hist_rod[rr].append(1 if rod_ep >= rr else 0)
+                    if rod_ep > melhor_rodada:
+                        melhor_rodada = rod_ep
+
+        # ---- Treino ---------------------------------------------------------
         agente.treinar_passo()
         passos_total += 1
 
-        # === LOG a cada 5s ou a cada 50 episodios ===
+        # ---- Log a cada 5s --------------------------------------------------
         agora = time.time()
-        if ep_total > 0 and (agora - ultimo_log > 5.0 or ep_total % 50 == 0):
-            elapsed  = agora - inicio
-            ep_s     = ep_total / max(1.0, elapsed)
-            trans_s  = transicoes_s / max(1.0, elapsed)
-            buf_sz   = len(agente.replay)
+        if ep_total > 0 and (agora - ultimo_log > 5.0):
+            elapsed = agora - inicio
+            ep_s    = ep_total / max(1.0, elapsed)
+            buf_sz  = len(agente.replay)
 
-            sv_r = {r: sum(hist_rod[r][-50:]) / max(1, len(hist_rod[r][-50:])) * 100
-                    for r in range(1, 5)} if hist_rod[1] else {1:0,2:0,3:0,4:0}
-            fase_c = ("Rod1" if curriculum and ep_total <= fase1_fim else
-                      "Rod1-2" if curriculum and ep_total <= fase2_fim else "Rod1-4")
-
-            # Identifica o melhor env ativo
-            recomps, rodadas = venvs.get_stats()
-            melhor_r_agora   = max(rodadas) if rodadas else 0
-            if melhor_r_agora > melhor_rodada:
-                melhor_rodada = melhor_r_agora
+            sv = {rr: sum(hist_rod[rr][-100:]) / max(1, len(hist_rod[rr][-100:])) * 100
+                  for rr in range(1, 5)}
+            fase_c = f"F{fase_curr}/Rod{rod_max}" if curriculum else f"Rod{rod_max}"
 
             print(
-                f"[Ep {ep_total:>5}/{fase_c}] "
+                f"[Ep {ep_total:>5} | {fase_c}] "
                 f"MelhorRod:{melhor_rodada}/4 | "
-                f"Sv%: R1={sv_r[1]:.0f} R2={sv_r[2]:.0f} R3={sv_r[3]:.0f} R4={sv_r[4]:.0f} | "
+                f"Sv%: R1={sv[1]:.0f} R2={sv[2]:.0f} R3={sv[3]:.0f} R4={sv[4]:.0f} | "
                 f"eps:{agente.taxa_exp:.3f} buf:{buf_sz:>6} | "
-                f"{ep_s:.1f}ep/s {trans_s:.0f}t/s"
+                f"{ep_s:.1f}ep/s"
             )
             ultimo_log = agora
 
-        # Salva pesos
+        # ---- Salva pesos ----------------------------------------------------
         if ep_total > 0 and ep_total % salvar_intervalo == 0:
             agente.salvar_pesos()
             print(f"  [OK] Pesos salvos  (ep {ep_total})")
 
     # Final
     agente.salvar_pesos()
-    dur    = time.time() - inicio
+    dur = time.time() - inicio
     print("\n" + "=" * 65)
     print("  TREINO GPU CONCLUIDO!")
     print("=" * 65)
     print(f"  Total episodios:    {ep_total}")
     print(f"  Duracao:            {dur:.1f}s  ({dur/60:.1f} min)")
-    print(f"  Throughput medio:   {ep_total/dur:.1f} ep/s | {passos_total*n_envs/dur:.0f} t/s")
+    print(f"  Throughput medio:   {ep_total/dur:.1f} ep/s")
     print(f"  Melhor rodada:      {melhor_rodada}/4")
+    sv_fin = {rr: sum(hist_rod[rr][-100:]) / max(1, len(hist_rod[rr][-100:])) * 100 for rr in range(1, 5)}
+    print(f"  Sv% (ult 100ep):   R1={sv_fin[1]:.0f}% R2={sv_fin[2]:.0f}% R3={sv_fin[3]:.0f}% R4={sv_fin[4]:.0f}%")
     print(f"  Pesos salvos em:    apolo_memoria_dqn.pt")
     print("=" * 65)
 
@@ -907,6 +802,8 @@ if __name__ == "__main__":
     parser.add_argument("--salvar",     type=int, default=100)
     parser.add_argument("--curriculum", action="store_true")
     parser.add_argument("--verificar",  action="store_true")
+    parser.add_argument("--limpar",     action="store_true",
+                        help="Reinicia pesos do zero (use quando features mudaram)")
     args = parser.parse_args()
 
     if args.verificar:
@@ -918,4 +815,5 @@ if __name__ == "__main__":
         n_envs          = args.envs,
         salvar_intervalo= args.salvar,
         curriculum      = args.curriculum,
+        limpar_pesos    = args.limpar,
     )

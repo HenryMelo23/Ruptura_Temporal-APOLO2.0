@@ -691,20 +691,14 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-class ApoloDQN(nn.Module):
-    def __init__(self, input_size, output_size):
-        super(ApoloDQN, self).__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_size, 128),
-            nn.LeakyReLU(),
-            nn.Linear(128, 64),
-            nn.LeakyReLU(),
-            nn.Linear(64, output_size)
-        )
-    def forward(self, x):
-        return self.net(x)
+# Importa arquitetura e buffer do modulo central (mesma rede do treino offline)
+from apolo_brain import (
+    ApoloDQN, ApoloAgent, MiniReplayBuffer,
+    INPUT_SIZE, OUTPUT_SIZE, GerenciadorArquitetura,
+)
 
 class AgenteApolo:
+    """Wrapper de jogo sobre ApoloAgent (apolo_brain). Cuida de percepcao e recompensas online."""
     def __init__(self):
         self.direcao_x = 0
         self.direcao_y = 0
@@ -712,66 +706,60 @@ class AgenteApolo:
         self.mouse_simulado = [False, False, False]
         self.alvo_x = 0
         self.alvo_y = 0
-        
-        # Sistema de persistência de ação para movimentos mais fluidos
-        self.acao_atual = 0
-        self.frames_acao_atual = 0
-        self.frames_minimos_por_acao = 15  # Aumentado de 8 para 15 frames (~250ms a 60fps) para movimentos mais fluidos
-        self.ultima_decisao_frame = 0
-        
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.input_size = 40  # 41 anteriores - 1 feature de bordas_ativas removida
-        self.output_size = 9  # Revertido para 9 (Movimento independente da Mira algorítmica)
-        
-        self.q_network = ApoloDQN(self.input_size, self.output_size).to(self.device)
-        self.optimizer = optim.Adam(self.q_network.parameters(), lr=0.001)
-        self.criterion = nn.MSELoss()
-        
+
+        # Action Repetition / frame skip adaptativo
+        self.frames_pulo          = 6   # normal (laser inativo)
+        self.frames_pulo_emergencia = 2  # emergencia (laser < 100px, projétil < 80px)
+        self.frame_atual_skip     = 0
+        self.acao_persistente     = 8
+        self.foco_orbe            = None
+
+        # Tracking de recompensas acumuladas entre skips
+        self.bonus_dopamina       = 0.0
         self.ultimo_estado_tensor = None
-        self.acao_anterior = 0
-        self.vida_jogador_anterior = 0
-        self.vida_boss_anterior = 0
-        self.bonus_dopamina = 0.0 # Acumulador de recompensas periféricas
-        self.ultima_pos_umbra_conhecida = (1000, 500)
-        self.ultima_vida_b_conhecida = 1200
-        
-        # Action Repetition e Steering Heurístico
-        self.frames_pulo = 4
-        self.frame_atual_skip = 0
-        self.acao_persistente = 8 # Inicia neutro ou com fallback seguro
-        self.foco_orbe = None
-        
-        # Tracking do Dense Reward Shaping do Laser
-        self.ultima_dist_perp_laser = None
+        self.acao_anterior        = 0
+
+        # Memoria de posicoes para recompensa de evasao
+        self.ultima_dist_perp_laser  = None
         self.laser_estava_carregando = False
-        
-        self.arquivo_memoria = "apolo_memoria_dqn.pt"
-        self.taxa_exploracao = 0.50
-        self.frames_sobrevividos = 0
-        self.carregar_memoria()
+        self.ultima_pos_umbra_conhecida = (1000, 500)
+        self.ultima_vida_b_conhecida    = 1200
+        self.frames_sobrevividos     = 0
+
+        # ApoloAgent central (Dueling DQN + MiniReplayBuffer + Double DQN)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        mini_buf    = MiniReplayBuffer(capacidade=10_000)
+        self._agente = ApoloAgent(
+            device=self.device,
+            batch_size=32,
+            taxa_exploracao=0.50,
+            replay_buffer=mini_buf,
+        )
+        # Alias para compatibilidade com código existente
+        self.q_network      = self._agente.q_online
+        self.taxa_exploracao = self._agente.taxa_exp
+
         self.atualizar_foco_progressivo()
 
+    # ---- compatibilidade com código legado que acessa q_network diretamente ----
+    @property
+    def taxa_exploracao(self):
+        return self._agente.taxa_exp
+
+    @taxa_exploracao.setter
+    def taxa_exploracao(self, v):
+        self._agente.taxa_exp = v
+
     def carregar_memoria(self):
-        import os
-        if os.path.exists(self.arquivo_memoria):
-            try:
-                self.q_network.load_state_dict(torch.load(self.arquivo_memoria, map_location=self.device, weights_only=True))
-            except: pass
+        """Alias legado — ApoloAgent ja carrega no __init__."""
+        pass
 
     def salvar_memoria(self):
-        torch.save(self.q_network.state_dict(), self.arquivo_memoria)
+        self._agente.salvar_pesos()
 
     def aplicar_recompensa_direta(self, recompensa_direta):
-        if self.ultimo_estado_tensor is not None:
-            self.q_network.train()
-            q_values = self.q_network(self.ultimo_estado_tensor)
-            q_val = q_values[0, self.acao_anterior]
-            alvo = q_val.item() + 0.15 * recompensa_direta
-            alvo_tensor = torch.tensor(alvo, dtype=torch.float32, device=self.device)
-            loss = self.criterion(q_val, alvo_tensor)
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+        """Adiciona recompensa imediata ao pool de dopamina (processada no proximo skip)."""
+        self.bonus_dopamina += recompensa_direta
 
     def atualizar_foco_progressivo(self):
         import os, json
@@ -779,8 +767,10 @@ class AgenteApolo:
             if os.path.exists("historico_batalhas.json"):
                 with open("historico_batalhas.json", "r") as f:
                     geracoes = len(json.load(f))
-                self.taxa_exploracao = max(0.01, 0.20 * (0.985 ** geracoes))
-        except: pass
+                # Decay mais lento: 0.992^n (vs 0.985 anterior)
+                self._agente.taxa_exp = max(0.05, 0.40 * (0.992 ** geracoes))
+        except:
+            pass
 
     def obter_estado_expandido(self, pos_p, boss_hitbox, projeteis_boss, cds, esferas_energia, vida_apolo, vida_boss, velocidade_apolo, estado_ia):
         import math
@@ -1512,52 +1502,39 @@ class AgenteApolo:
                 break
         
         # Emergência 4: Vida crítica
-        if vida_jogador < 200:  # Menos de 20% de vida
-            forcar_nova_decisao = True
-        
+        # Frame skip adaptativo: mais rapido em emergencia, mais lento no normal
+        frames_pulo_atual = self.frames_pulo_emergencia if forcar_nova_decisao else self.frames_pulo
+
         self.frame_atual_skip += 1
-        
+
         # Decide se mantém ação atual ou escolhe nova
-        if self.frame_atual_skip >= self.frames_pulo or forcar_nova_decisao:
-            # TREINAMENTO ATRASADO DA ÚLTIMA DECISÃO (Uma vez a cada pulo)
+        if self.frame_atual_skip >= frames_pulo_atual or forcar_nova_decisao:
+            # TREINAMENTO ATRASADO — Double DQN com replay buffer
             if self.ultimo_estado_tensor is not None:
-                self.q_network.train()
-                q_values = self.q_network(self.ultimo_estado_tensor)
-                q_val = q_values[0, self.acao_anterior]
-                
-                # Consome o pool acumulado de dopamina dos frames que pulamos
                 recompensa_final = self.bonus_dopamina
-                self.bonus_dopamina = 0.0 # Reseta o pool
-                
-                alvo = q_val.item() + 0.15 * (recompensa_final - q_val.item())
-                alvo_tensor = torch.tensor(alvo, dtype=torch.float32, device=self.device)
-                loss = self.criterion(q_val, alvo_tensor)
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
-                
-            # INFERÊNCIA DA NOVA AÇÃO
-            if random.random() < self.taxa_exploracao:
-                acao = random.choice(acoes_validas) if acoes_validas else random.randint(0, 8)
-            else:
-                with torch.no_grad():
-                    self.q_network.eval()
-                    q_vals = self.q_network(estado_tensor)[0]  # Remove dimensão batch
-                    
-                    # Mascara ações inválidas com valor muito negativo
-                    q_vals_masked = q_vals.clone()
-                    for i in range(9):  # Atualizado para 9 ações
-                        if i not in acoes_validas:
-                            q_vals_masked[i] = -1e9  # Valor extremamente negativo
-                    
-                    acao = torch.argmax(q_vals_masked).item()
-            
+                self.bonus_dopamina = 0.0
+
+                # Armazena transicao no replay buffer
+                self._agente.adicionar_transicao(
+                    self.ultimo_estado_tensor,
+                    self.acao_anterior,
+                    recompensa_final,
+                    estado_tensor,
+                    False,   # done = False; o episodio so termina com game over
+                )
+
+                # Treino Double DQN (um passo por ciclo de decisao)
+                self._agente.treinar_passo()
+
+            # INFERÊNCIA via ApoloAgent (epsilon-greedy + action masking)
+            acao = self._agente.decidir(estado_tensor, acoes_validas)
+
             # Reseta contador e salva a nova ação mestre do ciclo
             self.frame_atual_skip = 0
             self.acao_persistente = acao
             self.ultimo_estado_tensor = estado_tensor
             self.acao_anterior = acao
-            
+
         else:
             # Action Repetition Clássico (Apenas retorna a última decisão)
             acao = self.acao_persistente
@@ -2031,7 +2008,16 @@ while running:
                 estado_atual_ia.get('contagem_habilidades', {})
             )
             
-            # Apolo sofre o trauma absoluto do fracasso
+            # Apolo aprende: esta decisao levou a morte (done=True, recompensa=-500)
+            if apolo.ultimo_estado_tensor is not None:
+                apolo._agente.adicionar_transicao(
+                    apolo.ultimo_estado_tensor,
+                    apolo.acao_anterior,
+                    -500.0,
+                    apolo.ultimo_estado_tensor,  # estado terminal
+                    True,
+                )
+                apolo._agente.treinar_passo()
             apolo.aplicar_recompensa_direta(-500.0)
             
             # Reset do sistema de ratos

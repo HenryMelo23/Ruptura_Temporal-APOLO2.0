@@ -17,7 +17,7 @@ echo ============================================================
 echo.
 
 :: Passa todos os argumentos da linha de comando para o script Python
-.venv312\Scripts\python treino_laser_gpu.py --curriculum --geracoes 3000 --salvar 100 %*
+.venv312\Scripts\python treino_laser_gpu.py --limpar --curriculum --geracoes 5000 --salvar 200 %*
 
 echo.
 echo Treino finalizado! Pressione qualquer tecla para sair.
