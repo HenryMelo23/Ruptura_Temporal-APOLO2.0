@@ -1170,6 +1170,33 @@ class AgenteApolo:
             recompensa += 30
         if delta_vida_apolo > 0:
             recompensa += 300
+
+        # RECOMPENSA DE SOBREVIVENCIA — complementa o SurvivalGate hardwired
+        # O gate ja garante o movimento, mas a recompensa ensina o DQN ao longo do tempo
+        vida_frac = vida_jogador / 1000.0  # normalizada (0-1)
+        if vida_frac < 0.80 and esferas_energia:
+            urgencia_sv = (0.80 - vida_frac) / 0.80  # 0 a 1 conforme vida cai
+            # Calcula distancia a orbe mais proxima
+            orbe_mais_prox = None
+            menor_d_orb = float('inf')
+            for orb in esferas_energia:
+                ox = orb['rect'].centerx if 'rect' in orb else orb.get('x', px)
+                oy = orb['rect'].centery if 'rect' in orb else orb.get('y', py)
+                d = math.hypot(ox - px, oy - py)
+                if d < menor_d_orb:
+                    menor_d_orb = d
+                    orbe_mais_prox = (ox, oy)
+            if orbe_mais_prox:
+                # Recompensa por se aproximar da orbe (positivo) ou se afastar (negativo)
+                if hasattr(self, '_dist_orb_ant') and self._dist_orb_ant is not None:
+                    delta_orb = self._dist_orb_ant - menor_d_orb  # positivo = aproximou
+                    recompensa += delta_orb * urgencia_sv * 1.5
+                self._dist_orb_ant = menor_d_orb
+                # Bonus massivo ao coletar a orbe (delta_vida_apolo > 0)
+                if delta_vida_apolo > 0:
+                    recompensa += 500.0 * urgencia_sv
+        else:
+            self._dist_orb_ant = None
         
         # SISTEMA INTELIGENTE DE RECOMPENSAS PARA O LASER (DENSE SHAPING HUB)
         if estado_ia:

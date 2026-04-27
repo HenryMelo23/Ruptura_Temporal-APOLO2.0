@@ -82,16 +82,110 @@ class GerenciadorArquitetura:
 
 
 # =============================================================================
+# NEURONIO DE SOBREVIVENCIA  (SurvivalGate)  —  peso fixo, nao-treinavel
+# =============================================================================
+# Indices das features usadas pelo gate (devem ser identicos em GAME5 e treino)
+_IDX_VIDA_P    = 4    # vida_apolo normalizada (0-1)
+_IDX_DIST_ORB  = 27   # dist_orbe_proxima  (1.0 = longe / nao existe)
+_IDX_DIR_ORB_X = 28   # dir_orbe_x (-1 a 1)
+_IDX_DIR_ORB_Y = 29   # dir_orbe_y (-1 a 1)
+
+class SurvivalGate(nn.Module):
+    """
+    Neuronio de sobrevivencia com PESO MAXIMO FIXO — nao-treinavel.
+
+    Quando vida de Apolo cai abaixo de 80%, este gate aplica um bias
+    MASSIVO nos Q-values em direcao a orbe de vida mais proxima.
+    Nenhum padrao aprendido pela rede consegue superar esse sinal.
+
+    Logica:
+      urgencia  = max(0, LIMIAR_VIDA - feat_vida) / LIMIAR_VIDA
+                  → 0.0 quando vida >= 80%
+                  → 1.0 quando vida = 0% (situacao critica)
+
+      bias[acao] = funcao da direcao (feat_dir_orb_x, feat_dir_orb_y)
+                  → maior para acoes que apontam para a orbe
+                  → inclui dash quando orbe esta distante
+
+      Q_final = Q_dqn + urgencia * bias * PESO_MAXIMO
+
+    PESO_MAXIMO = 200.0 garante que nenhum Q-value aprendido supere o gate.
+    O gate eh INVISIVEL para o otimizador — nenhum gradiente passa por ele.
+    """
+
+    LIMIAR_VIDA  = 0.80   # Ativa abaixo de 80% da vida
+    PESO_MAXIMO  = 200.0  # Domina qualquer Q-value aprendido
+    DIST_DASH    = 0.35   # Orbe considerada 'distante' (acima dessa dist normalizada)
+
+    def forward(self, q: torch.Tensor, estado: torch.Tensor) -> torch.Tensor:
+        """
+        q:      (batch, 9) — Q-values do Dueling DQN
+        estado: (batch, 40) — tensor de features do estado
+        Retorna Q modificado com o sinal de sobrevivencia.
+        """
+        with torch.no_grad():
+            vida   = estado[:, _IDX_VIDA_P]     # (batch,)
+            d_orb  = estado[:, _IDX_DIST_ORB]   # (batch,) — 1.0 = longe/inexistente
+            ox     = estado[:, _IDX_DIR_ORB_X]  # (batch,)
+            oy     = estado[:, _IDX_DIR_ORB_Y]  # (batch,)
+
+            # Urgencia: rampa de 0 (vida ok) ate 1 (vida critica)
+            urgencia = torch.clamp(
+                (self.LIMIAR_VIDA - vida) / self.LIMIAR_VIDA,
+                min=0.0, max=1.0
+            )  # (batch,)
+
+            # Mascara: orbe existe quando dist < 0.99
+            # (dist=1.0 significa nenhuma orbe no campo)
+            orbe_existe = (d_orb < 0.99).float()  # (batch,)
+
+            # Bias por acao baseado na direcao da orbe
+            #   0=cima  1=baixo  2=esq  3=dir
+            #   4=cima-esq  5=cima-dir  6=baixo-esq  7=baixo-dir
+            #   8=dash
+            b0 = torch.relu(-oy)                            # cima
+            b1 = torch.relu( oy)                            # baixo
+            b2 = torch.relu(-ox)                            # esquerda
+            b3 = torch.relu( ox)                            # direita
+            b4 = torch.relu(-ox) * torch.relu(-oy)          # cima-esq
+            b5 = torch.relu( ox) * torch.relu(-oy)          # cima-dir
+            b6 = torch.relu(-ox) * torch.relu( oy)          # baixo-esq
+            b7 = torch.relu( ox) * torch.relu( oy)          # baixo-dir
+            # Dash ativado quando orbe esta distante E urgencia e alta
+            b8 = torch.relu(d_orb - self.DIST_DASH) * urgencia
+
+            bias = torch.stack(
+                [b0, b1, b2, b3, b4, b5, b6, b7, b8], dim=1
+            )  # (batch, 9)
+
+            # Sinal final: urgencia * direcao * peso_maximo * so_se_orbe_existe
+            sinal = (
+                urgencia.unsqueeze(1)      # (batch, 1)
+                * bias                     # (batch, 9)
+                * self.PESO_MAXIMO
+                * orbe_existe.unsqueeze(1) # (batch, 1)
+            )
+
+        return q + sinal   # gradiente nao flui pelo sinal (torch.no_grad acima)
+
+
+# =============================================================================
 # REDE NEURAL  —  Dueling DQN com tamanho dinamico
 # =============================================================================
 class ApoloDQN(nn.Module):
     """
-    Dueling DQN com hidden_dim configuravel.
+    Dueling DQN com hidden_dim configuravel + SurvivalGate.
 
     Fluxo:
       Input[40] -> FC[H] + LN + LReLU -> FC[H] + LN + LReLU
         -> Value[H//2 -> 1]  +  Advantage[H//2 -> 9]
         -> Q = V + (A - mean(A))
+        -> Q_final = Q + SurvivalGate(Q, estado)  ← peso fixo, nao-treinavel
+
+    SurvivalGate:
+      Quando vida < 80% E existe orbe de vida:
+        Aplica bias massivo (200.0) em direcao a orbe.
+        Nenhum gradiente aprendido supera esse sinal.
 
     hidden_dim aumenta automaticamente via Neurogenese.
     """
@@ -121,6 +215,10 @@ class ApoloDQN(nn.Module):
             nn.LeakyReLU(0.01),
             nn.Linear(h2, output_size),
         )
+
+        # Neuronio de sobrevivencia — nao-treinavel, peso maximo fixo
+        self.survival_gate = SurvivalGate()
+
         self._init_kaiming()
 
     def _init_kaiming(self):
@@ -133,7 +231,13 @@ class ApoloDQN(nn.Module):
         s   = self.shared(x)
         val = self.value_stream(s)
         adv = self.advantage_stream(s)
-        return val + (adv - adv.mean(dim=1, keepdim=True))
+        q   = val + (adv - adv.mean(dim=1, keepdim=True))
+
+        # Neuronio de sobrevivencia: aplica bias de orbe se vida < 80%
+        # Nao afeta gradientes — opera com torch.no_grad internamente
+        q   = self.survival_gate(q, x)
+
+        return q
 
 
 # =============================================================================
@@ -423,14 +527,31 @@ def verificar_compatibilidade():
     cfg    = GerenciadorArquitetura.carregar()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     rede   = ApoloDQN(cfg["hidden"]).to(device)
-    t      = torch.zeros(1, INPUT_SIZE, device=device)
+
+    # Testa SurvivalGate: simula Apolo com vida critica (50%) e orbe a direita
+    t = torch.zeros(1, INPUT_SIZE, device=device)
+    t[0, _IDX_VIDA_P]    = 0.50   # 50% vida  (< 80% → gate ativa)
+    t[0, _IDX_DIST_ORB]  = 0.40   # orbe a 40% da distancia maxima
+    t[0, _IDX_DIR_ORB_X] = 0.85   # orbe fortemente a direita
+    t[0, _IDX_DIR_ORB_Y] = 0.20   # levemente abaixo
+
     with torch.no_grad():
         q = rede(t)
+
+    acao_escolhida = int(q.argmax(dim=1).item())
+    nomes_acoes = ['cima','baixo','esq','dir','cima-esq','cima-dir','baixo-esq','baixo-dir','dash']
     n = sum(p.numel() for p in rede.parameters())
+
     print(f"[OK] ApoloDQN Dueling: hidden={cfg['hidden']} | params={n:,}")
     print(f"[OK] {t.shape} -> {q.shape} | device={device}")
     print(f"[OK] Neurogenese: limiar={ENTROPIA_LIMIAR} janela={JANELA_ENTROPIA}")
     print(f"[OK] Teto: {HIDDEN_MAX} neuronios | passo: {HIDDEN_STEP}")
+    print(f"")
+    print(f"[SURVIVAL GATE] Teste: vida=50%, orbe a direita")
+    print(f"[SURVIVAL GATE] Q-values: {[round(v,1) for v in q[0].tolist()]}")
+    print(f"[SURVIVAL GATE] Acao escolhida: {acao_escolhida} ({nomes_acoes[acao_escolhida]})")
+    gate_ok = acao_escolhida in [3, 5, 7]  # dir, cima-dir, baixo-dir
+    print(f"[SURVIVAL GATE] Status: {'OK — movendo para a orbe!' if gate_ok else 'ATENCAO: verificar indices de features'}")
 
 
 if __name__ == "__main__":
