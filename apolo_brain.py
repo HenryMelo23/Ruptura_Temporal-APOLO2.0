@@ -84,11 +84,90 @@ class GerenciadorArquitetura:
 # =============================================================================
 # NEURONIO DE SOBREVIVENCIA  (SurvivalGate)  —  peso fixo, nao-treinavel
 # =============================================================================
-# Indices das features usadas pelo gate (devem ser identicos em GAME5 e treino)
+# Indices das features usadas pelo SurvivalGate
 _IDX_VIDA_P    = 4    # vida_apolo normalizada (0-1)
 _IDX_DIST_ORB  = 27   # dist_orbe_proxima  (1.0 = longe / nao existe)
 _IDX_DIR_ORB_X = 28   # dir_orbe_x (-1 a 1)
 _IDX_DIR_ORB_Y = 29   # dir_orbe_y (-1 a 1)
+
+# Indices das features usadas pelo DodgeGate
+_IDX_DIST_PROJ  = 11  # distancia ao projetil mais proximo (0=tocando, 1=longe)
+_IDX_PROJ_VEL_X = 12  # direcao de DESLOCAMENTO do projetil — x (normalizado)
+_IDX_PROJ_VEL_Y = 13  # direcao de DESLOCAMENTO do projetil — y (normalizado)
+_IDX_PROJ_APPR  = 17  # 1.0 se projetil se aproxima de Apolo, 0.0 caso contrario
+_IDX_DASH_CD    = 14  # 1.0 se dash esta em cooldown
+
+class DodgeGate(nn.Module):
+    """
+    Neuronio de evasao de projeteis com PESO FIXO — nao-treinavel.
+
+    Quando um projetil se aproxima de Apolo, aplica bias massivo
+    nas acoes PERPENDICULARES a trajetoria do projetil (direcoes seguras)
+    e no DASH (se disponivel).
+
+    Features usadas (devem ter mesmo significado em GAME5 e treino):
+      [11] dist_proj    — distancia ao projetil mais proximo (0=perto, 1=longe)
+      [12] proj_vel_x   — direcao de deslocamento do projetil (x, normalizado)
+      [13] proj_vel_y   — direcao de deslocamento do projetil (y, normalizado)
+      [17] proj_appr    — 1.0 se projetil se aproxima, 0.0 caso contrario
+      [14] dash_cd      — 1.0 se dash em cooldown (nao usar dash nesse caso)
+
+    Logica:
+      perp_A = (-vel_y,  vel_x)  — perpendicular esquerda ao vetor de voo
+      perp_B = ( vel_y, -vel_x)  — perpendicular direita ao vetor de voo
+      bias[acao] = max(dot(acao_dir, perp_A), dot(acao_dir, perp_B))
+      Q_final = Q + urgencia * bias * PESO_MAXIMO
+
+    PESO = 150.0 (menor que SurvivalGate=200, sobrevivencia e mais urgente).
+    """
+
+    DIST_LIMIAR  = 0.50   # Ativa quando dist < 50% de 250px (= 125px)
+    PESO_MAXIMO  = 150.0
+
+    # Direcoes unitarias das 9 acoes (0=cima 1=baixo 2=esq 3=dir 4-7=diagonais 8=dash)
+    # Diagonal normalizado por 1/sqrt(2) = 0.7071
+    _K = 0.7071
+    _ADX = torch.tensor([ 0.,  0., -1.,  1., -_K,  _K, -_K,  _K, 0.])
+    _ADY = torch.tensor([-1.,  1.,  0.,  0., -_K, -_K,  _K,  _K, 0.])
+
+    def forward(self, q: torch.Tensor, estado: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            dist  = estado[:, _IDX_DIST_PROJ]   # (batch,) 0=perto 1=longe
+            vx    = estado[:, _IDX_PROJ_VEL_X]  # (batch,) direcao do projetil
+            vy    = estado[:, _IDX_PROJ_VEL_Y]
+            appr  = estado[:, _IDX_PROJ_APPR]   # (batch,) esta vindo?
+            dc    = estado[:, _IDX_DASH_CD]      # (batch,) dash em cooldown?
+
+            # Urgencia: 0 quando longe, 1 quando muito perto
+            urgencia = torch.clamp(
+                (self.DIST_LIMIAR - dist) / self.DIST_LIMIAR,
+                min=0.0, max=1.0
+            ) * appr  # so ativa se projetil esta se aproximando
+
+            # Perpendiculares ao vetor de voo do projetil
+            # perp_A = (-vy, vx),  perp_B = (vy, -vx)
+            # Para cada acao i: align = max(dot(acao, perpA), dot(acao, perpB))
+            # acao_dir . perp_A = adx*(-vy) + ady*(vx)  →  -adx*vy + ady*vx
+            # acao_dir . perp_B = adx*(vy)  + ady*(-vx) →   adx*vy - ady*vx
+
+            adx = self._ADX.to(q.device)  # (9,)
+            ady = self._ADY.to(q.device)  # (9,)
+
+            # (batch,1) broadcast com (9,)
+            dot_A = (-adx.unsqueeze(0)) * vy.unsqueeze(1) + ady.unsqueeze(0) * vx.unsqueeze(1)
+            dot_B =   adx.unsqueeze(0)  * vy.unsqueeze(1) - ady.unsqueeze(0) * vx.unsqueeze(1)
+
+            bias = torch.max(dot_A, dot_B)            # (batch, 9) — positivo = acao segura
+            bias = torch.clamp(bias, min=0.0)          # ignora direcoes perigosas
+
+            # Dash: bias proporcional a urgencia, mas desativado se em cooldown
+            dash_bias = urgencia * (1.0 - dc) * 0.8   # (batch,)
+            bias[:, 8] = dash_bias
+
+            sinal = urgencia.unsqueeze(1) * bias * self.PESO_MAXIMO
+
+        return q + sinal
+
 
 class SurvivalGate(nn.Module):
     """
@@ -219,6 +298,9 @@ class ApoloDQN(nn.Module):
         # Neuronio de sobrevivencia — nao-treinavel, peso maximo fixo
         self.survival_gate = SurvivalGate()
 
+        # Neuronio de evasao de projeteis — nao-treinavel, peso fixo
+        self.dodge_gate = DodgeGate()
+
         self._init_kaiming()
 
     def _init_kaiming(self):
@@ -233,9 +315,11 @@ class ApoloDQN(nn.Module):
         adv = self.advantage_stream(s)
         q   = val + (adv - adv.mean(dim=1, keepdim=True))
 
-        # Neuronio de sobrevivencia: aplica bias de orbe se vida < 80%
-        # Nao afeta gradientes — opera com torch.no_grad internamente
-        q   = self.survival_gate(q, x)
+        # Neuronio de sobrevivencia: vida < 80% → vai para a orbe
+        q = self.survival_gate(q, x)
+
+        # Neuronio de evasao: projetil se aproximando → move perpendicular
+        q = self.dodge_gate(q, x)
 
         return q
 

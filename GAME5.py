@@ -830,6 +830,11 @@ class AgenteApolo:
         dx_perigo = 0.0
         dy_perigo = 0.0
         projeteis_proximos = []
+        # Dados do projetil mais proximo (DodgeGate precisa da VELOCIDADE, nao apenas posicao)
+        proj_vel_x    = 0.0   # direcao de DESLOCAMENTO do projetil — x
+        proj_vel_y    = 0.0   # direcao de DESLOCAMENTO do projetil — y
+        proj_approaching = 0.0  # 1.0 se projetil se aproxima de Apolo
+
         for proj in projeteis_boss:
             if 'rect' in proj:
                 proj_x, proj_y = proj['rect'].centerx, proj['rect'].centery
@@ -837,13 +842,41 @@ class AgenteApolo:
                 proj_x, proj_y = proj.get('x', px), proj.get('y', py)
             d = math.hypot(proj_x - px, proj_y - py)
             if d < 250:
-                projeteis_proximos.append((proj_x, proj_y, d))
-                
+                projeteis_proximos.append((proj_x, proj_y, d, proj))
+
         if projeteis_proximos:
-            proj_x, proj_y, d = min(projeteis_proximos, key=lambda p: p[2])
+            proj_x, proj_y, d, proj_ref = min(projeteis_proximos, key=lambda p: p[2])
             dist_perigo = d / 250.0
-            dx_perigo = (proj_x - px) / max(1.0, d)
-            dy_perigo = (proj_y - py) / max(1.0, d)
+
+            # Velocidade do projetil: usa angulo se disponivel, senao estima da posicao
+            if 'angulo' in proj_ref:
+                ang = proj_ref['angulo']
+                proj_vel_x = math.cos(ang)
+                proj_vel_y = math.sin(ang)
+            elif 'vel_x' in proj_ref and 'vel_y' in proj_ref:
+                speed = math.hypot(proj_ref['vel_x'], proj_ref['vel_y'])
+                if speed > 0:
+                    proj_vel_x = proj_ref['vel_x'] / speed
+                    proj_vel_y = proj_ref['vel_y'] / speed
+            else:
+                # Fallback: estima que o projetil vem do boss em direcao a Apolo
+                bx2 = proj_x - (largura_mapa // 2)
+                by2 = proj_y - (altura_mapa // 2)
+                spd = math.hypot(bx2, by2)
+                if spd > 0:
+                    proj_vel_x = bx2 / spd
+                    proj_vel_y = by2 / spd
+
+            # Verifica se o projetil esta se aproximando: dot(vel, apolo-proj) > 0
+            apolo_menos_proj_x = px - proj_x
+            apolo_menos_proj_y = py - proj_y
+            dot_appr = proj_vel_x * apolo_menos_proj_x + proj_vel_y * apolo_menos_proj_y
+            proj_approaching = 1.0 if dot_appr > 0 else 0.0
+
+        # dx_perigo / dy_perigo agora sao as features de velocidade do projetil
+        dx_perigo = proj_vel_x
+        dy_perigo = proj_vel_y
+
             
         feat_cd_tele = 1.0 if cds.get('teleporte', False) else 0.0
         
@@ -903,7 +936,10 @@ class AgenteApolo:
                         feat_dir_rato_x = (rx_prox - px) / dist_prox  # Direção do rato mais próximo
                         feat_dir_rato_y = (ry_prox - py) / dist_prox
         
-        feat_vel_b = 0.0
+        # [17] proj_approaching: 1.0 se projetil se aproxima de Apolo (DodgeGate)
+        # (substitui feat_vel_b que era menos critico)
+        feat_vel_b = proj_approaching
+
         
         # SISTEMA EXPANDIDO DE PERCEPÇÃO DO LASER (CRÍTICO para sobrevivência)
         feat_laser_fase = 0.0  # 0 = inativo, 0.5 = carregando, 1.0 = disparando
@@ -1198,6 +1234,55 @@ class AgenteApolo:
         else:
             self._dist_orb_ant = None
         
+        # RECOMPENSA DE EVASAO DE PROJETEIS — ensina o DodgeGate ao longo do tempo
+        # O DodgeGate hardwired ja age imediatamente; o reward ensina o padrao
+        if proj_approaching and dist_perigo < 0.6:
+            urgencia_dodge = (0.6 - dist_perigo) / 0.6  # 0=longe → 1=perigoso
+
+            # Direcoes das 9 acoes
+            K = 0.7071
+            dirs_acao = [(0,-1),(0,1),(-1,0),(1,0),(-K,-K),(K,-K),(-K,K),(K,K),(0,0)]
+            adx_last, ady_last = dirs_acao[self.acao_anterior]
+
+            # Perpendiculares seguras ao vetor de voo do projetil
+            perp_ax, perp_ay = -proj_vel_y, proj_vel_x
+            perp_bx, perp_by =  proj_vel_y, -proj_vel_x
+
+            align_a = adx_last * perp_ax + ady_last * perp_ay
+            align_b = adx_last * perp_bx + ady_last * perp_by
+            melhor_alinhamento = max(align_a, align_b)
+
+            # Dash tambem e valido se disponivel
+            usou_dash      = (self.acao_anterior == 8)
+            dash_disponivel = not cds.get('teleporte', False)
+
+            if usou_dash and dash_disponivel:
+                # Decisao de dash — recompensa generosa
+                recompensa += 60.0 * urgencia_dodge
+            elif usou_dash and not dash_disponivel:
+                # Tentou dash mas estava em cooldown — penalidade leve
+                recompensa -= 20.0 * urgencia_dodge
+            elif adx_last == 0 and ady_last == 0:
+                # PIOR caso: ficou parado sem fazer nada
+                recompensa -= 50.0 * urgencia_dodge
+            elif melhor_alinhamento < 0:
+                # Moveu NA DIRECAO do projetil — decisao errada, mas ao menos agiu
+                recompensa -= 30.0 * urgencia_dodge
+            elif melhor_alinhamento < 0.4:
+                # Movimento neutro (90° do perfeito) — tentou mas nao foi otimo
+                recompensa += 15.0 * urgencia_dodge
+            else:
+                # Movimento perpendicular CORRETO — decisao perfeita
+                recompensa += 80.0 * urgencia_dodge
+
+            # Bonus por sobreviver um frame critico sem levar dano
+            if delta_vida_apolo == 0 and urgencia_dodge > 0.7:
+                recompensa += 40.0 * urgencia_dodge
+
+        # Guarda proj_vel para uso no proximo ciclo
+        self._proj_vel_x = proj_vel_x
+        self._proj_vel_y = proj_vel_y
+
         # SISTEMA INTELIGENTE DE RECOMPENSAS PARA O LASER (DENSE SHAPING HUB)
         if estado_ia:
             laser = estado_ia.get('laser_ativo')
