@@ -21,7 +21,7 @@ import torch.nn as nn
 # CONSTANTES CANONICAS
 # =============================================================================
 INPUT_SIZE  = 40
-OUTPUT_SIZE = 9
+OUTPUT_SIZE = 3
 ARQ_FILE    = "apolo_arq.json"   # Metadata da arquitetura atual
 PESOS_FILE  = "apolo_memoria_dqn.pt"
 
@@ -31,7 +31,7 @@ HIDDEN_MAX  = 512
 HIDDEN_STEP = 64   # Cresce 64 neuronios por vez
 
 # Neurogenese: se entropia media > ENTROPIA_LIMIAR por JANELA_ENTROPIA passos -> cresce
-ENTROPIA_LIMIAR  = 1.8   # Entropia maxima em 9 acoes = ln(9) ~ 2.2
+ENTROPIA_LIMIAR  = 0.9   # Entropia maxima em 3 acoes = ln(3) ~ 1.09
 JANELA_ENTROPIA  = 1000  # Avalia a cada 1000 passos
 
 
@@ -96,6 +96,16 @@ _IDX_PROJ_VEL_X = 12  # direcao de DESLOCAMENTO do projetil — x (normalizado)
 _IDX_PROJ_VEL_Y = 13  # direcao de DESLOCAMENTO do projetil — y (normalizado)
 _IDX_PROJ_APPR  = 17  # 1.0 se projetil se aproxima de Apolo, 0.0 caso contrario
 _IDX_DASH_CD    = 14  # 1.0 se dash esta em cooldown
+
+# Indices das features usadas pelo LaserGate
+_IDX_LASER_FASE       = 18  # 0=inativo, 0.5=carregando, 1.0=disparando
+_IDX_LASER_PROGRESSO  = 20  # progresso da fase atual (0-1)
+_IDX_LASER_SENTIDO    = 22  # -1=anti-horario, 0=parado, 1=horario
+_IDX_LASER_ANG_PROX   = 24  # signed approach: positivo = feixe vindo pra mim
+_IDX_LASER_DIST_FEIXE = 25  # distancia perpendicular ao feixe (0=tocando, 1=longe)
+_IDX_LASER_FUGA_X     = 30  # componente X do vetor de fuga perpendicular ao laser
+_IDX_LASER_FUGA_Y     = 31  # componente Y do vetor de fuga perpendicular ao laser
+_IDX_LASER_SWEEP      = 32  # 1.0 se o player ainda sera varrido nesta rodada
 
 class DodgeGate(nn.Module):
     """
@@ -162,6 +172,80 @@ class DodgeGate(nn.Module):
 
             # Dash: bias proporcional a urgencia, mas desativado se em cooldown
             dash_bias = urgencia * (1.0 - dc) * 0.8   # (batch,)
+            bias[:, 8] = dash_bias
+
+            sinal = urgencia.unsqueeze(1) * bias * self.PESO_MAXIMO
+
+        return q + sinal
+
+
+class LaserGate(nn.Module):
+    """
+    Neuronio de evasao do laser rotativo — PESO FIXO, nao-treinavel.
+
+    Quando o feixe do laser esta se aproximando de Apolo e a distancia
+    perpendicular e critica, aplica bias MASSIVO nas acoes perpendiculares
+    ao laser (direcoes de fuga geometricamente corretas) e no DASH.
+
+    Features usadas (indices fixos — nao alteram INPUT_SIZE=40):
+      [18] laser_fase        — 0=inativo, 0.5=carregando, 1.0=disparando
+      [24] laser_ang_proximo — signed approach: positivo = feixe vindo pra mim
+      [25] laser_dist_feixe  — distancia perpendicular (0=tocando, 1=longe)
+      [30] fuga_x            — componente X da direcao de fuga perpendicular
+      [31] fuga_y            — componente Y da direcao de fuga perpendicular
+      [32] in_sweep_zone     — 1.0 se ainda sera varrido pelo laser
+      [14] dash_cd           — 1.0 se dash esta em cooldown
+
+    Logica:
+      urgencia = clamp((DIST_LIMIAR - dist_feixe) / DIST_LIMIAR, 0, 1)
+               x laser_fase (so ativa quando disparando)
+               x in_sweep_zone (so ativa se sera varrido)
+      bias[acao] = dot(direcao_acao, (fuga_x, fuga_y)) — acoes que fogem do laser
+      Q_final = Q + urgencia x bias x PESO_MAXIMO
+
+    PESO = 250.0 (maior que DodgeGate=150: laser e instantaneo e letal).
+    """
+
+    DIST_LIMIAR  = 0.38   # Ativa quando dist < 38% (= ~152px de 400px)
+    PESO_MAXIMO  = 250.0
+
+    # Direcoes unitarias das 9 acoes (igual DodgeGate)
+    _K = 0.7071
+    _ADX = torch.tensor([ 0.,  0., -1.,  1., -_K,  _K, -_K,  _K, 0.])
+    _ADY = torch.tensor([-1.,  1.,  0.,  0., -_K, -_K,  _K,  _K, 0.])
+
+    def forward(self, q: torch.Tensor, estado: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            laser_fase   = estado[:, _IDX_LASER_FASE]       # (batch,) 0/0.5/1.0
+            ang_appr     = estado[:, _IDX_LASER_ANG_PROX]   # (batch,) signed: pos=feixe chegando
+            dist_feixe   = estado[:, _IDX_LASER_DIST_FEIXE] # (batch,) 0=perto 1=longe
+            fuga_x       = estado[:, _IDX_LASER_FUGA_X]     # (batch,)
+            fuga_y       = estado[:, _IDX_LASER_FUGA_Y]     # (batch,)
+            sweep        = estado[:, _IDX_LASER_SWEEP]      # (batch,) 1.0=sera varrido
+            dc           = estado[:, _IDX_DASH_CD]          # (batch,) dash em cooldown?
+
+            # Urgencia: maxima quando laser disparando + feixe perto + sera varrido
+            urgencia_dist = torch.clamp(
+                (self.DIST_LIMIAR - dist_feixe) / self.DIST_LIMIAR,
+                min=0.0, max=1.0
+            )
+            # Feixe chegando: signed approach positivo significa que o feixe vai me atingir
+            feixe_chegando = torch.clamp(ang_appr, min=0.0, max=1.0)
+            # Ativa apenas quando laser realmente disparando (fase >= 0.9 = 1.0)
+            laser_on = (laser_fase >= 0.9).float()
+            urgencia = urgencia_dist * feixe_chegando * sweep * laser_on
+
+            # Calcula bias por acao: dot(direcao_acao, vetor_fuga)
+            # Acoes que se movem na direcao de fuga recebem bias alto
+            adx = self._ADX.to(q.device)  # (9,)
+            ady = self._ADY.to(q.device)  # (9,)
+
+            # dot[batch, i] = adx[i]*fuga_x[batch] + ady[i]*fuga_y[batch]
+            dot = adx.unsqueeze(0) * fuga_x.unsqueeze(1) + ady.unsqueeze(0) * fuga_y.unsqueeze(1)
+            bias = torch.clamp(dot, min=0.0)  # ignora direcoes que vao PARA o laser
+
+            # Dash: bias alto quando urgente e disponivel (fuga instantanea)
+            dash_bias = urgencia * (1.0 - dc) * 0.9   # (batch,)
             bias[:, 8] = dash_bias
 
             sinal = urgencia.unsqueeze(1) * bias * self.PESO_MAXIMO
@@ -321,6 +405,9 @@ class ApoloDQN(nn.Module):
         # Neuronio de evasao de projeteis — nao-treinavel, peso fixo
         self.dodge_gate = DodgeGate()
 
+        # Neuronio de evasao do laser rotativo — nao-treinavel, peso 250
+        self.laser_gate = LaserGate()
+
         self._init_kaiming()
 
     def _init_kaiming(self):
@@ -340,6 +427,10 @@ class ApoloDQN(nn.Module):
 
         # Neuronio de evasao: projetil se aproximando → move perpendicular
         q = self.dodge_gate(q, x)
+
+        # Neuronio de evasao do laser: feixe perto → foge perpendicular
+        # Peso 250 > DodgeGate 150: laser e fatal e instantaneo
+        q = self.laser_gate(q, x)
 
         return q
 

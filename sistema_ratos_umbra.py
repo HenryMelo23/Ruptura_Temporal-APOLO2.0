@@ -30,7 +30,7 @@ class Rato:
         tamanho (int): Tamanho do quadrado
     """
     
-    def __init__(self, x, y, tempo_atual, velocidade=3.5, tempo_vida=5000):
+    def __init__(self, x, y, tempo_atual, velocidade=2.1, tempo_vida=5000):
         """
         Inicializa um rato.
         
@@ -165,14 +165,15 @@ class GerenciadorRatos:
             altura_mapa (int): Altura do mapa
         """
         self.ratos = []
-        self.cooldown = 15000  # 15 segundos em milissegundos
+        self.cooldown = 18000  # 18 segundos (era 15s) — dá mais tempo de respiro
         self.ultimo_spawn = 0
-        self.ratos_extras = 0  # Buff permanente: +1 por hit
+        self.ratos_extras = 0  # Buff permanente: +1 por hit (teto: ratos_extras_max)
         self.ratos_base = 1  # 1 rato por canto = 4 ratos totais
         
         # Configurações de dano e cura
         self.dano_rato = 80  # Dano causado ao Apolo
-        self.cura_umbra_percentual = 0.005  # 0.5% da vida máxima da Umbra
+        self.cura_umbra_percentual = 0.002  # 0.2% da vida maxima da Umbra por hit (era 0.5%)
+        self.ratos_extras_max = 4  # Teto do buff permanente: max 4 extras por canto
         
         # Dimensões do mapa
         self.largura_mapa = largura_mapa
@@ -212,22 +213,38 @@ class GerenciadorRatos:
         if not self.pode_spawnar(tempo_atual):
             return 0
         
-        # Calcula quantidade total de ratos por canto
-        ratos_por_canto = self.ratos_base + self.ratos_extras
+        # Calcula quantidade total de ratos por canto (com teto de extras)
+        ratos_extras_aplicados = min(self.ratos_extras, getattr(self, 'ratos_extras_max', 4))
+        ratos_por_canto = self.ratos_base + ratos_extras_aplicados
         total_spawnado = 0
+
+        # CAP ABSOLUTO: não spawna se ja há muitos ratos na tela (protege performance)
+        CAP_RATOS_TELA = 40
+        if len(self.ratos) >= CAP_RATOS_TELA:
+            self.ultimo_spawn = tempo_atual  # Reseta cooldown mas nao spawna
+            return 0
         
         # Spawna ratos em cada canto
         for canto_x, canto_y in self.cantos:
             for i in range(ratos_por_canto):
-                # Adiciona pequena variação na posição para não spawnar todos no mesmo lugar
+                # Para quando atingir o cap
+                if len(self.ratos) >= CAP_RATOS_TELA:
+                    break
+
+                # Adiciona pequena variacao na posicao para nao spawnar todos no mesmo lugar
                 offset_x = (i % 2) * 20 - 10
                 offset_y = (i // 2) * 20 - 10
+
+                # Velocidade base: 2.1 (40% menor que 3.5 original)
+                # Escala com buff mas com teto em 3.5 (velocidade original)
+                vel_escalonada = 2.1 + (ratos_extras_aplicados * 0.12)
+                vel_final = min(vel_escalonada, 3.5)  # Nunca ultrapassa 3.5
                 
                 rato = Rato(
                     canto_x + offset_x,
                     canto_y + offset_y,
                     tempo_atual,
-                    velocidade=3.5 + (self.ratos_extras * 0.15)  # Velocidade aumenta com buff (mais lento)
+                    velocidade=vel_final
                 )
                 self.ratos.append(rato)
                 total_spawnado += 1
@@ -296,8 +313,10 @@ class GerenciadorRatos:
                 cura = int(vida_maxima_umbra * self.cura_umbra_percentual)
                 cura_total += cura
                 
-                # Buff permanente: +1 rato extra no próximo spawn
-                self.ratos_extras += 1
+                # Buff permanente: +1 rato extra no proximo spawn (com teto)
+                teto = getattr(self, 'ratos_extras_max', 4)
+                if self.ratos_extras < teto:
+                    self.ratos_extras += 1
                 
                 # Rato desaparece após acertar (não adiciona à lista de sobreviventes)
             else:
