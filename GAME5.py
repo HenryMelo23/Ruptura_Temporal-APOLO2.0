@@ -25,6 +25,48 @@ pygame.init()
 memoria_umbra = hb.MemoriaEvolutivaUmbra()
 vfx_apolo = ApoloVFXManager()
 
+# =============================================================================
+# CACHE GLOBAL DE PERFORMANCE — criados UMA vez, reutilizados a cada frame
+# =============================================================================
+# Fonte dos efeitos flutuantes: pygame.font.Font() e MUITO lenta para criar por frame
+_FONTE_EFEITO = pygame.font.Font(None, 28)
+
+# Cache de sombras SRCALPHA: Surface e cara de criar (aloca buffer RGBA do tamanho)
+# Indexado por (largura, altura, modo): reutiliza se tamanho nao mudou
+_SOMBRA_CACHE = {}
+
+# Superficies dos flocos e cristais da Prisao Criogenica (usadas em loop de 70 iter)
+_FLOCO_SURF = pygame.Surface((4, 4), pygame.SRCALPHA)
+pygame.draw.circle(_FLOCO_SURF, (200, 240, 255, 200), (2, 2), 2)
+_CRISTAL_SURF = pygame.Surface((6, 6), pygame.SRCALPHA)
+pygame.draw.polygon(_CRISTAL_SURF, (150, 220, 255, 220), [(3,0),(6,3),(3,6),(0,3)])
+
+# Cache da superficie do vortice da Prisao (recriada com quantizacao de 8px)
+_VORTICE_SURF_CACHE = {}   # {raio_quantizado: Surface}
+
+# Offsets pre-computados para contorno de texto (8 direcoes)
+_CONTORNO_OFFSETS = [(-1,-1),(0,-1),(1,-1),(-1,0),(1,0),(-1,1),(0,1),(1,1)]
+
+# Pontos do circulo da magia pre-calculados (evita 360 trig functions/frame)
+_PONTOS_PREENCHIMENTO = []
+for i in range(361):
+    rad = math.radians(i - 90)
+    _x = centro_circulo[0] + raio_circulo * math.cos(rad)
+    _y = centro_circulo[1] + raio_circulo * math.sin(rad)
+    _PONTOS_PREENCHIMENTO.append((_x, _y))
+
+# Cache de textos estaticos da UI (vida, pontuacao)
+_CACHE_TEXTO_UI = {}
+def render_cached_text(texto, fonte, cor):
+    key = (texto, cor)
+    if key not in _CACHE_TEXTO_UI:
+        if len(_CACHE_TEXTO_UI) > 200:
+            _CACHE_TEXTO_UI.clear()
+        _CACHE_TEXTO_UI[key] = fonte.render(texto, True, cor)
+    return _CACHE_TEXTO_UI[key]
+# =============================================================================
+
+
 # Carregar configurações gráficas
 try:
     with open("config_graficos.json", "r") as f:
@@ -489,51 +531,47 @@ def verificar_colisao_personagem(projeteis):
 
 
 def desenhar_sombra(tela, x, y, largura, altura, offset_y=5):
-    """Desenha uma sombra elíptica embaixo de um ser com três níveis de qualidade"""
+    """Desenha sombra eliptica com cache de Surface — sem alocar por frame."""
     modo_sombra = config_graficos.get("sombras_ativas", "dinamicas")
-    
+
     if modo_sombra == "desativadas":
         return
-    
+
     if modo_sombra == "simples":
-        # Sombra simples - elipse básica
-        sombra_surface = pygame.Surface((largura, altura // 3), pygame.SRCALPHA)
-        cor_sombra = (0, 0, 0, 80)
-        pygame.draw.ellipse(sombra_surface, cor_sombra, (0, 0, largura, altura // 3))
-        tela.blit(sombra_surface, (x, y + altura - offset_y))
-    
+        cache_key = (largura, altura, "simples")
+        if cache_key not in _SOMBRA_CACHE:
+            surf = pygame.Surface((largura, altura // 3), pygame.SRCALPHA)
+            pygame.draw.ellipse(surf, (0, 0, 0, 80), (0, 0, largura, altura // 3))
+            _SOMBRA_CACHE[cache_key] = surf
+        tela.blit(_SOMBRA_CACHE[cache_key], (x, y + altura - offset_y))
+
     elif modo_sombra == "dinamicas":
-        # Sombra dinâmica - múltiplas camadas com gradiente
-        sombra_surface = pygame.Surface((int(largura * 1.2), int(altura // 2.5)), pygame.SRCALPHA)
-        
-        # Camada externa (mais suave e transparente)
-        cor_externa = (0, 0, 0, 40)
-        pygame.draw.ellipse(sombra_surface, cor_externa, 
-                          (0, 0, int(largura * 1.2), int(altura // 2.5)))
-        
-        # Camada intermediária
-        cor_media = (0, 0, 0, 70)
-        margem = int(largura * 0.15)
-        pygame.draw.ellipse(sombra_surface, cor_media, 
-                          (margem, margem // 2, int(largura * 0.9), int(altura // 3)))
-        
-        # Camada interna (mais escura e definida)
-        cor_interna = (0, 0, 0, 100)
-        margem_interna = int(largura * 0.25)
-        pygame.draw.ellipse(sombra_surface, cor_interna, 
-                          (margem_interna, margem_interna // 2, int(largura * 0.7), int(altura // 3.5)))
-        
-        # Posicionar a sombra centralizada
+        cache_key = (largura, altura, "dinamicas")
+        if cache_key not in _SOMBRA_CACHE:
+            sw, sh = int(largura * 1.2), int(altura // 2.5)
+            surf = pygame.Surface((sw, sh), pygame.SRCALPHA)
+            margem = int(largura * 0.15)
+            margem_i = int(largura * 0.25)
+            pygame.draw.ellipse(surf, (0, 0, 0, 40), (0, 0, sw, sh))
+            pygame.draw.ellipse(surf, (0, 0, 0, 70),
+                                (margem, margem // 2, int(largura * 0.9), int(altura // 3)))
+            pygame.draw.ellipse(surf, (0, 0, 0, 100),
+                                (margem_i, margem_i // 2, int(largura * 0.7), int(altura // 3.5)))
+            _SOMBRA_CACHE[cache_key] = surf
+        surf = _SOMBRA_CACHE[cache_key]
         pos_x = x - int(largura * 0.1)
         pos_y = y + altura - offset_y - int(altura // 6)
-        tela.blit(sombra_surface, (pos_x, pos_y))
+        tela.blit(surf, (pos_x, pos_y))
 
 
 def soltar_moeda(posicao):
     chance = 0.05 # 5%
     if random.random() < chance:
-        tamanho_moeda = (36, 36)  # Novo tamanho desejado
-        sprite_redimensionada = pygame.transform.scale(sprite_moeda, tamanho_moeda)
+        if not hasattr(soltar_moeda, '_sprite_cached'):
+            tamanho_moeda = (36, 36)
+            soltar_moeda._sprite_cached = pygame.transform.scale(sprite_moeda, tamanho_moeda)
+        
+        sprite_redimensionada = soltar_moeda._sprite_cached
         rect = sprite_redimensionada.get_rect(center=posicao)
         moedas_soltadas.append({
             "rect": rect,
@@ -1139,54 +1177,115 @@ class AgenteApolo:
         if cds.get("disparo", False) == False and boss_hitbox is not None: 
             self.mouse_simulado[0] = True
 
-        # --- HIERARQUIA DE PERSISTÊNCIA (FOCO NA ORBE) ---
+        # --- HIERARQUIA DE PRIORIDADE: VIDA VS RISCO (custo-beneficio) ---
+        # A Umbra pode ser ignorada quando morrer de falta de HP e mais provavel
+        # do que morrer pelo projetil. Apolo aprende que a orbe e SAGRADA.
         perigo_iminente = False
         raio_perigo = 80
-        
-        # 1. Escaneamento de Emergência Crítica
+
+        # --- RECOMPUTO LOCAL DAS VARIAVEIS DE PROJETIL (necessarias em pensar) ---
+        # (obter_estado_expandido calcula as mesmas, mas sao locais daquele metodo)
+        dist_perigo       = 1.0
+        proj_vel_x        = 0.0
+        proj_vel_y        = 0.0
+        proj_approaching  = 0.0
+        projeteis_proximos = []
+
+        for _proj in projeteis_boss:
+            _px_p = _proj['rect'].centerx if 'rect' in _proj else _proj.get('x', px)
+            _py_p = _proj['rect'].centery if 'rect' in _proj else _proj.get('y', py)
+            _d    = math.hypot(_px_p - px, _py_p - py)
+            if _d < 250:
+                projeteis_proximos.append((_px_p, _py_p, _d, _proj))
+
+        if projeteis_proximos:
+            _pp_x, _pp_y, _pd, _pref = min(projeteis_proximos, key=lambda p: p[2])
+            dist_perigo = _pd / 250.0
+            if 'angulo' in _pref:
+                _ang = _pref['angulo']
+                proj_vel_x = math.cos(_ang)
+                proj_vel_y = math.sin(_ang)
+            elif 'vel_x' in _pref and 'vel_y' in _pref:
+                _spd = math.hypot(_pref['vel_x'], _pref['vel_y'])
+                if _spd > 0:
+                    proj_vel_x = _pref['vel_x'] / _spd
+                    proj_vel_y = _pref['vel_y'] / _spd
+            _dot = proj_vel_x * (px - _pp_x) + proj_vel_y * (py - _pp_y)
+            proj_approaching = 1.0 if _dot > 0 else 0.0
+
+        # 1. Mede o perigo real do projetil (urgencia de evasao)
+        dist_proj_atual = float('inf')
         for proj in projeteis_boss:
             px_proj = proj['rect'].centerx if 'rect' in proj else proj.get('x', px)
             py_proj = proj['rect'].centery if 'rect' in proj else proj.get('y', py)
-            if math.hypot(px_proj - px, py_proj - py) < raio_perigo:
+            d_proj  = math.hypot(px_proj - px, py_proj - py)
+            if d_proj < dist_proj_atual:
+                dist_proj_atual = d_proj
+            if d_proj < raio_perigo:
                 perigo_iminente = True
                 break
-                
+
         if estado_ia and estado_ia.get('laser_ativo') and estado_ia['laser_ativo'].get('fase') == 'carregando':
             perigo_iminente = True
+
+        # 2. Calcula custo de cada risco
+        vida_frac_atual = vida_jogador / 1000.0
+        # Custo de morrer sem HP: quadratico — escala rapido com pouca vida
+        custo_morrer_sem_hp = ((max(0.0, 0.80 - vida_frac_atual) / 0.80) ** 2) * 3.5
+        # Custo do projetil: maximo 2.0 quando tocando e vindo direto
+        proj_appr_atual = proj_approaching if projeteis_proximos else 0.0
+        custo_dano_proj  = (1.0 - min(1.0, dist_proj_atual / 250.0)) * proj_appr_atual * 2.0
+
+
+        # 3. Se morrer sem HP for mais perigoso: IGNORAR a Umbra e buscar a orbe
+        orbe_mais_urgente = (custo_morrer_sem_hp > custo_dano_proj)
+
+        if perigo_iminente and not orbe_mais_urgente:
+            self.foco_orbe = None  # Perigo real supera urgencia de HP — evadir!
             
-        if perigo_iminente:
-            self.foco_orbe = None # Aborta coleta para evadir (Restaura autonomia DQN)
+        # 4. Gatilho de Assuncao de Controle: busca orbe se precisar E nao ha laser
+        laser_ativo = estado_ia.get('laser_ativo') if estado_ia else None
+        laser_disparando = laser_ativo and laser_ativo.get('fase') == 'disparando'
+        # Com laser disparando, o DQN deve cuidar da evasao; busca orbe so se critico
+        limiar_orbe = 600 if not laser_disparando else 300  # 60% normal, 30% com laser
+        if vida_jogador < limiar_orbe and esferas_energia and (not perigo_iminente or orbe_mais_urgente):
+            # Escolhe orbe que maximiza (urgencia / distancia): melhor custo-beneficio
+            melhor_orbe = None
+            melhor_score = -1.0
+            for o in esferas_energia:
+                ox_o = o['rect'].centerx if 'rect' in o else o.get('x', px)
+                oy_o = o['rect'].centery if 'rect' in o else o.get('y', py)
+                d_o  = math.hypot(ox_o - px, oy_o - py) + 1.0
+                # Urgencia temporal: orbe mais nova tem mais tempo, prioriza a que esta sumindo
+                t_criacao = o.get('tempo_criacao', agora)
+                tempo_restante_ms = max(0, 15000 - (agora - t_criacao))
+                fator_urgencia_tempo = 1.0 + max(0.0, (5000 - tempo_restante_ms) / 5000) * 2.0  # ate 3x nos ultimos 5s
+                score = fator_urgencia_tempo / d_o  # prioriza orbe sumindo E perto
+                if score > melhor_score:
+                    melhor_score = score
+                    melhor_orbe  = (ox_o, oy_o)
+            if melhor_orbe:
+                self.foco_orbe = melhor_orbe
             
-        # 2. Gatilho de Assunção de Controle
-        # Aumentado para 80%: Apolo agora é proativo e busca orbes antes que elas desapareçam
-        if vida_jogador < 800 and esferas_energia and not perigo_iminente:
-            # Correção de KeyError: 'rect' - Suporta tanto objetos com rect quanto dicionários x/y
-            orbe_alvo = min(esferas_energia, key=lambda o: math.hypot(
-                (o['rect'].centerx if 'rect' in o else o.get('x', px)) - px, 
-                (o['rect'].centery if 'rect' in o else o.get('y', py)) - py
-            ))
-            self.foco_orbe = (
-                orbe_alvo['rect'].centerx if 'rect' in orbe_alvo else orbe_alvo.get('x', px),
-                orbe_alvo['rect'].centery if 'rect' in orbe_alvo else orbe_alvo.get('y', py)
-            )
-            
-        # 3. Execução de Steering
-        if self.foco_orbe and not perigo_iminente:
+        # 5. Execucao de Steering
+        if self.foco_orbe and (not perigo_iminente or orbe_mais_urgente):
             ox, oy = self.foco_orbe
             dist_orbe = math.hypot(ox - px, oy - py)
             
             if dist_orbe < 30:
-                self.foco_orbe = None # Capturou ou está prestes a capturar
+                self.foco_orbe = None  # Capturou ou esta prestes a capturar
             else:
                 if ox > px + 10: self.direcao_x = 1
                 elif ox < px - 10: self.direcao_x = -1
                 if oy > py + 10: self.direcao_y = 1
                 elif oy < py - 10: self.direcao_y = -1
                 
-                if dist_orbe > 150 and cds.get("dash", False) == False:
+                # Dash quando orbe distante OU com vida critica (< 30%) e dash disponivel
+                vida_critica = vida_jogador < 300
+                if (dist_orbe > 120 or vida_critica) and cds.get("dash", False) == False:
                     self.usar_dash = True
                 
-                # Interrupção de Fluxo: Apolo ignora treinamento e inferência DQN para garantir a sobrevivência
+                # Interrupcao de Fluxo: Apolo ignora DQN para garantir a sobrevivencia
                 return
 
         # RECOMPENSA EXPANDIDA
@@ -1200,6 +1299,7 @@ class AgenteApolo:
             delta_vida_apolo = vida_jogador - self.vida_jogador_anterior
             delta_vida_boss = vida_boss - self.vida_boss_anterior
 
+
         if delta_vida_apolo < 0:
             recompensa -= 50
         if delta_vida_boss < 0:
@@ -1208,13 +1308,15 @@ class AgenteApolo:
             recompensa += 300
 
         # RECOMPENSA DE SOBREVIVENCIA — complementa o SurvivalGate hardwired
-        # O gate ja garante o movimento, mas a recompensa ensina o DQN ao longo do tempo
+        # O gate ja garante o movimento; a recompensa ENSINA o DQN ao longo do tempo.
+        # APOLO DEVE ENTENDER QUE A ORBE E SAGRADA: ignorar e quase um suicidio.
         vida_frac = vida_jogador / 1000.0  # normalizada (0-1)
-        if vida_frac < 0.80 and esferas_energia:
-            urgencia_sv = (0.80 - vida_frac) / 0.80  # 0 a 1 conforme vida cai
-            # Calcula distancia a orbe mais proxima
-            orbe_mais_prox = None
-            menor_d_orb = float('inf')
+        if vida_frac < 0.95 and esferas_energia:  # Limiar alinhado com SurvivalGate
+            urgencia_sv = ((0.95 - vida_frac) / 0.95) ** 1.5  # curva exponencial (mais forte!)
+            # Calcula distancia a orbe mais proxima E urgencia temporal
+            orbe_mais_prox     = None
+            menor_d_orb        = float('inf')
+            tempo_restante_orb = 15000  # default: orbe nova
             for orb in esferas_energia:
                 ox = orb['rect'].centerx if 'rect' in orb else orb.get('x', px)
                 oy = orb['rect'].centery if 'rect' in orb else orb.get('y', py)
@@ -1222,18 +1324,25 @@ class AgenteApolo:
                 if d < menor_d_orb:
                     menor_d_orb = d
                     orbe_mais_prox = (ox, oy)
+                    t_cria = orb.get('tempo_criacao', agora)
+                    tempo_restante_orb = max(0, 15000 - (agora - t_cria))
             if orbe_mais_prox:
+                # Fator temporal: quanto menos tempo resta, mais urgente (ate 4x!)
+                fator_tempo = 1.0 + max(0.0, (7000 - tempo_restante_orb) / 7000) * 3.0
                 # Recompensa por se aproximar da orbe (positivo) ou se afastar (negativo)
                 if hasattr(self, '_dist_orb_ant') and self._dist_orb_ant is not None:
                     delta_orb = self._dist_orb_ant - menor_d_orb  # positivo = aproximou
-                    recompensa += delta_orb * urgencia_sv * 1.5
+                    # Recompensa amplificada: ate 4x mais forte nos momentos criticos
+                    recompensa += delta_orb * urgencia_sv * fator_tempo * 3.0
+                    # Penalidade dobrada por se AFASTAR: Apolo deve aprender que e errado!
+                    if delta_orb < 0:
+                        recompensa += delta_orb * urgencia_sv * fator_tempo * 3.0  # penalidade extra
                 self._dist_orb_ant = menor_d_orb
                 # Bonus massivo ao coletar a orbe (delta_vida_apolo > 0)
                 if delta_vida_apolo > 0:
-                    recompensa += 500.0 * urgencia_sv
+                    recompensa += 500.0 * urgencia_sv * fator_tempo  # amplia com urgencia temporal
         else:
             self._dist_orb_ant = None
-        
         # RECOMPENSA DE EVASAO DE PROJETEIS — ensina o DodgeGate ao longo do tempo
         # O DodgeGate hardwired ja age imediatamente; o reward ensina o padrao
         if proj_approaching and dist_perigo < 0.6:
@@ -1438,47 +1547,72 @@ class AgenteApolo:
                 elif dist_boss_direta > 600:
                     recompensa += 5.0  # Prêmio grande por manter a Umbra fora do encalço
         
-        # NOVO: Recompensa por buscar orbes quando está com pouca vida
         if esferas_energia and len(esferas_energia) > 0:
-            percentual_vida_atual = vida_jogador / 1000.0  # Assumindo vida máxima ~1000
+            percentual_vida_atual = vida_jogador / 1000.0  # Assumindo vida maxima ~1000
             
-            # Calcula distância até orbe mais próxima
-            orbe_mais_proxima = None
-            dist_min_orbe = float('inf')
+            # Calcula distancia ate orbe mais proxima e urgencia temporal
+            orbe_mais_proxima  = None
+            dist_min_orbe      = float('inf')
+            tempo_restante_min = 15000  # default
             for orbe in esferas_energia:
                 ox, oy = orbe.get('x', px), orbe.get('y', py)
+                if 'rect' in orbe:
+                    ox, oy = orbe['rect'].centerx, orbe['rect'].centery
                 dist = math.hypot(ox - px, oy - py)
                 if dist < dist_min_orbe:
                     dist_min_orbe = dist
                     orbe_mais_proxima = orbe
+                    t_cria = orbe.get('tempo_criacao', agora)
+                    tempo_restante_min = max(0, 15000 - (agora - t_cria))
+            
+            # Fator de urgencia temporal: orbe sumindo nos proximos 7s = urgencia maxima
+            fator_urgencia_tempo = 1.0 + max(0.0, (7000 - tempo_restante_min) / 7000) * 3.0  # 1x a 4x
             
             if orbe_mais_proxima:
-                # Dense Reward (Guia de Migalhas): Apolo ganha pontos a cada pixel que se aproxima da orbe
-                # e perde pontos a cada pixel que se afasta, guiando ele exatamente para o local!
+                # Dense Reward amplificado: mais forte com vida baixa e orbe sumindo
                 if hasattr(self, 'dist_orbe_anterior'):
                     delta_distancia = self.dist_orbe_anterior - dist_min_orbe
                     
-                    # Evita o trauma neural: Se a distância pular absurdamente (orbe coletada ou despawnou) ignoramos a punição desse frame
+                    # Evita trauma neural: salto absurdo de distancia (orbe coletada ou despawnou)
                     if abs(delta_distancia) < 50:
-                        # Fator de desespero: quanto menos vida, mais forte o bônus/penalidade
+                        # Fator de desespero: quanto menos vida, mais forte o bonus/penalidade
                         fator_necessidade = 1.0
                         if percentual_vida_atual < 0.3:
-                            fator_necessidade = 5.0
+                            fator_necessidade = 6.0  # Era 5.0 — mais agressivo!
                         elif percentual_vida_atual < 0.6:
-                            fator_necessidade = 2.5
+                            fator_necessidade = 3.5  # Era 2.5
+                        elif percentual_vida_atual < 0.95:
+                            fator_necessidade = 1.5  # Novo: alinhado com limiar 95%
                             
-                        # Se aproximou (delta_distancia > 0) = ganha dopamina
-                        # Se afastou (delta_distancia < 0) = perde dopamina
-                        recompensa += (delta_distancia * 0.5) * fator_necessidade
+                        # Amplificado: 2.0 * fator_necessidade * fator_tempo
+                        # Se aproximou (delta > 0) = dopamina, se afastou (delta < 0) = punicao
+                        recompensa += (delta_distancia * 2.0) * fator_necessidade * fator_urgencia_tempo
+                        
+                        # Penalidade EXTRA por se afastar quando esta urgente: ensina que e ERRADO
+                        if delta_distancia < 0 and percentual_vida_atual < 0.80:
+                            recompensa += delta_distancia * fator_necessidade * fator_urgencia_tempo * 1.5
                         
                         if dist_min_orbe < 100 and percentual_vida_atual < 0.5:
-                            recompensa += 5 # Extremo reforço quando já tá na cara da orbe
+                            recompensa += 8  # Era 5 — maior reforco na cara da orbe
                 
                 self.dist_orbe_anterior = dist_min_orbe
+            
+            # PENALIDADE SEVERA por ORBE PERDIDA: Apolo deixou sumir enquanto precisava!
+            # Detecta quando a quantidade de orbes diminuiu SEM coleta (delta_vida = 0)
+            qtd_atual  = len(esferas_energia)
+            qtd_ant    = getattr(self, '_qtd_orbes_anterior', qtd_atual)
+            if qtd_ant > qtd_atual and delta_vida_apolo <= 0 and percentual_vida_atual < 0.95:
+                # Orbe sumiu sem ser coletada enquanto Apolo precisava — punicao!
+                orbes_perdidas = qtd_ant - qtd_atual
+                urgencia_perda = ((0.95 - percentual_vida_atual) / 0.95) ** 1.5
+                penalidade_perda = -250.0 * urgencia_perda * orbes_perdidas
+                recompensa += penalidade_perda
+            self._qtd_orbes_anterior = qtd_atual
         else:
-            # Limpa do cérebro para evitar fobia quando uma nova orbe nascer
+            # Limpa do cerebro para evitar fobia quando uma nova orbe nascer
             if hasattr(self, 'dist_orbe_anterior'):
                 delattr(self, 'dist_orbe_anterior')
+            self._qtd_orbes_anterior = 0
         
         # NOVO: Recompensa por evitar ratos (apenas na Dimensão 9)
         if 'gerenciador_ratos' in globals():
@@ -1754,7 +1888,7 @@ def inteligencia_escolha_cartas_apolo(qtd):
 
     contagem = collections.Counter(escolhas)
     print("\n" + "="*50)
-    print(f"🧠 SELEÇÃO GENÉTICA DE APOLO ({qtd} Cartas)")
+    print(f"SELECAO GENETICA DE APOLO ({qtd} Cartas)")
     for carta, q in sorted(contagem.items(), key=lambda x: x[1], reverse=True): 
         print(f"[{q}x] {carta}")
     print("="*50)
@@ -1849,7 +1983,7 @@ def injetar_build_endgame(qtd_cartas_jogador=30):
     vida = vida_maxima
     vida_umbra = vida_maxima_umbra
 
-    print(f"\n[ 💀 UMBRA ] - {qtd_cartas_umbra} Cartas Sorteadas (Caos Puro)")
+    print(f"\n[ UMBRA ] - {qtd_cartas_umbra} Cartas Sorteadas (Caos Puro)")
     for carta_u, qtd in sorted(collections.Counter(registro_umbra).items(), key=lambda x: x[1], reverse=True):
         print(f" -> [{qtd}x] {carta_u}")
     print("="*50 + "\n")
@@ -2352,8 +2486,8 @@ while running:
             # --- 3. HIERARQUIA DE MOVIMENTAÇÃO ---
             if estado_atual_ia.get('parede_ativa'):
                 if agora - estado_atual_ia.get('ultimo_tick_cura', 0) >= 600:
-                    # Reduzimos para 2% para permitir o counter-play tático
-                    valor_cura = (vida_maxima_umbra-vida_umbra) * 0.05
+                    # Nerf leve aplicado: Reduzido de 5% para 3.5%
+                    valor_cura = (vida_maxima_umbra-vida_umbra) * 0.035
                     memoria_umbra.treinar(1.5)
                     # A cura não pode ultrapassar o limite máximo
                     vida_umbra = min(vida_maxima_umbra, vida_umbra + valor_cura)
@@ -2390,9 +2524,13 @@ while running:
                         pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem))
                         pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem))
                     
-                    # Renderização animada da Singularidade
-                    frame_v = frames_vortex[(agora // 150) % len(frames_vortex)]
-                    frame_v = pygame.transform.scale(frame_v, (160, 160))
+                    # Renderizacao animada da Singularidade — frames pre-escalados
+                    if not hasattr(desenhar_sombra, '_frames_v_scaled') or \
+                            len(desenhar_sombra._frames_v_scaled) != len(frames_vortex):
+                        desenhar_sombra._frames_v_scaled = [
+                            pygame.transform.scale(f, (160, 160)) for f in frames_vortex
+                        ]
+                    frame_v = desenhar_sombra._frames_v_scaled[(agora // 150) % len(frames_vortex)]
                     tela.blit(frame_v, (vortice['x'] - 80, vortice['y'] - 80))
                 else:
                     estado_atual_ia['vortice_ativo'] = None
@@ -2402,60 +2540,65 @@ while running:
             if prisao:
                 tempo_prisao = agora - prisao['tempo_inicio']
                 if tempo_prisao < prisao['duracao']:
-                    
-                    # 1. Dinâmica de Pulsação e Crescimento da Zona
+                    # 1. Dinamica de Pulsacao e Crescimento da Zona
                     raio_hitbox_base = 45
                     aumento_pulso = int(abs(math.sin(agora * 0.001)) * 180)
                     raio_hitbox_atual = raio_hitbox_base + aumento_pulso
-                    
-                    tamanho_vortice = (raio_hitbox_atual * 2) + 40 
-                    superficie_vortice = pygame.Surface((tamanho_vortice, tamanho_vortice), pygame.SRCALPHA)
+
+                    tamanho_vortice = (raio_hitbox_atual * 2) + 40
                     centro_v_x, centro_v_y = tamanho_vortice // 2, tamanho_vortice // 2
-                    
-                    # 2. Núcleo Energético Pulsante Expandido
+
+                    # Cache da Surface: quantiza raio a cada 8px para reutilizar surface
+                    raio_q = (raio_hitbox_atual // 8) * 8
+                    if raio_q not in _VORTICE_SURF_CACHE:
+                        _sv = pygame.Surface((tamanho_vortice, tamanho_vortice), pygame.SRCALPHA)
+                        _VORTICE_SURF_CACHE.clear()           # nao acumular dezenas de sizes
+                        _VORTICE_SURF_CACHE[raio_q] = _sv
+                    superficie_vortice = _VORTICE_SURF_CACHE[raio_q]
+                    superficie_vortice.fill((0, 0, 0, 0))    # limpa para redesenhar
+
+                    # 2. Nucleo Energetico Pulsante
                     raio_nucleo = (raio_hitbox_atual * 0.6) + int(math.sin(agora * 0.008) * 8)
                     alfa_nucleo = 110 + int(math.sin(agora * 0.008) * 40)
                     cores_nucleo = [
-                        ((0, 80, 255, alfa_nucleo), raio_nucleo),      
-                        ((0, 160, 255, alfa_nucleo + 20), raio_nucleo * 0.7), 
-                        ((150, 240, 255, alfa_nucleo + 40), raio_nucleo * 0.3) 
+                        ((0, 80, 255, alfa_nucleo), raio_nucleo),
+                        ((0, 160, 255, alfa_nucleo + 20), raio_nucleo * 0.7),
+                        ((150, 240, 255, alfa_nucleo + 40), raio_nucleo * 0.3)
                     ]
                     for cor, raio in cores_nucleo:
                         pygame.draw.circle(superficie_vortice, cor, (centro_v_x, centro_v_y), max(1, int(raio)))
 
-                    # 3. Anel Externo Congelante (Acompanha o Pulso)
-                    num_segmentos = 40
-                    angulo_base = (agora * 0.002) 
+                    # 3. Anel Externo Congelante — 20 segmentos (era 40, mesmo visual a 60fps)
+                    num_segmentos = 20
+                    angulo_base = agora * 0.002
+                    step_ang = math.pi * 2 / num_segmentos
                     for i in range(num_segmentos):
-                        ang = angulo_base + (i * (math.pi * 2 / num_segmentos))
-                        r_ext = raio_hitbox_atual + random.uniform(-4, 4) 
-                        px = centro_v_x + r_ext * math.cos(ang)
-                        py = centro_v_y + r_ext * math.sin(ang)
-                        pygame.draw.circle(superficie_vortice, (200, 250, 255, 180), (int(px), int(py)), random.choice([2, 3, 4]))
+                        ang = angulo_base + i * step_ang
+                        r_ext = raio_hitbox_atual + random.uniform(-4, 4)
+                        px_s = centro_v_x + r_ext * math.cos(ang)
+                        py_s = centro_v_y + r_ext * math.sin(ang)
+                        pygame.draw.circle(superficie_vortice, (200, 250, 255, 180), (int(px_s), int(py_s)), 3)
 
-                    # 4. Tempestade de Flocos e Cristais
-                    random.seed(prisao['tempo_inicio']) 
-                    num_particulas = 70
-                    velocidade_tempestade = -(agora * 0.005) 
-                    
+                    # 4. Tempestade de Flocos e Cristais — 35 particulas (era 70)
+                    random.seed(prisao['tempo_inicio'])
+                    num_particulas = 35
+                    velocidade_tempestade = -(agora * 0.005)
                     for i in range(num_particulas):
                         raio_orbita = random.uniform(15, raio_hitbox_atual)
                         angulo_offset = random.uniform(0, math.pi * 2)
-                        tipo = random.choice(['floco', 'cristal', 'cristal']) 
-                        
+                        usa_floco = random.randint(0, 2) == 0   # 1/3 floco, 2/3 cristal
                         ang_final = velocidade_tempestade + angulo_offset
-                        px = centro_v_x + raio_orbita * math.cos(ang_final)
-                        py = centro_v_y + raio_orbita * math.sin(ang_final)
-                        
-                        if tipo == 'floco':
-                            superficie_vortice.blit(floco_superficie, (int(px)-2, int(py)-2))
+                        px_s = centro_v_x + raio_orbita * math.cos(ang_final)
+                        py_s = centro_v_y + raio_orbita * math.sin(ang_final)
+                        if usa_floco:
+                            superficie_vortice.blit(_FLOCO_SURF, (int(px_s) - 2, int(py_s) - 2))
                         else:
-                            superficie_vortice.blit(cristal_superficie, (int(px)-3, int(py)-3))
-                    
+                            superficie_vortice.blit(_CRISTAL_SURF, (int(px_s) - 3, int(py_s) - 3))
                     random.seed()
 
-                    # 5. Aplicação Visceral no Ecrã
+                    # 5. Aplicacao Visceral no Ecra
                     tela.blit(superficie_vortice, (prisao['x'] - centro_v_x, prisao['y'] - centro_v_y))
+
 
                     # 6. Detecção de Punição Física (Hitbox Dinâmica)
                     dist_p = math.hypot(prisao['x'] - personagem_rect.centerx, prisao['y'] - personagem_rect.centery)
@@ -2931,16 +3074,20 @@ while running:
                         pygame.draw.line(tela, (255, 120, 0), origem_laser, (fim_x, fim_y), int(esp[2] + tremor/2))
                         pygame.draw.line(tela, (255, 255, 255), origem_laser, (fim_x, fim_y), esp[3])
                         
-                        # Partículas (Faiscas limitadas para o estágio 4 não fritar o FPS)
-                        qtd_particulas = 6 if rodada < 4 else 2
+                        # Faiscas — 3/1 (era 6/2): indistinguivel a 60fps
+                        qtd_particulas = 3 if rodada < 4 else 1
+                        perp_ang = angulo_atual + math.pi / 2
+                        cos_a, sin_a = math.cos(angulo_atual), math.sin(angulo_atual)
+                        cos_p, sin_p = math.cos(perp_ang), math.sin(perp_ang)
                         for _ in range(qtd_particulas):
                             dist_faisca = random.uniform(50, 1200)
-                            desvio = random.uniform(-esp[0]/2, esp[0]/2)
-                            f_x = origem_laser[0] + math.cos(angulo_atual) * dist_faisca + math.cos(angulo_atual+math.pi/2)*desvio
-                            f_y = origem_laser[1] + math.sin(angulo_atual) * dist_faisca + math.sin(angulo_atual+math.pi/2)*desvio
-                            tamanho_faisca = random.randint(2, 5) if rodada < 4 else random.randint(1, 3)
+                            desvio = random.uniform(-esp[0] / 2, esp[0] / 2)
+                            f_x = origem_laser[0] + cos_a * dist_faisca + cos_p * desvio
+                            f_y = origem_laser[1] + sin_a * dist_faisca + sin_p * desvio
+                            tamanho_faisca = random.randint(2, 5) if rodada < 4 else 2
                             cor_faisca = random.choice([(255, 50, 50), (255, 150, 0), (255, 255, 255)])
                             pygame.draw.circle(tela, cor_faisca, (int(f_x), int(f_y)), tamanho_faisca)
+
 
                         # Matemática de Colisão
                         px_c, py_c = personagem_rect.center
@@ -3202,48 +3349,61 @@ while running:
     if estado_atual_ia.get('dimensao_ativa') == "rastro":
         ratos = estado_atual_ia.get('ratos_ativos', [])
         novos_ratos = []
-        for rato in ratos:
-            vivo = True
-            # Steering Boids (Cercamento Implacável)
-            dx = pos_x_personagem + largura_personagem//2 - rato['x']
-            dy = pos_y_personagem + altura_personagem//2 - rato['y']
-            dist = math.hypot(dx, dy)
-            if dist > 0:
-                rato['x'] += (dx/dist) * 6.0
-                rato['y'] += (dy/dist) * 6.0
-            
-            # Colisão com o Jogador (Lifesteal)
-            if dist < 30 and vivo:
-                vivo = False
-                vida -= 5.0
-                vida_boss5 = min(vida_boss_maxima, vida_boss5 + 20)
-                estado_atual_ia['ratos_adicionais'] = estado_atual_ia.get('ratos_adicionais', 0) + 1
-                
-                memoria_umbra.treinar(5.0)  # Recompensa alta pra Umbra
-                apolo.aplicar_recompensa_direta(-5.0)  # Punição pro Apolo
-                
-                efeitos_texto.append({"texto": "+20 LIFESTEAL UMBRA", "x": pos_x_umbra, "y": pos_y_umbra - 30, "tempo_inicio": agora, "cor": (50, 255, 50)})
-                efeitos_texto.append({"texto": "+1 RATO PERMANENTE", "x": pos_x_umbra, "y": pos_y_umbra - 50, "tempo_inicio": agora, "cor": (150, 0, 150)})
-            
-            # Bloqueio Ativo (Escudo de Carne / Destruição de Ratos)
-            for tiro in list(disparos): # Itera uma cópia de disparos globais
-                dist_tiro = math.hypot(tiro['rect'].centerx - rato['x'], tiro['rect'].centery - rato['y'])
-                if dist_tiro < 25 and vivo:
-                    vivo = False
-                    if tiro in disparos:
-                        disparos.remove(tiro)
-                    efeitos_texto.append({"texto": "SPLAT!", "x": rato['x'], "y": rato['y'], "tempo_inicio": agora, "cor": (100, 0, 100)})
-                    apolo.aplicar_recompensa_direta(0.5) # Micro recompensa pro player acertar rato
-                    break
-            
-            if vivo:
-                novos_ratos.append(rato)
-                # Arte Procedural Boids/Rato (Borda de caos púrpura)
-                pygame.draw.circle(tela, (20, 10, 30), (int(rato['x']), int(rato['y'])), 12)
-                pygame.draw.circle(tela, (130, 20, 150), (int(rato['x']), int(rato['y'])), 8)
-                pygame.draw.circle(tela, (50, 255, 50), (int(rato['x']+random.randint(-2,2)), int(rato['y']+random.randint(-2,2))), 3)
-                
+        if ratos:  # early-exit se lista vazia
+            # Pre-computa rect do personagem para colisao eficiente
+            rect_player_rats = pygame.Rect(
+                pos_x_personagem, pos_y_personagem,
+                largura_personagem, altura_personagem
+            ).inflate(60, 60)  # zona de colisao de 30px ao redor
+            pcx = pos_x_personagem + largura_personagem // 2
+            pcy = pos_y_personagem + altura_personagem // 2
+
+            for rato in ratos:
+                vivo = True
+                # Steering Boids (Cercamento Implacavel)
+                dx = pcx - rato['x']
+                dy = pcy - rato['y']
+                dist = math.hypot(dx, dy)
+                if dist > 0:
+                    rato['x'] += (dx / dist) * 6.0
+                    rato['y'] += (dy / dist) * 6.0
+
+                # Colisao com o Jogador — Rect.collidepoint e O(1)
+                if vivo and rect_player_rats.collidepoint(rato['x'], rato['y']):
+                    if dist < 30:
+                        vivo = False
+                        vida -= 5.0
+                        vida_boss5 = min(vida_boss_maxima, vida_boss5 + 20)
+                        estado_atual_ia['ratos_adicionais'] = estado_atual_ia.get('ratos_adicionais', 0) + 1
+                        memoria_umbra.treinar(5.0)
+                        apolo.aplicar_recompensa_direta(-5.0)
+                        efeitos_texto.append({"texto": "+20 LIFESTEAL / +1 RATO", "x": pos_x_umbra,
+                                              "y": pos_y_umbra - 30, "tempo_inicio": agora, "cor": (50, 255, 50)})
+
+                # Bloqueio Ativo (Escudo de Carne / Destruicao de Ratos)
+                if vivo:
+                    rato_rect = pygame.Rect(int(rato['x']) - 25, int(rato['y']) - 25, 50, 50)
+                    for tiro in list(disparos):
+                        if rato_rect.colliderect(tiro['rect']):
+                            vivo = False
+                            if tiro in disparos:
+                                disparos.remove(tiro)
+                            efeitos_texto.append({"texto": "SPLAT!", "x": rato['x'], "y": rato['y'],
+                                                  "tempo_inicio": agora, "cor": (100, 0, 100)})
+                            apolo.aplicar_recompensa_direta(0.5)
+                            break
+
+                if vivo:
+                    novos_ratos.append(rato)
+                    # Arte Procedural Boids/Rato
+                    pygame.draw.circle(tela, (20, 10, 30), (int(rato['x']), int(rato['y'])), 12)
+                    pygame.draw.circle(tela, (130, 20, 150), (int(rato['x']), int(rato['y'])), 8)
+                    pygame.draw.circle(tela, (50, 255, 50),
+                                       (int(rato['x']) + random.randint(-2, 2),
+                                        int(rato['y']) + random.randint(-2, 2)), 3)
+
         estado_atual_ia['ratos_ativos'] = novos_ratos
+
 
     novos_disparos = []
 
@@ -3450,26 +3610,26 @@ while running:
             moedas_soltadas.remove(moeda)
             salvar_atributos()   #salva imediatamente
 
+    # Cap: maximos 12 efeitos simultaneos para evitar acumulo em combate
+    if len(efeitos_texto) > 12:
+        efeitos_texto = efeitos_texto[-12:]
+
     nova_lista = []
     for efeito in efeitos_texto:
         tempo_passado = tempo_atual - efeito["tempo_inicio"]
-        if tempo_passado <= 800:  # mostra por 2 segundos
-            fonte_efeito = pygame.font.Font(None, 28)
+        if tempo_passado <= 800:
             x = efeito["x"]
             y = efeito["y"] - (tempo_passado // 25)
-            texto_principal = fonte_efeito.render(efeito["texto"], True, efeito["cor"])
-
-            # Contorno preto em 8 direções
-            for dx in [-1, 0, 1]:
-                for dy in [-1, 0, 1]:
-                    if dx != 0 or dy != 0:
-                        contorno = fonte_efeito.render(efeito["texto"], True, (0, 0, 0))
-                        tela.blit(contorno, (x + dx, y + dy))
-
-            # Texto principal
+            # Render feito UMA vez com a fonte cacheada (era Font(None,28) a cada frame!)
+            texto_principal = _FONTE_EFEITO.render(efeito["texto"], True, efeito["cor"])
+            # Contorno: 1 render + 8 blits (era 8 renders separados)
+            contorno = _FONTE_EFEITO.render(efeito["texto"], True, (0, 0, 0))
+            for ox, oy in _CONTORNO_OFFSETS:
+                tela.blit(contorno, (x + ox, y + oy))
             tela.blit(texto_principal, (x, y))
             nova_lista.append(efeito)
     efeitos_texto = nova_lista
+
     if trembo:
         # Desenhar o segundo personagem ao lado do personagem original
         pos_x_segundo_personagem = pos_x_personagem + largura_personagem + 4
@@ -3486,23 +3646,28 @@ while running:
             
         vida = min(vida_maxima, vida + cura_trembo)
         tempo_ultima_regeneracao = tempo_atual
-    
-
+    # --- OTIMIZACAO UI ---
+    posicao_barra_vida = (80, altura_mapa - (altura_mapa - 34))
     total_cartas_compradas = sum(cartas_compradas.values())
     custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
-    # Verifica se a pontuação atingiu 1500 e se o jogador pressionou 'Q'
-   
-        
+    
+    # Lazy init das fontes da UI (evita pygame.font.Font() por frame)
+    if not hasattr(render_cached_text, '_fonte_ui'):
+        render_cached_text._fonte_ui = pygame.font.Font(None, int(altura_barra_vida*1))
+        render_cached_text._fonte_vida = pygame.font.Font(None, int(altura_barra_vida*0.9))
+    fonte = render_cached_text._fonte_ui
+    fonte_vida = render_cached_text._fonte_vida
 
-    posicao_barra_vida = (80, altura_mapa - (altura_mapa - 34))
-    fonte = pygame.font.Font(None, int(altura_barra_vida*1))
-    texto_pontuacao = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (250, 255,255))
-    fonte_vida = pygame.font.Font(None, int(altura_barra_vida*0.9))
-    texto_vida = fonte_vida.render(f'{int(vida)}/{int(vida_maxima)}', True, (255, 255, 255))
+    # Usa cache para render de textos, cortando alocacoes por frame
+    texto_vida_str = f'{int(vida)}/{int(vida_maxima)}'
+    texto_vida = render_cached_text(texto_vida_str, fonte_vida, (255, 255, 255))
+    texto_vida_borda = render_cached_text(texto_vida_str, fonte_vida, (0, 0, 0))
 
-    # Renderiza o texto de pontuação com uma borda
-    texto_pontuacao_borda = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (0, 0, 0))  # Cor preta para a borda
-    # Desenha o texto da borda um pouco deslocado para criar o efeito de contorno
+    texto_pontuacao_str = f'{pontuacao_exib}/{custo_carta_atual}'
+    texto_pontuacao = render_cached_text(texto_pontuacao_str, fonte, (255, 255, 255))
+    texto_pontuacao_borda = render_cached_text(texto_pontuacao_str, fonte, (0, 0, 0))
+
+    # Desenha o texto da borda da pontuacao deslocado (4x blits, 0x renders novos)
     tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 - 1))
     tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 + 1, altura_mapa*0.118 - 1))
     tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 + 1))
@@ -3511,28 +3676,16 @@ while running:
     # Desenha o texto da pontuação por cima da borda
     tela.blit(texto_pontuacao, (largura_mapa*0.075, altura_mapa*0.118))
 
-    
-
-    
-
-    # Calculando o ângulo do preenchimento em graus
-    angulo_preenchimento = (pontuacao_magia / 735) * 360  # ângulo em graus
-    # Preenchendo a parte do círculo
-    if angulo_preenchimento > 0:
-        pontos = []
-        for i in range(int(angulo_preenchimento) + 1):
-            radianos = math.radians(i - 90) 
-            x = centro_circulo[0] + raio_circulo * math.cos(radianos)
-            y = centro_circulo[1] + raio_circulo * math.sin(radianos)
-            pontos.append((x, y))
-        pygame.draw.polygon(tela, (53, 239, 252), [centro_circulo] + pontos) 
+    # Preenchendo a parte do círculo (Usa array pre-calculado, elimina 360 sines/cosines/frame)
+    angulo_preenchimento = (pontuacao_magia / 735) * 360
+    idx_preenchimento = int(angulo_preenchimento)
+    if idx_preenchimento > 0:
+        idx_preenchimento = min(idx_preenchimento, 360)
+        pontos_ui = _PONTOS_PREENCHIMENTO[:idx_preenchimento + 1]
+        pygame.draw.polygon(tela, (53, 239, 252), [centro_circulo] + pontos_ui)
     
     tela.blit(imagem_relogio, posicao_imagem_relogio)
     
-        
-
-
-
     porcentagem_vida_personagem = (vida / vida_maxima) * 100
     if aurea == "Devota" and escudo_devota_ativo:
         cor_barra = (0, 150, 255)  # Azul para indicar o escudo ativo
@@ -3542,10 +3695,7 @@ while running:
     pygame.draw.rect(tela, cor_barra, (posicao_barra_vida[0], posicao_barra_vida[1], (vida / vida_maxima) * largura_barra_vida, altura_barra_vida))
     pygame.draw.rect(tela, (0, 0, 0), (posicao_barra_vida[0], posicao_barra_vida[1], largura_barra_vida, altura_barra_vida), 2)
 
-    
-    # Renderiza o texto de vida com uma borda
-    texto_vida_borda = fonte_vida.render(f'{int(vida)}/{int(vida_maxima)}', True, (0, 0, 0))  # Cor preta para a borda
-    # Desenha o texto da borda um pouco deslocado para criar o efeito de contorno
+    # Desenha o texto da borda da vida
     tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 - 1, posicao_barra_vida[1] + 5 - 1))
     tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 + 1, posicao_barra_vida[1] + 5 - 1))
     tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 - 1, posicao_barra_vida[1] + 5 + 1))

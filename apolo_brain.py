@@ -173,28 +173,34 @@ class SurvivalGate(nn.Module):
     """
     Neuronio de sobrevivencia com PESO MAXIMO FIXO — nao-treinavel.
 
-    Quando vida de Apolo cai abaixo de 80%, este gate aplica um bias
+    APOLO PRIORIZA VIDA A TODO CUSTO.
+    Quando vida de Apolo cai abaixo de 95%, este gate aplica um bias
     MASSIVO nos Q-values em direcao a orbe de vida mais proxima.
-    Nenhum padrao aprendido pela rede consegue superar esse sinal.
+    Nenhum padrao aprendido pela rede pode superar esse sinal.
 
     Logica:
-      urgencia  = max(0, LIMIAR_VIDA - feat_vida) / LIMIAR_VIDA
-                  → 0.0 quando vida >= 80%
-                  → 1.0 quando vida = 0% (situacao critica)
+      urgencia_vida  = max(0, LIMIAR_VIDA - feat_vida) / LIMIAR_VIDA
+                       → 0.0 quando vida >= 95%
+                       → 1.0 quando vida = 0% (situacao critica)
 
-      bias[acao] = funcao da direcao (feat_dir_orb_x, feat_dir_orb_y)
-                  → maior para acoes que apontam para a orbe
-                  → inclui dash quando orbe esta distante
+      oportunidade   = 1 + bonus quando orbe esta perto E vida baixa
+                       → Apolo aprende que orbe ao alcance = agir AGORA
 
-      Q_final = Q_dqn + urgencia * bias * PESO_MAXIMO
+      bias[acao]     = funcao da direcao (feat_dir_orb_x, feat_dir_orb_y)
+                       → maior para acoes que apontam para a orbe
+                       → inclui dash quando orbe esta distante OU urgencia maxima
 
-    PESO_MAXIMO = 200.0 garante que nenhum Q-value aprendido supere o gate.
+      Q_final = Q_dqn + urgencia * oportunidade * bias * PESO_MAXIMO
+
+    PESO_MAXIMO = 300.0 garante que nenhum Q-value aprendido supere o gate.
     O gate eh INVISIVEL para o otimizador — nenhum gradiente passa por ele.
+    Ignora completamente a Umbra: a vida e a unica prioridade.
     """
 
-    LIMIAR_VIDA  = 0.80   # Ativa abaixo de 80% da vida
-    PESO_MAXIMO  = 200.0  # Domina qualquer Q-value aprendido
-    DIST_DASH    = 0.35   # Orbe considerada 'distante' (acima dessa dist normalizada)
+    LIMIAR_VIDA   = 0.95   # Ativa abaixo de 95% da vida (proativo!)
+    PESO_MAXIMO   = 300.0  # Domina qualquer Q-value aprendido
+    DIST_DASH     = 0.30   # Orbe considerada 'distante' (acima dessa dist normalizada)
+    DIST_OPORTUN  = 0.25   # Dist maxima para bonus de oportunidade (orbe ao alcance!)
 
     def forward(self, q: torch.Tensor, estado: torch.Tensor) -> torch.Tensor:
         """
@@ -208,11 +214,22 @@ class SurvivalGate(nn.Module):
             ox     = estado[:, _IDX_DIR_ORB_X]  # (batch,)
             oy     = estado[:, _IDX_DIR_ORB_Y]  # (batch,)
 
-            # Urgencia: rampa de 0 (vida ok) ate 1 (vida critica)
-            urgencia = torch.clamp(
+            # Urgencia principal: rampa de 0 (vida ok) ate 1 (vida critica)
+            urgencia_vida = torch.clamp(
                 (self.LIMIAR_VIDA - vida) / self.LIMIAR_VIDA,
                 min=0.0, max=1.0
             )  # (batch,)
+
+            # Bonus de oportunidade: orbe perto + vida baixa = AGIR AGORA!
+            # Amplifica o sinal quando a orbe esta ao alcance (dist < DIST_OPORTUN)
+            # Ensina: esta perto, vai buscar, nao perca a chance!
+            orbe_perto = torch.clamp(
+                (self.DIST_OPORTUN - d_orb) / self.DIST_OPORTUN,
+                min=0.0, max=1.0
+            )  # (batch,) — 1.0 quando orbe tocando, 0 quando longe
+            bonus_oportunidade = 1.0 + orbe_perto * urgencia_vida * 0.5  # max 1.5x
+
+            urgencia = urgencia_vida * bonus_oportunidade  # urgencia composta
 
             # Mascara: orbe existe quando dist < 0.99
             # (dist=1.0 significa nenhuma orbe no campo)
@@ -230,14 +247,17 @@ class SurvivalGate(nn.Module):
             b5 = torch.relu( ox) * torch.relu(-oy)          # cima-dir
             b6 = torch.relu(-ox) * torch.relu( oy)          # baixo-esq
             b7 = torch.relu( ox) * torch.relu( oy)          # baixo-dir
-            # Dash ativado quando orbe esta distante E urgencia e alta
-            b8 = torch.relu(d_orb - self.DIST_DASH) * urgencia
+            # Dash: ativa quando orbe distante OU urgencia critica (< 30% vida)
+            urgencia_critica = torch.clamp(
+                (0.30 - vida) / 0.30, min=0.0, max=1.0
+            )  # (batch,) — 1.0 apenas com vida < 30%
+            b8 = torch.relu(d_orb - self.DIST_DASH) * urgencia_vida + urgencia_critica * 0.8
 
             bias = torch.stack(
                 [b0, b1, b2, b3, b4, b5, b6, b7, b8], dim=1
             )  # (batch, 9)
 
-            # Sinal final: urgencia * direcao * peso_maximo * so_se_orbe_existe
+            # Sinal final: urgencia_composta * direcao * peso_maximo * so_se_orbe_existe
             sinal = (
                 urgencia.unsqueeze(1)      # (batch, 1)
                 * bias                     # (batch, 9)
@@ -632,10 +652,27 @@ def verificar_compatibilidade():
     print(f"[OK] Teto: {HIDDEN_MAX} neuronios | passo: {HIDDEN_STEP}")
     print(f"")
     print(f"[SURVIVAL GATE] Teste: vida=50%, orbe a direita")
+    print(f"[SURVIVAL GATE] LIMIAR_VIDA={rede.survival_gate.LIMIAR_VIDA} | PESO_MAXIMO={rede.survival_gate.PESO_MAXIMO}")
     print(f"[SURVIVAL GATE] Q-values: {[round(v,1) for v in q[0].tolist()]}")
     print(f"[SURVIVAL GATE] Acao escolhida: {acao_escolhida} ({nomes_acoes[acao_escolhida]})")
     gate_ok = acao_escolhida in [3, 5, 7]  # dir, cima-dir, baixo-dir
-    print(f"[SURVIVAL GATE] Status: {'OK — movendo para a orbe!' if gate_ok else 'ATENCAO: verificar indices de features'}")
+    print(f"[SURVIVAL GATE] Status: {'OK — APOLO PRIORIZA VIDA!' if gate_ok else 'ATENCAO: verificar indices de features'}")
+
+    # Teste 2: vida critica (20%) + orbe PERTO (bonus de oportunidade ativo)
+    t2 = torch.zeros(1, INPUT_SIZE, device=device)
+    t2[0, _IDX_VIDA_P]    = 0.20   # 20% vida — critico
+    t2[0, _IDX_DIST_ORB]  = 0.15   # orbe BEM perto (bonus oportunidade ativo!)
+    t2[0, _IDX_DIR_ORB_X] = 0.70
+    t2[0, _IDX_DIR_ORB_Y] = 0.70
+    with torch.no_grad():
+        q2 = rede(t2)
+    acao2 = int(q2.argmax(dim=1).item())
+    print(f"")
+    print(f"[SURVIVAL GATE] Teste 2: vida=20%, orbe perto (bonus oportunidade)")
+    print(f"[SURVIVAL GATE] Q-values: {[round(v,1) for v in q2[0].tolist()]}")
+    print(f"[SURVIVAL GATE] Acao escolhida: {acao2} ({nomes_acoes[acao2]}) — deve ser dir/baixo-dir")
+    gate_ok2 = acao2 in [3, 5, 7]
+    print(f"[SURVIVAL GATE] Bonus oportunidade: {'ATIVO — urgencia amplificada!' if gate_ok2 else 'VERIFICAR'}") 
 
 
 if __name__ == "__main__":

@@ -472,12 +472,12 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
         acoes_disponiveis.extend(["TELEPORTE", "TELEPORTE_JUKE"])
         
     # SISTEMA INTELIGENTE DE SIFÃO
-    # Pré-cooldown: Não pode usar nos primeiros 15s da fase
+    # Pré-cooldown: Não pode usar nos primeiros 20s da fase
     tempo_desde_inicio_fase = agora - estado_ia.get('tempo_inicio_fase', 0)
-    cooldown_sifao_ok = agora - estado_ia.get('ultimo_sifon_fim', 0) >= 15000
+    cooldown_sifao_ok = agora - estado_ia.get('ultimo_sifon_fim', 0) >= 20000
     
     # Só adiciona Sifão se passou o pré-cooldown E o cooldown normal
-    if tempo_desde_inicio_fase >= 15000 and (cooldown_sifao_ok or estado_ia.get('ultimo_sifon_fim') == 0):
+    if tempo_desde_inicio_fase >= 20000 and (cooldown_sifao_ok or estado_ia.get('ultimo_sifon_fim') == 0):
         acoes_disponiveis.append("SIFON")
 
     # SISTEMA DE BLOQUEIO DE COMBOS ENTRE DIMENSÕES
@@ -485,14 +485,24 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
     # ou logo após usar uma habilidade (tempo mínimo de 5s na dimensão)
     
     tempo_na_dimensao_atual = agora - estado_ia.get('tempo_inicio_dimensao', 0)
+    def is_active(ability_key, default_dur):
+        ab = estado_ia.get(ability_key)
+        if not ab: return False
+        dur = ab.get('duracao', default_dur)
+        if ability_key == 'caminho_espinhos':
+            dur = ab.get('duracao_crescimento', 0) + ab.get('duracao_expansao', 0)
+        elif ability_key == 'laser_ativo':
+            dur = ab.get('duracao_carga', 0) + ab.get('duracao_disparo', 0)
+        return (agora - ab.get('tempo_inicio', 0)) < dur
+
     habilidade_dimensional_ativa = (
-        estado_ia.get('vortice_ativo') or
-        estado_ia.get('prisao_ativa') or
-        estado_ia.get('caminho_espinhos') or
-        estado_ia.get('laser_ativo') or
-        estado_ia.get('descarga_eletrica') or
-        estado_ia.get('miasma_ativo') or
-        estado_ia.get('praga_ratos')
+        is_active('vortice_ativo', 8000) or
+        is_active('prisao_ativa', 3500) or
+        is_active('caminho_espinhos', 3400) or
+        is_active('laser_ativo', 5500) or
+        is_active('descarga_eletrica', 1800) or
+        is_active('miasma_ativo', 4500) or
+        is_active('praga_ratos', 9000)
     )
     
     # Verifica se pode transmutar

@@ -880,5 +880,23 @@
         "exploracao_umbra": 0.5,
         "habilidade_dominante": "NENHUMA",
         "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 99,
+        "duracao": 108.744,
+        "vencedor": "Umbra",
+        "hp_restante": 236084.06190841284,
+        "exploracao_umbra": 0.5,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
+    },
+    {
+        "geracao": 100,
+        "duracao": 73.386,
+        "vencedor": "Apolo",
+        "hp_restante": -1694.0958554737372,
+        "exploracao_umbra": 0.5,
+        "habilidade_dominante": "NENHUMA",
+        "precisao_bayesiana": 0.0
     }
 ]
