@@ -7,7 +7,6 @@
 import pygame
 import sys
 import importlib
-import subprocess
 import os
 import json
 import uuid
@@ -146,7 +145,7 @@ def tela_escolha_modo():
     from rede import descobrir_host_udp
     pygame.init()
     largura, altura = largura_tela, altura_tela
-    tela = pygame.display.set_mode((largura, altura))
+    tela = pygame.display.get_surface() or pygame.display.set_mode((largura, altura))
     pygame.display.set_caption("Escolher Modo de Jogo")
     fonte = pygame.font.Font("Texto/World.otf", 36)
     clock = pygame.time.Clock()
@@ -169,8 +168,7 @@ def tela_escolha_modo():
 
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+                return None, None
             elif evento.type == pygame.KEYDOWN:
                 if evento.key in [pygame.K_UP, pygame.K_w]:
                     selecionado = (selecionado - 1) % len(opcoes)
@@ -202,9 +200,7 @@ def tela_escolha_modo():
                     # MODO OFFLINE
                     # -----------------------------
                     elif escolha == "Offline":
-                        pygame.mixer.music.stop()
-
-                        import GAME
+                        return "offline", None
 
 
 
@@ -589,224 +585,307 @@ def aplicar_volumes_audio(config):
         json.dump(config, f, indent=4)
 
 
-while True:  # Loop principal do menu
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.mixer.music.stop()
-            pygame.quit()
-            sys.exit()
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_w and pygame.time.get_ticks() - ultima_mudanca_de_opcao >= DELAY_ENTRE_OPCOES:
-                indice_selecionado = (indice_selecionado - 1) % len(opcoes)
-                ultima_mudanca_de_opcao = pygame.time.get_ticks()
-            elif event.key == pygame.K_s and pygame.time.get_ticks() - ultima_mudanca_de_opcao >= DELAY_ENTRE_OPCOES:
-                indice_selecionado = (indice_selecionado + 1) % len(opcoes)
-                ultima_mudanca_de_opcao = pygame.time.get_ticks()
-            elif event.key in [pygame.K_SPACE, pygame.K_RETURN]:
-                if indice_selecionado == 0:
-                    tela_inserir_nome(tela)
-                    if not os.path.exists("tutorial_config.json"):
-                        mostrar_tutorial = tela_decisao_tutorial(tela, fonte)
-                        with open("tutorial_config.json", "w") as f:
-                            json.dump({"mostrar_tutorial": mostrar_tutorial}, f)
-                    else:
-                        with open("tutorial_config.json", "r") as f:
-                            mostrar_tutorial = json.load(f)["mostrar_tutorial"]
-
-                    tela_selecao_aurea(tela, fonte)
-                    modo, ip = tela_escolha_modo()  # Chama a função de escolha do modo local
-                    
-
+def executar_menu_principal(game_manager=None):
+    """
+    Executa o menu principal do jogo
+    
+    Args:
+        game_manager: Instância do GameManager para controlar transições de estado
+        
+    Returns:
+        str: Próximo estado ('jogo', 'sair', etc.) ou None se usar game_manager
+    """
+    global indice_selecionado, ultima_mudanca_de_opcao, analogo_movido
+    global indice_fundo, exibindo_fundo1, ultima_troca
+    
+    # Reinicia música se não estiver tocando
+    if not pygame.mixer.music.get_busy():
+        pygame.mixer.music.load("Sounds/Menu.mp3")
+        config_audio = carregar_config_audio()
+        aplicar_volume_musica(config_audio)
+        pygame.mixer.music.play(-1)
+    
+    clock = pygame.time.Clock()
+    rodando = True
+    
+    while rodando:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                if game_manager:
+                    from game_manager import EstadoJogo
+                    game_manager.mudar_estado(EstadoJogo.SAIR)
+                    return
+                else:
                     pygame.mixer.music.stop()
-
-                    # Salvar o modo e IP escolhidos para o GAME-rede usar
-                    with open("modo_jogo.json", "w") as f:
-                        json.dump({"modo": modo, "ip": ip}, f)
-
-                    import GAMERE
-
-
-
-
-                elif indice_selecionado == 1:  # Configuração
-                    # Submenu de configurações
-                    opcoes_config = ["Controles", "Gráficos", "Áudio", "Voltar"]
-                    indice_config = 0
+                    pygame.quit()
+                    sys.exit()
                     
-                    while True:
-                        tela.fill((10, 10, 10))
-                        fonte_config = pygame.font.Font(caminho_fonte_titulo, 48)
-                        texto_config = fonte_config.render("CONFIGURAÇÕES", True, (0, 255, 204))
-                        tela.blit(texto_config, (largura_tela // 2 - texto_config.get_width() // 2, altura_tela // 6))
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_w and pygame.time.get_ticks() - ultima_mudanca_de_opcao >= DELAY_ENTRE_OPCOES:
+                    indice_selecionado = (indice_selecionado - 1) % len(opcoes)
+                    ultima_mudanca_de_opcao = pygame.time.get_ticks()
+                elif event.key == pygame.K_s and pygame.time.get_ticks() - ultima_mudanca_de_opcao >= DELAY_ENTRE_OPCOES:
+                    indice_selecionado = (indice_selecionado + 1) % len(opcoes)
+                    ultima_mudanca_de_opcao = pygame.time.get_ticks()
+                elif event.key in [pygame.K_SPACE, pygame.K_RETURN]:
+                    if indice_selecionado == 0:  # Iniciar Jornada
+                        tela_inserir_nome(tela)
+                        if not os.path.exists("tutorial_config.json"):
+                            mostrar_tutorial = tela_decisao_tutorial(tela, fonte)
+                            with open("tutorial_config.json", "w") as f:
+                                json.dump({"mostrar_tutorial": mostrar_tutorial}, f)
+                        else:
+                            with open("tutorial_config.json", "r") as f:
+                                mostrar_tutorial = json.load(f)["mostrar_tutorial"]
+
+                        tela_selecao_aurea(tela, fonte)
+                        modo, ip = tela_escolha_modo()
                         
-                        config_selecionada = False
-                        for event_config in pygame.event.get():
-                            if event_config.type == pygame.QUIT:
-                                pygame.quit()
-                                sys.exit()
-                            elif event_config.type == pygame.KEYDOWN:
-                                if event_config.key in [pygame.K_w, pygame.K_UP]:
-                                    indice_config = (indice_config - 1) % len(opcoes_config)
-                                elif event_config.key in [pygame.K_s, pygame.K_DOWN]:
-                                    indice_config = (indice_config + 1) % len(opcoes_config)
-                                elif event_config.key in [pygame.K_SPACE, pygame.K_RETURN]:
-                                    if indice_config == 0:  # Controles
-                                        config_teclas = carregar_config_teclas()
-                                        tela_de_controles(config_teclas, largura_tela, altura_tela)
-                                    elif indice_config == 1:  # Gráficos
-                                        tela_configuracoes_graficas(tela, fonte)
-                                    elif indice_config == 2:  # Áudio
-                                        tela_configuracoes_audio(tela, fonte)
-                                    elif indice_config == 3:  # Voltar
-                                        config_selecionada = True
-                                        break
-                                elif event_config.key == pygame.K_ESCAPE:
-                                    config_selecionada = True
-                                    break
+                        if modo is None:  # Usuário cancelou
+                            continue
+
+                        pygame.mixer.music.stop()
+
+                        # Salvar o modo e IP escolhidos
+                        with open("modo_jogo.json", "w") as f:
+                            json.dump({"modo": modo, "ip": ip}, f)
+
+                        if game_manager:
+                            from game_manager import EstadoJogo
+                            game_manager.mudar_estado(
+                                EstadoJogo.JOGO_PRINCIPAL,
+                                dados={'modo_jogo': modo, 'ip': ip, 'fase': 1}
+                            )
+                            return
+                        else:
+                            # Modo legado (sem game_manager)
+                            if modo == 'offline':
+                                import GAME
+                                GAME.main()
+                            else:
+                                import GAMERE
+                                GAMERE.main()
+                            return
+
+                    elif indice_selecionado == 1:  # Configuração
+                        # Submenu de configurações
+                        opcoes_config = ["Controles", "Gráficos", "Áudio", "Voltar"]
+                        indice_config = 0
                         
-                        if config_selecionada:
-                            break
-                        
-                        # Desenhar opções do submenu
-                        fonte_opcao = pygame.font.Font(caminho_fonte_letra1, 32)
-                        for i, opcao in enumerate(opcoes_config):
-                            cor = (255, 255, 255) if i == indice_config else (120, 120, 120)
-                            texto_opcao = fonte_opcao.render(opcao, True, cor)
-                            y_pos = altura_tela // 3 + i * 80
-                            tela.blit(texto_opcao, (largura_tela // 2 - texto_opcao.get_width() // 2, y_pos))
+                        config_rodando = True
+                        while config_rodando:
+                            tela.fill((10, 10, 10))
+                            fonte_config = pygame.font.Font(caminho_fonte_titulo, 48)
+                            texto_config = fonte_config.render("CONFIGURAÇÕES", True, (0, 255, 204))
+                            tela.blit(texto_config, (largura_tela // 2 - texto_config.get_width() // 2, altura_tela // 6))
                             
-                            if i == indice_config:
-                                # Setas indicadoras
-                                seta_esq = fonte_opcao.render("<", True, (255, 255, 255))
-                                seta_dir = fonte_opcao.render(">", True, (255, 255, 255))
-                                tela.blit(seta_esq, (largura_tela // 2 - texto_opcao.get_width() // 2 - 40, y_pos))
-                                tela.blit(seta_dir, (largura_tela // 2 + texto_opcao.get_width() // 2 + 20, y_pos))
+                            for event_config in pygame.event.get():
+                                if event_config.type == pygame.QUIT:
+                                    if game_manager:
+                                        from game_manager import EstadoJogo
+                                        game_manager.mudar_estado(EstadoJogo.SAIR)
+                                        return
+                                    else:
+                                        pygame.quit()
+                                        sys.exit()
+                                elif event_config.type == pygame.KEYDOWN:
+                                    if event_config.key in [pygame.K_w, pygame.K_UP]:
+                                        indice_config = (indice_config - 1) % len(opcoes_config)
+                                    elif event_config.key in [pygame.K_s, pygame.K_DOWN]:
+                                        indice_config = (indice_config + 1) % len(opcoes_config)
+                                    elif event_config.key in [pygame.K_SPACE, pygame.K_RETURN]:
+                                        if indice_config == 0:  # Controles
+                                            config_teclas = carregar_config_teclas()
+                                            tela_de_controles(config_teclas, largura_tela, altura_tela)
+                                        elif indice_config == 1:  # Gráficos
+                                            tela_configuracoes_graficas(tela, fonte)
+                                        elif indice_config == 2:  # Áudio
+                                            tela_configuracoes_audio(tela, fonte)
+                                        elif indice_config == 3:  # Voltar
+                                            config_rodando = False
+                                            break
+                                    elif event_config.key == pygame.K_ESCAPE:
+                                        config_rodando = False
+                                        break
+                            
+                            if not config_rodando:
+                                break
+                            
+                            # Desenhar opções do submenu
+                            fonte_opcao = pygame.font.Font(caminho_fonte_letra1, 32)
+                            for i, opcao in enumerate(opcoes_config):
+                                cor = (255, 255, 255) if i == indice_config else (120, 120, 120)
+                                texto_opcao = fonte_opcao.render(opcao, True, cor)
+                                y_pos = altura_tela // 3 + i * 80
+                                tela.blit(texto_opcao, (largura_tela // 2 - texto_opcao.get_width() // 2, y_pos))
+                                
+                                if i == indice_config:
+                                    # Setas indicadoras
+                                    seta_esq = fonte_opcao.render("<", True, (255, 255, 255))
+                                    seta_dir = fonte_opcao.render(">", True, (255, 255, 255))
+                                    tela.blit(seta_esq, (largura_tela // 2 - texto_opcao.get_width() // 2 - 40, y_pos))
+                                    tela.blit(seta_dir, (largura_tela // 2 + texto_opcao.get_width() // 2 + 20, y_pos))
+                            
+                            pygame.display.flip()
+                            clock.tick(60)
+                            
+                    elif indice_selecionado == 2:  # Sair
+                        if game_manager:
+                            from game_manager import EstadoJogo
+                            game_manager.mudar_estado(EstadoJogo.SAIR)
+                            return
+                        else:
+                            pygame.mixer.music.stop()
+                            pygame.quit()
+                            sys.exit()
+
+            elif event.type == pygame.JOYAXISMOTION:
+                # Verifica o eixo Y do analógico esquerdo
+                if event.axis == 1 and abs(controle.get_axis(0)) < 0.2:
+                    if not analogo_movido:
+                        if event.value > 0.5:
+                            indice_selecionado = (indice_selecionado + 1) % len(opcoes)
+                            analogo_movido = True
+                        elif event.value < -0.5:
+                            indice_selecionado = (indice_selecionado - 1) % len(opcoes)
+                            analogo_movido = True
+                elif event.axis == 1 and abs(event.value) < 0.5:
+                    analogo_movido = False
+
+            elif event.type == pygame.JOYBUTTONDOWN:
+                if event.button == 0:  # Botão A
+                    if indice_selecionado == 0:
+                        tela_inserir_nome(tela)
+                        tela_selecao_aurea(tela, fonte)
+                        modo, ip = tela_escolha_modo()
                         
-                        pygame.display.flip()
-                        clock = pygame.time.Clock()
-                        clock.tick(60)
-                elif indice_selecionado == 2:
-                    pygame.mixer.music.stop()
-                    pygame.quit()
-                    sys.exit()
+                        if modo is None:
+                            continue
+                            
+                        pygame.mixer.music.stop()
+                        
+                        with open("modo_jogo.json", "w") as f:
+                            json.dump({"modo": modo, "ip": ip}, f)
+                        
+                        if game_manager:
+                            from game_manager import EstadoJogo
+                            game_manager.mudar_estado(
+                                EstadoJogo.JOGO_PRINCIPAL,
+                                dados={'modo_jogo': modo, 'ip': ip, 'fase': 1}
+                            )
+                            return
+                        else:
+                            if modo == 'offline':
+                                import GAME
+                                GAME.main()
+                            else:
+                                import GAMERE
+                                GAMERE.main()
+                            return
+                    elif indice_selecionado == 2:
+                        if game_manager:
+                            from game_manager import EstadoJogo
+                            game_manager.mudar_estado(EstadoJogo.SAIR)
+                            return
+                        else:
+                            pygame.mixer.music.stop()
+                            pygame.quit()
+                            sys.exit()
 
-        elif event.type == pygame.JOYAXISMOTION:
-            # Verifica o eixo Y do analógico esquerdo e garante que o eixo X não tenha desvio significativo
-            if event.axis == 1 and abs(controle.get_axis(0)) < 0.2:  # Garante que o eixo X está parado
-                if not analogo_movido:
-                    if event.value > 0.5:
-                        indice_selecionado = (indice_selecionado + 1) % len(opcoes)
-                        analogo_movido = True
-                    elif event.value < -0.5:
-                        indice_selecionado = (indice_selecionado - 1) % len(opcoes)
-                        analogo_movido = True
-            elif event.axis == 1 and abs(event.value) < 0.5:
-                analogo_movido = False
-
-        elif event.type == pygame.JOYBUTTONDOWN:
-            if event.button == 0:  # Botão A no controle Xbox
-                if indice_selecionado == 0:
-                    tela_inserir_nome(tela)
-                    pygame.mixer.music.stop()
-                    import GAMERE
-                elif indice_selecionado == 1:  # Configuração de Controles
-                    tela_de_controles()
-                elif indice_selecionado == 2:
-                    pygame.mixer.music.stop()
-                    pygame.quit()
-                    sys.exit()
-
-    # Lógica de troca de imagem de fundo
-    agora = pygame.time.get_ticks()
-    
-    if exibindo_fundo1:
-        # Exibe fundo_menu1 por 5 segundos
-        tela.blit(fundo_menu1, (0, 0))
-        if agora - ultima_troca > tempo_exibicao_fundo1:
-            exibindo_fundo1 = False
-            ultima_troca = agora
-            indice_fundo = 0  # Reinicia o índice para a sequência
-    else:
-        # Exibe a sequência de imagens
-        tela.blit(imagens_fundo[indice_fundo], (0, 0))
-        if agora - ultima_troca > tempo_troca_fundo:
-            indice_fundo += 1
-            ultima_troca = agora
-            
-            # Verifica se terminou a sequência para voltar ao fundo_menu1
-            if indice_fundo >= len(imagens_fundo):
-                exibindo_fundo1 = True
+        # Lógica de troca de imagem de fundo
+        agora = pygame.time.get_ticks()
+        
+        if exibindo_fundo1:
+            tela.blit(fundo_menu1, (0, 0))
+            if agora - ultima_troca > tempo_exibicao_fundo1:
+                exibindo_fundo1 = False
+                ultima_troca = agora
                 indice_fundo = 0
+        else:
+            tela.blit(imagens_fundo[indice_fundo], (0, 0))
+            if agora - ultima_troca > tempo_troca_fundo:
+                indice_fundo += 1
+                ultima_troca = agora
+                
+                if indice_fundo >= len(imagens_fundo):
+                    exibindo_fundo1 = True
+                    indice_fundo = 0
 
-    # Código restante para renderizar opções, título e atualizar a tela
-    for i, opcao in enumerate(opcoes):
-        Letras_Of = caminho_fonte_letra1 if i == indice_selecionado else caminho_fonte_letras
+        # Renderizar opções do menu
+        for i, opcao in enumerate(opcoes):
+            Letras_Of = caminho_fonte_letra1 if i == indice_selecionado else caminho_fonte_letras
+            fonte = pygame.font.Font(Letras_Of, tamanho_fonte_letras)
 
-        fonte = pygame.font.Font(Letras_Of, tamanho_fonte_letras)
+            retangulo_botao = pygame.Rect(largura_tela // 10 - 100, altura_tela // 2 + i * 60, 300, 20)
+            superficie_transparente = pygame.Surface((300, 25), pygame.SRCALPHA)
+            superficie_transparente.fill(cor_fundo_botao)
+            tela.blit(superficie_transparente, (retangulo_botao.left, retangulo_botao.top))
 
-        retangulo_botao = pygame.Rect(largura_tela // 10 - 100, altura_tela // 2 + i * 60, 300, 20)
+            if i == indice_selecionado:
+                posicao_x_botao = largura_tela // 10 - 100
+                posicao_y_botao = altura_tela // 2 + i * 60
+                altura_botao = 40
 
-        superficie_transparente = pygame.Surface((300, 25), pygame.SRCALPHA)
-        superficie_transparente.fill(cor_fundo_botao)
-        tela.blit(superficie_transparente, (retangulo_botao.left, retangulo_botao.top))
+                seta_esquerda_inicio = (posicao_x_botao - 30, posicao_y_botao + altura_botao // 2)
+                seta_esquerda_fim = (posicao_x_botao - 10, posicao_y_botao + altura_botao // 2)
+                seta_direita_inicio = (posicao_x_botao + 330, posicao_y_botao + altura_botao // 2)
+                seta_direita_fim = (posicao_x_botao + 310, posicao_y_botao + altura_botao // 2)
 
-        if i == indice_selecionado:
-            posicao_x_botao = largura_tela // 10 - 100
-            posicao_y_botao = altura_tela // 2 + i * 60
-            altura_botao = 40
+                pygame.draw.line(tela, branco, seta_esquerda_inicio, seta_esquerda_fim, 5)
+                pygame.draw.line(tela, branco, seta_direita_inicio, seta_direita_fim, 5)
 
-            seta_esquerda_inicio = (posicao_x_botao - 30, posicao_y_botao + altura_botao // 2)
-            seta_esquerda_fim = (posicao_x_botao - 10, posicao_y_botao + altura_botao // 2)
-            seta_direita_inicio = (posicao_x_botao + 330, posicao_y_botao + altura_botao // 2)
-            seta_direita_fim = (posicao_x_botao + 310, posicao_y_botao + altura_botao // 2)
+            texto_botao = fonte.render(opcao, True, cor_letra)
+            retangulo_texto = texto_botao.get_rect(center=retangulo_botao.center)
+            tela.blit(texto_botao, retangulo_texto)
+        
+        # Texto de instrução
+        fonte_instrucao = pygame.font.Font(caminho_fonte_letras, 18)
+        texto_instrucao = "Use W ou S para alternar e Espaço ou Enter para selecionar"
+        render_instrucao = fonte_instrucao.render(texto_instrucao, True, (0, 0, 0))
+        
+        # COOP no canto
+        texto_coop = "COOP"
+        cor_texto_coop = (0, 255, 255)
+        cor_borda_coop = (255, 255, 0)
+        render_coop = fonte_coop.render(texto_coop, True, cor_texto_coop)
+        render_coop_borda = fonte_coop.render(texto_coop, True, cor_borda_coop)
+        posicao_coop = (largura_tela - render_coop.get_width() - 10, ajuste_vertical)
+        
+        texto_titulo = fonte_titulo.render(titulo_jogo, True, cor_letra)
+        retangulo_titulo = texto_titulo.get_rect(center=posicao_titulo)
+        
+        # Desenho da borda COOP
+        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            tela.blit(render_coop_borda, (posicao_coop[0] + dx, posicao_coop[1] + dy))
+        
+        # Contorno instrução
+        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            contorno = fonte_instrucao.render(texto_instrucao, True, (255, 255, 255))
+            tela.blit(contorno, (largura_tela - render_instrucao.get_width() - 20 + dx,
+                                altura_tela - render_instrucao.get_height() - 20 + dy))
+        
+        # Contorno título
+        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            texto_titulo_contorno = fonte_titulo.render(titulo_jogo, True, contorno_rosa)
+            tela.blit(texto_titulo_contorno, (retangulo_titulo.left + dx, retangulo_titulo.top + dy))
+        
+        # Renderiza textos principais
+        tela.blit(render_instrucao, (largura_tela - render_instrucao.get_width() - 20,
+                                    altura_tela - render_instrucao.get_height() - 20))
+        tela.blit(texto_titulo, retangulo_titulo)
+        tela.blit(render_coop, posicao_coop)
 
-            pygame.draw.line(tela, branco, seta_esquerda_inicio, seta_esquerda_fim, 5)
-            pygame.draw.line(tela, branco, seta_direita_inicio, seta_direita_fim, 5)
+        pygame.display.flip()
+        clock.tick(60)
 
-        texto_botao = fonte.render(opcao, True, cor_letra)
-        retangulo_texto = texto_botao.get_rect(center=retangulo_botao.center)
-        tela.blit(texto_botao, retangulo_texto)
-    
-    # --- Texto de instrução ---
-    fonte_instrucao = pygame.font.Font(caminho_fonte_letras, 18)
-    texto_instrucao = "Use W ou S para alternar e Espaço ou Enter para selecionar"
-    render_instrucao = fonte_instrucao.render(texto_instrucao, True, (0, 0, 0))  # texto preto
-    # --- Adicionar "COOP" no canto inferior direito ---
-    # Carregar a fonte com o tamanho ajustado
-    texto_coop = "COOP"
-    cor_texto_coop = (0, 255, 255)  # Azul esverdeado
-    cor_borda_coop = (255, 255, 0)  # Borda amarela
 
-    # Renderizar o texto e o contorno
-    render_coop = fonte_coop.render(texto_coop, True, cor_texto_coop)
-    render_coop_borda = fonte_coop.render(texto_coop, True, cor_borda_coop)
-
-    # Posição
-    posicao_coop = (largura_tela - render_coop.get_width() - 10, ajuste_vertical)
-    texto_titulo = fonte_titulo.render(titulo_jogo, True, cor_letra)
-    retangulo_titulo = texto_titulo.get_rect(center=posicao_titulo)
-    # Desenho da borda (contorno)
-    for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-        tela.blit(render_coop_borda, (posicao_coop[0] + dx, posicao_coop[1] + dy))
-
-    
-    # Cria contorno branco desenhando o texto levemente deslocado em várias direções
-    for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-        contorno = fonte_instrucao.render(texto_instrucao, True, (255, 255, 255))
-        tela.blit(contorno, (largura_tela - render_instrucao.get_width() - 20 + dx,
-                            altura_tela - render_instrucao.get_height() - 20 + dy))
-    # Desenhar o contorno (rosa) ao redor do título
-    for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-        texto_titulo_contorno = fonte_titulo.render(titulo_jogo, True, contorno_rosa)
-        tela.blit(texto_titulo_contorno, (retangulo_titulo.left + dx, retangulo_titulo.top + dy))
-    # Renderiza o texto principal (preto)
-    tela.blit(render_instrucao, (largura_tela - render_instrucao.get_width() - 20,
-                                altura_tela - render_instrucao.get_height() - 20))
-
-    # Desenho do texto
-    
-    
-    tela.blit(texto_titulo, retangulo_titulo)
-    tela.blit(render_coop, posicao_coop)
-
-    pygame.display.flip()
+# Código principal - mantém compatibilidade com execução direta
+if __name__ == "__main__":
+    # Tenta usar o GameManager se disponível
+    try:
+        from game_manager import obter_game_manager, EstadoJogo
+        manager = obter_game_manager()
+        manager.executar()
+    except ImportError:
+        # Fallback: executa modo legado
+        executar_menu_principal()

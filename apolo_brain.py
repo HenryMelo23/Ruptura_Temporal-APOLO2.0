@@ -20,8 +20,8 @@ import torch.nn as nn
 # =============================================================================
 # CONSTANTES CANONICAS
 # =============================================================================
-INPUT_SIZE  = 40
-OUTPUT_SIZE = 3
+INPUT_SIZE  = 42
+OUTPUT_SIZE = 9
 ARQ_FILE    = "apolo_arq.json"   # Metadata da arquitetura atual
 PESOS_FILE  = "apolo_memoria_dqn.pt"
 
@@ -765,6 +765,77 @@ def verificar_compatibilidade():
     gate_ok2 = acao2 in [3, 5, 7]
     print(f"[SURVIVAL GATE] Bonus oportunidade: {'ATIVO — urgencia amplificada!' if gate_ok2 else 'VERIFICAR'}") 
 
+# =============================================================================
+# WORKER ASSÍNCRONO PARA GAME5
+# =============================================================================
+def motor_cognitivo_worker(fila_in, fila_out, evento_salvar):
+    """
+    Processo em background para inferência e treinamento contínuo de Apolo.
+    Isola o PyTorch do loop de renderização do Pygame.
+    """
+    import os
+    # Suprime logs de inicialização do PyTorch
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    import queue
+    import torch
+
+    # Garante que o worker use apenas 1 thread de CPU para evitar throttling
+    torch.set_num_threads(1)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
+    agente = ApoloAgent(device=device, batch_size=64, taxa_exploracao=0.50)
+    
+    print(f"[MOTOR COGNITIVO] Iniciado no device: {device} | Arq: {agente.arq_cfg['hidden']}")
+
+    while True:
+        try:
+            # Se o evento de salvamento foi acionado, salva os pesos
+            if evento_salvar.is_set():
+                agente.salvar_pesos()
+                evento_salvar.clear()
+                print("[MOTOR COGNITIVO] Pesos salvos com sucesso.")
+
+            try:
+                # Timeout curto para não travar o evento de salvar
+                comando, payload = fila_in.get(timeout=0.016)
+                
+                if comando == "INFERIR":
+                    estado_tensor, acoes_validas = payload
+                    # Assegura que o tensor está no formato correto (batch_size=1)
+                    if estado_tensor.dim() == 1:
+                        estado_tensor = estado_tensor.unsqueeze(0)
+                    
+                    acao = agente.decidir(estado_tensor, acoes_validas)
+                    
+                    # Evita encher a fila se o consumidor (GAME5) estiver atrasado
+                    while not fila_out.empty():
+                        try: fila_out.get_nowait()
+                        except: pass
+                        
+                    fila_out.put(acao)
+
+                elif comando == "TREINAR":
+                    s, a, r, s_, d = payload
+                    
+                    # Ajuste de shape se necessário
+                    if s.dim() == 1: s = s.unsqueeze(0)
+                    if s_.dim() == 1: s_ = s_.unsqueeze(0)
+                    
+                    agente.adicionar_transicao(s, a, r, s_, d)
+                    
+                    # Treina 1 passo a cada adição (se houver batch suficiente)
+                    agente.treinar_passo()
+
+            except queue.Empty:
+                pass
+
+        except KeyboardInterrupt:
+            print("[MOTOR COGNITIVO] Encerrando...")
+            break
+        except Exception as e:
+            import traceback
+            print(f"[MOTOR COGNITIVO] Erro: {e}")
+            traceback.print_exc()
 
 if __name__ == "__main__":
     verificar_compatibilidade()
