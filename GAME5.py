@@ -2443,7 +2443,6 @@ if __name__ == "__main__":
                 rodando = False
                 pygame.quit()
                 limpar_salvamento()
-                subprocess.Popen([sys.executable, "GAME5.py"])
                 if 'apolo' in globals() and hasattr(apolo, 'encerrar'):
                     apolo.encerrar()
                 os._exit(0)
@@ -2506,7 +2505,7 @@ if __name__ == "__main__":
                 rodando = False
                 pygame.quit()
                 limpar_salvamento()
-                subprocess.Popen([sys.executable, "GAME5.py"])
+                
                 if 'apolo' in globals() and hasattr(apolo, 'encerrar'):
                     apolo.encerrar()
                 os._exit(0)

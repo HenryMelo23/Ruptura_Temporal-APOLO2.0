@@ -7,6 +7,7 @@ import time
 import os
 import json
 from Tela_Cartas import tela_de_pausa
+from Loja_Endgame import tela_loja_endgame, aplicar_deck_endgame
 from Variaveis import *
 from utils import *
 import habilidade_boss as hb
@@ -661,8 +662,61 @@ if __name__ == "__main__":
             print(f" -> [{qtd}x] {carta_u}")
         print("="*50 + "\n")
 
-    # Invoca a mutação absoluta
-    injetar_build_endgame(qtd_cartas_jogador=80)
+    # =========================================================================
+    # LOJA DE SELEÇÃO DE BUILD — O jogador monta sua build manualmente
+    # =========================================================================
+    deck_escolhido = tela_loja_endgame()
+    cartas_compradas_apolo_global = deck_escolhido
+
+    # Monta o dicionário de atributos mutáveis para passar à função
+    _variaveis_build = {
+        "velocidade_personagem":  velocidade_personagem,
+        "intervalo_disparo":      intervalo_disparo,
+        "dano_person_hit":        dano_person_hit,
+        "chance_critico":         chance_critico,
+        "roubo_de_vida":          roubo_de_vida,
+        "quantidade_roubo_vida":  quantidade_roubo_vida,
+        "vida_maxima":            vida_maxima,
+        "vida":                   vida,
+        "trembo":                 trembo,
+        "Tempo_cura":             Tempo_cura,
+        "porcentagem_cura":       porcentagem_cura,
+        "Resistencia":            Resistencia,
+        "tempo_cooldown_dash":    tempo_cooldown_dash,
+        "vida_petro":             vida_petro,
+        "vida_maxima_petro":      vida_maxima_petro,
+        "vida_maxima_umbra":      vida_maxima_umbra,
+        "vida_umbra":             vida_umbra,
+        "multiplicador_dano_umbra": 1.0,
+        "reducao_cooldown_umbra":   1.0,
+        "resistencia_umbra":        0.0,
+        "bonus_cura_sifon":         0.0,
+    }
+
+    _variaveis_build = aplicar_deck_endgame(deck_escolhido, _variaveis_build)
+
+    # Reaplica os atributos de volta às variáveis globais
+    velocidade_personagem  = _variaveis_build["velocidade_personagem"]
+    intervalo_disparo      = _variaveis_build["intervalo_disparo"]
+    dano_person_hit        = _variaveis_build["dano_person_hit"]
+    chance_critico         = _variaveis_build["chance_critico"]
+    roubo_de_vida          = _variaveis_build["roubo_de_vida"]
+    quantidade_roubo_vida  = _variaveis_build["quantidade_roubo_vida"]
+    vida_maxima            = _variaveis_build["vida_maxima"]
+    vida                   = _variaveis_build["vida"]
+    trembo                 = _variaveis_build["trembo"]
+    Tempo_cura             = _variaveis_build["Tempo_cura"]
+    porcentagem_cura       = _variaveis_build["porcentagem_cura"]
+    Resistencia            = _variaveis_build["Resistencia"]
+    tempo_cooldown_dash    = _variaveis_build["tempo_cooldown_dash"]
+    vida_petro             = _variaveis_build["vida_petro"]
+    vida_maxima_petro      = _variaveis_build["vida_maxima_petro"]
+    vida_maxima_umbra      = _variaveis_build["vida_maxima_umbra"]
+    vida_umbra             = _variaveis_build["vida_umbra"]
+    multiplicador_dano_umbra  = _variaveis_build["multiplicador_dano_umbra"]
+    reducao_cooldown_umbra    = _variaveis_build["reducao_cooldown_umbra"]
+    resistencia_umbra         = _variaveis_build["resistencia_umbra"]
+    bonus_cura_sifon          = _variaveis_build["bonus_cura_sifon"]
     ###################################################################################################################################################################################################
     # Geração de coordenadas estocásticas para o início do embate
     pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem)
