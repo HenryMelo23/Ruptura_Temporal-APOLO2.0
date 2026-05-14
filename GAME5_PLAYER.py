@@ -2084,7 +2084,7 @@ if __name__ == "__main__":
         if estado_atual_ia.get('miasma_ativo'):
             tela.blit(imagem_personagem_doente, (pos_x_personagem, pos_y_personagem))
         else:
-            tela.blit(frames_animacao[direcao_atual][frame_atual], (pos_x_personagem, pos_y_personagem))
+            tela.blit(frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])], (pos_x_personagem, pos_y_personagem))
     
         # Se a IA ainda não foi processada neste frame, garantimos que o estado exista
         if 'estado_atual_ia' not in locals() and 'estado_atual_ia' not in globals():
@@ -2374,7 +2374,7 @@ if __name__ == "__main__":
             pos_y_segundo_personagem = pos_y_personagem
             # Desenhar sombra do Trembo
             desenhar_sombra(tela, pos_x_segundo_personagem, pos_y_segundo_personagem, largura_personagem, altura_personagem)
-            tela.blit(frames_animacao_trembo[direcao_atual][frame_atual], (pos_x_segundo_personagem, pos_y_segundo_personagem))
+            tela.blit(frames_animacao_trembo[direcao_atual][frame_atual % len(frames_animacao_trembo[direcao_atual])], (pos_x_segundo_personagem, pos_y_segundo_personagem))
         if trembo and tempo_atual - tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima:
             cura_trembo = vida_maxima * porcentagem_cura
         

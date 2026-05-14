@@ -1106,7 +1106,7 @@ while running:
     ###############################################   DESENHA O PERSONAGEM NA TELA ################################
     # Desenhar sombra do personagem
     desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-    tela.blit(frames_animacao[direcao_atual][frame_atual], (pos_x_personagem, pos_y_personagem))
+    tela.blit(frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])], (pos_x_personagem, pos_y_personagem))
     for moeda in moedas_soltadas[:]:
         if personagem_rect.colliderect(moeda["rect"]):
             moedas_coletadas += 1
@@ -1140,7 +1140,7 @@ while running:
         pos_y_segundo_personagem = pos_y_personagem
         # Desenhar sombra do Trembo
         desenhar_sombra(tela, pos_x_segundo_personagem, pos_y_segundo_personagem, largura_personagem, altura_personagem)
-        tela.blit(frames_animacao_trembo[direcao_atual][frame_atual], (pos_x_segundo_personagem, pos_y_segundo_personagem))
+        tela.blit(frames_animacao_trembo[direcao_atual][frame_atual % len(frames_animacao_trembo[direcao_atual])], (pos_x_segundo_personagem, pos_y_segundo_personagem))
     if trembo and tempo_atual- tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima :
         if vida_maxima < vida:
             vida=vida_maxima
@@ -1277,7 +1277,7 @@ while running:
         desenhar_barra_de_vida_petro(tela, vida_petro, pos_x_petro, pos_y_petro - 20,vida_maxima_petro)
         # Desenhar sombra do Petro
         desenhar_sombra(tela, pos_x_petro, pos_y_petro, largura_personagem, altura_personagem)
-        tela.blit(petro_nivel[direcao_atual_petro][frame_atual], (pos_x_petro, pos_y_petro))
+        tela.blit(petro_nivel[direcao_atual_petro][frame_atual % len(petro_nivel[direcao_atual_petro])], (pos_x_petro, pos_y_petro))
 
 
 #AQUI GERAMOS O BOSS:

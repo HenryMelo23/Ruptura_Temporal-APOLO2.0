@@ -530,13 +530,13 @@ while running:
     
 
     # Desenha a personagem
-    tela.blit(frames_animacao[direcao_atual][frame_atual], (pos_x_personagem, pos_y_personagem))
+    tela.blit(frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])], (pos_x_personagem, pos_y_personagem))
 
     if trembo:
         # Desenhar o segundo personagem ao lado do personagem original
         pos_x_segundo_personagem = pos_x_personagem + largura_personagem + 4
         pos_y_segundo_personagem = pos_y_personagem
-        tela.blit(frames_animacao_trembo[direcao_atual][frame_atual], (pos_x_segundo_personagem, pos_y_segundo_personagem))
+        tela.blit(frames_animacao_trembo[direcao_atual][frame_atual % len(frames_animacao_trembo[direcao_atual])], (pos_x_segundo_personagem, pos_y_segundo_personagem))
 
     if Petro_active:
         # Calcula a direção para o inimigo mais próximo
@@ -628,7 +628,7 @@ while running:
             comando_direção_petro=False
             
         desenhar_barra_de_vida_petro(tela, vida_petro, pos_x_petro, pos_y_petro - 20,vida_maxima_petro)  # Ajuste a posição conforme necessário
-        tela.blit(petro_nivel[direcao_atual_petro][frame_atual], (pos_x_petro, pos_y_petro))
+        tela.blit(petro_nivel[direcao_atual_petro][frame_atual % len(petro_nivel[direcao_atual_petro])], (pos_x_petro, pos_y_petro))
     
  
     # Desenhar os disparos normais

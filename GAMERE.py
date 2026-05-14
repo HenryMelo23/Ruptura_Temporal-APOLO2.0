@@ -1761,7 +1761,7 @@ while running:
         if jogador_morto:
             tela.blit(sprite_morto, (pos_x_personagem, pos_y_personagem))
         else:
-            tela.blit(frames_animacao[direcao_atual][frame_atual], (pos_x_personagem, pos_y_personagem))
+            tela.blit(frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])], (pos_x_personagem, pos_y_personagem))
 
         # --- Desenha o segundo jogador (cliente) ---
         if cliente_ativo:
@@ -1769,9 +1769,9 @@ while running:
                 if jogador_remoto_morto:
                     tela.blit(sprite_morto, (pos_x_player2, pos_y_player2))
                 else:
-                    tela.blit(frames_animacao2[direcao_player2][frame_atual], (pos_x_player2, pos_y_player2))
+                    tela.blit(frames_animacao2[direcao_player2][frame_atual % len(frames_animacao2[direcao_player2])], (pos_x_player2, pos_y_player2))
             except KeyError:
-                tela.blit(frames_animacao2["down"][frame_atual], (pos_x_player2, pos_y_player2))
+                tela.blit(frames_animacao2["down"][frame_atual % len(frames_animacao2["down"])], (pos_x_player2, pos_y_player2))
 
     # JOIN (jogador 2 local)
     elif modo == "join":
@@ -1779,7 +1779,7 @@ while running:
         if jogador_morto:
             tela.blit(sprite_morto, (pos_x_personagem, pos_y_personagem))
         else:
-            tela.blit(frames_animacao2[direcao_atual_p2][frame_atual], (pos_x_personagem, pos_y_personagem))
+            tela.blit(frames_animacao2[direcao_atual_p2][frame_atual % len(frames_animacao2[direcao_atual_p2])], (pos_x_personagem, pos_y_personagem))
 
         # --- Desenha o host (jogador 1 remoto) ---
         if host_ativo:
@@ -1787,9 +1787,9 @@ while running:
                 if jogador_remoto_morto:
                     tela.blit(sprite_morto, (pos_x_player2, pos_y_player2))
                 else:
-                    tela.blit(frames_animacao[direcao_player2][frame_atual], (pos_x_player2, pos_y_player2))
+                    tela.blit(frames_animacao[direcao_player2][frame_atual % len(frames_animacao[direcao_player2])], (pos_x_player2, pos_y_player2))
             except KeyError:
-                tela.blit(frames_animacao["down"][frame_atual], (pos_x_player2, pos_y_player2))
+                tela.blit(frames_animacao["down"][frame_atual % len(frames_animacao["down"])], (pos_x_player2, pos_y_player2))
 
 
 
@@ -1825,7 +1825,7 @@ while running:
         # Desenhar o segundo personagem ao lado do personagem original
         pos_x_segundo_personagem = pos_x_personagem + largura_personagem + 4
         pos_y_segundo_personagem = pos_y_personagem
-        tela.blit(frames_animacao_trembo[direcao_atual][frame_atual], (pos_x_segundo_personagem, pos_y_segundo_personagem))
+        tela.blit(frames_animacao_trembo[direcao_atual][frame_atual % len(frames_animacao_trembo[direcao_atual])], (pos_x_segundo_personagem, pos_y_segundo_personagem))
     if trembo and tempo_atual- tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima :
         if vida_maxima < vida:
             vida=vida_maxima
@@ -1956,7 +1956,7 @@ while running:
             comando_direção_petro=False
             
         desenhar_barra_de_vida_petro(tela, vida_petro, pos_x_petro, pos_y_petro - 20,vida_maxima_petro)  
-        tela.blit(petro_nivel[direcao_atual_petro][frame_atual], (pos_x_petro, pos_y_petro))
+        tela.blit(petro_nivel[direcao_atual_petro][frame_atual % len(petro_nivel[direcao_atual_petro])], (pos_x_petro, pos_y_petro))
 
 
     #AQUI GERAMOS O BOSS:

@@ -334,7 +334,7 @@ frames_inimigo_direita2 = [pygame.transform.scale(pygame.image.load("Sprites/ini
 
 ######################################### PERSONAGEM
 direcao_atual = 'stop'  # Direção inicial
-largura_personagem, altura_personagem = largura_tela*0.05, altura_tela*0.08
+largura_personagem, altura_personagem = 54, 80
 pos_x_personagem, pos_y_personagem = 100, 100
 Resistencia=35
 xp_petro=1
@@ -466,8 +466,8 @@ erros_preditivos = 0
 erros_diretos = 0
 confianca_predicao = 0.6  # 60% de chance inicial de prever o futuro
 ajuste_lead = 0.6         # Multiplicador de antecipação inicial
-# Define o tamanho boss 5 (1.5x)
-largura_boss, altura_boss = int(largura_personagem * 1.2), int(altura_personagem * 1.2)
+# Define o tamanho boss 5 (desvinculado do personagem)
+largura_boss, altura_boss = 81, 136
 largura_escudo, altura_escudo = int(largura_boss * 1.4), int(altura_boss * 1.4)
 ultimo_parede_tempo = pygame.time.get_ticks()
 parede_ativa = False
@@ -510,9 +510,9 @@ sprite_morto = pygame.transform.scale(sprite_morto, (largura_personagem, altura_
 personagem_paths = {
     'up': ["Sprites/Geo1-up.png", "Sprites/Geo2-up.png"],
     'down': ["Sprites/Geo1-Down.png", "Sprites/Geo2-Down.png"],
-    'left': ["Sprites/Geo1-Esq.png", "Sprites/Geo2-Esq.png"],
-    'right': ["Sprites/Geo1-Dir.png", "Sprites/Geo2-Dir.png"],
-    'stop': ["Sprites/Geo1-somb.png", "Sprites/Geo2-somb.png"],
+    'left': ["Sprites/Geo1-Esq.png", "Sprites/Geo2-Esq.png", "Sprites/Geo3-Esq.png", "Sprites/Geo2-Esq.png"],
+    'right': ["Sprites/Geo1-Dir.png", "Sprites/Geo2-Dir.png", "Sprites/Geo3-Dir.png", "Sprites/Geo2-Dir.png"],
+    'stop': ["Sprites/Geo1.png", "Sprites/Geo2.png"],
     'disp' :["Sprites/Geo_Disp1.png", "Sprites/Geo_Disp2.png"]
 }
 
@@ -607,18 +607,34 @@ largura_trembo,altura_trembo= largura_tela*0.08, altura_tela*0.11
 # Carregar as sequências de imagens do personagem
 
 # Carregar as sequências de imagens do personagem
-frames_animacao2 = {direcao: [pygame.image.load(path) for path in paths] for direcao, paths in personagem_paths2.items()}
-frames_animacao2 = {direcao: [pygame.transform.scale(frame, (largura_personagem, altura_personagem)) for frame in frames] for direcao, frames in frames_animacao2.items()}
-# Adicionar uma entrada para 'stop' no dicionário
-frames_animacao2['stop'] = [pygame.image.load(path) for path in personagem_paths2['stop']]
-frames_animacao2['stop'] = [pygame.transform.scale(frame, (largura_personagem, altura_personagem)) for frame in frames_animacao2['stop']]
+frames_animacao2 = {}
+for direcao, paths in personagem_paths2.items():
+    frames = []
+    for path in paths:
+        img = pygame.image.load(path)
+        img_w, img_h = img.get_size()
+        nova_largura = int(img_w * (altura_personagem / img_h)) if img_h > 0 else largura_personagem
+        frames.append(pygame.transform.scale(img, (nova_largura, altura_personagem)))
+    frames_animacao2[direcao] = frames
 
-frames_animacao = {direcao: [pygame.image.load(path) for path in paths] for direcao, paths in personagem_paths.items()}
-frames_animacao = {direcao: [pygame.transform.scale(frame, (largura_personagem, altura_personagem)) for frame in frames] for direcao, frames in frames_animacao.items()}
-
-# Adicionar uma entrada para 'stop' no dicionário
-frames_animacao['stop'] = [pygame.image.load(path) for path in personagem_paths['stop']]
-frames_animacao['stop'] = [pygame.transform.scale(frame, (largura_personagem, altura_personagem)) for frame in frames_animacao['stop']]
+frames_animacao = {}
+for direcao, paths in personagem_paths.items():
+    frames = []
+    for path in paths:
+        img = pygame.image.load(path)
+        img_w, img_h = img.get_size()
+        nova_largura = int(img_w * (altura_personagem / img_h)) if img_h > 0 else largura_personagem
+        
+        if direcao in ['left', 'right']:
+            w_s = int(nova_largura * 0.9)
+            h_s = int(altura_personagem * 0.9)
+            img_s = pygame.transform.scale(img, (w_s, h_s))
+            surf = pygame.Surface((nova_largura, altura_personagem), pygame.SRCALPHA)
+            surf.blit(img_s, ((nova_largura - w_s) // 2, altura_personagem - h_s))
+            frames.append(surf)
+        else:
+            frames.append(pygame.transform.scale(img, (nova_largura, altura_personagem)))
+    frames_animacao[direcao] = frames
 
 # Carregar e escalar seguindo o seu padrão
 frames_geo_umbra_paths = {direcao: [pygame.image.load(path) for path in paths] for direcao, paths in geo_umbra_paths.items()}
