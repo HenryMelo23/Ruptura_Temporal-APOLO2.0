@@ -70,7 +70,8 @@ if __name__ == "__main__":
             "sombras_ativas": "dinamicas",
             "qualidade_grafica": "alta",
             "particulas_ativas": True,
-            "efeitos_visuais": True
+            "efeitos_visuais": True,
+            "fps_limite": 60
         }
 
     # Carregar configurações de áudio
@@ -263,7 +264,7 @@ if __name__ == "__main__":
     def atualizar_posicao_personagem(keys, joystick):
         global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento
         global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_timer, teleporte_duration, teleporte_index
-        global hitbox_boss5, estado_atual_ia
+        global hitbox_boss5, estado_atual_ia, angulo_inclinacao_personagem
 
         dx, dy = 0, 0
         direcao_atual = 'stop'
@@ -295,16 +296,26 @@ if __name__ == "__main__":
         
             # Normalização de movimento diagonal
             if dx != 0 and dy != 0:
+                inclinacao = angulo_diagonal_personagem
+                
+                if dy < 0:
+                    angulo_inclinacao_personagem = -inclinacao if dx > 0 else inclinacao
+                else:
+                    angulo_inclinacao_personagem = inclinacao if dx > 0 else -inclinacao
+                    
                 fator_normalizacao = 0.7071
                 pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
                                              pos_x_personagem + dx * velocidade_personagem * fator_normalizacao))
                 pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
                                              pos_y_personagem + dy * velocidade_personagem * fator_normalizacao))
             else:
+                angulo_inclinacao_personagem = 0
                 pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
                                              pos_x_personagem + dx * velocidade_personagem))
                 pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
                                              pos_y_personagem + dy * velocidade_personagem))
+        else:
+            angulo_inclinacao_personagem = 0
 
         # ---- DASH/TELEPORTE ----
         dash_teclado = keys[config_teclas["Teleporte"]]
@@ -943,6 +954,14 @@ if __name__ == "__main__":
                 tempo_inicio_buff_impulsiva = pygame.time.get_ticks()
                 eliminacoes_consecutivas_impulsiva = 0  # Zera para forçar novo ciclo
                 
+
+
+        # Reinicia a animação quando troca de direção para não pular frames
+        if direcao_atual != ultima_direcao_animacao:
+            frame_atual = 0
+            tempo_passado = 0
+            ultima_direcao_animacao = direcao_atual
+
         if direcao_atual == 'stop':
             if tempo_passado >= tempo_animacao_stop:
                 tempo_passado = 0
@@ -2084,7 +2103,16 @@ if __name__ == "__main__":
         if estado_atual_ia.get('miasma_ativo'):
             tela.blit(imagem_personagem_doente, (pos_x_personagem, pos_y_personagem))
         else:
-            tela.blit(frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])], (pos_x_personagem, pos_y_personagem))
+            frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
+            
+            if angulo_inclinacao_personagem != 0:
+                frame_rotacionado = pygame.transform.rotate(frame_para_desenhar, angulo_inclinacao_personagem)
+                # O rect do frame original é obtido para não alterar o centro visual ao rotacionar
+                rect_original = frame_para_desenhar.get_rect(topleft=(pos_x_personagem, pos_y_personagem))
+                rect_rotacionado = frame_rotacionado.get_rect(center=rect_original.center)
+                tela.blit(frame_rotacionado, rect_rotacionado.topleft)
+            else:
+                tela.blit(frame_para_desenhar, (pos_x_personagem, pos_y_personagem))
     
         # Se a IA ainda não foi processada neste frame, garantimos que o estado exista
         if 'estado_atual_ia' not in locals() and 'estado_atual_ia' not in globals():
@@ -2118,7 +2146,7 @@ if __name__ == "__main__":
                         if dist < 30:
                             vivo = False
                             vida -= 5.0
-                            vida_boss5 = min(vida_boss_maxima, vida_boss5 + 20)
+                            vida_boss5 = min( vida_boss5 + 20)
                             estado_atual_ia['ratos_adicionais'] = estado_atual_ia.get('ratos_adicionais', 0) + 1
                             memoria_umbra.treinar(5.0)
                             efeitos_texto.append({"texto": "+20 LIFESTEAL / +1 RATO", "x": pos_x_umbra,
@@ -2354,17 +2382,18 @@ if __name__ == "__main__":
 
         nova_lista = []
         for efeito in efeitos_texto:
-            tempo_passado = tempo_atual - efeito["tempo_inicio"]
-            if tempo_passado <= 800:
-                x = efeito["x"]
-                y = efeito["y"] - (tempo_passado // 25)
-                # Render feito UMA vez com a fonte cacheada (era Font(None,28) a cada frame!)
-                texto_principal = render_cached_text(efeito["texto"], _FONTE_EFEITO, efeito["cor"])
-                # Contorno: 1 render + 8 blits (era 8 renders separados)
-                contorno = render_cached_text(efeito["texto"], _FONTE_EFEITO, (0, 0, 0))
-                for ox, oy in _CONTORNO_OFFSETS:
-                    tela.blit(contorno, (x + ox, y + oy))
-                tela.blit(texto_principal, (x, y))
+            tempo_passado_efeito = tempo_atual - efeito["tempo_inicio"]
+            if tempo_passado_efeito <= 800:
+                if config_graficos.get("efeitos_visuais", True):
+                    x = efeito["x"]
+                    y = efeito["y"] - (tempo_passado_efeito // 25)
+                    # Render feito UMA vez com a fonte cacheada (era Font(None,28) a cada frame!)
+                    texto_principal = render_cached_text(efeito["texto"], _FONTE_EFEITO, efeito["cor"])
+                    # Contorno: 1 render + 8 blits (era 8 renders separados)
+                    contorno = render_cached_text(efeito["texto"], _FONTE_EFEITO, (0, 0, 0))
+                    for ox, oy in _CONTORNO_OFFSETS:
+                        tela.blit(contorno, (x + ox, y + oy))
+                    tela.blit(texto_principal, (x, y))
                 nova_lista.append(efeito)
         efeitos_texto = nova_lista
 
@@ -2481,7 +2510,7 @@ if __name__ == "__main__":
         pygame.display.flip()
         # 144 FPS: A IA já roda em processo separado (multiprocessing), não precisa de tick alto.
         # O tick(900) anterior fazia TODO o código Python rodar 900x/s, causando 80%+ CPU.
-        FPS.tick(144)
+        FPS.tick(config_graficos.get("fps_limite", 60))
 
 
     # Encerrar o Pygame

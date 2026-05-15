@@ -25,7 +25,9 @@ except:
         "sombras_ativas": "dinamicas",
         "qualidade_grafica": "alta",
         "particulas_ativas": True,
-        "efeitos_visuais": True
+        "particulas_ativas": True,
+        "efeitos_visuais": True,
+        "fps_limite": 60
     }
 
 # Carregar configurações de áudio
@@ -35,7 +37,7 @@ config_audio = carregar_config_audio()
 texto_dano = None
 tempo_texto_dano = 0
 
-velocidade_inimigo2=0.85
+velocidade_inimigo2=1.70
 velocidade_disparo_inimigo = 5  
 
 estalos = aplicar_volume_som(pygame.mixer.Sound("Sounds/Estalo.mp3"), config_audio)
@@ -258,70 +260,57 @@ def atualizar_posicao_personagem(keys, joystick):
         cooldown_dash = True
         tempo_ultimo_dash = pygame.time.get_ticks()
 
-    elif keys[config_teclas["Mover para direita"]]:
-        pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + velocidade_personagem)
-        direcao_atual = 'right'
-        ultima_tecla_movimento = 'right'
-        movimento_pressionado = True
-    elif keys[config_teclas["Mover para cima"]]:
-        pos_y_personagem = max(0, pos_y_personagem - velocidade_personagem)
-        direcao_atual = 'up'
-        ultima_tecla_movimento = 'up'
-        movimento_pressionado = True
-    elif keys[config_teclas["Mover para baixo"]]:
-        pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + velocidade_personagem)
-        direcao_atual = 'down'
-        ultima_tecla_movimento = 'down'
-        movimento_pressionado = True
-    elif keys[config_teclas["Mover para esquerda"]]:
-        pos_x_personagem = max(0, pos_x_personagem - velocidade_personagem)
-        direcao_atual = 'left'
-        ultima_tecla_movimento = 'left'
-        movimento_pressionado = True
+    global angulo_inclinacao_personagem
+    dx, dy = 0, 0
 
-    elif botao_mouse[0]:
-        
-        direcao_atual = 'disp'
-
+    # ---- TECLADO ----
+    if keys[config_teclas["Mover para direita"]]: dx, ultima_tecla_movimento = 1, 'right'
+    elif keys[config_teclas["Mover para esquerda"]]: dx, ultima_tecla_movimento = -1, 'left'
     
+    if keys[config_teclas["Mover para cima"]]: dy, ultima_tecla_movimento = -1, 'up'
+    elif keys[config_teclas["Mover para baixo"]]: dy, ultima_tecla_movimento = 1, 'down'
 
-    # Atualização do cooldown do dash
-    if cooldown_dash and pygame.time.get_ticks() - tempo_ultimo_dash > tempo_cooldown_dash:
-        cooldown_dash = False
-    
-
-    # Verificar movimento do joystick
+    # ---- JOYSTICK ----
     if joystick:
-        joystick_x = joystick.get_axis(0)  # Eixo horizontal
-        joystick_y = joystick.get_axis(1)  # Eixo vertical
+        eixo_x = joystick.get_axis(0)
+        eixo_y = joystick.get_axis(1)
+        if abs(eixo_x) > 0.3:
+            dx = 1 if eixo_x > 0 else -1
+            ultima_tecla_movimento = 'right' if eixo_x > 0 else 'left'
+        if abs(eixo_y) > 0.3:
+            dy = 1 if eixo_y > 0 else -1
+            ultima_tecla_movimento = 'down' if eixo_y > 0 else 'up'
 
-        # Calcular magnitude do analógico
-        magnitude = math.sqrt(joystick_x**2 + joystick_y**2)
-        if magnitude > 0.2:  # Deadzone para ignorar pequenos desvios
-            # Calcular ângulo em graus
-            angle = math.degrees(math.atan2(-joystick_y, joystick_x)) % 360
-
-            # Determinar direção baseada no ângulo
-            if 45 <= angle < 135:  # Cima
-                pos_y_personagem = max(0, pos_y_personagem - velocidade_personagem)
-                direcao_atual = 'up'
-                ultima_tecla_movimento = 'up'
-                movimento_pressionado = True
-            elif 135 <= angle < 225:  # Esquerda
-                pos_x_personagem = max(0, pos_x_personagem - velocidade_personagem)
-                direcao_atual = 'left'
-                ultima_tecla_movimento = 'left'
-                movimento_pressionado = True
-            elif 225 <= angle < 315:  # Baixo
-                pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + velocidade_personagem)
-                direcao_atual = 'down'
-                ultima_tecla_movimento = 'down'
-                movimento_pressionado = True
-            else:  # Direita
-                pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + velocidade_personagem)
-                direcao_atual = 'right'
-                ultima_tecla_movimento = 'right'
-                movimento_pressionado = True
+    if dx != 0 or dy != 0:
+        movimento_pressionado = True
+        direcao_atual = ultima_tecla_movimento
+        
+        # Normalização de movimento diagonal
+        if dx != 0 and dy != 0:
+            inclinacao = angulo_diagonal_personagem
+            
+            if dy < 0:
+                angulo_inclinacao_personagem = -inclinacao if dx > 0 else inclinacao
+            else:
+                angulo_inclinacao_personagem = inclinacao if dx > 0 else -inclinacao
+                
+            fator_normalizacao = 0.7071
+            pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
+                                         pos_x_personagem + dx * velocidade_personagem * fator_normalizacao))
+            pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
+                                         pos_y_personagem + dy * velocidade_personagem * fator_normalizacao))
+        else:
+            angulo_inclinacao_personagem = 0
+            pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
+                                         pos_x_personagem + dx * velocidade_personagem))
+            pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
+                                         pos_y_personagem + dy * velocidade_personagem))
+    else:
+        angulo_inclinacao_personagem = 0
+        if botao_mouse[0]:
+            direcao_atual = 'disp'
+        else:
+            direcao_atual = 'stop'
 
     # Verificar botões do joystick para teletransporte
     if joystick and joystick.get_button(2) and not cooldown_dash:
@@ -378,7 +367,7 @@ def criar_disparo_inimigo(pos_inimigo, pos_personagem):
 
 
 def criar_inimigo(x, y):
-    image = pygame.transform.scale(pygame.image.load("Sprites/inimig1.png"), (largura_inimigo, altura_inimigo))
+    image = frames_inimigo[0]
     return {"rect": pygame.Rect(x, y, largura_inimigo, altura_inimigo), "image": image, "vida": vida_inimigo_maxima, "vida_maxima": vida_inimigo_maxima}
 
 def desenhar_sombra(tela, x, y, largura, altura, offset_y=5):
@@ -954,6 +943,14 @@ while running:
             tempo_inicio_buff_impulsiva = pygame.time.get_ticks()
             eliminacoes_consecutivas_impulsiva = 0  # Zera para forçar novo ciclo
 
+
+
+    # Reinicia a animação quando troca de direção para não pular frames
+    if direcao_atual != ultima_direcao_animacao:
+        frame_atual = 0
+        tempo_passado = 0
+        ultima_direcao_animacao = direcao_atual
+
     if direcao_atual == 'stop':
         if tempo_passado >= tempo_animacao_stop:
             tempo_passado = 0
@@ -971,9 +968,17 @@ while running:
     # Desenhar sombra do personagem
     desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
     if not personagem_imovel:
-        tela.blit(frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])], (pos_x_personagem, pos_y_personagem))
+        frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
+        if angulo_inclinacao_personagem != 0:
+            # Rotaciona o frame pelo centro para manter o eixo
+            frame_rotacionado = pygame.transform.rotate(frame_para_desenhar, angulo_inclinacao_personagem)
+            novo_rect = frame_rotacionado.get_rect(center=(pos_x_personagem + largura_personagem//2, pos_y_personagem + altura_personagem//2))
+            tela.blit(frame_rotacionado, novo_rect.topleft)
+        else:
+            tela.blit(frame_para_desenhar, (pos_x_personagem, pos_y_personagem))
     else:
         tela.blit(imagem_personagem_congelada, (pos_x_personagem, pos_y_personagem))
+        
     for moeda in moedas_soltadas[:]:
         if personagem_rect.colliderect(moeda["rect"]):
             moedas_coletadas += 1
@@ -984,22 +989,23 @@ while running:
 
     nova_lista = []
     for efeito in efeitos_texto:
-        tempo_passado = tempo_atual - efeito["tempo_inicio"]
-        if tempo_passado <= 800:  # mostra por 2 segundos
-            fonte_efeito = pygame.font.Font(None, 28)
-            x = efeito["x"]
-            y = efeito["y"] - (tempo_passado // 25)
-            texto_principal = fonte_efeito.render(efeito["texto"], True, efeito["cor"])
+        tempo_passado_efeito = tempo_atual - efeito["tempo_inicio"]
+        if tempo_passado_efeito <= 800:  # mostra por 2 segundos
+            if config_graficos.get("efeitos_visuais", True):
+                fonte_efeito = pygame.font.Font(None, 28)
+                x = efeito["x"]
+                y = efeito["y"] - (tempo_passado_efeito // 25)
+                texto_principal = fonte_efeito.render(efeito["texto"], True, efeito["cor"])
 
-            # Contorno preto em 8 direções
-            for dx in [-1, 0, 1]:
-                for dy in [-1, 0, 1]:
-                    if dx != 0 or dy != 0:
-                        contorno = fonte_efeito.render(efeito["texto"], True, (0, 0, 0))
-                        tela.blit(contorno, (x + dx, y + dy))
+                # Contorno preto em 8 direções
+                for dx in [-1, 0, 1]:
+                    for dy in [-1, 0, 1]:
+                        if dx != 0 or dy != 0:
+                            contorno = fonte_efeito.render(efeito["texto"], True, (0, 0, 0))
+                            tela.blit(contorno, (x + dx, y + dy))
 
-            # Texto principal
-            tela.blit(texto_principal, (x, y))
+                # Texto principal
+                tela.blit(texto_principal, (x, y))
             nova_lista.append(efeito)
     efeitos_texto = nova_lista
 
@@ -1417,7 +1423,7 @@ while running:
 
         max_inimigos2=4
         intervalo_disparo_inimigo =3000
-        velocidade_inimigo2=0.75
+        velocidade_inimigo2=1.50
         if musica_boss2 == 1:
             # Defina o volume da música (opcional)
             ataque_vertical_ativo = True
@@ -1526,7 +1532,7 @@ while running:
                     else:
                         # Ativa o ataque vertical
                         ataque_vertical_ativo = True
-                        velocidade_inimigo2+=0.005
+                        velocidade_inimigo2+=0.010
                         posicao_ataque_vertical = (largura_mapa // 0.8, 0)  # Reinicia na ponta superior da tela
                         tempo_decorrido_vertical = 0
                     
@@ -1814,7 +1820,7 @@ while running:
     tela.blit(cursor_imagem, (mouse_x, mouse_y))
     exibir_cronometro(tela)
     pygame.display.flip()
-    FPS.tick(100)  # Limita a 60 FPS
+    FPS.tick(config_graficos.get("fps_limite", 60))  # Limita a taxa de quadros conforme configuração
 
 
 # Encerrar o Pygame

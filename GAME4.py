@@ -25,7 +25,9 @@ except:
         "sombras_ativas": "dinamicas",
         "qualidade_grafica": "alta",
         "particulas_ativas": True,
-        "efeitos_visuais": True
+        "particulas_ativas": True,
+        "efeitos_visuais": True,
+        "fps_limite": 60
     }
 
 # Carregar configurações de áudio
@@ -37,7 +39,7 @@ current_time_vortex = pygame.time.get_ticks()
 texto_dano = None
 tempo_texto_dano = 0
 
-velocidade_inimigo2=0.85
+velocidade_inimigo2=1.70
 velocidade_disparo_inimigo = 3  
 
 estalos = aplicar_volume_som(pygame.mixer.Sound("Sounds/Estalo.mp3"), config_audio)
@@ -91,6 +93,7 @@ retomar_cronometro()
 # Carregar a imagem do mapa
 mapa = pygame.image.load(mapa_path4).convert()
 mapa = pygame.transform.scale(mapa, (largura_tela, altura_tela))
+boss4_2_img = pygame.transform.scale(pygame.image.load("Sprites/Boss4_2.png").convert_alpha(), (chefe_largura4, chefe_altura4))
 
 
 disparos_inimigos = []
@@ -255,128 +258,74 @@ def determinar_frames_petro(posicao_petro, posicao_inimigo):
 def atualizar_posicao_personagem(keys, joystick):
     global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento
     global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_timer, teleporte_duration, teleporte_index
-
-    global personagem_imovel, tempo_ultimo_atingido
+    global personagem_imovel, tempo_ultimo_atingido, angulo_inclinacao_personagem
 
     # Se o personagem estiver imóvel, não atualize a posição
     if personagem_imovel:
         return
-    direcao_atual = 'stop'  # Por padrão, definimos a direção como 'stop'
 
-    if  keys[config_teclas["Teleporte"]] and not cooldown_dash:
-        # Animação de teletransporte
-        Som_portal.play()
-        teleporte_timer += velocidade_personagem
-        if teleporte_timer >= teleporte_duration:
-            teleporte_index = (teleporte_index + 1) % len(teleporte_sprites)
-            teleporte_timer = 0
+    dx, dy = 0, 0
 
-        # Desenhe a sprite de teletransporte
-        tela.blit(teleporte_sprites[teleporte_index], (pos_x_personagem, pos_y_personagem))
-
-        # Atualize a tela
-        pygame.display.flip()
-        pygame.time.delay(teleporte_duration // 2)  # Tempo de espera entre cada quadro (metade da duração)
-
-        # Continue com o código do dash como antes
-        if ultima_tecla_movimento == 'up':
-            pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
-        elif ultima_tecla_movimento == 'down':
-            pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
-        elif ultima_tecla_movimento == 'left':
-            pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
-        elif ultima_tecla_movimento == 'right':
-            pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
-
-        # Inicie o cooldown do dash
-        cooldown_dash = True
-        tempo_ultimo_dash = pygame.time.get_ticks()
-
-    elif keys[config_teclas["Mover para direita"]]:
-        pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + velocidade_personagem)
-        direcao_atual = 'right'
-        ultima_tecla_movimento = 'right'
-        movimento_pressionado = True
-    elif keys[config_teclas["Mover para cima"]]:
-        pos_y_personagem = max(0, pos_y_personagem - velocidade_personagem)
-        direcao_atual = 'up'
-        ultima_tecla_movimento = 'up'
-        movimento_pressionado = True
-    elif keys[config_teclas["Mover para baixo"]]:
-        pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + velocidade_personagem)
-        direcao_atual = 'down'
-        ultima_tecla_movimento = 'down'
-        movimento_pressionado = True
-    elif keys[config_teclas["Mover para esquerda"]]:
-        pos_x_personagem = max(0, pos_x_personagem - velocidade_personagem)
-        direcao_atual = 'left'
-        ultima_tecla_movimento = 'left'
-        movimento_pressionado = True
-
-    elif botao_mouse[0]:
-        
-        direcao_atual = 'disp'
-
-
-
-    else:
-        direcao_atual = 'stop'
-
-    # Atualização do cooldown do dash
-    if cooldown_dash and pygame.time.get_ticks() - tempo_ultimo_dash > tempo_cooldown_dash:
-        cooldown_dash = False
+    # ---- TECLADO ----
+    if keys[config_teclas["Mover para direita"]]: dx, ultima_tecla_movimento = 1, 'right'
+    elif keys[config_teclas["Mover para esquerda"]]: dx, ultima_tecla_movimento = -1, 'left'
     
+    if keys[config_teclas["Mover para cima"]]: dy, ultima_tecla_movimento = -1, 'up'
+    elif keys[config_teclas["Mover para baixo"]]: dy, ultima_tecla_movimento = 1, 'down'
 
-    # Verificar movimento do joystick
+    # ---- JOYSTICK ----
     if joystick:
-        joystick_x = joystick.get_axis(0)  # Eixo horizontal
-        joystick_y = joystick.get_axis(1)  # Eixo vertical
+        eixo_x = joystick.get_axis(0)
+        eixo_y = joystick.get_axis(1)
+        if abs(eixo_x) > 0.3:
+            dx = 1 if eixo_x > 0 else -1
+            ultima_tecla_movimento = 'right' if eixo_x > 0 else 'left'
+        if abs(eixo_y) > 0.3:
+            dy = 1 if eixo_y > 0 else -1
+            ultima_tecla_movimento = 'down' if eixo_y > 0 else 'up'
 
-        # Calcular magnitude do analógico
-        magnitude = math.sqrt(joystick_x**2 + joystick_y**2)
-        if magnitude > 0.2:  # Deadzone para ignorar pequenos desvios
-            # Calcular ângulo em graus
-            angle = math.degrees(math.atan2(-joystick_y, joystick_x)) % 360
-
-            # Determinar direção baseada no ângulo
-            if 45 <= angle < 135:  # Cima
-                pos_y_personagem = max(0, pos_y_personagem - velocidade_personagem)
-                direcao_atual = 'up'
-                ultima_tecla_movimento = 'up'
-                movimento_pressionado = True
-            elif 135 <= angle < 225:  # Esquerda
-                pos_x_personagem = max(0, pos_x_personagem - velocidade_personagem)
-                direcao_atual = 'left'
-                ultima_tecla_movimento = 'left'
-                movimento_pressionado = True
-            elif 225 <= angle < 315:  # Baixo
-                pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + velocidade_personagem)
-                direcao_atual = 'down'
-                ultima_tecla_movimento = 'down'
-                movimento_pressionado = True
-            else:  # Direita
-                pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + velocidade_personagem)
-                direcao_atual = 'right'
-                ultima_tecla_movimento = 'right'
-                movimento_pressionado = True
+    if dx != 0 or dy != 0:
+        movimento_pressionado = True
+        direcao_atual = ultima_tecla_movimento
+        
+        # Normalização de movimento diagonal
+        if dx != 0 and dy != 0:
+            inclinacao = angulo_diagonal_personagem
+            
+            if dy < 0:
+                angulo_inclinacao_personagem = -inclinacao if dx > 0 else inclinacao
+            else:
+                angulo_inclinacao_personagem = inclinacao if dx > 0 else -inclinacao
+                
+            fator_normalizacao = 0.7071
+            pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
+                                         pos_x_personagem + dx * velocidade_personagem * fator_normalizacao))
+            pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
+                                         pos_y_personagem + dy * velocidade_personagem * fator_normalizacao))
+        else:
+            angulo_inclinacao_personagem = 0
+            pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
+                                         pos_x_personagem + dx * velocidade_personagem))
+            pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
+                                         pos_y_personagem + dy * velocidade_personagem))
+    else:
+        angulo_inclinacao_personagem = 0
+        if botao_mouse[0]:
+            direcao_atual = 'disp'
+        else:
+            direcao_atual = 'stop'
 
     # Verificar botões do joystick para teletransporte
     if joystick and joystick.get_button(2) and not cooldown_dash:
-        # Animação de teletransporte
         Som_portal.play()
         teleporte_timer += velocidade_personagem
         if teleporte_timer >= teleporte_duration:
             teleporte_index = (teleporte_index + 1) % len(teleporte_sprites)
             teleporte_timer = 0
-
-        # Desenhar a sprite de teletransporte
         tela.blit(teleporte_sprites[teleporte_index], (pos_x_personagem, pos_y_personagem))
-
-        # Atualizar a tela
         pygame.display.flip()
-        pygame.time.delay(teleporte_duration // 2)  # Tempo de espera entre cada quadro (metade da duração)
+        pygame.time.delay(teleporte_duration // 2)
 
-        # Continuar com o código do dash como antes
         if ultima_tecla_movimento == 'up':
             pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
         elif ultima_tecla_movimento == 'down':
@@ -386,11 +335,9 @@ def atualizar_posicao_personagem(keys, joystick):
         elif ultima_tecla_movimento == 'right':
             pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
 
-        # Iniciar o cooldown do dash
         cooldown_dash = True
         tempo_ultimo_dash = pygame.time.get_ticks()
 
-    # Atualizar o cooldown do dash
     if cooldown_dash and pygame.time.get_ticks() - tempo_ultimo_dash > tempo_cooldown_dash:
         cooldown_dash = False
 
@@ -418,7 +365,7 @@ def criar_disparo_inimigo(pos_inimigo, pos_personagem):
 
 
 def criar_inimigo(x, y):
-    image = pygame.transform.scale(pygame.image.load("Sprites/inimig1.png"), (largura_inimigo, altura_inimigo))
+    image = frames_inimigo_esquerda4[0]
     return {"rect": pygame.Rect(x, y, largura_inimigo, altura_inimigo), "image": image, "vida": vida_inimigo_maxima, "vida_maxima": vida_inimigo_maxima}
 
 def desenhar_sombra(tela, x, y, largura, altura, offset_y=5):
@@ -967,6 +914,14 @@ while running:
             eliminacoes_consecutivas_impulsiva = 0  # Zera para forçar novo ciclo
 
 
+
+
+    # Reinicia a animação quando troca de direção para não pular frames
+    if direcao_atual != ultima_direcao_animacao:
+        frame_atual = 0
+        tempo_passado = 0
+        ultima_direcao_animacao = direcao_atual
+
     if direcao_atual == 'stop':
         if tempo_passado >= tempo_animacao_stop:
             tempo_passado = 0
@@ -984,7 +939,14 @@ while running:
     # Desenhar sombra do personagem
     desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
     if not personagem_imovel:
-        tela.blit(frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])], (pos_x_personagem, pos_y_personagem))
+        frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
+        if angulo_inclinacao_personagem != 0:
+            # Rotaciona o frame pelo centro para manter o eixo
+            frame_rotacionado = pygame.transform.rotate(frame_para_desenhar, angulo_inclinacao_personagem)
+            novo_rect = frame_rotacionado.get_rect(center=(pos_x_personagem + largura_personagem//2, pos_y_personagem + altura_personagem//2))
+            tela.blit(frame_rotacionado, novo_rect.topleft)
+        else:
+            tela.blit(frame_para_desenhar, (pos_x_personagem, pos_y_personagem))
     else:
         tela.blit(imagem_personagem_congelada, (pos_x_personagem, pos_y_personagem))
     for moeda in moedas_soltadas[:]:
@@ -995,22 +957,23 @@ while running:
             salvar_atributos()   # 💾 salva imediatamente
     nova_lista = []
     for efeito in efeitos_texto:
-        tempo_passado = tempo_atual - efeito["tempo_inicio"]
-        if tempo_passado <= 800:  # mostra por 2 segundos
-            fonte_efeito = pygame.font.Font(None, 28)
-            x = efeito["x"]
-            y = efeito["y"] - (tempo_passado // 25)
-            texto_principal = fonte_efeito.render(efeito["texto"], True, efeito["cor"])
+        tempo_passado_efeito = tempo_atual - efeito["tempo_inicio"]
+        if tempo_passado_efeito <= 800:  # mostra por 2 segundos
+            if config_graficos.get("efeitos_visuais", True):
+                fonte_efeito = pygame.font.Font(None, 28)
+                x = efeito["x"]
+                y = efeito["y"] - (tempo_passado_efeito // 25)
+                texto_principal = fonte_efeito.render(efeito["texto"], True, efeito["cor"])
 
-            # Contorno preto em 8 direções
-            for dx in [-1, 0, 1]:
-                for dy in [-1, 0, 1]:
-                    if dx != 0 or dy != 0:
-                        contorno = fonte_efeito.render(efeito["texto"], True, (0, 0, 0))
-                        tela.blit(contorno, (x + dx, y + dy))
+                # Contorno preto em 8 direções
+                for dx in [-1, 0, 1]:
+                    for dy in [-1, 0, 1]:
+                        if dx != 0 or dy != 0:
+                            contorno = fonte_efeito.render(efeito["texto"], True, (0, 0, 0))
+                            tela.blit(contorno, (x + dx, y + dy))
 
-            # Texto principal
-            tela.blit(texto_principal, (x, y))
+                # Texto principal
+                tela.blit(texto_principal, (x, y))
             nova_lista.append(efeito)
     efeitos_texto = nova_lista
 
@@ -1406,14 +1369,14 @@ while running:
        
         max_inimigos4=0
         intervalo_disparo_inimigo =3000
-        velocidade_inimigo2=0.75
+        velocidade_inimigo2=1.50
         pygame.draw.rect(tela, vermelho, (pos_x_barra_boss4, pos_y_barra_boss4, largura_barra_boss4, altura_barra_boss4))
         pygame.draw.rect(tela, (224, 190, 1), (pos_x_barra_boss4, pos_y_barra_boss4, largura_barra_boss4, (vida_boss4 / vida_maxima_boss4) * altura_barra_boss4))
         pygame.draw.rect(tela, (255, 255, 255), (pos_x_barra_boss4, pos_y_barra_boss4, largura_barra_boss4, altura_barra_boss4), 2)
         # Verificar se o Boss está atacando
         if estado_boss_atacando:
             # Desenhar a imagem do Boss em modo de ataque
-            tela.blit(pygame.transform.scale(pygame.image.load("Sprites/Boss4_2.png"), (chefe_largura4, chefe_altura4)), boss_rect)
+            tela.blit(boss4_2_img, boss_rect)
 
             # Verificar se já passou 1 segundo desde o início do ataque
             if current_time - tempo_ataque >= 800:
@@ -1806,7 +1769,7 @@ while running:
     tela.blit(cursor_imagem, (mouse_x, mouse_y))
     exibir_cronometro(tela)
     pygame.display.flip()
-    FPS.tick(100)  # Limita a 60 FPS
+    FPS.tick(config_graficos.get("fps_limite", 60))  # Limita a taxa de quadros conforme configuração
 
 
 # Encerrar o Pygame

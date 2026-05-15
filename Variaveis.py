@@ -10,7 +10,7 @@ from Config_Teclas import  carregar_config_teclas
 config_teclas = carregar_config_teclas()
 
 # Crie uma janela tkinter (não será exibida)
-pygame.font.init()
+pygame.init()
 relogio = pygame.time.Clock()
 # Configurações do mapa
 mapa_path1 = "Sprites/Fase1.png"
@@ -66,6 +66,9 @@ if cont ==1:
     cont+=1
 centro_horizontal_tela = largura_mapa // 2
 espacamento = 100
+# Inicializa display OCULTO para permitir .convert_alpha() nos sprites.
+# Nenhuma janela aparece — o display real é criado depois em cada GAME file.
+_display_init = pygame.display.set_mode((largura_mapa, altura_mapa), pygame.HIDDEN)
 ########################################## BOSS 1
 vida_boss = 5000
 vida_maxima_boss1= vida_boss
@@ -312,22 +315,22 @@ elif largura_tela == 1920:
     vel_inimig= 1
 elif largura_tela <= 1360:
     vel_inimig= 1
-Velocidade_Inimigos_1=0.9
+Velocidade_Inimigos_1=1.8
 max_inimigos=6
 max_inimigos2=4
 max_inimigos3=5
 max_inimigos4=4
 distancia_minima_inimigos = 50  # Ajuste conforme necessário
 largura_inimigo, altura_inimigo = largura_tela*0.05, altura_tela*0.08
-frames_inimigo = [pygame.transform.scale(pygame.image.load("Sprites/inimig1.png"), (largura_inimigo, altura_inimigo)),
-                 pygame.transform.scale(pygame.image.load("Sprites/inimig2.png"), (largura_inimigo, altura_inimigo))]
+frames_inimigo = [pygame.transform.scale(pygame.image.load("Sprites/inimig1.png").convert_alpha(), (largura_inimigo, altura_inimigo)),
+                 pygame.transform.scale(pygame.image.load("Sprites/inimig2.png").convert_alpha(), (largura_inimigo, altura_inimigo))]
 
-frames_inimigo2=[pygame.transform.scale(pygame.image.load("Sprites/inimig3.png"), (100, 100)),
-                 pygame.transform.scale(pygame.image.load("Sprites/inimig4.png"), (102, 102))]
-frames_inimigo_esquerda2 = [pygame.transform.scale(pygame.image.load("Sprites/inimigo_direita2-1.png"), (largura_inimigo, altura_inimigo)),
-                           pygame.transform.scale(pygame.image.load("Sprites/inimigo_direita2-2.png"), (largura_inimigo, altura_inimigo))]
-frames_inimigo_direita2 = [pygame.transform.scale(pygame.image.load("Sprites/inimigo_esquerda2-1.png"), (largura_inimigo, altura_inimigo)),
-                          pygame.transform.scale(pygame.image.load("Sprites/inimigo_esquerda2-2.png"), (largura_inimigo, altura_inimigo))]
+frames_inimigo2=[pygame.transform.scale(pygame.image.load("Sprites/inimig3.png").convert_alpha(), (100, 100)),
+                 pygame.transform.scale(pygame.image.load("Sprites/inimig4.png").convert_alpha(), (102, 102))]
+frames_inimigo_esquerda2 = [pygame.transform.scale(pygame.image.load("Sprites/inimigo_direita2-1.png").convert_alpha(), (largura_inimigo, altura_inimigo)),
+                           pygame.transform.scale(pygame.image.load("Sprites/inimigo_direita2-2.png").convert_alpha(), (largura_inimigo, altura_inimigo))]
+frames_inimigo_direita2 = [pygame.transform.scale(pygame.image.load("Sprites/inimigo_esquerda2-1.png").convert_alpha(), (largura_inimigo, altura_inimigo)),
+                          pygame.transform.scale(pygame.image.load("Sprites/inimigo_esquerda2-2.png").convert_alpha(), (largura_inimigo, altura_inimigo))]
 
 
 
@@ -335,11 +338,24 @@ frames_inimigo_direita2 = [pygame.transform.scale(pygame.image.load("Sprites/ini
 ######################################### PERSONAGEM
 direcao_atual = 'stop'  # Direção inicial
 largura_personagem, altura_personagem = 54, 80
+# Defina diretamente a Largura e Altura (L, A) da imagem para cada direção.
+# A caixa transparente ao redor continua sendo 54x80 para manter os pés da personagem sempre no chão.
+dimensoes_direcao_personagem = {
+    'stop': (54, 80),
+    'up':   (51, 77),
+    'down': (51, 77),
+    'left': (52, 76),  # Ajuste exato em pixels
+    'right': (52, 76), 
+    'disp': (54, 80)
+}
+angulo_diagonal_personagem = 15 # Graus de inclinação ao andar na diagonal
+angulo_inclinacao_personagem = 0  # Ângulo de rotação atual do frame (calculado em tempo real)
+ultima_direcao_animacao = 'stop'  # Rastreador de direção anterior para resetar animação
 pos_x_personagem, pos_y_personagem = 100, 100
 Resistencia=35
 xp_petro=1
 dano_inimigo_perto=30
-velocidade_personagem = 1.5
+velocidade_personagem = 3
 intervalo_disparo = 800
 dano_person_hit=35
 tipo_buff_impulsiva = None
@@ -467,7 +483,18 @@ erros_diretos = 0
 confianca_predicao = 0.6  # 60% de chance inicial de prever o futuro
 ajuste_lead = 0.6         # Multiplicador de antecipação inicial
 # Define o tamanho boss 5 (desvinculado do personagem)
-largura_boss, altura_boss = 81, 136
+largura_boss, altura_boss = 56 , 82
+dimensoes_direcao_boss = {
+    'stop': (largura_boss, altura_boss),
+    'up': (largura_boss, altura_boss),
+    'down': (largura_boss, altura_boss),
+    'left': (largura_boss, altura_boss),
+    'right': (largura_boss, altura_boss),
+    'ataque': (largura_boss, altura_boss),
+    'ataque2': (largura_boss, altura_boss),
+    'ataque3': (largura_boss, altura_boss),
+    'escudo': (int(largura_boss * 1.4), int(altura_boss * 1.4))
+}
 largura_escudo, altura_escudo = int(largura_boss * 1.4), int(altura_boss * 1.4)
 ultimo_parede_tempo = pygame.time.get_ticks()
 parede_ativa = False
@@ -610,51 +637,72 @@ largura_trembo,altura_trembo= largura_tela*0.08, altura_tela*0.11
 frames_animacao2 = {}
 for direcao, paths in personagem_paths2.items():
     frames = []
+    w_alvo, h_alvo = dimensoes_direcao_personagem.get(direcao, (largura_personagem, altura_personagem))
     for path in paths:
-        img = pygame.image.load(path)
-        img_w, img_h = img.get_size()
-        nova_largura = int(img_w * (altura_personagem / img_h)) if img_h > 0 else largura_personagem
-        frames.append(pygame.transform.scale(img, (nova_largura, altura_personagem)))
+        img = pygame.image.load(path).convert_alpha()
+        img_s = pygame.transform.scale(img, (w_alvo, h_alvo))
+        
+        # Cria uma superfície do tamanho "padrão" para manter o ancoramento no chão (sem dar pulinhos)
+        surf = pygame.Surface((largura_personagem, altura_personagem), pygame.SRCALPHA)
+        x_offset = (largura_personagem - w_alvo) // 2
+        y_offset = altura_personagem - h_alvo
+        surf.blit(img_s, (x_offset, y_offset))
+        frames.append(surf.convert_alpha())
     frames_animacao2[direcao] = frames
 
 frames_animacao = {}
 for direcao, paths in personagem_paths.items():
     frames = []
+    w_alvo, h_alvo = dimensoes_direcao_personagem.get(direcao, (largura_personagem, altura_personagem))
     for path in paths:
-        img = pygame.image.load(path)
-        img_w, img_h = img.get_size()
-        nova_largura = int(img_w * (altura_personagem / img_h)) if img_h > 0 else largura_personagem
+        img = pygame.image.load(path).convert_alpha()
+        img_s = pygame.transform.scale(img, (w_alvo, h_alvo))
         
-        if direcao in ['left', 'right']:
-            w_s = int(nova_largura * 0.9)
-            h_s = int(altura_personagem * 0.9)
-            img_s = pygame.transform.scale(img, (w_s, h_s))
-            surf = pygame.Surface((nova_largura, altura_personagem), pygame.SRCALPHA)
-            surf.blit(img_s, ((nova_largura - w_s) // 2, altura_personagem - h_s))
-            frames.append(surf)
-        else:
-            frames.append(pygame.transform.scale(img, (nova_largura, altura_personagem)))
+        # Cria uma superfície do tamanho "padrão" para manter o ancoramento no chão (sem dar pulinhos)
+        surf = pygame.Surface((largura_personagem, altura_personagem), pygame.SRCALPHA)
+        x_offset = (largura_personagem - w_alvo) // 2
+        y_offset = altura_personagem - h_alvo
+        surf.blit(img_s, (x_offset, y_offset))
+        frames.append(surf.convert_alpha())
     frames_animacao[direcao] = frames
 
 # Carregar e escalar seguindo o seu padrão
-frames_geo_umbra_paths = {direcao: [pygame.image.load(path) for path in paths] for direcao, paths in geo_umbra_paths.items()}
-frames_geo_umbra_paths = {
-    direcao: [
-        pygame.transform.scale(frame, (largura_escudo, altura_escudo)) if direcao == 'escudo' 
-        else pygame.transform.scale(frame, (largura_boss, altura_boss)) 
-        for frame in frames
-    ] for direcao, frames in frames_geo_umbra_paths.items()
-}
+frames_geo_umbra_paths_bruto = {direcao: [pygame.image.load(path).convert_alpha() for path in paths] for direcao, paths in geo_umbra_paths.items()}
+
+frames_geo_umbra_paths = {}
+for direcao, frames in frames_geo_umbra_paths_bruto.items():
+    novos_frames = []
+    w_alvo, h_alvo = dimensoes_direcao_boss.get(direcao, (largura_boss, altura_boss))
+    
+    for frame in frames:
+        # Escala a imagem original para o tamanho alvo definido no dicionário
+        img_s = pygame.transform.scale(frame, (w_alvo, h_alvo))
+        
+        if w_alvo != largura_boss or h_alvo != altura_boss:
+            # Direções com tamanho diferente (ex: escudo) usam caixa-container
+            # para manter os pés ancorados na mesma posição
+            caixa_w = max(largura_boss, w_alvo)
+            caixa_h = max(altura_boss, h_alvo)
+            surf = pygame.Surface((caixa_w, caixa_h), pygame.SRCALPHA)
+            x_offset = (caixa_w - w_alvo) // 2
+            y_offset = caixa_h - h_alvo
+            surf.blit(img_s, (x_offset, y_offset))
+            novos_frames.append(surf)
+        else:
+            # Tamanho padrão: usa a imagem escalada diretamente
+            novos_frames.append(img_s.convert_alpha())
+            
+    frames_geo_umbra_paths[direcao] = novos_frames
 
 ###############################################
 
 # Carregar as sequências de imagens do trembo
-frames_animacao_trembo = {direcao: [pygame.image.load(path) for path in paths] for direcao, paths in trembo_paths.items()}
-frames_animacao_trembo = {direcao: [pygame.transform.scale(frame, (largura_trembo, altura_trembo)) for frame in frames] for direcao, frames in frames_animacao_trembo.items()}
+frames_animacao_trembo = {direcao: [pygame.image.load(path).convert_alpha() for path in paths] for direcao, paths in trembo_paths.items()}
+frames_animacao_trembo = {direcao: [pygame.transform.scale(frame, (largura_trembo, altura_trembo)).convert_alpha() for frame in frames] for direcao, frames in frames_animacao_trembo.items()}
 
 # Adicionar uma entrada para 'stop' no dicionário
-frames_animacao_trembo['stop'] = [pygame.image.load(path) for path in trembo_paths['stop']]
-frames_animacao_trembo['stop'] = [pygame.transform.scale(frame, (largura_trembo, altura_trembo)) for frame in frames_animacao_trembo['stop']]
+frames_animacao_trembo['stop'] = [pygame.image.load(path).convert_alpha() for path in trembo_paths['stop']]
+frames_animacao_trembo['stop'] = [pygame.transform.scale(frame, (largura_trembo, altura_trembo)).convert_alpha() for frame in frames_animacao_trembo['stop']]
 
 
 ###############################################
@@ -677,18 +725,18 @@ comando_direção_petro=True
 
 
 # Carregar as sequências de imagens do Petro
-frames_animacao_Petro = {direcao: [pygame.image.load(path) for path in paths] for direcao, paths in Petro_paths.items()}
-frames_animacao_Petro = {direcao: [pygame.transform.scale(frame, (largura_Petro, altura_Petro)) for frame in frames] for direcao, frames in frames_animacao_Petro.items()}
+frames_animacao_Petro = {direcao: [pygame.image.load(path).convert_alpha() for path in paths] for direcao, paths in Petro_paths.items()}
+frames_animacao_Petro = {direcao: [pygame.transform.scale(frame, (largura_Petro, altura_Petro)).convert_alpha() for frame in frames] for direcao, frames in frames_animacao_Petro.items()}
 
-frames_animacao_Petro2 = {direcao: [pygame.image.load(path) for path in paths] for direcao, paths in Petro_paths2.items()}
-frames_animacao_Petro2 = {direcao: [pygame.transform.scale(frame, (largura_tela*0.06, altura_tela*0.08)) for frame in frames] for direcao, frames in frames_animacao_Petro2.items()}
+frames_animacao_Petro2 = {direcao: [pygame.image.load(path).convert_alpha() for path in paths] for direcao, paths in Petro_paths2.items()}
+frames_animacao_Petro2 = {direcao: [pygame.transform.scale(frame, (largura_tela*0.06, altura_tela*0.08)).convert_alpha() for frame in frames] for direcao, frames in frames_animacao_Petro2.items()}
 
-frames_animacao_Petro3 = {direcao: [pygame.image.load(path) for path in paths] for direcao, paths in Petro_paths3.items()}
-frames_animacao_Petro3 = {direcao: [pygame.transform.scale(frame, (largura_tela*0.1, altura_tela*0.12)) for frame in frames] for direcao, frames in frames_animacao_Petro3.items()}
+frames_animacao_Petro3 = {direcao: [pygame.image.load(path).convert_alpha() for path in paths] for direcao, paths in Petro_paths3.items()}
+frames_animacao_Petro3 = {direcao: [pygame.transform.scale(frame, (largura_tela*0.1, altura_tela*0.12)).convert_alpha() for frame in frames] for direcao, frames in frames_animacao_Petro3.items()}
 
 # Adicionar uma entrada para 'stop' no dicionário
-frames_animacao_Petro['stop_petro'] = [pygame.image.load(path) for path in Petro_paths['stop_petro']]
-frames_animacao_Petro['stop_petro'] = [pygame.transform.scale(frame, (largura_Petro, altura_Petro)) for frame in frames_animacao_Petro['stop_petro']]
+frames_animacao_Petro['stop_petro'] = [pygame.image.load(path).convert_alpha() for path in Petro_paths['stop_petro']]
+frames_animacao_Petro['stop_petro'] = [pygame.transform.scale(frame, (largura_Petro, altura_Petro)).convert_alpha() for frame in frames_animacao_Petro['stop_petro']]
 
 
 

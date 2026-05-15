@@ -673,7 +673,7 @@ def atualizar_posicao_personagem(keys, joystick):
 
 def criar_inimigo(x, y, tipo=1):
     if tipo == 1:
-        image = pygame.transform.scale(pygame.image.load("Sprites/inimig1.png"), (largura_inimigo, altura_inimigo))
+        image = frames_inimigo[0]
     # Ajustar a hitbox para ser menor que a imagem original
     largura_hitbox = int(largura_inimigo * 0.8)  # Reduz a largura da hitbox
     altura_hitbox = int(altura_inimigo * 0.5)    # Reduz a altura da hitbox

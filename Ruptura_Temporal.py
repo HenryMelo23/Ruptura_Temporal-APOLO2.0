@@ -340,14 +340,20 @@ def tela_configuracoes_graficas(tela, fonte):
             "sombras_ativas": "dinamicas",
             "qualidade_grafica": "alta",
             "particulas_ativas": True,
-            "efeitos_visuais": True
+            "efeitos_visuais": True,
+            "fps_limite": 60
         }
+    # Garante que chaves novas existam em configs antigas
+    config.setdefault("fps_limite", 60)
+    config.setdefault("particulas_ativas", True)
+    config.setdefault("efeitos_visuais", True)
     
     opcoes_config = [
         {"nome": "Sombras", "chave": "sombras_ativas", "valores": ["desativadas", "simples", "dinamicas"], "labels": ["Desativadas", "Simples", "Dinâmicas"]},
         {"nome": "Qualidade Gráfica", "chave": "qualidade_grafica", "valores": ["alta", "media", "baixa"], "labels": ["Alta", "Média", "Baixa"]},
         {"nome": "Partículas", "chave": "particulas_ativas", "valores": [True, False], "labels": ["Ativadas", "Desativadas"]},
         {"nome": "Efeitos Visuais", "chave": "efeitos_visuais", "valores": [True, False], "labels": ["Ativados", "Desativados"]},
+        {"nome": "Limite de FPS", "chave": "fps_limite", "valores": [30, 60, 120, 0], "labels": ["30 FPS", "60 FPS", "120 FPS", "Ilimitado"]},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
     ]
     

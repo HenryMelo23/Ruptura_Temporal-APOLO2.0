@@ -25,7 +25,8 @@ except:
         "sombras_ativas": "dinamicas",
         "qualidade_grafica": "alta",
         "particulas_ativas": True,
-        "efeitos_visuais": True
+        "efeitos_visuais": True,
+        "fps_limite": 60
     }
 
 # Carregar configurações de áudio
@@ -79,14 +80,23 @@ mensagem_ativa = None
 tempo_fim_mensagem = 0
 
 mensagens_iniciais = [
-    (3, "Use W, A, S e D para se mover"),
-    (7, "Clique no botão esquerdo do mouse para atacar"),
-    (11, "Use SHIFT para dar dash"),
-    (15, "Aperte Q para abrir a loja"),
-    (19, "Junte pontos e melhore o personagem"),
-    (23, "Você está sozinho. Mas está preparado."),
+    (3, "Clique no botão esquerdo do mouse para atacar"),
+    (7, "Use SHIFT para dar dash"),
+    (11, "Aperte Q para abrir a loja"),
+    (15, "Junte pontos e melhore o personagem"),
+    (19, "Você está sozinho. Mas está preparado."),
     
 ]
+
+# --- Tutorial Interativo (Fases) ---
+# Fase 1: WASD  |  Fase 2: SHIFT x3  |  Fase 3: Parede roxa  |  Fase 4: Mensagens finais
+tutorial_fase = 1
+tutorial_wasd = {'w': False, 'a': False, 's': False, 'd': False}
+tutorial_dash_count = 0
+tutorial_parede_ativa = False
+tutorial_parede_rect = None  # definido ao entrar na fase 3
+tutorial_lado_inicial = None  # lado do jogador quando a parede aparece
+tempo_fase_completa = 0  # marca o instante da última transição
 
 
 
@@ -252,6 +262,7 @@ def determinar_frames_petro(posicao_petro, posicao_inimigo):
 def atualizar_posicao_personagem(keys, joystick):
     global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento
     global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_timer, teleporte_duration, teleporte_index
+    global tutorial_wasd, tutorial_fase, tutorial_dash_count, tempo_fase_completa, tutorial_parede_ativa, tutorial_parede_rect, tutorial_lado_inicial
 
     direcao_atual = 'stop'  # Por padrão, definimos a direção como 'stop'
 
@@ -284,72 +295,96 @@ def atualizar_posicao_personagem(keys, joystick):
         cooldown_dash = True
         tempo_ultimo_dash = pygame.time.get_ticks()
 
-    elif keys[config_teclas["Mover para direita"]]:
-        pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + velocidade_personagem)
-        direcao_atual = 'right'
-        ultima_tecla_movimento = 'right'
-        movimento_pressionado = True
-    elif keys[config_teclas["Mover para cima"]]:
-        pos_y_personagem = max(0, pos_y_personagem - velocidade_personagem)
-        direcao_atual = 'up'
-        ultima_tecla_movimento = 'up'
-        movimento_pressionado = True
-    elif keys[config_teclas["Mover para baixo"]]:
-        pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + velocidade_personagem)
-        direcao_atual = 'down'
-        ultima_tecla_movimento = 'down'
-        movimento_pressionado = True
-    elif keys[config_teclas["Mover para esquerda"]]:
-        pos_x_personagem = max(0, pos_x_personagem - velocidade_personagem)
-        direcao_atual = 'left'
-        ultima_tecla_movimento = 'left'
-        movimento_pressionado = True
+        # Contar dashes para o tutorial
+        if mostrar_tutorial and tutorial_fase == 2:
+            tutorial_dash_count += 1
+            if tutorial_dash_count >= 3:
+                tutorial_fase = 3
+                tutorial_parede_ativa = True
+                # Parede roxa vertical no centro do mapa
+                parede_w = 20
+                parede_h = int(altura_mapa * 0.5)
+                tutorial_parede_rect = pygame.Rect(
+                    largura_mapa // 2 - parede_w // 2,
+                    altura_mapa // 2 - parede_h // 2,
+                    parede_w, parede_h
+                )
+                tempo_fase_completa = time.time()
 
-    elif botao_mouse[0]:
-        
-        direcao_atual = 'disp'
+    global angulo_inclinacao_personagem
+    dx, dy = 0, 0
 
-
-    else:
-        direcao_atual = 'stop'
-
-    # Atualização do cooldown do dash
-    if cooldown_dash and pygame.time.get_ticks() - tempo_ultimo_dash > tempo_cooldown_dash:
-        cooldown_dash = False
+    # ---- TECLADO ----
+    if keys[config_teclas["Mover para direita"]]: dx, ultima_tecla_movimento = 1, 'right'
+    elif keys[config_teclas["Mover para esquerda"]]: dx, ultima_tecla_movimento = -1, 'left'
     
+    if keys[config_teclas["Mover para cima"]]: dy, ultima_tecla_movimento = -1, 'up'
+    elif keys[config_teclas["Mover para baixo"]]: dy, ultima_tecla_movimento = 1, 'down'
 
-    # Verificar movimento do joystick
+    # ---- JOYSTICK ----
     if joystick:
-        joystick_x = joystick.get_axis(0)  # Eixo horizontal
-        joystick_y = joystick.get_axis(1)  # Eixo vertical
+        eixo_x = joystick.get_axis(0)
+        eixo_y = joystick.get_axis(1)
+        if abs(eixo_x) > 0.3:
+            dx = 1 if eixo_x > 0 else -1
+            ultima_tecla_movimento = 'right' if eixo_x > 0 else 'left'
+        if abs(eixo_y) > 0.3:
+            dy = 1 if eixo_y > 0 else -1
+            ultima_tecla_movimento = 'down' if eixo_y > 0 else 'up'
 
-        # Calcular magnitude do analógico
-        magnitude = math.sqrt(joystick_x**2 + joystick_y**2)
-        if magnitude > 0.2:  # Deadzone para ignorar pequenos desvios
-            # Calcular ângulo em graus
-            angle = math.degrees(math.atan2(-joystick_y, joystick_x)) % 360
+    if dx != 0 or dy != 0:
+        movimento_pressionado = True
+        direcao_atual = ultima_tecla_movimento
+        # Rastrear WASD para o tutorial interativo
+        if mostrar_tutorial and tutorial_fase == 1:
+            if ultima_tecla_movimento == 'right': tutorial_wasd['d'] = True
+            elif ultima_tecla_movimento == 'left': tutorial_wasd['a'] = True
+            elif ultima_tecla_movimento == 'up': tutorial_wasd['w'] = True
+            elif ultima_tecla_movimento == 'down': tutorial_wasd['s'] = True
+            if all(tutorial_wasd.values()):
+                tutorial_fase = 2
+                tempo_fase_completa = time.time()
+        
+        # Normalização de movimento diagonal
+        if dx != 0 and dy != 0:
+            inclinacao = angulo_diagonal_personagem
+            
+            if dy < 0:
+                angulo_inclinacao_personagem = -inclinacao if dx > 0 else inclinacao
+            else:
+                angulo_inclinacao_personagem = inclinacao if dx > 0 else -inclinacao
+                
+            fator_normalizacao = 0.7071
+            pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
+                                         pos_x_personagem + dx * velocidade_personagem * fator_normalizacao))
+            pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
+                                         pos_y_personagem + dy * velocidade_personagem * fator_normalizacao))
+        else:
+            angulo_inclinacao_personagem = 0
+            pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
+                                         pos_x_personagem + dx * velocidade_personagem))
+            pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
+                                         pos_y_personagem + dy * velocidade_personagem))
+    else:
+        angulo_inclinacao_personagem = 0
+        if botao_mouse[0]:
+            direcao_atual = 'disp'
+        else:
+            direcao_atual = 'stop'
 
-            # Determinar direção baseada no ângulo
-            if 45 <= angle < 135:  # Cima
-                pos_y_personagem = max(0, pos_y_personagem - velocidade_personagem)
-                direcao_atual = 'up'
-                ultima_tecla_movimento = 'up'
-                movimento_pressionado = True
-            elif 135 <= angle < 225:  # Esquerda
-                pos_x_personagem = max(0, pos_x_personagem - velocidade_personagem)
-                direcao_atual = 'left'
-                ultima_tecla_movimento = 'left'
-                movimento_pressionado = True
-            elif 225 <= angle < 315:  # Baixo
-                pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + velocidade_personagem)
-                direcao_atual = 'down'
-                ultima_tecla_movimento = 'down'
-                movimento_pressionado = True
-            else:  # Direita
-                pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + velocidade_personagem)
-                direcao_atual = 'right'
-                ultima_tecla_movimento = 'right'
-                movimento_pressionado = True
+    # Colisão com a parede roxa do tutorial (bloqueia andar, teleporte passa)
+    if tutorial_parede_ativa and tutorial_parede_rect:
+        personagem_rect_check = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+        if personagem_rect_check.colliderect(tutorial_parede_rect):
+            # Reverter a posição (empurrar pra fora da parede)
+            if dx > 0:
+                pos_x_personagem = tutorial_parede_rect.left - largura_personagem
+            elif dx < 0:
+                pos_x_personagem = tutorial_parede_rect.right
+            if dy > 0:
+                pos_y_personagem = tutorial_parede_rect.top - altura_personagem
+            elif dy < 0:
+                pos_y_personagem = tutorial_parede_rect.bottom
 
     # Verificar botões do joystick para teletransporte
     if joystick and joystick.get_button(2) and not cooldown_dash:
@@ -393,7 +428,7 @@ inimigos_comum = []
 
 def criar_inimigo(x, y, tipo=1):
     if tipo == 1:
-        image = pygame.transform.scale(pygame.image.load("Sprites/inimig1.png"), (largura_inimigo, altura_inimigo))
+        image = frames_inimigo[0]
     # Ajustar a hitbox para ser menor que a imagem original
     largura_hitbox = int(largura_inimigo * 0.8)  # Reduz a largura da hitbox
     altura_hitbox = int(altura_inimigo * 0.5)    # Reduz a altura da hitbox
@@ -829,6 +864,14 @@ while running:
 
 
                 
+
+
+    # Reinicia a animação quando troca de direção para não pular frames
+    if direcao_atual != ultima_direcao_animacao:
+        frame_atual = 0
+        tempo_passado = 0
+        ultima_direcao_animacao = direcao_atual
+
     if direcao_atual == 'stop':
         if tempo_passado >= tempo_animacao_stop:
             tempo_passado = 0
@@ -1106,7 +1149,16 @@ while running:
     ###############################################   DESENHA O PERSONAGEM NA TELA ################################
     # Desenhar sombra do personagem
     desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-    tela.blit(frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])], (pos_x_personagem, pos_y_personagem))
+    
+    frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
+    if angulo_inclinacao_personagem != 0:
+        # Rotaciona o frame pelo centro para manter o eixo
+        frame_rotacionado = pygame.transform.rotate(frame_para_desenhar, angulo_inclinacao_personagem)
+        novo_rect = frame_rotacionado.get_rect(center=(pos_x_personagem + largura_personagem//2, pos_y_personagem + altura_personagem//2))
+        tela.blit(frame_rotacionado, novo_rect.topleft)
+    else:
+        tela.blit(frame_para_desenhar, (pos_x_personagem, pos_y_personagem))
+        
     for moeda in moedas_soltadas[:]:
         if personagem_rect.colliderect(moeda["rect"]):
             moedas_coletadas += 1
@@ -1116,22 +1168,23 @@ while running:
 
     nova_lista = []
     for efeito in efeitos_texto:
-        tempo_passado = tempo_atual - efeito["tempo_inicio"]
-        if tempo_passado <= 800:  # mostra por 2 segundos
-            fonte_efeito = pygame.font.Font(None, 28)
-            x = efeito["x"]
-            y = efeito["y"] - (tempo_passado // 25)
-            texto_principal = fonte_efeito.render(efeito["texto"], True, efeito["cor"])
+        tempo_passado_efeito = tempo_atual - efeito["tempo_inicio"]
+        if tempo_passado_efeito <= 800:  # mostra por 2 segundos
+            if config_graficos.get("efeitos_visuais", True):
+                fonte_efeito = pygame.font.Font(None, 28)
+                x = efeito["x"]
+                y = efeito["y"] - (tempo_passado_efeito // 25)
+                texto_principal = fonte_efeito.render(efeito["texto"], True, efeito["cor"])
 
-            # Contorno preto em 8 direções
-            for dx in [-1, 0, 1]:
-                for dy in [-1, 0, 1]:
-                    if dx != 0 or dy != 0:
-                        contorno = fonte_efeito.render(efeito["texto"], True, (0, 0, 0))
-                        tela.blit(contorno, (x + dx, y + dy))
+                # Contorno preto em 8 direções
+                for dx in [-1, 0, 1]:
+                    for dy in [-1, 0, 1]:
+                        if dx != 0 or dy != 0:
+                            contorno = fonte_efeito.render(efeito["texto"], True, (0, 0, 0))
+                            tela.blit(contorno, (x + dx, y + dy))
 
-            # Texto principal
-            tela.blit(texto_principal, (x, y))
+                # Texto principal
+                tela.blit(texto_principal, (x, y))
             nova_lista.append(efeito)
     efeitos_texto = nova_lista
     if trembo:
@@ -1829,36 +1882,133 @@ while running:
         tela.blit(texto_dano, pos_texto)
     # Controle de exibição
     if mostrar_tutorial:
-        tempo_decorrido = time.time() - tempo_inicial
-        if 'mensagens_exibidas' not in globals():
-            mensagens_exibidas = set()
-            mensagem_ativa = None
-            tempo_fim_mensagem = 0
+        cx = largura_mapa // 2
+        y_msg = int(altura_mapa * 0.15)
+        fonte_tut = pygame.font.Font(None, 48)
 
-        # Ativando nova mensagem, se for o tempo certo
-        for tempo_msg, texto_msg in mensagens_iniciais:
-            if int(tempo_decorrido) == tempo_msg and tempo_msg not in mensagens_exibidas:
-                mensagem_ativa = texto_msg
-                tempo_fim_mensagem = tempo_decorrido + 10  # visível por 10 segundos
-                mensagens_exibidas.add(tempo_msg)
+        # --- Função auxiliar para desenhar texto com contorno ---
+        def _draw_msg(txt, y_pos):
+            tr = fonte_tut.render(txt, True, (255, 255, 255))
+            tb = fonte_tut.render(txt, True, (0, 0, 0))
+            xm = cx - tr.get_width() // 2
+            tela.blit(tb, (xm - 1, y_pos))
+            tela.blit(tb, (xm + 1, y_pos))
+            tela.blit(tb, (xm, y_pos - 1))
+            tela.blit(tb, (xm, y_pos + 1))
+            tela.blit(tr, (xm, y_pos))
 
-        # Exibindo mensagem ativa com contorno
-        if mensagem_ativa and tempo_decorrido < tempo_fim_mensagem:
-            fonte_mensagem = pygame.font.Font(None, 48)
-            texto = mensagem_ativa
-            texto_renderizado = fonte_mensagem.render(texto, True, (255, 255, 255))
-            texto_borda = fonte_mensagem.render(texto, True, (0, 0, 0))
+        # ====== FASE 1: WASD ======
+        if tutorial_fase == 1:
+            _draw_msg("Use W, A, S e D para se mover", y_msg)
 
-            x = largura_mapa // 2 - texto_renderizado.get_width() // 2
-            y = int(altura_mapa * 0.15)
+            # Teclas WASD flutuantes
+            tam = 32
+            esp = 5
+            tecla_y = y_msg + 50
+            posicoes = [
+                ('W', cx - tam // 2, tecla_y, tutorial_wasd['w']),
+                ('A', cx - tam - tam // 2 - esp, tecla_y + tam + esp, tutorial_wasd['a']),
+                ('S', cx - tam // 2, tecla_y + tam + esp, tutorial_wasd['s']),
+                ('D', cx + tam // 2 + esp, tecla_y + tam + esp, tutorial_wasd['d']),
+            ]
+            ft_k = pygame.font.Font(None, 24)
+            pulso = abs(pygame.time.get_ticks() % 1200 - 600) / 600.0
+            for letra, kx, ky, ok in posicoes:
+                if ok:
+                    cor_bg = (20, 120, 200, 220)
+                    cor_bd = (53, 200, 252)
+                else:
+                    alpha = int(100 + 60 * pulso)
+                    cor_bg = (20, 30, 50, alpha)
+                    cor_bd = (int(53 + 80 * pulso), int(100 + 60 * pulso), 200)
+                ks = pygame.Surface((tam, tam), pygame.SRCALPHA)
+                ks.fill(cor_bg)
+                tela.blit(ks, (kx, ky))
+                pygame.draw.rect(tela, cor_bd, (kx, ky, tam, tam), 2)
+                txt = ft_k.render(letra, True, (255, 255, 255))
+                tela.blit(txt, (kx + tam // 2 - txt.get_width() // 2, ky + tam // 2 - txt.get_height() // 2))
 
-            tela.blit(texto_borda, (x - 1, y))
-            tela.blit(texto_borda, (x + 1, y))
-            tela.blit(texto_borda, (x, y - 1))
-            tela.blit(texto_borda, (x, y + 1))
-            tela.blit(texto_renderizado, (x, y))
-        else:
-            mensagem_ativa = None
+        # ====== FASE 2: SHIFT / Teleporte ======
+        elif tutorial_fase == 2:
+            _draw_msg("Aperte SHIFT para teleportar!", y_msg)
+            fonte_sub = pygame.font.Font(None, 32)
+            # Subtexto 1 com contraste
+            t1 = "O teleporte vai na direção da última tecla apertada"
+            sub1_b = fonte_sub.render(t1, True, (0, 0, 0))
+            sub1 = fonte_sub.render(t1, True, (220, 220, 220))
+            tela.blit(sub1_b, (cx - sub1.get_width() // 2 + 1, y_msg + 46))
+            tela.blit(sub1, (cx - sub1.get_width() // 2, y_msg + 45))
+            # Subtexto 2 com contraste
+            t2 = f"Use para se reposicionar! ({tutorial_dash_count}/3)"
+            sub2_b = fonte_sub.render(t2, True, (0, 0, 0))
+            sub2 = fonte_sub.render(t2, True, (220, 220, 220))
+            tela.blit(sub2_b, (cx - sub2.get_width() // 2 + 1, y_msg + 76))
+            tela.blit(sub2, (cx - sub2.get_width() // 2, y_msg + 75))
+
+            # Desenhar tecla SHIFT pulsando
+            pulso = abs(pygame.time.get_ticks() % 1200 - 600) / 600.0
+            shift_w, shift_h = 80, 32
+            sx = cx - shift_w // 2
+            sy = y_msg + 110
+            alpha = int(100 + 60 * pulso)
+            ss = pygame.Surface((shift_w, shift_h), pygame.SRCALPHA)
+            ss.fill((20, 30, 50, alpha))
+            tela.blit(ss, (sx, sy))
+            cor_bd = (int(53 + 80 * pulso), int(100 + 60 * pulso), 200)
+            pygame.draw.rect(tela, cor_bd, (sx, sy, shift_w, shift_h), 2)
+            ft_s = pygame.font.Font(None, 24)
+            st = ft_s.render("SHIFT", True, (255, 255, 255))
+            tela.blit(st, (sx + shift_w // 2 - st.get_width() // 2, sy + shift_h // 2 - st.get_height() // 2))
+
+        # ====== FASE 3: Parede Roxa ======
+        elif tutorial_fase == 3:
+            _draw_msg("Atravesse a barreira usando o teleporte!", y_msg)
+            fonte_sub = pygame.font.Font(None, 32)
+            t_sub = "Você não pode passar andando, apenas teleportando"
+            sub_b = fonte_sub.render(t_sub, True, (0, 0, 0))
+            sub = fonte_sub.render(t_sub, True, (220, 220, 220))
+            tela.blit(sub_b, (cx - sub.get_width() // 2 + 1, y_msg + 46))
+            tela.blit(sub, (cx - sub.get_width() // 2, y_msg + 45))
+
+            # Desenhar a parede roxa
+            if tutorial_parede_ativa and tutorial_parede_rect:
+                pulso = abs(pygame.time.get_ticks() % 800 - 400) / 400.0
+                r_val = int(140 + 40 * pulso)
+                parede_surf = pygame.Surface((tutorial_parede_rect.width, tutorial_parede_rect.height), pygame.SRCALPHA)
+                parede_surf.fill((r_val, 40, 200, 180))
+                tela.blit(parede_surf, tutorial_parede_rect.topleft)
+                pygame.draw.rect(tela, (200, 80, 255), tutorial_parede_rect, 2)
+
+                # Verificar se o personagem cruzou pro outro lado
+                centro_parede_x = tutorial_parede_rect.centerx
+                personagem_rect_tut = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+                if not personagem_rect_tut.colliderect(tutorial_parede_rect):
+                    lado_atual = 'direita' if pos_x_personagem > centro_parede_x else 'esquerda'
+                    if tutorial_lado_inicial is None:
+                        tutorial_lado_inicial = lado_atual
+                    elif lado_atual != tutorial_lado_inicial:
+                        tutorial_fase = 4
+                        tutorial_parede_ativa = False
+                        tempo_fase_completa = time.time()
+
+        # ====== FASE 4: Mensagens por tempo (restantes) ======
+        elif tutorial_fase == 4:
+            tempo_decorrido = time.time() - tempo_fase_completa
+            if 'mensagens_exibidas' not in globals():
+                mensagens_exibidas = set()
+                mensagem_ativa = None
+                tempo_fim_mensagem = 0
+
+            for tempo_msg, texto_msg in mensagens_iniciais:
+                if int(tempo_decorrido) == tempo_msg and tempo_msg not in mensagens_exibidas:
+                    mensagem_ativa = texto_msg
+                    tempo_fim_mensagem = tempo_decorrido + 10
+                    mensagens_exibidas.add(tempo_msg)
+
+            if mensagem_ativa and tempo_decorrido < tempo_fim_mensagem:
+                _draw_msg(mensagem_ativa, y_msg)
+            else:
+                mensagem_ativa = None
     tempo_atual = pygame.time.get_ticks()
     for inimigo in inimigos_comum:
         i_id = id(inimigo)
@@ -1893,7 +2043,7 @@ while running:
     tela.blit(cursor_imagem, (mouse_x, mouse_y))
     exibir_cronometro(tela)
     pygame.display.flip()
-    FPS.tick(100)  # Limita a 60 FPS
+    FPS.tick(config_graficos.get("fps_limite", 60))  # Limita a taxa de quadros conforme configuração
 
 
 # Encerrar o Pygame
