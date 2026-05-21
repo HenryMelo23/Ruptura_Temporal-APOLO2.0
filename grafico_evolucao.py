@@ -4,7 +4,7 @@ from matplotlib.animation import FuncAnimation
 import os
 from matplotlib.lines import Line2D
 
-arquivo_historico = "historico_batalhas.json"
+arquivo_historico = "saves/historico_batalhas.json"
 
 # Figura ampliada para acomodar os dois ecossistemas e o painel unificado
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))

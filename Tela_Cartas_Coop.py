@@ -435,7 +435,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo,vida,largura_disparo,
                 tela.blit(imagem_carta, (pos_x, pos_y))
                 
                 # Renderiza a quantidade de cartas compradas
-                fonte = pygame.font.SysFont('Texto/Doctor Glitch.otf', 20)
+                fonte = pygame.font.Font('Texto/Doctor Glitch.otf', 20)
                 texto = fonte.render(str(quantidade), True, (0, 0, 0))  # Cor do texto em branco
                 tela.blit(texto, (pos_x + 30, pos_y + 70))  
                 
