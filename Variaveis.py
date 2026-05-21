@@ -606,17 +606,8 @@ tempo_cooldown_dash = 2800  #  segundos de cooldown
 distancia_dash = 300
 
 
-# Carregamento das imagens da animação de teletransporte
-teleporte_sprites_original = [pygame.image.load('sprites/tele1.png'),
-                     pygame.image.load('sprites/tele2.png'),
-                     pygame.image.load('sprites/tele3.png')]
-# Defina o tamanho desejado para a animação de teletransporte
-teleporte_size = (largura_tela*0.05, altura_tela*0.08)
-teleporte_sprites = [pygame.transform.scale(img, teleporte_size) for img in teleporte_sprites_original]
-
-teleporte_index = 0
-teleporte_duration = 500  # Duração de cada quadro da animação (em milissegundos)
-teleporte_timer = 0
+# Animação de teletransporte (plasma procedural)
+teleporte_duration = 500  # Duração da animação (em milissegundos)
 
 # Configurações do disparo
 

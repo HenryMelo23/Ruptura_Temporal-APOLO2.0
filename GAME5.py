@@ -18,12 +18,14 @@ import collections
 from vfx_engine_apolo import ApoloVFXManager
 from audio_manager import carregar_config_audio, aplicar_volume_som
 from sistema_ratos_umbra import GerenciadorRatos
+from umbra_dossie import DossieUmbra
 
 if __name__ == "__main__":
     import multiprocessing as mp
     mp.freeze_support()
     pygame.init()
     memoria_umbra = hb.MemoriaEvolutivaUmbra()
+    dossie_umbra = DossieUmbra(largura_mapa, altura_mapa)
     vfx_apolo = ApoloVFXManager()
 
     # =============================================================================
@@ -411,7 +413,7 @@ if __name__ == "__main__":
     #####################################################################APOLO1######################################################################################################
     def atualizar_posicao_personagem(keys, joystick):#APOLO
         global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento
-        global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_timer, teleporte_duration, teleporte_index
+        global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_duration
         global hitbox_boss5, estado_atual_ia, modo_ia_treino
         global tempo_ultimo_disparo, intervalo_disparo, disparos
         global vida, largura_disparo, altura_disparo
@@ -499,13 +501,14 @@ if __name__ == "__main__":
     
         if (keys[config_teclas["Teleporte"]] or ia_precisa_dash) and cooldown_dash == False and atordoado == False:
             Som_portal.play()
-            teleporte_timer += velocidade_personagem
-            if teleporte_timer >= teleporte_duration:
-                teleporte_index = (teleporte_index + 1) % len(teleporte_sprites)
-                teleporte_timer = 0
             
-            tela.blit(teleporte_sprites[teleporte_index], (pos_x_personagem, pos_y_personagem))
+            # Animação de teletransporte (plasma procedural)
+            animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
+            tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
 
+            # Dossiê: registrar dash do jogador
+            # Dossiê: registrar dash do jogador
+            dossie_umbra.registrar_dash((pos_x_personagem, pos_y_personagem))
             if ultima_tecla_movimento == 'up': pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
             elif ultima_tecla_movimento == 'down': pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
             elif ultima_tecla_movimento == 'left': pos_x_personagem = max(0, pos_x_personagem - distancia_dash)

@@ -10,6 +10,240 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+# ============================================================
+# SISTEMA ADAPTATIVO DA UMBRA — FLAGS DE CONTROLE
+# ============================================================
+ADAPTACAO_UMBRA_ATIVA = True
+DEBUG_ADAPTACAO_UMBRA = False
+
+def _log_adapt(msg):
+    if DEBUG_ADAPTACAO_UMBRA:
+        print(f"[UMBRA_ADAPT] {msg}")
+
+def _tem_mod(estado_ia, mod_id):
+    """Retorna intensidade do modificador se ativo, 0.0 caso contrário."""
+    if not ADAPTACAO_UMBRA_ATIVA:
+        return 0.0
+    for m in estado_ia.get('_modificadores_umbra', []):
+        if m['id'] == mod_id:
+            return m['intensidade']
+    return 0.0
+
+def _cooldown_mod_ok(estado_ia, mod_id, cooldown_ms=3000):
+    """Verifica cooldown do modificador. Marca timestamp se disponível."""
+    import pygame
+    agora = pygame.time.get_ticks()
+    key = f'_cd_mod_{mod_id}'
+    if agora - estado_ia.get(key, 0) >= cooldown_ms:
+        estado_ia[key] = agora
+        return True
+    return False
+
+def _carregar_mods_lazy(estado_ia):
+    """Carrega modificadores do JSON uma única vez no início da luta."""
+    if '_modificadores_umbra' in estado_ia:
+        return
+    if not ADAPTACAO_UMBRA_ATIVA:
+        estado_ia['_modificadores_umbra'] = []
+        return
+    try:
+        with open("memoria_predatoria_umbra.json", "r", encoding="utf-8") as f:
+            dados = json.load(f)
+        perfil = dados.get("perfil_jogador", {})
+        principal = perfil.get("arquetipo_principal", "INDEFINIDO")
+        secundario = perfil.get("arquetipo_secundario", "INDEFINIDO")
+        confianca = perfil.get("confianca", 0.0)
+        if confianca < 0.20:
+            estado_ia['_modificadores_umbra'] = []
+            return
+        MAPA = {
+            "REFUGIADO_DE_CANTO": ("CORTAR_BORDAS", 0.25),
+            "DEPENDENTE_DE_DASH": ("PUNIR_DASH_PREVISIVEL", 0.20),
+            "CACADOR_DE_ORBES": ("ISCA_DE_ORBE", 0.20),
+            "AGRESSOR_IMPULSIVO": ("CONTRA_IMPULSO", 0.20),
+            "ATIRADOR_DISTANTE": ("QUEBRAR_DISTANCIA", 0.25),
+            "CORREDOR_CIRCULAR": ("QUEBRAR_ROTACAO", 0.20),
+            "SOBREVIVENTE_ADAPTATIVO": ("RESPEITAR_ADAPTATIVO", 0.10),
+        }
+        mods = []
+        if principal in MAPA:
+            mid, base = MAPA[principal]
+            mods.append({"id": mid, "intensidade": round(base * confianca, 3)})
+        if secundario in MAPA and secundario != principal and len(mods) < 2:
+            mid, base = MAPA[secundario]
+            mods.append({"id": mid, "intensidade": round(base * confianca * 0.4, 3)})
+        estado_ia['_modificadores_umbra'] = mods[:2]
+        _log_adapt(f"Arq={principal}/{secundario} conf={confianca} → {[m['id'] for m in mods]}")
+        # Carregar resumo predatório para sistema de profecia
+        try:
+            from umbra_dossie import DossieUmbra
+            dt = DossieUmbra.__new__(DossieUmbra)
+            dt.dados = dados
+            from Variaveis import largura_mapa as lm, altura_mapa as am
+            dt._largura_mapa = lm
+            dt._altura_mapa = am
+            estado_ia['_resumo_predatorio'] = dt.obter_resumo_predatorio()
+        except Exception:
+            estado_ia['_resumo_predatorio'] = {}
+    except Exception:
+        estado_ia['_modificadores_umbra'] = []
+        estado_ia['_resumo_predatorio'] = {}
+
+def _aplicar_bias_decisao(decisao, acoes, estado_ia, dist_p):
+    """Aplica bias probabilístico pós-DQN. Nunca garante 100%."""
+    import random
+    original = decisao
+
+    # CORTAR_BORDAS: favorecer CERCAR/INTERCEPTAR
+    i = _tem_mod(estado_ia, "CORTAR_BORDAS")
+    if i > 0 and decisao not in ("CERCAR", "INTERCEPTAR", "SIFON") and _cooldown_mod_ok(estado_ia, "CORTAR_BORDAS", 5000):
+        if random.random() < i:
+            pref = [a for a in acoes if a in ("CERCAR", "INTERCEPTAR")]
+            if pref:
+                decisao = random.choice(pref)
+
+    # CONTRA_IMPULSO: favorecer recuo/teleporte quando jogador está perto
+    i = _tem_mod(estado_ia, "CONTRA_IMPULSO")
+    if i > 0 and dist_p < 250 and _cooldown_mod_ok(estado_ia, "CONTRA_IMPULSO", 4000):
+        if random.random() < i:
+            pref = [a for a in acoes if a in ("TELEPORTE", "TELEPORTE_JUKE")]
+            if pref:
+                decisao = random.choice(pref)
+
+    # QUEBRAR_DISTANCIA: favorecer transmutação/teleporte quando longe
+    i = _tem_mod(estado_ia, "QUEBRAR_DISTANCIA")
+    if i > 0 and dist_p > 500 and _cooldown_mod_ok(estado_ia, "QUEBRAR_DISTANCIA", 6000):
+        if random.random() < i:
+            pref = [a for a in acoes if a.startswith("TRANSMUTAR_") or a == "TELEPORTE"]
+            if pref:
+                decisao = random.choice(pref)
+
+    # QUEBRAR_ROTACAO: favorecer habilidades de área
+    i = _tem_mod(estado_ia, "QUEBRAR_ROTACAO")
+    if i > 0 and _cooldown_mod_ok(estado_ia, "QUEBRAR_ROTACAO", 5000):
+        if random.random() < i:
+            pref = [a for a in acoes if a in ("VORTICE", "PRISAO", "CAMINHO_ESPINHOS", "DESCARGA_ELETRICA")]
+            if pref:
+                decisao = random.choice(pref)
+
+    # ISCA_DE_ORBE: favorecer INTERCEPTAR (posicionar no caminho do jogador)
+    i = _tem_mod(estado_ia, "ISCA_DE_ORBE")
+    if i > 0 and _cooldown_mod_ok(estado_ia, "ISCA_DE_ORBE", 4000):
+        if random.random() < i and "INTERCEPTAR" in acoes:
+            decisao = "INTERCEPTAR"
+
+    # RESPEITAR_ADAPTATIVO: variação extra (impede hard-counter)
+    i = _tem_mod(estado_ia, "RESPEITAR_ADAPTATIVO")
+    if i > 0 and _cooldown_mod_ok(estado_ia, "RESPEITAR_ADAPTATIVO", 8000):
+        if random.random() < i * 0.5:
+            decisao = random.choice(acoes)
+
+    if decisao != original:
+        _log_adapt(f"Bias: {original} → {decisao}")
+    return decisao
+
+def _aplicar_bias_movimento(decisao, estado_ia, dist_p):
+    """Aplica bias de movimento pós-DQN. Probabilístico."""
+    import random
+    original = decisao
+
+    i = _tem_mod(estado_ia, "CORTAR_BORDAS")
+    if i > 0 and decisao == "FUGIR" and random.random() < i * 0.6:
+        decisao = "CERCAR"
+
+    i = _tem_mod(estado_ia, "CONTRA_IMPULSO")
+    if i > 0 and dist_p < 250 and decisao in ("INTERCEPTAR", "CERCAR") and random.random() < i * 0.5:
+        decisao = "FUGIR"
+
+    i = _tem_mod(estado_ia, "QUEBRAR_DISTANCIA")
+    if i > 0 and dist_p > 500 and decisao in ("FUGIR", "ORBITAR") and random.random() < i * 0.6:
+        decisao = "INTERCEPTAR"
+
+    i = _tem_mod(estado_ia, "ISCA_DE_ORBE")
+    if i > 0 and decisao == "FUGIR" and random.random() < i * 0.4:
+        decisao = "INTERCEPTAR"
+
+    if decisao != original:
+        _log_adapt(f"Mov bias: {original} → {decisao}")
+    return decisao
+
+
+# ============================================================
+# SISTEMA DE PROFECIA FALSIFICÁVEL
+# ============================================================
+def _init_profecia_lazy(estado_ia):
+    """Inicializa ProfeciaUmbra no estado (uma vez por luta)."""
+    if '_profecia' in estado_ia:
+        return
+    try:
+        from umbra_profecia import ProfeciaUmbra
+        estado_ia['_profecia'] = ProfeciaUmbra()
+    except Exception:
+        estado_ia['_profecia'] = None
+
+def _build_ctx_profecia(agora, px, py, bx, by, dist_p, historico, estado_ia):
+    """Monta contexto para o sistema de profecia."""
+    vx, vy = 0.0, 0.0
+    if historico and len(historico) >= 2:
+        vx = px - historico[-2][0]
+        vy = py - historico[-2][1]
+    speed = math.hypot(vx, vy)
+    return {
+        'agora': agora,
+        'player_pos': (px, py),
+        'boss_pos': (bx, by),
+        'player_vel': (vx, vy),
+        'vida_perc': estado_ia.get('_vida_jogador_perc', 1.0),
+        'dist': dist_p,
+        'dash_detectado': speed > 15,
+        'orbe_pos': estado_ia.get('_orbe_pos'),
+        'tiro_disparado': estado_ia.get('_tiro_disparado', False),
+    }
+
+def _processar_profecia(agora, estado_ia, px, py, bx, by, dist_p, historico):
+    """Cria/avalia profecias. Chamado em processar_ia_umbra."""
+    if not ADAPTACAO_UMBRA_ATIVA:
+        return
+    _init_profecia_lazy(estado_ia)
+    prof = estado_ia.get('_profecia')
+    if prof is None:
+        return
+
+    ctx = _build_ctx_profecia(agora, px, py, bx, by, dist_p, historico, estado_ia)
+
+    # 1. Avaliar profecia existente
+    prof.avaliar_profecia(ctx)
+
+    # 2. Tentar criar nova
+    resumo = estado_ia.get('_resumo_predatorio', {})
+    prof.criar_profecia(ctx, resumo)
+
+def _aplicar_bonus_profecia(decisao, acoes, estado_ia, agora):
+    """Aplica bonus/penalidade de profecia confirmada/quebrada."""
+    prof = estado_ia.get('_profecia')
+    if prof is None:
+        return decisao
+    bonus = prof.obter_bonus_tatico(agora)
+    if bonus is None:
+        return decisao
+
+    original = decisao
+    intensidade = bonus['intensidade']
+
+    if bonus['tipo'] == 'profecia_confirmada' and intensidade > 0:
+        # Confirmada: favorecer INTERCEPTAR (corte de rota)
+        if random.random() < intensidade and 'INTERCEPTAR' in acoes:
+            decisao = 'INTERCEPTAR'
+    elif bonus['tipo'] == 'profecia_quebrada' and intensidade < 0:
+        # Quebrada: decisão mais aleatória (Umbra hesita)
+        if random.random() < abs(intensidade):
+            decisao = random.choice(acoes)
+
+    if decisao != original:
+        _log_adapt(f"Profecia bonus: {original} → {decisao} ({bonus['tipo']})")
+    return decisao
+
+
 class UmbraDQN(nn.Module):
     def __init__(self, input_size, output_size):
         super(UmbraDQN, self).__init__()
@@ -223,7 +457,13 @@ def calcular_poh(player_pos, boss_pos, historico_player, confianca_ia):
     return confianca_ia * estabilidade * fator_dist
 
 def node_ataque_direcionado(agora, estado_ia, bx, by, px, py, historico_player, memoria):
-    if agora - estado_ia.get('ultimo_attack', 0) >= estado_ia.get('intervalo', 1250):
+    # PUNIR_DASH_PREVISIVEL: atrasa levemente ataques para pegar fim do dash
+    intervalo_base = estado_ia.get('intervalo', 1250)
+    i_dash = _tem_mod(estado_ia, "PUNIR_DASH_PREVISIVEL")
+    if i_dash > 0 and _cooldown_mod_ok(estado_ia, "PUNIR_DASH_PREVISIVEL", 6000):
+        intervalo_base += int(200 * i_dash)  # +40~50ms extra (sutil)
+        _log_adapt(f"PUNIR_DASH: intervalo {estado_ia.get('intervalo', 1250)} → {intervalo_base}")
+    if agora - estado_ia.get('ultimo_attack', 0) >= intervalo_base:
         centro_bx = bx + (largura_boss // 2)
         centro_by = by + (altura_boss // 2)
         centro_px = px + (largura_personagem // 2)
@@ -537,7 +777,19 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
     elif mapa_atual == "Sprites/Fase9.png" and agora - estado_ia.get('ultimo_praga_ratos', 0) >= 12000:
         acoes_disponiveis.append("PRAGA_RATOS")
 
+    # Carrega modificadores adaptativos (uma vez por luta)
+    _carregar_mods_lazy(estado_ia)
+
     decisao = memoria.decidir(estado_composto, acoes_disponiveis)
+
+    # === SISTEMA ADAPTATIVO: bias pós-DQN ===
+    if ADAPTACAO_UMBRA_ATIVA and estado_ia.get('_modificadores_umbra'):
+        decisao = _aplicar_bias_decisao(decisao, acoes_disponiveis, estado_ia, dist_p)
+
+    # === SISTEMA DE PROFECIA ===
+    _processar_profecia(agora, estado_ia, px, py, bx, by, dist_p, historico_player)
+    if ADAPTACAO_UMBRA_ATIVA:
+        decisao = _aplicar_bonus_profecia(decisao, acoes_disponiveis, estado_ia, agora)
 
     if estado_ia.get('laser_ativo'):
         decisao = "NENHUMA"
@@ -783,6 +1035,10 @@ def movimentacao_inteligente_umbra(agora, boss_pos, player_pos, disparos, estado
     
     estrategias = ["FUGIR", "INTERCEPTAR", "ORBITAR", "CERCAR"]
     decisao = memoria.decidir(estado_atual, estrategias)
+
+    # === SISTEMA ADAPTATIVO: bias de movimentação ===
+    if ADAPTACAO_UMBRA_ATIVA and estado_mov.get('_modificadores_umbra'):
+        decisao = _aplicar_bias_movimento(decisao, estado_mov, dist_p)
 
     meio_w, meio_h = largura_mapa / 2.0, altura_mapa / 2.0
 

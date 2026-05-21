@@ -290,7 +290,7 @@ def determinar_frames_petro(posicao_petro, posicao_inimigo):
 
 def atualizar_posicao_personagem(keys, joystick):
     global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento
-    global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_timer, teleporte_duration, teleporte_index
+    global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_duration
 
     direcao_atual = 'stop'  # Por padrão, definimos a direção como 'stop'
     
@@ -361,13 +361,8 @@ def atualizar_posicao_personagem(keys, joystick):
     # Verificar botões do joystick para teletransporte
     if joystick and joystick.get_button(2) and not cooldown_dash:
         Som_portal.play()
-        teleporte_timer += velocidade_personagem
-        if teleporte_timer >= teleporte_duration:
-            teleporte_index = (teleporte_index + 1) % len(teleporte_sprites)
-            teleporte_timer = 0
-        tela.blit(teleporte_sprites[teleporte_index], (pos_x_personagem, pos_y_personagem))
-        pygame.display.flip()
-        pygame.time.delay(teleporte_duration // 2)
+        # Animação de teletransporte (plasma procedural)
+        animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
 
         if ultima_tecla_movimento == 'up':
             pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
