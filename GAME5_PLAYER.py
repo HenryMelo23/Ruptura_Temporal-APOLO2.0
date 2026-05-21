@@ -22,10 +22,12 @@ resistencia_umbra = 0.0
 bonus_cura_sifon = 0.5
 cartas_compradas_apolo_global = []
 ultima_tecla_movimento = None
+from umbra_dossie import DossieUmbra
 
 if __name__ == "__main__":
     pygame.init()
     memoria_umbra = hb.MemoriaEvolutivaUmbra()
+    dossie_umbra = DossieUmbra(largura_mapa, altura_mapa)
     # =============================================================================
     # CACHE GLOBAL DE PERFORMANCE — criados UMA vez, reutilizados a cada frame
     # =============================================================================
@@ -332,7 +334,7 @@ if __name__ == "__main__":
     #####################################################################CONTROLE DO JOGADOR######################################################################################################
     def atualizar_posicao_personagem(keys, joystick):
         global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento
-        global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_timer, teleporte_duration, teleporte_index
+        global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_duration
         global hitbox_boss5, estado_atual_ia
 
         dx, dy = 0, 0
@@ -382,12 +384,13 @@ if __name__ == "__main__":
         
         if (dash_teclado or dash_joystick) and cooldown_dash == False and atordoado == False:
             Som_portal.play()
-            teleporte_timer += velocidade_personagem
-            if teleporte_timer >= teleporte_duration:
-                teleporte_index = (teleporte_index + 1) % len(teleporte_sprites)
-                teleporte_timer = 0
             
-            tela.blit(teleporte_sprites[teleporte_index], (pos_x_personagem, pos_y_personagem))
+            # Animação de teletransporte (plasma procedural)
+            animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
+            tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
+
+            # Dossiê: registrar dash do jogador
+            dossie_umbra.registrar_dash((pos_x_personagem, pos_y_personagem))
 
             if ultima_tecla_movimento == 'up': pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
             elif ultima_tecla_movimento == 'down': pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
@@ -911,7 +914,9 @@ if __name__ == "__main__":
                     "angulo": angulo
                 }
                 disparos.append(novo_disparo)
-                tempo_ultimo_disparo = tempo_atual  
+                tempo_ultimo_disparo = tempo_atual
+                # Dossiê: tiro disparado
+                dossie_umbra.registrar_tiro(disparou=True, acertou=False)  
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3 and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade and tempo_atual >= tempo_fim_stun:  
                 pos_mouse = pygame.mouse.get_pos()
                 angulo = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
@@ -1088,7 +1093,11 @@ if __name__ == "__main__":
                 duracao_combate = (agora_fim - tempo_inicio) / 1000.0
                 pass
             
-                pass
+                # Dossiê: morte do jogador
+                dossie_umbra.registrar_morte(contexto="vida_zerou")
+                # Profecia: sincronizar stats
+                if 'estado_atual_ia' in locals() and estado_atual_ia.get('_profecia'):
+                    dossie_umbra.sincronizar_stats_profecia(estado_atual_ia['_profecia'].obter_stats())
             
                 # Reset do sistema de ratos
                 gerenciador_ratos.resetar_partida()
@@ -1128,6 +1137,15 @@ if __name__ == "__main__":
             vetor_y = historico_player[-1][1] - historico_player[-2][1]
             memoria_umbra.registrar_esquiva_player(vetor_x, vetor_y)
         personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+
+        # Dossiê: registrar frame de observação
+        if boss_final_ativo:
+            dossie_umbra.registrar_frame(
+                (pos_x_personagem, pos_y_personagem),
+                (pos_x_umbra, pos_y_umbra),
+                vida, vida_umbra,
+                estado_ia=estado_atual_ia
+            )
     
     
         ###############################################   DESENHA O BOSS NA TELA ################################
@@ -1143,6 +1161,12 @@ if __name__ == "__main__":
                 pass
                 pass
                 memoria_umbra.treinar(-500.0, prioridade=True)
+
+                # Dossiê: vitória do jogador
+                dossie_umbra.registrar_vitoria(contexto="umbra_derrotada")
+                # Profecia: sincronizar stats
+                if estado_atual_ia.get('_profecia'):
+                    dossie_umbra.sincronizar_stats_profecia(estado_atual_ia['_profecia'].obter_stats())
             
                 # Reset do sistema de ratos
                 gerenciador_ratos.resetar_partida()
@@ -1166,6 +1190,8 @@ if __name__ == "__main__":
                 estado_atual_ia['passiva_chance'] = 0.30
                 estado_atual_ia['passiva_reducao'] = 1.0
                 estado_atual_ia['intervalo'] = 1900
+                # Dossiê: iniciar encontro quando a luta começa
+                dossie_umbra.iniciar_encontro()
         
             luta_iniciada = (agora - estado_atual_ia['tempo_start_boss']) >= 2000
             ataque_liberado = (agora - estado_atual_ia['tempo_start_boss']) >= 3000
@@ -1588,6 +1614,8 @@ if __name__ == "__main__":
                             escudo_devota_ativo = False
                         else:
                             vida -= dano_recebido
+                            # Dossiê: dano recebido pelo jogador
+                            dossie_umbra.registrar_dano_recebido(dano_recebido)
                             eliminacoes_consecutivas = 0
                             bonus_pontuacao = 0
                             piscando_vida = True
@@ -2076,6 +2104,11 @@ if __name__ == "__main__":
                         "tempo_criacao": agora
                     })
                     tempo_ultima_esfera_umbra = agora
+                    # Dossiê: orbe apareceu no mapa
+                    dossie_umbra.registrar_orbe_spawnada()
+                    # Profecia: salvar posição da orbe para contexto
+                    if 'estado_atual_ia' in locals():
+                        estado_atual_ia['_orbe_pos'] = (esferas_energia_umbra[-1]['x'], esferas_energia_umbra[-1]['y'])
 
                 for esfera in esferas_energia_umbra[:]:
                     # Tempo de vida da esfera: 15 segundos
@@ -2286,6 +2319,10 @@ if __name__ == "__main__":
                     if vida_umbra > 0:
                         vida_umbra -= dano_final
                         estado_atual_ia['dano_recente'] = estado_atual_ia.get('dano_recente', 0) + dano_final
+                        # Dossiê: dano causado à Umbra + tiro acertado
+                        dist_ao_boss = math.hypot(pos_x_personagem - pos_x_umbra, pos_y_personagem - pos_y_umbra)
+                        dossie_umbra.registrar_dano_causado(dano_final, distancia_ao_boss=dist_ao_boss)
+                        dossie_umbra.registrar_tiro(disparou=False, acertou=True)
                     
                         # --- NOVO MOTOR DE VFX: Desfragmentação de Impacto ---
                         # Impacto visual (simplificado)

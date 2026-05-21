@@ -93,6 +93,8 @@ mensagens_iniciais = [
 # --- Tutorial Interativo (Fases) ---
 # Fase 1: WASD  |  Fase 2: SHIFT x3  |  Fase 3: Parede roxa  |  Fase 4: Mensagens finais
 tutorial_fase = 1
+tutorial_inimigo_ativo = False  # inimigo do tutorial (fase 4)
+tutorial_inimigo = None  # dicionário do inimigo do tutorial
 tutorial_wasd = {'w': False, 'a': False, 's': False, 'd': False}
 tutorial_dash_count = 0
 tutorial_parede_ativa = False
@@ -199,7 +201,7 @@ x = 0
 y = 0
 
 def executar_jogo(game_manager=None):
-    global Chance_Sorte, Dano_Boss_Habilit, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss1, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, Velocidade_Inimigos_1, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apertou_q, atributos, bonus_pontuacao, boss_envenenado, cartas_compradas, chance_critico, cooldown_dash, dano, dano_boss, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_atual_petro, disparos, dispositivo_ativo, distancia_dash, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_ataque_especial, escudo_devota_ativo, espacamento, f, fonte, frame_atual_chefe, frame_porcentagem, hitboxes, i, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, jogador_posicoes, lado, largura_disparo, largura_personagem, linha, mensagem, mensagem_ativa, mensagem_mostrada, mensagens_exibidas, moedas_coletadas, moedas_soltadas, moedas_totais, musica_boss1, ondas, petro_evolucao, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe, pos_x_personagem, pos_x_petro, pos_y_chefe, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, r_press, rect_boss, relogio, roubo_de_vida, running, teleportado, teleporte_duration, teleporte_index, teleporte_timer, tempo_anterior_petro, tempo_ataque_especial, tempo_atual, tempo_cooldown_dash, tempo_fase_completa, tempo_fim_mensagem, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_mostrando_mensagem, tempo_passado_animacao_chefe, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_mudanca_direcao_boss, tempo_ultima_regeneracao, tempo_ultimo_ataque, tempo_ultimo_dano_ataque, tempo_ultimo_dash, tempo_ultimo_uso_habilidade, texto, texto_dano, tipo_buff_impulsiva, toque, trembo, tutorial_dash_count, tutorial_fase, tutorial_lado_inicial, tutorial_parede_ativa, tutorial_parede_rect, tutorial_wasd, ultima_direcao_animacao, ultima_direcao_boss, ultima_tecla_movimento, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_boss2, vida_boss3, vida_boss4, vida_maxima, vida_maxima_boss1, vida_maxima_boss2, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, x, xp_petro, y
+    global Chance_Sorte, Dano_Boss_Habilit, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss1, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, Velocidade_Inimigos_1, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apertou_q, atributos, bonus_pontuacao, boss_envenenado, cartas_compradas, chance_critico, cooldown_dash, dano, dano_boss, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_atual_petro, disparos, dispositivo_ativo, distancia_dash, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_ataque_especial, escudo_devota_ativo, espacamento, f, fonte, frame_atual_chefe, frame_porcentagem, hitboxes, i, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, jogador_posicoes, lado, largura_disparo, largura_personagem, linha, mensagem, mensagem_ativa, mensagem_mostrada, mensagens_exibidas, moedas_coletadas, moedas_soltadas, moedas_totais, musica_boss1, ondas, petro_evolucao, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe, pos_x_personagem, pos_x_petro, pos_y_chefe, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, r_press, rect_boss, relogio, roubo_de_vida, running, teleportado, teleporte_duration, teleporte_index, teleporte_timer, tempo_anterior_petro, tempo_ataque_especial, tempo_atual, tempo_cooldown_dash, tempo_fase_completa, tempo_fim_mensagem, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_mostrando_mensagem, tempo_passado_animacao_chefe, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_mudanca_direcao_boss, tempo_ultima_regeneracao, tempo_ultimo_ataque, tempo_ultimo_dano_ataque, tempo_ultimo_dash, tempo_ultimo_uso_habilidade, texto, texto_dano, tipo_buff_impulsiva, toque, trembo, tutorial_dash_count, tutorial_fase, tutorial_lado_inicial, tutorial_parede_ativa, tutorial_parede_rect, tutorial_wasd, ultima_direcao_animacao, ultima_direcao_boss, ultima_tecla_movimento, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_boss2, vida_boss3, vida_boss4, vida_maxima, vida_maxima_boss1, vida_maxima_boss2, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, x, xp_petro, tutorial_inimigo_ativo, tutorial_inimigo, y
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -761,6 +763,8 @@ def executar_jogo(game_manager=None):
         pygame.mouse.set_visible(False)
         cursor_imagem = pygame.image.load("Sprites/Ponteiro.png").convert_alpha()  # Ajuste o caminho
         cursor_tamanho = cursor_imagem.get_size()
+        pygame.event.set_grab(True)  # Travar mouse dentro da janela
+        jogo_pausado = False
 
         sprite_moeda = pygame.image.load("Sprites/moeda.png").convert_alpha()
         moedas_soltadas = []
@@ -806,6 +810,17 @@ def executar_jogo(game_manager=None):
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    # Alternar pausa
+                    jogo_pausado = not jogo_pausado
+                    if jogo_pausado:
+                        pausar_cronometro()
+                        pygame.event.set_grab(False)  # Liberar mouse
+                        pygame.mouse.set_visible(True)  # Mostrar cursor do sistema
+                    else:
+                        retomar_cronometro()
+                        pygame.event.set_grab(True)  # Travar mouse de novo
+                        pygame.mouse.set_visible(False)  # Esconder cursor do sistema
                 elif botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo:  # Botão esquerdo do mouse
                     pos_mouse = pygame.mouse.get_pos()
                     angulo = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
@@ -833,6 +848,28 @@ def executar_jogo(game_manager=None):
                     tempo_ultimo_uso_habilidade = tempo_atual
 
             # Verificar eventos de teclado
+            # --- Tela de pausa (ESC) ---
+            if jogo_pausado:
+                # Overlay escuro semi-transparente
+                overlay_pausa = pygame.Surface((largura_mapa, altura_mapa), pygame.SRCALPHA)
+                overlay_pausa.fill((0, 0, 0, 160))
+                tela.blit(overlay_pausa, (0, 0))
+
+                fonte_pausa = pygame.font.Font(None, 72)
+                fonte_opcao = pygame.font.Font(None, 42)
+
+                # Título "PAUSADO"
+                txt_pausa = fonte_pausa.render("PAUSADO", True, (255, 255, 255))
+                tela.blit(txt_pausa, (largura_mapa // 2 - txt_pausa.get_width() // 2, altura_mapa // 2 - 80))
+
+                # Opção "Continuar (ESC)"
+                txt_continuar = fonte_opcao.render("Pressione ESC para continuar", True, (200, 200, 200))
+                tela.blit(txt_continuar, (largura_mapa // 2 - txt_continuar.get_width() // 2, altura_mapa // 2 + 10))
+
+                pygame.display.flip()
+                FPS.tick(30)
+                continue  # Pula o resto do loop enquanto pausado
+
             keys = pygame.key.get_pressed()
 
             # Verificar eventos de joystick
@@ -859,14 +896,11 @@ def executar_jogo(game_manager=None):
              # Adicionar inimigos a cada 10 segundos
             tempo_atual = pygame.time.get_ticks()
             if mostrar_tutorial:
-                if tempo_atual > 23000 and apertou_q and tempo_atual - tempo_ultimo_inimigo >= 1000 and len(inimigos_comum) < max_inimigos and not boss_vivo1:
-                    gerar_inimigo()
-                    tempo_ultimo_inimigo = tempo_atual  # Atualizar o tempo do último inimigo adicionado
+                pass  # Nenhum inimigo comum durante o tutorial
             else:
                 if tempo_atual - tempo_ultimo_inimigo >= 1000 and len(inimigos_comum) < max_inimigos and not boss_vivo1:
                     gerar_inimigo()
                     tempo_ultimo_inimigo = tempo_atual  # Atualizar o tempo do último inimigo adicionado
-
             nivel_racional = upgrades.get("Racional", 0)
             #LUGAR AONDE COLOCAMOS AS AUREAS
             if aurea == "Racional":
@@ -1124,6 +1158,7 @@ def executar_jogo(game_manager=None):
                     pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem)
                 else:
                     mostrar_tutorial=False
+                    pausar_cronometro()
                     pygame.time.delay(2000)
                     Musica_tema_fases.stop()
                     Som_tema_fases.stop()
@@ -1768,6 +1803,7 @@ def executar_jogo(game_manager=None):
                 apertou_q= True
 
 
+                pausar_cronometro()
                 ret = tela_de_pausa(velocidade_personagem, intervalo_disparo,vida,largura_disparo, altura_disparo,trembo,dano_person_hit,chance_critico,roubo_de_vida,
                                     quantidade_roubo_vida,tempo_cooldown_dash,vida_maxima,Petro_active,Resistencia,vida_petro,vida_maxima_petro,dano_petro,xp_petro,petro_evolucao,Resistencia_petro,
                                     Chance_Sorte,Poison_Active,Dano_Veneno_Acumulado,Executa_inimigo,Ultimo_Estalo,mostrar_info,Mercenaria_Active,Valor_Bonus,dispositivo_ativo,Tempo_cura,porcentagem_cura,cartas_compradas,pontuacao_exib)
@@ -1803,6 +1839,7 @@ def executar_jogo(game_manager=None):
                 porcentagem_cura=ret[29]
                 cartas_compradas= ret[30]
                 pontuacao_exib= ret[31]
+                retomar_cronometro()
 
 
             posicao_barra_vida = (80, altura_mapa - (altura_mapa - 34))
@@ -2041,25 +2078,116 @@ def executar_jogo(game_manager=None):
                                 tutorial_fase = 4
                                 tutorial_parede_ativa = False
                                 tempo_fase_completa = time.time()
+                                # Criar inimigo do tutorial de tiro
+                                tutorial_inimigo_ativo = True
+                                # Posicionar o inimigo à frente do jogador
+                                tut_inimigo_x = max(50, min(largura_mapa - largura_inimigo - 50, pos_x_personagem + 200))
+                                tut_inimigo_y = max(50, min(altura_mapa - altura_inimigo - 50, pos_y_personagem))
+                                tutorial_inimigo = criar_inimigo(int(tut_inimigo_x), int(tut_inimigo_y))
+                                tutorial_inimigo["vida"] = dano_person_hit * 4  # precisa de 4 disparos
+                                tutorial_inimigo["vida_maxima"] = dano_person_hit * 4
 
-                # ====== FASE 4: Mensagens por tempo (restantes) ======
+                # ====== FASE 4: Atirar no inimigo ======
                 elif tutorial_fase == 4:
-                    tempo_decorrido = time.time() - tempo_fase_completa
-                    if 'mensagens_exibidas' not in globals():
-                        mensagens_exibidas = set()
-                        mensagem_ativa = None
-                        tempo_fim_mensagem = 0
+                    _draw_msg("Clique com o botão esquerdo do mouse para atirar!", y_msg)
+                    fonte_sub = pygame.font.Font(None, 32)
+                    t_sub = "Elimine o inimigo para continuar"
+                    sub_b = fonte_sub.render(t_sub, True, (0, 0, 0))
+                    sub = fonte_sub.render(t_sub, True, (220, 220, 220))
+                    tela.blit(sub_b, (cx - sub.get_width() // 2 + 1, y_msg + 46))
+                    tela.blit(sub, (cx - sub.get_width() // 2, y_msg + 45))
 
-                    for tempo_msg, texto_msg in mensagens_iniciais:
-                        if int(tempo_decorrido) == tempo_msg and tempo_msg not in mensagens_exibidas:
-                            mensagem_ativa = texto_msg
-                            tempo_fim_mensagem = tempo_decorrido + 10
-                            mensagens_exibidas.add(tempo_msg)
+                    # Desenhar ícone do mouse pulsando
+                    pulso = abs(pygame.time.get_ticks() % 1200 - 600) / 600.0
+                    mouse_icon_w, mouse_icon_h = 40, 50
+                    mx_icon = cx - mouse_icon_w // 2
+                    my_icon = y_msg + 80
+                    ms = pygame.Surface((mouse_icon_w, mouse_icon_h), pygame.SRCALPHA)
+                    alpha_m = int(100 + 60 * pulso)
+                    ms.fill((20, 30, 50, alpha_m))
+                    tela.blit(ms, (mx_icon, my_icon))
+                    cor_bd_m = (int(53 + 80 * pulso), int(100 + 60 * pulso), 200)
+                    pygame.draw.rect(tela, cor_bd_m, (mx_icon, my_icon, mouse_icon_w, mouse_icon_h), 2)
+                    # Linha divisória vertical no ícone do mouse
+                    pygame.draw.line(tela, cor_bd_m, (mx_icon + mouse_icon_w // 2, my_icon), (mx_icon + mouse_icon_w // 2, my_icon + mouse_icon_h // 2), 2)
+                    # Destacar lado esquerdo do mouse
+                    left_highlight = pygame.Surface((mouse_icon_w // 2, mouse_icon_h // 2), pygame.SRCALPHA)
+                    left_highlight.fill((53, 200, 252, int(80 + 80 * pulso)))
+                    tela.blit(left_highlight, (mx_icon, my_icon))
+                    ft_lmb = pygame.font.Font(None, 20)
+                    lmb_txt = ft_lmb.render("LMB", True, (255, 255, 255))
+                    tela.blit(lmb_txt, (mx_icon + mouse_icon_w // 2 - lmb_txt.get_width() // 2, my_icon + mouse_icon_h + 5))
 
-                    if mensagem_ativa and tempo_decorrido < tempo_fim_mensagem:
-                        _draw_msg(mensagem_ativa, y_msg)
-                    else:
-                        mensagem_ativa = None
+                    # Desenhar e gerenciar o inimigo do tutorial
+                    if tutorial_inimigo_ativo and tutorial_inimigo is not None:
+                        # Desenhar sombra e sprite do inimigo
+                        tutorial_inimigo["image"] = frames_inimigo[frame_atual % len(frames_inimigo)]
+                        desenhar_sombra(tela, tutorial_inimigo["rect"].x, tutorial_inimigo["rect"].y, largura_inimigo, altura_inimigo)
+                        tela.blit(tutorial_inimigo["image"], tutorial_inimigo["rect"])
+                        desenhar_barra_de_vida(tela, tutorial_inimigo["rect"].x, tutorial_inimigo["rect"].y - 10, largura_inimigo, 5, tutorial_inimigo["vida"], tutorial_inimigo["vida_maxima"])
+
+                        # Seta indicadora pulsando apontando para o inimigo
+                        seta_pulso = abs(pygame.time.get_ticks() % 1000 - 500) / 500.0
+                        seta_y_offset = int(10 * seta_pulso)
+                        seta_x = tutorial_inimigo["rect"].x + largura_inimigo // 2
+                        seta_y = tutorial_inimigo["rect"].y - 30 - seta_y_offset
+                        pygame.draw.polygon(tela, (255, 80, 80), [
+                            (seta_x, seta_y + 15),
+                            (seta_x - 8, seta_y),
+                            (seta_x + 8, seta_y)
+                        ])
+
+                        # Verificar colisão dos disparos com o inimigo do tutorial
+                        for disparo in disparos[:]:
+                            if disparo["rect"].colliderect(tutorial_inimigo["rect"]):
+                                tutorial_inimigo["vida"] -= dano_person_hit
+                                if disparo in disparos:
+                                    disparos.remove(disparo)
+                                Hit_inimigo1.play()
+
+                                if tutorial_inimigo["vida"] <= 0:
+                                    tutorial_inimigo_ativo = False
+                                    tutorial_inimigo = None
+                                    tutorial_fase = 5
+                                    tempo_fase_completa = time.time()
+                                    break
+
+                # ====== FASE 5: Ensinar a loja (Q) ======
+                elif tutorial_fase == 5:
+                    # Garantir que o jogador tenha pontos suficientes para comprar
+                    total_cartas_temp = sum(cartas_compradas.values())
+                    custo_temp = custo_base_carta + (total_cartas_temp * custo_por_carta)
+                    if pontuacao_exib < custo_temp:
+                        pontuacao_exib = custo_temp
+                        pontuacao = pontuacao_exib
+
+                    _draw_msg("Aperte Q para abrir a loja e comprar uma carta!", y_msg)
+                    fonte_sub = pygame.font.Font(None, 32)
+                    t_sub = "Use seus pontos para ficar mais forte"
+                    sub_b = fonte_sub.render(t_sub, True, (0, 0, 0))
+                    sub = fonte_sub.render(t_sub, True, (220, 220, 220))
+                    tela.blit(sub_b, (cx - sub.get_width() // 2 + 1, y_msg + 46))
+                    tela.blit(sub, (cx - sub.get_width() // 2, y_msg + 45))
+
+                    # Desenhar tecla Q pulsando
+                    pulso = abs(pygame.time.get_ticks() % 1200 - 600) / 600.0
+                    q_w, q_h = 40, 40
+                    qx = cx - q_w // 2
+                    qy = y_msg + 80
+                    alpha_q = int(100 + 60 * pulso)
+                    qs = pygame.Surface((q_w, q_h), pygame.SRCALPHA)
+                    qs.fill((20, 30, 50, alpha_q))
+                    tela.blit(qs, (qx, qy))
+                    cor_bd_q = (int(53 + 80 * pulso), int(100 + 60 * pulso), 200)
+                    pygame.draw.rect(tela, cor_bd_q, (qx, qy, q_w, q_h), 2)
+                    ft_q = pygame.font.Font(None, 28)
+                    qt = ft_q.render("Q", True, (255, 255, 255))
+                    tela.blit(qt, (qx + q_w // 2 - qt.get_width() // 2, qy + q_h // 2 - qt.get_height() // 2))
+
+                    # Quando o jogador comprar (apertou_q fica True), o tutorial acaba
+                    if apertou_q:
+                        tutorial_fase = 6  # Tutorial completo
+                        mostrar_tutorial = False
             tempo_atual = pygame.time.get_ticks()
             for inimigo in inimigos_comum:
                 i_id = id(inimigo)

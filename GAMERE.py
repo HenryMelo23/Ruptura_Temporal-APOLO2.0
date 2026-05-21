@@ -580,23 +580,21 @@ def determinar_frames_petro(posicao_petro, posicao_inimigo):
 
 def atualizar_posicao_personagem(keys, joystick):
     global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento
-    global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_timer, teleporte_duration, teleporte_index
+    global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_duration
 
     direcao_atual = 'stop'  # Por padrão, definimos a direção como 'stop'
 
     if  keys[config_teclas["Teleporte"]] and not cooldown_dash:
         # Animação de teletransporte
         Som_portal.play()
-        teleporte_timer += velocidade_personagem
-        if teleporte_timer >= teleporte_duration:
-            teleporte_index = (teleporte_index + 1) % len(teleporte_sprites)
-            teleporte_timer = 0
 
         # Desenhe a sprite de teletransporte
-        tela.blit(teleporte_sprites[teleporte_index], (pos_x_personagem, pos_y_personagem))
+        # Animação de teletransporte (plasma procedural)
+        animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
+        tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
+
 
         if pygame.time.get_ticks() - tempo_ultimo_dash >= teleporte_duration // 2:
-            teleporte_index = (teleporte_index + 1) % len(teleporte_sprites)
             tempo_ultimo_dash = pygame.time.get_ticks()
 
         # Continue com o código do dash como antes
@@ -684,17 +682,15 @@ def atualizar_posicao_personagem(keys, joystick):
     if joystick and joystick.get_button(2) and not cooldown_dash:
         # Animação de teletransporte
         Som_portal.play()
-        teleporte_timer += velocidade_personagem
-        if teleporte_timer >= teleporte_duration:
-            teleporte_index = (teleporte_index + 1) % len(teleporte_sprites)
-            teleporte_timer = 0
 
         # Desenhar a sprite de teletransporte
-        tela.blit(teleporte_sprites[teleporte_index], (pos_x_personagem, pos_y_personagem))
+        # Animação de teletransporte (plasma procedural)
+        animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
+        tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
+
 
         # Atualizar a tela
         if pygame.time.get_ticks() - tempo_ultimo_dash >= teleporte_duration // 2:
-            teleporte_index = (teleporte_index + 1) % len(teleporte_sprites)
             tempo_ultimo_dash = pygame.time.get_ticks()
 
         # Continuar com o código do dash como antes

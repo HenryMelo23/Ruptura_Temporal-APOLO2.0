@@ -1,0 +1,49 @@
+{
+  "encontros_total": 0,
+  "mortes_do_jogador_para_umbra": 0,
+  "vitorias_do_jogador_contra_umbra": 0,
+  "tempo_total_em_combate": 0.0,
+  "ultima_atualizacao": "2026-05-18T20:03:49.845739",
+  "total_frames_observados": 0,
+  "tempo_em_borda": 0,
+  "tempo_em_canto": 0,
+  "vezes_fugiu_esquerda": 0,
+  "vezes_fugiu_direita": 0,
+  "vezes_fugiu_cima": 0,
+  "vezes_fugiu_baixo": 0,
+  "uso_dash_total": 0,
+  "uso_dash_por_minuto": 0.0,
+  "dano_causado_total": 0.0,
+  "dano_recebido_total": 0.0,
+  "tiros_disparados": 0,
+  "tiros_acertados": 0,
+  "orbes_coletadas": 0,
+  "tentativas_de_ir_para_orbe": 0,
+  "tempo_medio_para_buscar_orbe": 0.0,
+  "ataques_corpo_a_corpo_ou_proximos": 0,
+  "ataques_distantes": 0,
+  "tempo_parado": 0,
+  "mudancas_bruscas_de_direcao": 0,
+  "repeticoes_de_padrao_movimento": 0,
+  "vezes_morreu_em_canto": 0,
+  "vezes_morreu_apos_dash": 0,
+  "vezes_sobreviveu_com_vida_baixa": 0,
+  "perfil_jogador": {
+    "arquetipo_principal": "INDEFINIDO",
+    "arquetipo_secundario": "INDEFINIDO",
+    "confianca": 0.0,
+    "historico_arquetipos": []
+  },
+  "adaptacoes_umbra": {
+    "modificadores_ativos": [],
+    "vezes_aplicadas": {},
+    "ultima_luta": {}
+  },
+  "profecias": {
+    "criadas": 0,
+    "confirmadas": 0,
+    "quebradas": 0,
+    "expiradas": 0,
+    "por_tipo": {}
+  }
+}

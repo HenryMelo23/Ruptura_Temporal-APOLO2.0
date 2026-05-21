@@ -18,6 +18,7 @@ import collections
 from vfx_engine_apolo import ApoloVFXManager
 from audio_manager import carregar_config_audio, aplicar_volume_som
 from sistema_ratos_umbra import GerenciadorRatos
+from umbra_dossie import DossieUmbra
 
 _VORTICE_SURF_CACHE = {}
 _fonte_bonus_cached = None
@@ -188,7 +189,7 @@ def executar_jogo(game_manager=None):
                 # Resgata o estado exato que a IA está enxergando neste milissegundo
                 estado_ativo = "DQN_TENSOR"
 
-                # Mergulha na Matriz-Q para extrair os pesos reais formados pela dor e recompensa
+# Mergulha na Matriz-Q para extrair os pesos reais formados pela dor e recompensa
                 # Mergulha na Matriz-Q para extrair os pesos reais formados pela dor e recompensa
                 pesos_reais = {}
                 import torch
@@ -544,12 +545,9 @@ def executar_jogo(game_manager=None):
 
             if (keys[config_teclas["Teleporte"]] or ia_precisa_dash) and cooldown_dash == False and atordoado == False:
                 Som_portal.play()
-                teleporte_timer += velocidade_personagem
-                if teleporte_timer >= teleporte_duration:
-                    teleporte_index = (teleporte_index + 1) % len(teleporte_sprites)
-                    teleporte_timer = 0
-
-                tela.blit(teleporte_sprites[teleporte_index], (pos_x_personagem, pos_y_personagem))
+                # Animação de teletransporte (plasma procedural)
+                animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
+                tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
 
                 if ultima_tecla_movimento == 'up': pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
                 elif ultima_tecla_movimento == 'down': pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
