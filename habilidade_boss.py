@@ -24,7 +24,7 @@ class UmbraDQN(nn.Module):
         return self.net(x)
 
 class MemoriaEvolutivaUmbra:
-    def __init__(self, arquivo="memoria_umbra_dqn.pt"):
+    def __init__(self, arquivo="saves/memoria_umbra_dqn.pt"):
         self.arquivo = arquivo
         self.gamma = 0.95
         self.exploracao = 0.50
@@ -56,15 +56,15 @@ class MemoriaEvolutivaUmbra:
                 self.q_network.load_state_dict(torch.load(self.arquivo, map_location=self.device, weights_only=True))
             except:
                 pass
-        if os.path.exists("tendencias_umbra.json"):
+        if os.path.exists("saves/tendencias_umbra.json"):
             try:
-                with open("tendencias_umbra.json", 'r') as f:
+                with open("saves/tendencias_umbra.json", 'r') as f:
                     self.tendencias = json.load(f)
             except: pass
 
     def salvar(self):
         torch.save(self.q_network.state_dict(), self.arquivo)
-        with open("tendencias_umbra.json", 'w') as f:
+        with open("saves/tendencias_umbra.json", 'w') as f:
             json.dump(self.tendencias, f)
 
     def registrar_esquiva_player(self, vx, vy):

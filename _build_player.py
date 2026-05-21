@@ -1,20 +1,31 @@
 """
-Script para gerar GAME5_PLAYER.py a partir de GAME5.py
-Remove toda a logica do Apolo e implementa controle manual do jogador
+Script dinâmico e robusto para gerar GAME5_PLAYER.py a partir de GAME5.py
+Remove toda a lógica do Apolo AI e do Flask, adaptando o jogo para controle manual do jogador.
 """
 
-import re
+import sys
+import os
 
-with open("GAME5.py", "r", encoding="utf-8") as f:
-    lines = f.readlines()
+def build_player():
+    if not os.path.exists("GAME5.py"):
+        print("Erro: GAME5.py não encontrado no diretório atual.")
+        sys.exit(1)
 
-# Indices 0-based
-output = []
+    with open("GAME5.py", "r", encoding="utf-8") as f:
+        lines = f.readlines()
 
-# ============================================================
-# PARTE 1: IMPORTS (reescritos, sem flask/torch/vfx_engine_apolo)
-# ============================================================
-new_imports = """\
+    def find_line(search_str, start_idx=0):
+        for idx in range(start_idx, len(lines)):
+            if search_str in lines[idx]:
+                return idx
+        return -1
+
+    output = []
+
+    # ============================================================
+    # PARTE 1: IMPORTS (reescritos, sem flask/torch/vfx_engine_apolo)
+    # ============================================================
+    new_imports = """\
 import pygame
 import subprocess
 import sys
@@ -35,35 +46,58 @@ if __name__ == "__main__":
     pygame.init()
     memoria_umbra = hb.MemoriaEvolutivaUmbra()
 """
-output.append(new_imports)
+    output.append(new_imports)
 
-# ============================================================
-# PARTE 2: Cache global e setup (linhas 29-127 no original, indices 28-126)
-# ============================================================
-for i in range(28, 127):
-    line = lines[i]
-    output.append(line)
+    # Localizar índices dinâmicos
+    if_main_idx = find_line('if __name__ == "__main__":')
+    if if_main_idx == -1:
+        print("Erro: Bloco main não encontrado em GAME5.py")
+        sys.exit(1)
 
-# ============================================================
-# PARTE 3: dados_ia + separador (pula Flask 134-212)
-# ============================================================
-for i in range(127, 133):
-    output.append(lines[i])
+    setup_start = find_line("CACHE GLOBAL DE PERFORMANCE", if_main_idx)
+    setup_end = find_line("app = Flask(__name__)", setup_start)
 
-# De 213 ate 319 (funcoes auxiliares, antes de atualizar_posicao)
-for i in range(212, 320):
-    line = lines[i]
-    # Remove apolo references no quit handler do tela_upgrade_aureas
-    if "'apolo' in globals()" in line and 'encerrar' in line:
-        continue
-    if 'apolo.encerrar' in line:
-        continue
-    output.append(line)
+    if setup_start == -1 or setup_end == -1:
+        print("Erro: Setup global ou Flask não encontrados em GAME5.py")
+        sys.exit(1)
 
-# ============================================================
-# PARTE 3b: atualizar_posicao_personagem REESCRITA (manual player)
-# ============================================================
-new_movement = """\
+    # ============================================================
+    # PARTE 2: Cache global e setup (do CACHE GLOBAL até antes do Flask)
+    # ============================================================
+    for i in range(setup_start - 1, setup_end):
+        output.append(lines[i])
+
+    # ============================================================
+    # PARTE 3: Separador de dados_ia (copia a declaração de dados_ia_umbra)
+    # ============================================================
+    dados_ia_idx = find_line('dados_ia_umbra = {"estado": "Aguardando..."', setup_end)
+    if dados_ia_idx != -1:
+        output.append(lines[dados_ia_idx])
+        output.append("\n")
+
+    # ============================================================
+    # PARTE 4: Funções Auxiliares 1 (gerar_posicao_aleatoria até antes de atualizar_posicao_personagem)
+    # ============================================================
+    helper1_start = find_line("def gerar_posicao_aleatoria", setup_end)
+    helper1_end = find_line("def atualizar_posicao_personagem", helper1_start)
+
+    if helper1_start == -1 or helper1_end == -1:
+        print("Erro: Funções auxiliares 1 não encontradas em GAME5.py")
+        sys.exit(1)
+
+    for i in range(helper1_start, helper1_end):
+        line = lines[i]
+        # Remove referências de apolo
+        if "'apolo' in globals()" in line and 'encerrar' in line:
+            continue
+        if 'apolo.encerrar' in line:
+            continue
+        output.append(line)
+
+    # ============================================================
+    # PARTE 5: atualizar_posicao_personagem REESCRITA (manual player)
+    # ============================================================
+    new_movement = """\
 
     #####################################################################CONTROLE DO JOGADOR######################################################################################################
     def atualizar_posicao_personagem(keys, joystick):
@@ -137,23 +171,33 @@ new_movement = """\
             cooldown_dash = False
 
         return direcao_atual
-    ##########################################################################################################################################################################
+    #####################################################################
 """
-output.append(new_movement)
+    output.append(new_movement)
 
-# Resto das funcoes auxiliares apos atualizar_posicao (424-637)
-for i in range(423, 637):
-    line = lines[i]
-    if "'apolo' in globals()" in line:
-        continue
-    if "apolo.encerrar" in line:
-        continue
-    output.append(line)
+    # ============================================================
+    # PARTE 6: Funções Auxiliares 2 (criar_disparo até antes de AgenteApolo)
+    # ============================================================
+    helper2_start = find_line("def criar_disparo", helper1_end)
+    helper2_end = find_line("class AgenteApolo", helper2_start)
 
-# ============================================================
-# PARTE 4: PULA AgenteApolo inteiro (linhas 638-1941)
-# ============================================================
-new_atexit = """
+    if helper2_start == -1 or helper2_end == -1:
+        print("Erro: Funções auxiliares 2 não encontradas em GAME5.py")
+        sys.exit(1)
+
+    for i in range(helper2_start, helper2_end):
+        line = lines[i]
+        # Remove referências de apolo
+        if "'apolo' in globals()" in line and 'encerrar' in line:
+            continue
+        if 'apolo.encerrar' in line:
+            continue
+        output.append(line)
+
+    # ============================================================
+    # PARTE 7: Pula AgenteApolo e escreve o novo quit handler
+    # ============================================================
+    new_atexit = """
     import atexit, signal
     def _salvar_tudo_ao_sair():
         try:
@@ -167,169 +211,203 @@ new_atexit = """
     signal.signal(signal.SIGINT, _handler_ctrl_c)
 
 """
-output.append(new_atexit)
+    output.append(new_atexit)
 
-# ============================================================
-# PARTE 5: Sistema de cartas (linhas 1943-2133)
-# ============================================================
-for i in range(1942, 2133):
-    output.append(lines[i])
+    # ============================================================
+    # PARTE 8: Sistema de Cartas (do Núcleo de Aprendizado de Cartas até antes do Loop Principal)
+    # ============================================================
+    cards_start = find_line("cartas_compradas_apolo_global = []", helper2_end)
+    # Procuramos o início real do bloco de comentários ou imports do núcleo de cartas
+    nucleus_idx = find_line("NÚCLEO DE APRENDIZADO DE CARTAS", helper2_end)
+    if nucleus_idx != -1 and nucleus_idx < cards_start:
+        cards_start_real = find_line("import collections", nucleus_idx)
+        if cards_start_real == -1 or cards_start_real > cards_start:
+            cards_start_real = cards_start
+    else:
+        cards_start_real = cards_start
 
-# ============================================================
-# PARTE 6: LOOP PRINCIPAL (linhas 2134-3928)
-# ============================================================
+    main_loop_start = find_line("running = True", cards_start)
 
-def is_apolo_line(s):
-    """Verifica se a linha contem referencia direta ao apolo"""
-    apolo_patterns = [
-        'apolo.salvar_memoria', 'apolo.encerrar', 'apolo.pensar',
-        'apolo.aplicar_recompensa', 'apolo.receber_dano_punitivo',
-        'apolo.bonus_dopamina', 'apolo._orbe_coletada',
-        'apolo.ultimo_estado_tensor', 'apolo.fila_estados',
-        'apolo.acao_anterior', 'apolo.frames_no_laser',
-        'apolo.safe_zone_grid', "hasattr(apolo",
-        "'apolo' in globals()",
-    ]
-    return any(p in s for p in apolo_patterns)
+    if cards_start == -1 or main_loop_start == -1:
+        print("Erro: Bloco de cartas ou início do loop não encontrados em GAME5.py")
+        sys.exit(1)
 
-def count_parens(s):
-    """Conta parenteses abertos minus fechados"""
-    return s.count('(') - s.count(')')
+    for i in range(cards_start_real, main_loop_start):
+        output.append(lines[i])
 
-i = 2133
-while i < len(lines):
-    line = lines[i]
-    stripped = line.strip()
-    
-    # --- REMOCOES CIRURGICAS ---
-    
-    # 1. Remove bloco if modo_ia_treino: (tudo dentro)
-    if 'if modo_ia_treino:' in line:
-        indent = len(line) - len(line.lstrip())
-        i += 1
-        while i < len(lines):
-            next_line = lines[i]
-            if next_line.strip() == '':
+    # ============================================================
+    # PARTE 9: LOOP PRINCIPAL (copia com filtros cirúrgicos de IA)
+    # ============================================================
+
+    def is_apolo_line(s):
+        apolo_patterns = [
+            'apolo.salvar_memoria', 'apolo.encerrar', 'apolo.pensar',
+            'apolo.aplicar_recompensa', 'apolo.receber_dano_punitivo',
+            'apolo.bonus_dopamina', 'apolo._orbe_coletada',
+            'apolo.ultimo_estado_tensor', 'apolo.fila_estados',
+            'apolo.acao_anterior', 'apolo.frames_no_laser',
+            'apolo.safe_zone_grid', "hasattr(apolo",
+            "'apolo' in globals()",
+        ]
+        return any(p in s for p in apolo_patterns)
+
+    def count_parens(s):
+        return s.count('(') - s.count(')')
+
+    i = main_loop_start
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        
+        # --- REMOÇÕES CIRÚRGICAS ---
+        
+        # 1. Remove bloco if modo_ia_treino: (tudo dentro)
+        if 'if modo_ia_treino:' in line:
+            indent = len(line) - len(line.lstrip())
+            i += 1
+            while i < len(lines):
+                next_line = lines[i]
+                if next_line.strip() == '':
+                    i += 1
+                    continue
+                next_indent = len(next_line) - len(next_line.lstrip())
+                if next_indent <= indent:
+                    break
+                i += 1
+            continue
+
+        # 2. Remove bloco "if 'apolo' in globals()..." (IMPORTANTE: deve vir antes de is_apolo_line!)
+        if "'apolo' in globals()" in stripped:
+            indent = len(line) - len(line.lstrip())
+            i += 1
+            while i < len(lines):
+                next_line = lines[i]
+                if next_line.strip() == '':
+                    i += 1
+                    continue
+                next_indent = len(next_line) - len(next_line.lstrip())
+                if next_indent <= indent:
+                    break
+                i += 1
+            continue
+        
+        # 3. Remove keys[pygame.K_t] Apolo teleporte trigger (IMPORTANTE: deve vir antes de is_apolo_line!)
+        if "keys[pygame.K_t]" in stripped and "fase_tele" in stripped:
+            indent = len(line) - len(line.lstrip())
+            i += 1
+            while i < len(lines):
+                next_line = lines[i]
+                if next_line.strip() == '':
+                    break
+                next_indent = len(next_line) - len(next_line.lstrip())
+                if next_indent <= indent and next_line.strip():
+                    break
+                i += 1
+            continue
+
+        # 4. Remove blocos compostos (if/elif/for/while) que referenciam o apolo por completo (IMPORTANTE: evita blocos filhos órfãos!)
+        if ('if ' in stripped or 'elif ' in stripped or 'for ' in stripped or 'while ' in stripped) and is_apolo_line(stripped):
+            indent = len(line) - len(line.lstrip())
+            i += 1
+            while i < len(lines):
+                next_line = lines[i]
+                if next_line.strip() == '':
+                    i += 1
+                    continue
+                next_indent = len(next_line) - len(next_line.lstrip())
+                if next_indent <= indent:
+                    break
+                i += 1
+            continue
+
+        # 5. Remove registrar_batalha(...) calls (multi-line) e substitui por 'pass' para evitar erro de indentação
+        if 'registrar_batalha(' in stripped:
+            paren_depth = count_parens(line)
+            indent_str = line[:len(line) - len(line.lstrip())]
+            output.append(indent_str + 'pass\n')
+            i += 1
+            while i < len(lines) and paren_depth > 0:
+                paren_depth += count_parens(lines[i])
+                i += 1
+            continue
+        
+        # 6. Remove recompensar_cartas() calls
+        if 'recompensar_cartas(' in stripped:
+            indent_str = line[:len(line) - len(line.lstrip())]
+            output.append(indent_str + 'pass\n')
+            i += 1
+            continue
+        
+        # 7. Remove linhas com referencia a apolo (incluindo multi-line) e coloca 'pass'
+        if is_apolo_line(stripped):
+            paren_depth = count_parens(line)
+            indent_str = line[:len(line) - len(line.lstrip())]
+            output.append(indent_str + 'pass\n')
+            i += 1
+            while i < len(lines) and paren_depth > 0:
+                paren_depth += count_parens(lines[i])
+                i += 1
+            continue
+        
+        # 8. Remove "A tecla V foi removida" comment
+        if "A tecla V foi removida" in stripped:
+            i += 1
+            continue
+        
+        # 9. Remove Apolo train comment lines
+        if stripped.startswith('# Apolo aprende') or stripped.startswith('# Punição para Apolo'):
+            i += 1
+            continue
+        
+        # 10. Remove erros_player_contagem increment (Apolo punishment)
+        if 'erros_player_contagem' in stripped and '+=' in stripped:
+            i += 1
+            continue
+        
+        # --- SUBSTITUIÇÕES ---
+        
+        # A. subprocess.Popen GAME5.py -> Game_Over.py
+        if 'subprocess.Popen' in line and 'GAME5.py' in line:
+            line = line.replace('GAME5.py', 'Game_Over.py')
+        
+        # B. os._exit(0) -> sys.exit(0) 
+        if 'os._exit(0)' in stripped:
+            line = line.replace('os._exit(0)', 'sys.exit(0)')
+        
+        # C. vfx_apolo references
+        if 'vfx_apolo.' in line:
+            indent_str = line[:len(line) - len(line.lstrip())]
+            if 'renderizar_plasma_apolo' in line:
+                output.append(indent_str + 'pygame.draw.circle(tela, (255, 120, 0), disparo["rect"].center, 8)\n')
+                output.append(indent_str + 'pygame.draw.circle(tela, (255, 255, 100), disparo["rect"].center, 4)\n')
                 i += 1
                 continue
-            next_indent = len(next_line) - len(next_line.lstrip())
-            if next_indent <= indent:
-                break
-            i += 1
-        continue
-    
-    # 2. Remove registrar_batalha(...) calls (multi-line)
-    if 'registrar_batalha(' in stripped:
-        paren_depth = count_parens(line)
-        i += 1
-        while i < len(lines) and paren_depth > 0:
-            paren_depth += count_parens(lines[i])
-            i += 1
-        continue
-    
-    # 3. Remove recompensar_cartas() calls
-    if 'recompensar_cartas(' in stripped:
-        i += 1
-        continue
-    
-    # 4. Remove linhas com referencia a apolo (incluindo multi-line)
-    if is_apolo_line(stripped):
-        # Verifica se eh um bloco multi-line (parenteses abertos)
-        paren_depth = count_parens(line)
-        i += 1
-        while i < len(lines) and paren_depth > 0:
-            paren_depth += count_parens(lines[i])
-            i += 1
-        continue
-    
-    # 5. Remove bloco "if 'apolo' in globals()..."
-    if "'apolo' in globals()" in stripped:
-        indent = len(line) - len(line.lstrip())
-        i += 1
-        while i < len(lines):
-            next_line = lines[i]
-            if next_line.strip() == '':
+            elif 'criar_impacto_fragmentado' in line:
+                output.append(indent_str + '# Impacto visual (simplificado)\n')
                 i += 1
                 continue
-            next_indent = len(next_line) - len(next_line.lstrip())
-            if next_indent <= indent:
-                break
-            i += 1
-        continue
-    
-    # 6. Remove keys[pygame.K_t] Apolo teleporte trigger
-    if "keys[pygame.K_t]" in stripped and "fase_tele" in stripped:
-        indent = len(line) - len(line.lstrip())
-        i += 1
-        while i < len(lines):
-            next_line = lines[i]
-            if next_line.strip() == '':
-                break
-            next_indent = len(next_line) - len(next_line.lstrip())
-            if next_indent <= indent and next_line.strip():
-                break
-            i += 1
-        continue
-    
-    # 7. Remove "A tecla V foi removida" comment
-    if "A tecla V foi removida" in stripped:
-        i += 1
-        continue
-    
-    # 8. Remove Apolo train comment lines
-    if stripped.startswith('# Apolo aprende') or stripped.startswith('# Punição para Apolo'):
-        i += 1
-        continue
-    
-    # 9. Remove erros_player_contagem increment (Apolo punishment)
-    if 'erros_player_contagem' in stripped and '+=' in stripped:
-        i += 1
-        continue
-    
-    # --- SUBSTITUICOES ---
-    
-    # A. subprocess.Popen GAME5.py -> Game_Over.py
-    if 'subprocess.Popen' in line and 'GAME5.py' in line:
-        line = line.replace('GAME5.py', 'Game_Over.py')
-    
-    # B. os._exit(0) -> sys.exit(0) 
-    if 'os._exit(0)' in stripped:
-        line = line.replace('os._exit(0)', 'sys.exit(0)')
-    
-    # C. vfx_apolo references
-    if 'vfx_apolo.' in line:
-        indent_str = line[:len(line) - len(line.lstrip())]
-        if 'renderizar_plasma_apolo' in line:
-            output.append(indent_str + 'pygame.draw.circle(tela, (255, 120, 0), disparo["rect"].center, 8)\n')
-            output.append(indent_str + 'pygame.draw.circle(tela, (255, 255, 100), disparo["rect"].center, 4)\n')
-            i += 1
-            continue
-        elif 'criar_impacto_fragmentado' in line:
-            output.append(indent_str + '# Impacto visual (simplificado)\n')
-            i += 1
-            continue
-        elif 'atualizar_e_desenhar' in line:
-            output.append(indent_str + 'pass  # VFX update (simplificado)\n')
-            i += 1
-            continue
-        elif 'mascara_furos' in line:
+            elif 'atualizar_e_desenhar' in line:
+                output.append(indent_str + 'pass  # VFX update (simplificado)\n')
+                i += 1
+                continue
+            elif 'mascara_furos' in line:
+                line = line.replace('vfx_apolo.mascara_furos', '_mascara_furos_cache')
+                if "hasattr(vfx_apolo, 'mascara_furos')" in line:
+                    line = line.replace("hasattr(vfx_apolo, 'mascara_furos')", "'_mascara_furos_cache' in locals()")
+        
+        # D. Handle hasattr(vfx_apolo...) in conditions
+        if "hasattr(vfx_apolo" in line:
+            line = line.replace("hasattr(vfx_apolo, 'mascara_furos')", "'_mascara_furos_cache' in locals()")
             line = line.replace('vfx_apolo.mascara_furos', '_mascara_furos_cache')
-            if "hasattr(vfx_apolo, 'mascara_furos')" in line:
-                line = line.replace("hasattr(vfx_apolo, 'mascara_furos')", "'_mascara_furos_cache' in locals()")
-    
-    # D. Handle hasattr(vfx_apolo...) in conditions
-    if "hasattr(vfx_apolo" in line:
-        line = line.replace("hasattr(vfx_apolo, 'mascara_furos')", "'_mascara_furos_cache' in locals()")
-        line = line.replace('vfx_apolo.mascara_furos', '_mascara_furos_cache')
-    
-    # E. Remove miasma personagem doente skin check that refs estado_atual_ia before definition
-    # (keep it - it's fine, estado_atual_ia is defined earlier)
-    
-    output.append(line)
-    i += 1
+        
+        output.append(line)
+        i += 1
 
-# Escreve o arquivo final
-with open("GAME5_PLAYER.py", "w", encoding="utf-8") as f:
-    f.writelines(output)
+    # Escreve o arquivo final
+    with open("GAME5_PLAYER.py", "w", encoding="utf-8") as f:
+        f.writelines(output)
 
-print(f"GAME5_PLAYER.py gerado com sucesso! ({len(output)} blocos)")
+    print(f"GAME5_PLAYER.py gerado com sucesso! ({len(output)} blocos)")
+
+if __name__ == "__main__":
+    build_player()

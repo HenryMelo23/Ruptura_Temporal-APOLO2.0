@@ -73,7 +73,7 @@ def _rm(deck,nome):
 
 # ── Apolo UCB (copiado de GAME5_PLAYER) ──────────────────────────────────
 def _carregar_pesos():
-    arq="memoria_cartas_apolo.json"
+    arq="saves/memoria_cartas_apolo.json"
     base={n:{"N":1,"W":1} for n in [cd["nome"] for cd in CARTAS_DATA]}
     if os.path.exists(arq):
         try:

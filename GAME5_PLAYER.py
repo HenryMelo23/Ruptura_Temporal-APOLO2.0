@@ -7,7 +7,6 @@ import time
 import os
 import json
 from Tela_Cartas import tela_de_pausa
-from Loja_Endgame import tela_loja_endgame, aplicar_deck_endgame
 from Variaveis import *
 from utils import *
 import habilidade_boss as hb
@@ -15,10 +14,18 @@ import collections
 from audio_manager import carregar_config_audio, aplicar_volume_som
 from sistema_ratos_umbra import GerenciadorRatos
 
+movimento_pressionado = False
+hitbox_boss5 = None
+multiplicador_dano_umbra = 1.0
+reducao_cooldown_umbra = 1.0
+resistencia_umbra = 0.0
+bonus_cura_sifon = 0.5
+cartas_compradas_apolo_global = []
+ultima_tecla_movimento = None
+
 if __name__ == "__main__":
     pygame.init()
     memoria_umbra = hb.MemoriaEvolutivaUmbra()
-
     # =============================================================================
     # CACHE GLOBAL DE PERFORMANCE — criados UMA vez, reutilizados a cada frame
     # =============================================================================
@@ -63,7 +70,7 @@ if __name__ == "__main__":
 
     # Carregar configurações gráficas
     try:
-        with open("config_graficos.json", "r") as f:
+        with open("saves/config_graficos.json", "r") as f:
             config_graficos = json.load(f)
     except:
         config_graficos = {
@@ -124,8 +131,6 @@ if __name__ == "__main__":
 
     #####################################################################APOLO1######################################################################################################
 
-    ###########################################################################################################################################################################
-
     def gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem):
         largura_mapa_int, altura_mapa_int, largura_personagem_int, altura_personagem_int=map(int,(largura_mapa, altura_mapa, largura_personagem, altura_personagem))
         x = random.randint(0, largura_mapa_int - largura_personagem_int)
@@ -185,8 +190,8 @@ if __name__ == "__main__":
                     pygame.draw.circle(tela, (50, 255, 200), (int(px), int(py)), tamanho)
 
     def limpar_salvamento():
-        if os.path.exists('atributos.json'):
-            os.remove('atributos.json')
+        if os.path.exists('saves/atributos.json'):
+            os.remove('saves/atributos.json')
 
     def salvar_atributos():
         atributos = {
@@ -222,12 +227,12 @@ if __name__ == "__main__":
             "moedas_totais": moedas_totais,
         }
 
-        with open('atributos.json', 'w') as file:
+        with open('saves/atributos.json', 'w') as file:
             json.dump(atributos, file)
 
     def carregar_atributos():
         global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, moedas_totais
-        with open('atributos.json', 'r') as file:
+        with open('saves/atributos.json', 'r') as file:
             atributos = json.load(file)
             velocidade_personagem = atributos["velocidade_personagem"]
             intervalo_disparo = atributos["intervalo_disparo"]
@@ -259,12 +264,76 @@ if __name__ == "__main__":
             porcentagem_cura= atributos["porcentagem_cura"]
             moedas_totais = atributos["moedas_totais"]
 
+        
+    with open("saves/aurea_selecionada.json", "r") as file:
+        aurea = json.load(file)["aurea"]
+
+    upgrade_aureas = carregar_upgrade_aureas("saves/aureas_upgrade.json")
+
+        
+    tempo_inicial = time.time() 
+
+    tempo_anterior = pygame.time.get_ticks()
+    tempo_movimento = random.randint(2000, 7000)
+    tempo_parado = random.randint(500, 700) 
+    movendo = True 
+    boss_vivo1=False
+    relogio = pygame.time.Clock()
+    ultimo_tempo_reducao = time.time()
+    largura_disparo, altura_disparo = 40, 40
+    velocidade_disparo = 10
+    disparos = []
+
+    tela = configurar_tela(largura_mapa, altura_mapa)
+    pygame.display.set_caption("Renderizando Mapa com Personagem")
+
+    pontuacao_inimigos=0
+    maxima_pontuacao_magia = 750
+    piscar_magia = False
+
+
+
+
+
+    #INIMIGOS
+    # Carregar a imagem do mapa
+    mapa_atual_path = mapa_path5
+    mapa = pygame.image.load(mapa_atual_path).convert()
+    mapa = pygame.transform.scale(mapa, (largura_mapa, altura_mapa))
+
+    # Configurações do loop principal
+    relogio = pygame.time.Clock()
+    tempo_passado = 0
+    frame_atual = 0
+    frame_atual_disparo = 0
+    # Atualizar a última direção da personagem
+    ultima_tecla_movimento = None
+    movimento_pressionado = False
+    #as seguintes variáveis para controle do tempo de hit do inimigo
+    tempo_ultimo_hit_inimigo = pygame.time.get_ticks()
+
+    piscando_vida = False
+
+    def determinar_frames_petro(posicao_petro, posicao_inimigo):
+        if posicao_petro[0] < posicao_inimigo[0]:  # Petro está à esquerda do inimigo
+            return 'right_petro'
+        elif posicao_petro[0] > posicao_inimigo[0]:  # Petro está à direita do inimigo
+            return 'left_petro'
+        elif posicao_petro[1] < posicao_inimigo[1]:  # Petro está acima do inimigo
+            return 'down_petro'
+        elif posicao_petro[1] > posicao_inimigo[1]:  # Petro está abaixo do inimigo
+            return 'up_petro'
+        else:
+            return 'stop_petro'  # Petro está na mesma posição do inimigo
+
+
+    #####################################################################APOLO1######################################################################################################
 
     #####################################################################CONTROLE DO JOGADOR######################################################################################################
     def atualizar_posicao_personagem(keys, joystick):
         global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento
         global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_timer, teleporte_duration, teleporte_index
-        global hitbox_boss5, estado_atual_ia, angulo_inclinacao_personagem
+        global hitbox_boss5, estado_atual_ia
 
         dx, dy = 0, 0
         direcao_atual = 'stop'
@@ -296,26 +365,16 @@ if __name__ == "__main__":
         
             # Normalização de movimento diagonal
             if dx != 0 and dy != 0:
-                inclinacao = angulo_diagonal_personagem
-                
-                if dy < 0:
-                    angulo_inclinacao_personagem = -inclinacao if dx > 0 else inclinacao
-                else:
-                    angulo_inclinacao_personagem = inclinacao if dx > 0 else -inclinacao
-                    
                 fator_normalizacao = 0.7071
                 pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
                                              pos_x_personagem + dx * velocidade_personagem * fator_normalizacao))
                 pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
                                              pos_y_personagem + dy * velocidade_personagem * fator_normalizacao))
             else:
-                angulo_inclinacao_personagem = 0
                 pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
                                              pos_x_personagem + dx * velocidade_personagem))
                 pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
                                              pos_y_personagem + dy * velocidade_personagem))
-        else:
-            angulo_inclinacao_personagem = 0
 
         # ---- DASH/TELEPORTE ----
         dash_teclado = keys[config_teclas["Teleporte"]]
@@ -342,7 +401,7 @@ if __name__ == "__main__":
             cooldown_dash = False
 
         return direcao_atual
-    ##########################################################################################################################################################################
+    #####################################################################
     def criar_disparo():
             return {"rect": pygame.Rect(pos_x_personagem, pos_y_personagem, largura_disparo, altura_disparo),"direcao": ultima_tecla_movimento }
 
@@ -414,17 +473,17 @@ if __name__ == "__main__":
 
 
     def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
-        if not os.path.exists("aureas_upgrade.json"):
+        if not os.path.exists("saves/aureas_upgrade.json"):
             dados_iniciais = {
                 "Racional": 0,
                 "Impulsiva": 0,
                 "Devota": 0,
                 "Vanguarda": 0
             }
-            with open("aureas_upgrade.json", "w") as f:
+            with open("saves/aureas_upgrade.json", "w") as f:
                 json.dump(dados_iniciais, f, indent=4)
     
-        with open("aureas_upgrade.json", "r") as f:
+        with open("saves/aureas_upgrade.json", "r") as f:
             upgrades = json.load(f)
         aureas = [
             {"nome": "Racional", "imagem": "Sprites/aurea_cientista.png", "ativa": True},
@@ -437,7 +496,7 @@ if __name__ == "__main__":
             if nome not in upgrades:
                 upgrades[nome] = 0
 
-        upgrades = carregar_upgrade_aureas("aureas_upgrade.json")
+        upgrades = carregar_upgrade_aureas("saves/aureas_upgrade.json")
 
         selecionado = 0
         clock = pygame.time.Clock()
@@ -466,6 +525,110 @@ if __name__ == "__main__":
                         selecionado = (selecionado - 1) % len(aureas)
                         while not aureas[selecionado]["ativa"]:
                             selecionado = (selecionado - 1) % len(aureas)
+                    elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                        nome = aureas[selecionado]["nome"]
+                        if aureas[selecionado]["ativa"] and nome != "?":
+                            if moedas_disponiveis > 0:
+                                upgrades[nome] += 1
+                                moedas_disponiveis -= 1
+                                salvar_upgrade_aureas("saves/aureas_upgrade.json", upgrades)
+
+
+                                # 🪙 salva o novo total no arquivo de atributos
+                                with open("saves/atributos.json", "r") as f:
+                                    atributos = json.load(f)
+                                atributos["moedas_totais"] = moedas_disponiveis
+                                with open("saves/atributos.json", "w") as f:
+                                    json.dump(atributos, f)
+
+                    elif evento.key == pygame.K_ESCAPE:
+                        return
+
+            for i, aurea in enumerate(aureas):
+                linha = i // colunas
+                coluna = i % colunas
+
+                x = largura // 2 - ((colunas * largura_quadro + (colunas - 1) * espacamento) // 2) + coluna * (largura_quadro + espacamento)
+                y = altura // 4 + linha * (altura_quadro + 30)
+
+                cor_borda = (255, 255, 255) if i == selecionado else (80, 80, 80)
+                pygame.draw.rect(tela, cor_borda, (x, y, largura_quadro, altura_quadro), 3)
+
+                # Texto com nome
+                cor_texto = cor_borda
+                nome_display = aurea["nome"]
+                if nome_display != "?" and upgrades.get(nome_display, 0) > 0:
+                    nome_display += f" (Nv. {upgrades[nome_display]})"
+
+                texto = fonte.render(nome_display, True, cor_texto)
+                tela.blit(texto, (x + largura_quadro // 2 - texto.get_width() // 2, y - 25))
+
+            
+
+                # Texto com nível
+                if aurea["ativa"] and aurea["nome"] != "?":
+                    nivel = upgrades.get(aurea["nome"], 0)
+                    texto_nivel = fonte.render(f"Nível {nivel}", True, (200, 200, 100))
+                    tela.blit(texto_nivel, (x + largura_quadro // 2 - texto_nivel.get_width() // 2, y + altura_quadro + 5))
+
+                # Imagem
+                try:
+                    imagem = pygame.image.load(aurea["imagem"]).convert_alpha()
+                    imagem = pygame.transform.scale(imagem, (largura_quadro, altura_quadro))
+                    tela.blit(imagem, (x, y))
+                except:
+                    pass
+
+            # Mostrar moedas
+            texto_moedas = fonte.render(f"Moedas: {moedas_disponiveis}", True, (255, 255, 100))
+            tela.blit(texto_moedas, (50, 40))
+
+            instrucoes = fonte.render("← → para navegar | ENTER para melhorar | ESC para sair", True, (150, 150, 150))
+            tela.blit(instrucoes, (largura // 2 - instrucoes.get_width() // 2, altura - 60))
+
+            pygame.display.flip()
+            clock.tick(60)
+
+
+    # Variáveis Globais de Mutação da Umbra
+    multiplicador_dano_umbra = 1.0
+    reducao_cooldown_umbra = 1.0
+    resistencia_umbra = 0.0
+    bonus_cura_sifon = 0.5
+
+    tempo_parado_person = pygame.time.get_ticks()  
+    boss_atingido_por_onda = pygame.time.get_ticks()
+    tempo_ultimo_disparo = pygame.time.get_ticks()
+    tempo_ultimo_escudo = pygame.time.get_ticks()
+
+    Som_tema_fases.play(loops=-1)
+    Musica_tema_fases.play(loops=-1)
+
+    upgrades = carregar_upgrade_aureas("saves/aureas_upgrade.json")
+
+    FPS=pygame.time.Clock()
+    pygame.mouse.set_visible(False)
+    cursor_imagem = pygame.image.load("Sprites/Ponteiro.png").convert_alpha()  # Ajuste o caminho
+    cursor_tamanho = cursor_imagem.get_size()
+
+    sprite_moeda = pygame.image.load("Sprites/moeda.png").convert_alpha()
+    moedas_soltadas = []
+
+    modo_ia_treino = True
+
+    #####################################################################APOLO1######################################################################################################
+
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    torch.set_num_threads(1) # OTIMIZAÇÃO: Impede PyTorch de sugar 100% da CPU em redes minúsculas
+
+    # Importa arquitetura e buffer do modulo central (mesma rede do treino offline)
+    from apolo_brain import (
+        ApoloDQN, ApoloAgent, MiniReplayBuffer,
+        INPUT_SIZE, OUTPUT_SIZE, GerenciadorArquitetura,
+    )
+
 
     import atexit, signal
     def _salvar_tudo_ao_sair():
@@ -479,9 +642,6 @@ if __name__ == "__main__":
         sys.exit(0)
     signal.signal(signal.SIGINT, _handler_ctrl_c)
 
-    # =====================================================================
-    # NÚCLEO DE APRENDIZADO DE CARTAS (APOLO)
-    # =====================================================================
     import collections
     import os
     import json
@@ -490,7 +650,7 @@ if __name__ == "__main__":
     cartas_compradas_apolo_global = []
 
     def carregar_memoria_cartas():
-        arquivo = "memoria_cartas_apolo.json"
+        arquivo = "saves/memoria_cartas_apolo.json"
         pesos_base = {
             "Speed Boost": {"N": 1, "W": 1}, "Porção": {"N": 1, "W": 1}, 
             "Disparo crescente": {"N": 1, "W": 1}, "Trembo": {"N": 1, "W": 1}, 
@@ -511,7 +671,7 @@ if __name__ == "__main__":
         return pesos_base
 
     def salvar_memoria_cartas(pesos):
-        with open("memoria_cartas_apolo.json", "w") as f:
+        with open("saves/memoria_cartas_apolo.json", "w") as f:
             json.dump(pesos, f, indent=4)
 
     def recompensar_cartas(cartas_usadas, venceu):
@@ -588,11 +748,6 @@ if __name__ == "__main__":
         global cartas_compradas_apolo_global
 
         inimigos_eliminados = 3000
-
-        multiplicador_dano_umbra = 1.0
-        reducao_cooldown_umbra = 1.0
-        resistencia_umbra = 0.0
-        bonus_cura_sifon = 0.0
 
         # --- PROGRESSÃO DO APOLO ---
         cartas_inteligentes = inteligencia_escolha_cartas_apolo(qtd_cartas_jogador)
@@ -673,61 +828,8 @@ if __name__ == "__main__":
             print(f" -> [{qtd}x] {carta_u}")
         print("="*50 + "\n")
 
-    # =========================================================================
-    # LOJA DE SELEÇÃO DE BUILD — O jogador monta sua build manualmente
-    # =========================================================================
-    deck_escolhido = tela_loja_endgame()
-    cartas_compradas_apolo_global = deck_escolhido
-
-    # Monta o dicionário de atributos mutáveis para passar à função
-    _variaveis_build = {
-        "velocidade_personagem":  velocidade_personagem,
-        "intervalo_disparo":      intervalo_disparo,
-        "dano_person_hit":        dano_person_hit,
-        "chance_critico":         chance_critico,
-        "roubo_de_vida":          roubo_de_vida,
-        "quantidade_roubo_vida":  quantidade_roubo_vida,
-        "vida_maxima":            vida_maxima,
-        "vida":                   vida,
-        "trembo":                 trembo,
-        "Tempo_cura":             Tempo_cura,
-        "porcentagem_cura":       porcentagem_cura,
-        "Resistencia":            Resistencia,
-        "tempo_cooldown_dash":    tempo_cooldown_dash,
-        "vida_petro":             vida_petro,
-        "vida_maxima_petro":      vida_maxima_petro,
-        "vida_maxima_umbra":      vida_maxima_umbra,
-        "vida_umbra":             vida_umbra,
-        "multiplicador_dano_umbra": 1.0,
-        "reducao_cooldown_umbra":   1.0,
-        "resistencia_umbra":        0.0,
-        "bonus_cura_sifon":         0.0,
-    }
-
-    _variaveis_build = aplicar_deck_endgame(deck_escolhido, _variaveis_build)
-
-    # Reaplica os atributos de volta às variáveis globais
-    velocidade_personagem  = _variaveis_build["velocidade_personagem"]
-    intervalo_disparo      = _variaveis_build["intervalo_disparo"]
-    dano_person_hit        = _variaveis_build["dano_person_hit"]
-    chance_critico         = _variaveis_build["chance_critico"]
-    roubo_de_vida          = _variaveis_build["roubo_de_vida"]
-    quantidade_roubo_vida  = _variaveis_build["quantidade_roubo_vida"]
-    vida_maxima            = _variaveis_build["vida_maxima"]
-    vida                   = _variaveis_build["vida"]
-    trembo                 = _variaveis_build["trembo"]
-    Tempo_cura             = _variaveis_build["Tempo_cura"]
-    porcentagem_cura       = _variaveis_build["porcentagem_cura"]
-    Resistencia            = _variaveis_build["Resistencia"]
-    tempo_cooldown_dash    = _variaveis_build["tempo_cooldown_dash"]
-    vida_petro             = _variaveis_build["vida_petro"]
-    vida_maxima_petro      = _variaveis_build["vida_maxima_petro"]
-    vida_maxima_umbra      = _variaveis_build["vida_maxima_umbra"]
-    vida_umbra             = _variaveis_build["vida_umbra"]
-    multiplicador_dano_umbra  = _variaveis_build["multiplicador_dano_umbra"]
-    reducao_cooldown_umbra    = _variaveis_build["reducao_cooldown_umbra"]
-    resistencia_umbra         = _variaveis_build["resistencia_umbra"]
-    bonus_cura_sifon          = _variaveis_build["bonus_cura_sifon"]
+    # Invoca a mutação absoluta
+    injetar_build_endgame(qtd_cartas_jogador=80)
     ###################################################################################################################################################################################################
     # Geração de coordenadas estocásticas para o início do embate
     pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem)
@@ -737,8 +839,6 @@ if __name__ == "__main__":
     ###################################################################################################PRINCIPAL#################################################################################################################
     #LOOP PRINCIPAL
 
-    # Inicializa a tela (Necessário para carregar sprites)
-    tela = pygame.display.set_mode((largura_mapa, altura_mapa))
     # Inicializar gerenciador de ratos da Umbra
     gerenciador_ratos = GerenciadorRatos(largura_mapa, altura_mapa)
 
@@ -758,79 +858,6 @@ if __name__ == "__main__":
         joystick.init()
     else:
         joystick = None
-
-    try:
-        with open("aureas_upgrade.json", "r") as f:
-            upgrades = json.load(f)
-    except FileNotFoundError:
-        upgrades = {"Racional": 0, "Impulsiva": 0, "Devota": 0, "Vanguarda": 0}
-
-    try:
-        with open('aurea_selecionada.json', 'r') as file:
-            aurea = json.load(file)["aurea"]
-    except FileNotFoundError:
-        aurea = "Nenhuma"
-
-    # =========================================================================
-    # VARIÁVEIS DE INICIALIZAÇÃO PRÉ-LOOP (espelhadas do GAME5.py)
-    # =========================================================================
-    cursor_tamanho = (32, 32)
-    tempo_passado = 0
-    tempo_parado_person = 0
-    frame_atual = 0
-    frame_atual_disparo = 0
-    ultima_tecla_movimento = None
-    movimento_pressionado = False
-    tempo_ultimo_hit_inimigo = pygame.time.get_ticks()
-    piscando_vida = False
-    posicao_barra_vida = (80, altura_mapa - (altura_mapa - 34))
-    multiplicador_dano = 1.0
-    multiplicador_velocidade = 1.0
-    rodando = True
-    mostrar_tutorial = False
-    mostrar_vida_boss = True
-    luta_iniciada = False
-    ataque_liberado = False
-    particulas_pulso = []
-    tempo_inicial = time.time()
-    tempo_anterior = pygame.time.get_ticks()
-    boss_vivo1 = False
-    pontuacao_inimigos = 0
-    maxima_pontuacao_magia = 750
-    piscar_magia = False
-    ultimo_tempo_reducao = time.time()
-    tempo_ultimo_disparo = 0
-    tempo_ultimo_escudo = pygame.time.get_ticks()
-    boss_atingido_por_onda = pygame.time.get_ticks()
-    cartas_compradas_apolo_global = []
-    historico_player = []
-
-    mapa_atual_path = mapa_path5
-    mapa = pygame.image.load(mapa_atual_path).convert()
-    mapa = pygame.transform.scale(mapa, (largura_mapa, altura_mapa))
-
-    # Inicializar tempo_start_boss na estado_atual_ia
-    if 'tempo_start_boss' not in estado_atual_ia:
-        estado_atual_ia['tempo_start_boss'] = pygame.time.get_ticks()
-        estado_atual_ia['ultimo_ataque'] = pygame.time.get_ticks()
-        estado_atual_ia['ultimo_teleporte'] = pygame.time.get_ticks()
-        estado_atual_ia['ultimo_sifao'] = pygame.time.get_ticks()
-        estado_atual_ia['passiva_chance'] = 0.30
-        estado_atual_ia['passiva_reducao'] = 1.0
-        estado_atual_ia['intervalo'] = 1900
-
-    # Cursor personalizado
-    FPS = pygame.time.Clock()
-    pygame.mouse.set_visible(False)
-    cursor_imagem = pygame.image.load("Sprites/Ponteiro.png").convert_alpha()
-    cursor_tamanho = cursor_imagem.get_size()
-
-    # Sprite de moeda
-    sprite_moeda = pygame.image.load("Sprites/moeda.png").convert_alpha()
-
-    # Cartas / Loja
-    total_cartas_compradas = sum(cartas_compradas.values())
-    custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
 
     running = True
     while running:
@@ -870,6 +897,7 @@ if __name__ == "__main__":
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+                pass
                 memoria_umbra.salvar() 
                 rodando = False
                 pygame.quit()
@@ -1054,10 +1082,13 @@ if __name__ == "__main__":
                 Tempo_cura=2500
                 pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem)
             else:
+                pass
                 agora_fim = pygame.time.get_ticks()
                 tempo_inicio = estado_atual_ia.get('tempo_start_boss', agora_fim) if 'estado_atual_ia' in locals() else agora_fim
                 duracao_combate = (agora_fim - tempo_inicio) / 1000.0
+                pass
             
+                pass
             
                 # Reset do sistema de ratos
                 gerenciador_ratos.resetar_partida()
@@ -1069,10 +1100,10 @@ if __name__ == "__main__":
                 Musica_tema_fases.stop()
                 Som_tema_fases.stop()
                 memoria_umbra.salvar() 
+                pass
                 rodando = False
                 pygame.quit()
                 limpar_salvamento()
-                subprocess.Popen([sys.executable, "Game_Over.py"])
                 sys.exit(0)
 
         # Adicione esta verificação para controlar o piscar da barra de vida
@@ -1104,10 +1135,13 @@ if __name__ == "__main__":
         
             agora = pygame.time.get_ticks()
             if vida_umbra <= 0:
+                pass
                 duracao_combate = (agora - estado_atual_ia.get('tempo_start_boss', agora)) / 1000.0
                 agora_fim = pygame.time.get_ticks()
                 tempo_inicio = estado_atual_ia.get('tempo_start_boss', agora_fim) if 'estado_atual_ia' in locals() else agora_fim
                 duracao_combate = (agora_fim - tempo_inicio) / 1000.0
+                pass
+                pass
                 memoria_umbra.treinar(-500.0, prioridade=True)
             
                 # Reset do sistema de ratos
@@ -1118,10 +1152,11 @@ if __name__ == "__main__":
                 Musica_tema_fases.stop()
                 Som_tema_fases.stop()
                 memoria_umbra.salvar() 
+                pass
                 rodando = False
                 pygame.quit()
                 limpar_salvamento()
-                subprocess.Popen([sys.executable, "Game_Over.py"])
+                
                 sys.exit(0)
             if 'tempo_start_boss' not in estado_atual_ia:
                 estado_atual_ia['tempo_start_boss'] = agora
@@ -1194,6 +1229,7 @@ if __name__ == "__main__":
                     })
                 
                     # Recompensa negativa para Apolo (foi atingido)
+                    pass
                 
                     # Recompensa positiva para Umbra (acertou o alvo)
                     memoria_umbra.treinar(20.0 * resultado_colisoes['hits'], prioridade=True)
@@ -1290,6 +1326,10 @@ if __name__ == "__main__":
                             pos_x_personagem += (dx_v / dist_v) * fator_succao
                             pos_y_personagem += (dy_v / dist_v) * fator_succao
                         
+                            # --- PUNIÇÃO APOLO: Sendo sugado para o centro ---
+                            if dist_v < 150 and agora % 200 < 30:
+                                pass
+                                
                             # Trava de colisão com os limites do mapa
                             pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem))
                             pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem))
@@ -1374,6 +1414,10 @@ if __name__ == "__main__":
                         dist_p = math.hypot(prisao['x'] - personagem_rect.centerx, prisao['y'] - personagem_rect.centery)
                         if dist_p < raio_hitbox_atual: 
                             velocidade_personagem = 0.3 
+                        
+                            # --- PUNIÇÃO APOLO: Ficar preso no gelo (lentidão) ---
+                            if agora % 100 < 20: 
+                                pass
                         
                             if agora % 1000 < 50:
                                 efeitos_texto.append({
@@ -1577,6 +1621,9 @@ if __name__ == "__main__":
                     
                         if agora % 1000 < 50: 
                             vida -= vida_maxima*0.01
+                            # --- PUNIÇÃO APOLO: Dano por cegueira/miasma ---
+                            pass
+                    
                         centro_ceg_x = pos_x_personagem + (largura_personagem // 2)
                         centro_ceg_y = pos_y_personagem + (altura_personagem // 2)
                     
@@ -1640,6 +1687,7 @@ if __name__ == "__main__":
                                 memoria_umbra.treinar(2.0)
                             
                                 # --- PUNIÇÃO APOLO: Choque e atordoamento ---
+                                pass
                         
                             estado_atual_ia['fim_stun'] = agora + 600 
                     else:
@@ -1744,6 +1792,7 @@ if __name__ == "__main__":
                             caminho['ultimo_espinho_hit'] = agora
                             estado_atual_ia['fim_stun'] = agora + 4000  # STUN 4 SEGUNDOS
                             vida -= 50
+                            pass
                             # Umbra ganha 2 disparos rápidos
                             estado_atual_ia['bonus_tiros'] = estado_atual_ia.get('bonus_tiros', 0) + 2
                             efeitos_texto.append({'texto': 'ESPINHO! ATORDOADO!', 'x': pos_x_personagem, 'y': pos_y_personagem - 40, 'tempo_inicio': agora, 'cor': (180, 200, 120)})
@@ -1867,11 +1916,14 @@ if __name__ == "__main__":
                                 vida -= vida_maxima * 0.10
                             
                                 # --- PUNIÇÃO APOLO: Ser atingido pelo laser principal ---
+                                pass
 
                                 # --- MEMÓRIA ESPACIAL: Registra zona como perigosa no SafeZone Grid ---
                                 col_laser_hit = int(pos_x_personagem / max(1, largura_mapa / 8))
                                 row_laser_hit = int(pos_y_personagem / max(1, altura_mapa / 6))
                                 key_laser_hit = (col_laser_hit, row_laser_hit)
+                                pass
+                                pass
                                 
                                 # Matemática de Combustão Progressiva
                                 if player_em_chamas and agora < tempo_fim_chamas:
@@ -1921,54 +1973,58 @@ if __name__ == "__main__":
                             })
                     
                         # Gerador de Brasas (Caindo e esfriando)
-                        if random.random() < 0.4:
-                            particulas_fogo_player.append({
-                                "tipo": "brasa",
-                                "x": pos_x_personagem + random.randint(0, int(largura_personagem)),
-                                "y": pos_y_personagem + random.randint(0, int(altura_personagem)),
-                                "vx": random.uniform(-1, 1),
-                                "vy": random.uniform(1, 3.5), 
-                                "vida": 255,
-                                "tamanho": random.randint(3, 6)
-                            })
-                        # Gerador de Fumaça (Subindo e expandindo)
-                        if random.random() < 0.3:
-                            particulas_fogo_player.append({
-                                "tipo": "fumaca",
-                                "x": pos_x_personagem + random.randint(0, int(largura_personagem)),
-                                "y": pos_y_personagem - 10,
-                                "vx": random.uniform(-0.8, 0.8),
-                                "vy": random.uniform(-2.5, -1), 
-                                "vida": 255,
-                                "tamanho": random.randint(5, 12)
-                            })
+                        if config_graficos.get("particulas_ativas", True):
+                            if random.random() < 0.4:
+                                particulas_fogo_player.append({
+                                    "tipo": "brasa",
+                                    "x": pos_x_personagem + random.randint(0, int(largura_personagem)),
+                                    "y": pos_y_personagem + random.randint(0, int(altura_personagem)),
+                                    "vx": random.uniform(-1, 1),
+                                    "vy": random.uniform(1, 3.5), 
+                                    "vida": 255,
+                                    "tamanho": random.randint(3, 6)
+                                })
+                            # Gerador de Fumaça (Subindo e expandindo)
+                            if random.random() < 0.3:
+                                particulas_fogo_player.append({
+                                    "tipo": "fumaca",
+                                    "x": pos_x_personagem + random.randint(0, int(largura_personagem)),
+                                    "y": pos_y_personagem - 10,
+                                    "vx": random.uniform(-0.8, 0.8),
+                                    "vy": random.uniform(-2.5, -1), 
+                                    "vida": 255,
+                                    "tamanho": random.randint(5, 12)
+                                })
 
                 # Renderizador Físico das Partículas
-                nova_lista_fogo = []
-                for p in particulas_fogo_player:
-                    if p["tipo"] == "brasa":
-                        p["x"] += p["vx"]
-                        p["y"] += p["vy"]
-                        p["vida"] -= 8
-                        p["tamanho"] = max(0.1, p["tamanho"] - 0.15)
+                if config_graficos.get("particulas_ativas", True):
+                    nova_lista_fogo = []
+                    for p in particulas_fogo_player:
+                        if p["tipo"] == "brasa":
+                            p["x"] += p["vx"]
+                            p["y"] += p["vy"]
+                            p["vida"] -= 8
+                            p["tamanho"] = max(0.1, p["tamanho"] - 0.15)
+                        
+                            if p["vida"] > 0 and p["tamanho"] > 0.1:
+                                # Transição térmica: Laranja incandescente -> Cinza frio (chão)
+                                cor_brasa = (255, int(p["vida"]), 0) if p["vida"] > 100 else (100, 100, 100)
+                                pygame.draw.circle(tela, cor_brasa, (int(p["x"]), int(p["y"])), int(p["tamanho"]))
+                                nova_lista_fogo.append(p)
                     
-                        if p["vida"] > 0 and p["tamanho"] > 0.1:
-                            # Transição térmica: Laranja incandescente -> Cinza frio (chão)
-                            cor_brasa = (255, int(p["vida"]), 0) if p["vida"] > 100 else (100, 100, 100)
-                            pygame.draw.circle(tela, cor_brasa, (int(p["x"]), int(p["y"])), int(p["tamanho"]))
-                            nova_lista_fogo.append(p)
-                
-                    elif p["tipo"] == "fumaca":
-                        p["x"] += p["vx"]
-                        p["y"] += p["vy"]
-                        p["vida"] -= 6
-                        p["tamanho"] += 0.25
-                    
-                        if p["vida"] > 0:
-                            cinza = int(p["vida"] * 0.4)
-                            pygame.draw.circle(tela, (cinza, cinza, cinza), (int(p["x"]), int(p["y"])), int(p["tamanho"]))
-                            nova_lista_fogo.append(p)
-                particulas_fogo_player = nova_lista_fogo
+                        elif p["tipo"] == "fumaca":
+                            p["x"] += p["vx"]
+                            p["y"] += p["vy"]
+                            p["vida"] -= 6
+                            p["tamanho"] += 0.25
+                        
+                            if p["vida"] > 0:
+                                cinza = int(p["vida"] * 0.4)
+                                pygame.draw.circle(tela, (cinza, cinza, cinza), (int(p["x"]), int(p["y"])), int(p["tamanho"]))
+                                nova_lista_fogo.append(p)
+                    particulas_fogo_player = nova_lista_fogo
+                else:
+                    particulas_fogo_player = []
 
             
 
@@ -2071,12 +2127,15 @@ if __name__ == "__main__":
                         percentual_vida_antes = vida_antes / vida_maxima
                         if percentual_vida_antes < 0.3:  # Menos de 30% de vida
                             recompensa_coleta = 500.0  # RECOMPENSA COLOSSAL QUANDO ESTIVER MORRENDO
+                            pass
                             efeitos_texto.append({"texto": "+500 DOPAMINA REWARD!", "x": pos_x_personagem, "y": pos_y_personagem - 50, "tempo_inicio": agora, "cor": (255, 215, 0)})
                         elif percentual_vida_antes < 0.6:  # Menos de 60% de vida
                             recompensa_coleta = 300.0  # RECOMPENSA MASSIVA
+                            pass
                             efeitos_texto.append({"texto": "+300 DOPAMINA REWARD!", "x": pos_x_personagem, "y": pos_y_personagem - 50, "tempo_inicio": agora, "cor": (255, 215, 0)})
                         else:
                             recompensa_coleta = 150.0  # RECOMPENSA ENORME MESMO COM VIDA CHEIA
+                            pass
                             efeitos_texto.append({"texto": "+150 DOPAMINA REWARD!", "x": pos_x_personagem, "y": pos_y_personagem - 50, "tempo_inicio": agora, "cor": (255, 215, 0)})
                     
                         efeitos_texto.append({
@@ -2087,6 +2146,7 @@ if __name__ == "__main__":
                             "cor": (0, 255, 150)
                         })
                     
+                        pass
                         esferas_energia_umbra.remove(esfera)
             else:
                 img_atual_boss = frames_geo_umbra_paths[direcao_boss][frame_boss]
@@ -2104,13 +2164,11 @@ if __name__ == "__main__":
             tela.blit(imagem_personagem_doente, (pos_x_personagem, pos_y_personagem))
         else:
             frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
-            
             if angulo_inclinacao_personagem != 0:
+                # Rotaciona o frame pelo centro para manter o eixo
                 frame_rotacionado = pygame.transform.rotate(frame_para_desenhar, angulo_inclinacao_personagem)
-                # O rect do frame original é obtido para não alterar o centro visual ao rotacionar
-                rect_original = frame_para_desenhar.get_rect(topleft=(pos_x_personagem, pos_y_personagem))
-                rect_rotacionado = frame_rotacionado.get_rect(center=rect_original.center)
-                tela.blit(frame_rotacionado, rect_rotacionado.topleft)
+                novo_rect = frame_rotacionado.get_rect(center=(pos_x_personagem + largura_personagem//2, pos_y_personagem + altura_personagem//2))
+                tela.blit(frame_rotacionado, novo_rect.topleft)
             else:
                 tela.blit(frame_para_desenhar, (pos_x_personagem, pos_y_personagem))
     
@@ -2149,6 +2207,7 @@ if __name__ == "__main__":
                             vida_boss5 = min( vida_boss5 + 20)
                             estado_atual_ia['ratos_adicionais'] = estado_atual_ia.get('ratos_adicionais', 0) + 1
                             memoria_umbra.treinar(5.0)
+                            pass
                             efeitos_texto.append({"texto": "+20 LIFESTEAL / +1 RATO", "x": pos_x_umbra,
                                                   "y": pos_y_umbra - 30, "tempo_inicio": agora, "cor": (50, 255, 50)})
 
@@ -2162,6 +2221,7 @@ if __name__ == "__main__":
                                     disparos.remove(tiro)
                                 efeitos_texto.append({"texto": "SPLAT!", "x": rato['x'], "y": rato['y'],
                                                       "tempo_inicio": agora, "cor": (100, 0, 100)})
+                                pass
                                 break
 
                     if vivo:
@@ -2331,6 +2391,7 @@ if __name__ == "__main__":
                             "cor": cor_feedback
                         })
                         atingiu_boss = True
+                        pass
                         estado_atual_ia['tomou_tiro_no_dash'] = True
 
 
@@ -2338,6 +2399,10 @@ if __name__ == "__main__":
             dentro_mapa = 0 <= disparo["rect"].x < largura_mapa and 0 <= disparo["rect"].y < altura_mapa
             if dentro_mapa and not atingiu_boss and not interceptado:
                 novos_disparos.append(disparo)
+            elif not atingiu_boss and not interceptado:
+                # Punição por tiro perdido na borda (Ensina ele a poupar munição e atirar só com mira certa)
+                pass
+
         disparos = novos_disparos
 
         # --- PROCESSAMENTO DE PROJÉTEIS DA BOSS 5 ---

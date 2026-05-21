@@ -11,7 +11,7 @@ import shutil
 from datetime import datetime
 
 def main():
-    arquivo_memoria = "apolo_memoria_dqn.pt"
+    arquivo_memoria = "saves/apolo_memoria_dqn.pt"
     
     print("=" * 60)
     print("RESET DE MEMÓRIA DO APOLO")
@@ -28,7 +28,7 @@ def main():
     
     # Criar nome do backup com timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    arquivo_backup = f"apolo_memoria_dqn_backup_{timestamp}.pt"
+    arquivo_backup = f"saves/apolo_memoria_dqn_backup_{timestamp}.pt"
     
     print(f"Arquivo encontrado: {arquivo_memoria}")
     print()

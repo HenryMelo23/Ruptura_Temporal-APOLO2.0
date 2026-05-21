@@ -42,8 +42,8 @@ ACOES_MECANICAS = [
 
 def carregar_historico():
     try:
-        if os.path.exists("historico_batalhas.json"):
-            with open("historico_batalhas.json", "r") as f:
+        if os.path.exists("saves/historico_batalhas.json"):
+            with open("saves/historico_batalhas.json", "r") as f:
                 dados = json.load(f)
                 vencedores = [d.get("vencedor", "") for d in dados]
                 total = len(vencedores)
