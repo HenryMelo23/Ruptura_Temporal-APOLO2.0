@@ -117,7 +117,7 @@ class ApoloTreinoLaser:
     - Replay Buffer             para quebrar correlação temporal
     """
 
-    ARQUIVO_PESOS    = "apolo_memoria_dqn.pt"
+    ARQUIVO_PESOS    = "saves/apolo_memoria_dqn.pt"
     INPUT_SIZE       = 40
     OUTPUT_SIZE      = 9
     GAMMA            = 0.97     # fator de desconto (preza futuro próximo)

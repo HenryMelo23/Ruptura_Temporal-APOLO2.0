@@ -22,8 +22,8 @@ import torch.nn as nn
 # =============================================================================
 INPUT_SIZE  = 42
 OUTPUT_SIZE = 9
-ARQ_FILE    = "apolo_arq.json"   # Metadata da arquitetura atual
-PESOS_FILE  = "apolo_memoria_dqn.pt"
+ARQ_FILE    = "saves/apolo_arq.json"   # Metadata da arquitetura atual
+PESOS_FILE  = "saves/apolo_memoria_dqn.pt"
 
 # Limites de crescimento (GTX 1650: 4GB VRAM — 512 eh o teto seguro)
 HIDDEN_MIN  = 128

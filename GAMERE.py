@@ -15,8 +15,10 @@ from Variaveis import *
 from utils import *
 lock_inimigos = threading.Lock()
 
+# Forward declaration (atribuído no loop principal)
+botao_mouse = (False, False, False)
 
-with open("modo_jogo.json", "r") as f:
+with open("saves/modo_jogo.json", "r") as f:
     dados = json.load(f)
 modo = dados["modo"]
 ip = dados["ip"]
@@ -255,7 +257,55 @@ if modo == "join":
     threading.Thread(target=thread_processar_pacotes, daemon=True).start()
 
 
+movimento_pressionado = False
+boss = None
+dados = None
+dano = 0
+direcao_x = 0
+direcao_y = 0
+estado = None
+fonte = None
+mostrar_tutorial = True
+running = True
+sprite_moeda = None
+tempo_atual = 0
+upgrades = {}
 inimigos_comum = []
+alvo_x = 0
+alvo_y = 0
+direcao_alvo = (0, 0)
+velocidade_personagem = 5
+movendo = False
+tempo_anterior = 0
+tempo_movimento = 0
+tempo_parado = 0
+direcao_player2 = "down"
+pos_x_player2 = 0
+pos_y_player2 = 0
+jogador_remoto_morto = False
+host_ativo = False
+loja_aberta = False
+esperando_client = True
+esperando_host = True
+boss_vivo1 = False
+quantidade_cartas = 1
+cor_ping = (0, 255, 0)
+pontuacao_exib = 0
+convite_boss_aceitou = None
+convite_boss_ativo = False
+convite_boss_recebido = False
+convite_boss_tempo = 0
+iniciar_boss = False
+pos_x_chefe = 0
+pos_y_chefe = 0
+vida_boss = 0
+vida_maxima_boss1 = 1000
+frame_porcentagem = None
+frames_chefe1_1 = []
+frames_chefe1_2 = []
+frames_chefe1_3 = []
+frames_chefe1_4 = []
+
 #inicializa a Threading
 if modo == "host" and not Safe :
     tempo_anterior = pygame.time.get_ticks()
@@ -330,8 +380,8 @@ def solicitar_boss(tela, fila_envio, modo):
 
 
 def limpar_salvamento():
-    if os.path.exists('atributos.json'):
-        os.remove('atributos.json')
+    if os.path.exists('saves/atributos.json'):
+        os.remove('saves/atributos.json')
 
 def salvar_atributos():
     atributos = {
@@ -364,12 +414,12 @@ def salvar_atributos():
         "Tempo_cura":Tempo_cura,
         "porcentagem_cura":porcentagem_cura,
     }
-    with open('atributos.json', 'w') as file:
+    with open('saves/atributos.json', 'w') as file:
         json.dump(atributos, file)
 
 def carregar_atributos():
     global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura
-    with open('atributos.json', 'r') as file:
+    with open('saves/atributos.json', 'r') as file:
         atributos = json.load(file)
         velocidade_personagem = atributos["velocidade_personagem"]
         intervalo_disparo = atributos["intervalo_disparo"]
@@ -400,13 +450,13 @@ def carregar_atributos():
         Tempo_cura= atributos["Tempo_cura"]
         porcentagem_cura= atributos["porcentagem_cura"]
         
-with open("aurea_selecionada.json", "r") as file:
+with open("saves/aurea_selecionada.json", "r") as file:
     aurea = json.load(file)["aurea"]
 
-with open("tutorial_config.json", "r") as f:
+with open("saves/tutorial_config.json", "r") as f:
     mostrar_tutorial = json.load(f).get("mostrar_tutorial", True)
 
-upgrade_aureas = carregar_upgrade_aureas("aureas_upgrade.json")
+upgrade_aureas = carregar_upgrade_aureas("saves/aureas_upgrade.json")
 
         
 tempo_inicial = time.time() 
@@ -818,17 +868,17 @@ def soltar_moeda(posicao):
         
 
 def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
-    if not os.path.exists("aureas_upgrade.json"):
+    if not os.path.exists("saves/aureas_upgrade.json"):
         dados_iniciais = {
             "Racional": 0,
             "Impulsiva": 0,
             "Devota": 0,
             "Vanguarda": 0
         }
-        with open("aureas_upgrade.json", "w") as f:
+        with open("saves/aureas_upgrade.json", "w") as f:
             json.dump(dados_iniciais, f, indent=4)
     
-    with open("aureas_upgrade.json", "r") as f:
+    with open("saves/aureas_upgrade.json", "r") as f:
         upgrades = json.load(f)
     aureas = [
         {"nome": "Racional", "imagem": "Sprites/aurea_cientista.png", "ativa": True},
@@ -841,7 +891,7 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
         if nome not in upgrades:
             upgrades[nome] = 0
 
-    upgrades = carregar_upgrade_aureas("aureas_upgrade.json")
+    upgrades = carregar_upgrade_aureas("saves/aureas_upgrade.json")
 
     selecionado = 0
     clock = pygame.time.Clock()
@@ -874,7 +924,7 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
                         if moedas_disponiveis > 0:
                             upgrades[nome] += 1
                             moedas_disponiveis -= 1
-                            salvar_upgrade_aureas("aureas_upgrade.json", upgrades)
+                            salvar_upgrade_aureas("saves/aureas_upgrade.json", upgrades)
                             
             
                 elif evento.key == pygame.K_ESCAPE:
@@ -927,1626 +977,1673 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
 
 
 
-tempo_parado_person = pygame.time.get_ticks()  
-boss_atingido_por_onda = pygame.time.get_ticks()
-tempo_ultimo_disparo = pygame.time.get_ticks()
-tempo_ultimo_escudo = pygame.time.get_ticks()
+def executar_jogo(game_manager=None):
+    global Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss1, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Safe, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, alvo_x, alvo_y, apertou_q, bonus_pontuacao, boss, boss_envenenado, boss_vivo1, cartas_compradas, chance_critico, cliente_ativo, conn, convite_boss_ativo, convite_boss_recebido, convite_boss_tempo, dados, dano, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_alvo, direcao_atual, direcao_atual_p2, direcao_atual_petro, direcao_player2, direcao_x, direcao_y, disparos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_ataque_especial, escudo_devota_ativo, estado, estado_jogo, fila_envio, fila_recebimento, fonte, fonte_mensagem, frame_atual, frame_atual_chefe, frame_porcentagem, hitboxes, impulsiva_ativa, imune_tempo_restante, iniciar_boss, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, jogador_morto, jogador_posicoes, jogador_remoto_morto, largura_disparo, loja_aberta, mensagem, mensagem_ativa, mensagem_mostrada, mensagens_exibidas, moedas_coletadas, moedas_soltadas, mostrar_tutorial, movimento_pressionado, ondas, outro_jogador_morto, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe, pos_x_personagem, pos_x_petro, pos_x_player2, pos_y_chefe, pos_y_personagem, pos_y_petro, pos_y_player2, quantidade_roubo_vida, r_press, roubo_de_vida, running, sprite_moeda, tela, teleportado, tempo_anterior_petro, tempo_ataque_especial, tempo_atual, tempo_cooldown_dash, tempo_envio_ping, tempo_fim_mensagem, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_morte, tempo_mostrando_mensagem, tempo_passado, tempo_passado_animacao_chefe, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_mudanca_direcao_boss, tempo_ultima_regeneracao, tempo_ultima_troca_alvo, tempo_ultimo_ataque, tempo_ultimo_dano_ataque, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, tipo_buff_impulsiva, trembo, ultima_direcao_boss, ultima_vida_enviada, ultimo_tick_veneno_boss, upgrades, velocidade_personagem, vida, vida_boss, vida_inimigo_maxima, vida_maxima, vida_maxima_boss1, vida_maxima_petro, vida_petro, xp_petro
+    class CleanExit(BaseException):
+        pass
+    import sys as _sys
+    import os as _os
+    import builtins as _builtins
+    def local_exit(*args, **kwargs):
+        if game_manager:
+            raise CleanExit()
+        else:
+            _sys.exit(*args, **kwargs)
+    def local_os_exit(*args, **kwargs):
+        if game_manager:
+            raise CleanExit()
+        else:
+            _os._exit(*args, **kwargs)
+    _orig_sys_exit = _sys.exit
+    _orig_os_exit = _os._exit
+    _orig_builtins_exit = getattr(_builtins, 'exit', None)
+    _sys.exit = local_exit
+    _os._exit = local_os_exit
+    if _orig_builtins_exit:
+        _builtins.exit = local_exit
+    try:
+        tempo_parado_person = pygame.time.get_ticks()  
+        boss_atingido_por_onda = pygame.time.get_ticks()
+        tempo_ultimo_disparo = pygame.time.get_ticks()
+        tempo_ultimo_escudo = pygame.time.get_ticks()
 
-Som_tema_fases.play(loops=-1)
-Musica_tema_fases.play(loops=-1)
+        Som_tema_fases.play(loops=-1)
+        Musica_tema_fases.play(loops=-1)
 
-upgrades = carregar_upgrade_aureas("aureas_upgrade.json")
+        upgrades = carregar_upgrade_aureas("saves/aureas_upgrade.json")
 
-FPS=pygame.time.Clock()
-pygame.mouse.set_visible(False)
-cursor_imagem = pygame.image.load("Sprites/Ponteiro.png").convert_alpha()  # Ajuste o caminho
-cursor_tamanho = cursor_imagem.get_size()
+        FPS=pygame.time.Clock()
+        pygame.mouse.set_visible(False)
+        cursor_imagem = pygame.image.load("Sprites/Ponteiro.png").convert_alpha()  # Ajuste o caminho
+        cursor_tamanho = cursor_imagem.get_size()
 
-sprite_moeda = pygame.image.load("Sprites/moeda.png").convert_alpha()
-moedas_soltadas = []
+        sprite_moeda = pygame.image.load("Sprites/moeda.png").convert_alpha()
+        moedas_soltadas = []
 
-###################################################################################################PRINCIPAL#################################################################################################################
-#LOOP PRINCIPAL
-running = True
-while running:
+        ###################################################################################################PRINCIPAL#################################################################################################################
+        #LOOP PRINCIPAL
+        running = True
+        while running:
+            tempo_atual = pygame.time.get_ticks()
 
-    if impulsiva_ativa:
-        disparo_paths = ["Sprites/Fogo_impulso1.png", "Sprites/Fogo_impulso2.png"]
-    else:
-        disparo_paths = ["Sprites/Fogo1.png", "Sprites/Fogo2.png"]
-    frames_disparo = [pygame.image.load(path) for path in disparo_paths]
-    frames_disparo = [pygame.transform.scale(frame, (largura_disparo, altura_disparo)) for frame in frames_disparo]
+            if impulsiva_ativa:
+                disparo_paths = ["Sprites/Fogo_impulso1.png", "Sprites/Fogo_impulso2.png"]
+            else:
+                disparo_paths = ["Sprites/Fogo1.png", "Sprites/Fogo2.png"]
+            frames_disparo = [pygame.image.load(path) for path in disparo_paths]
+            frames_disparo = [pygame.transform.scale(frame, (largura_disparo, altura_disparo)) for frame in frames_disparo]
 
 
-    #################################### Conexão Host ou cliente
-    if modo == "host" :
-        # --- Atualiza e envia estado completo para o cliente ---
-        estado = {
-            "p1": {
-                "x": pos_x_personagem,
-                "y": pos_y_personagem,
-                "direcao": direcao_atual,
-                "morto": jogador_morto
-            },
-            "inimigos": [
-                {
-                    "x": inimigo["rect"].x,
-                    "y": inimigo["rect"].y,
-                    "vida": inimigo["vida"],
-                    "vida_max": inimigo["vida_maxima"]
+            #################################### Conexão Host ou cliente
+            if modo == "host" :
+                # --- Atualiza e envia estado completo para o cliente ---
+                estado = {
+                    "p1": {
+                        "x": pos_x_personagem,
+                        "y": pos_y_personagem,
+                        "direcao": direcao_atual,
+                        "morto": jogador_morto
+                    },
+                    "inimigos": [
+                        {
+                            "x": inimigo["rect"].x,
+                            "y": inimigo["rect"].y,
+                            "vida": inimigo["vida"],
+                            "vida_max": inimigo["vida_maxima"]
+                        }
+                        for inimigo in inimigos_comum
+                    ]
                 }
-                for inimigo in inimigos_comum
-            ]
-        }
-        fila_envio.put(estado)
-        if boss_vivo1:
-            estado["boss"] = {
-                "x": pos_x_chefe,
-                "y": pos_y_chefe,
-                "vida": vida_boss,
-                "vida_max": vida_maxima_boss1
-            }
-        while not fila_recebimento.empty():
-            dados = fila_recebimento.get()
-            if dados:
-                if "game_over" in dados and dados["game_over"]:
-                    estado_jogo = "game_over"
-                
-                if "ping" in dados:
-                    try:
-                        fila_envio.put({"pong": dados["ping"]})  # devolve o mesmo tempo
-                    except:
-                        pass
-                if "p2" in dados:  # Recebe dados do cliente (jogador 2)
-                    pos_x_player2 = dados["p2"]["x"]
-                    pos_y_player2 = dados["p2"]["y"]
-                    direcao_player2 = dados["p2"].get("direcao", "down")
-                    cliente_ativo = True  # O cliente está ativo
-                    if "morto" in dados["p2"]:
-                        jogador_remoto_morto = dados["p2"]["morto"]
+                fila_envio.put(estado)
+                if boss_vivo1:
+                    estado["boss"] = {
+                        "x": pos_x_chefe,
+                        "y": pos_y_chefe,
+                        "vida": vida_boss,
+                        "vida_max": vida_maxima_boss1
+                    }
+                while not fila_recebimento.empty():
+                    dados = fila_recebimento.get()
+                    if dados:
+                        if "game_over" in dados and dados["game_over"]:
+                            estado_jogo = "game_over"
 
-
-                # Cliente avisou que acertou um inimigo
-                if "hit" in dados:
-                    
-                    idx = dados["hit"]
-                    if 0 <= idx < len(inimigos_comum):
-                        inimigo = inimigos_comum[idx]
-
-                        # aplica o dano
-                        inimigo["vida"] -= dano_person_hit
-
-                        # verifica se morreu
-                        if inimigo["vida"] <= 0:
-                            # Guarda posição antes de remover
-                            posicao_inimigo = inimigo["rect"].center
-                            inimigos_comum.pop(idx)
-                            ganho = int(75 + math.log2(inimigos_eliminados + 1) * 4)
-                            # soma pontos
-                            pontuacao_exib += ganho  # ou o valor real do inimigo
-                            # envia pontuação atualizada para o cliente
-                            
-                            fila_envio.put({"pontuacao_atual": pontuacao_exib})
-                            aplicar_crescimento_personalizado()
-                            fila_envio.put({"crescimento_local": True})
-                            
-                            # Host também avisa o client para soltar moeda no local certo
+                        if "ping" in dados:
                             try:
-                                fila_envio.put({"drop_moeda": posicao_inimigo})
+                                fila_envio.put({"pong": dados["ping"]})  # devolve o mesmo tempo
                             except:
                                 pass
+                        if "p2" in dados:  # Recebe dados do cliente (jogador 2)
+                            pos_x_player2 = dados["p2"]["x"]
+                            pos_y_player2 = dados["p2"]["y"]
+                            direcao_player2 = dados["p2"].get("direcao", "down")
+                            cliente_ativo = True  # O cliente está ativo
+                            if "morto" in dados["p2"]:
+                                jogador_remoto_morto = dados["p2"]["morto"]
 
 
-                # Cliente avisou que acertou com ataque especial
-                # HOST
-                if "hit_especial" in dados:
-                    rect_onda = pygame.Rect(
-                        dados["hit_especial"]["x"],
-                        dados["hit_especial"]["y"],
-                        dados["hit_especial"]["w"],
-                        dados["hit_especial"]["h"]
-                    )
-                    for inimigo in inimigos_comum[:]:
-                        if rect_onda.colliderect(inimigo["rect"]):
-                            inimigo["vida"] -= dano_person_hit * 2
-                            if inimigo["vida"] <= 0:
-                                inimigos_comum.remove(inimigo)
-                                fila_envio.put({"pontuacao_atual": pontuacao_exib})
-                                aplicar_crescimento_personalizado()
-                                fila_envio.put({"crescimento_local": True})
+                        # Cliente avisou que acertou um inimigo
+                        if "hit" in dados:
 
-                 # --- Cliente sugeriu o boss ---
-                if "convite_boss" in dados and dados["convite_boss"]:
+                            idx = dados["hit"]
+                            if 0 <= idx < len(inimigos_comum):
+                                inimigo = inimigos_comum[idx]
+
+                                # aplica o dano
+                                inimigo["vida"] -= dano_person_hit
+
+                                # verifica se morreu
+                                if inimigo["vida"] <= 0:
+                                    # Guarda posição antes de remover
+                                    posicao_inimigo = inimigo["rect"].center
+                                    inimigos_comum.pop(idx)
+                                    ganho = int(75 + math.log2(inimigos_eliminados + 1) * 4)
+                                    # soma pontos
+                                    pontuacao_exib += ganho  # ou o valor real do inimigo
+                                    # envia pontuação atualizada para o cliente
+
+                                    fila_envio.put({"pontuacao_atual": pontuacao_exib})
+                                    aplicar_crescimento_personalizado()
+                                    fila_envio.put({"crescimento_local": True})
+
+                                    # Host também avisa o client para soltar moeda no local certo
+                                    try:
+                                        fila_envio.put({"drop_moeda": posicao_inimigo})
+                                    except:
+                                        pass
+
+
+                        # Cliente avisou que acertou com ataque especial
+                        # HOST
+                        if "hit_especial" in dados:
+                            rect_onda = pygame.Rect(
+                                dados["hit_especial"]["x"],
+                                dados["hit_especial"]["y"],
+                                dados["hit_especial"]["w"],
+                                dados["hit_especial"]["h"]
+                            )
+                            for inimigo in inimigos_comum[:]:
+                                if rect_onda.colliderect(inimigo["rect"]):
+                                    inimigo["vida"] -= dano_person_hit * 2
+                                    if inimigo["vida"] <= 0:
+                                        inimigos_comum.remove(inimigo)
+                                        fila_envio.put({"pontuacao_atual": pontuacao_exib})
+                                        aplicar_crescimento_personalizado()
+                                        fila_envio.put({"crescimento_local": True})
+
+                         # --- Cliente sugeriu o boss ---
+                        if "convite_boss" in dados and dados["convite_boss"]:
+                            convite_boss_ativo = True
+                            convite_boss_recebido = True
+                            convite_boss_tempo = pygame.time.get_ticks()
+
+                        # --- Cliente respondeu ---
+                        if "resposta_boss" in dados:
+                            if dados["resposta_boss"]:
+                                iniciar_boss = True
+                                fila_envio.put({"iniciar_boss": True})  # avisa cliente
+                            else:
+                                convite_boss_ativo = False
+
+                        # --- Cliente recebeu confirmação de iniciar ---
+                        if "iniciar_boss" in dados and dados["iniciar_boss"]:
+                            iniciar_boss = True
+                        # --- CLIENTE ACERTOU O BOSS (DANO NORMAL) ---
+                        if "hit_boss" in dados:
+                            if boss_vivo1 and vida_boss > 0:
+                                dano = dano_person_hit
+                                if random.random() <= chance_critico:
+                                    dano *= 3
+                                vida_boss -= dano
+                                if vida_boss <= 0:
+                                    boss_vivo1 = False
+                                    fila_envio.put({"boss_morto": True})
+
+                        # --- CLIENTE ACERTOU O BOSS (HIT ESPECIAL) ---
+                        if "hit_boss_especial" in dados:
+                            if boss_vivo1 and vida_boss > 0:
+                                dano = dano_person_hit * 2
+                                vida_boss -= dano
+                                if vida_boss <= 0:
+                                    boss_vivo1 = False
+                                    fila_envio.put({"boss_morto": True})
+                        if "vida_cliente" in dados:
+                            vida_remota = dados["vida_cliente"]
+
+
+                    # --- Host aperta R para sugerir o boss ---
+                if not convite_boss_ativo and not r_press and pygame.key.get_pressed()[pygame.K_r]:
                     convite_boss_ativo = True
-                    convite_boss_recebido = True
+                    convite_boss_enviado = True
                     convite_boss_tempo = pygame.time.get_ticks()
+                    fila_envio.put({"convite_boss": True})
 
-                # --- Cliente respondeu ---
-                if "resposta_boss" in dados:
-                    if dados["resposta_boss"]:
-                        iniciar_boss = True
-                        fila_envio.put({"iniciar_boss": True})  # avisa cliente
-                    else:
-                        convite_boss_ativo = False
-
-                # --- Cliente recebeu confirmação de iniciar ---
-                if "iniciar_boss" in dados and dados["iniciar_boss"]:
-                    iniciar_boss = True
-                # --- CLIENTE ACERTOU O BOSS (DANO NORMAL) ---
-                if "hit_boss" in dados:
-                    if boss_vivo1 and vida_boss > 0:
-                        dano = dano_person_hit
-                        if random.random() <= chance_critico:
-                            dano *= 3
-                        vida_boss -= dano
-                        if vida_boss <= 0:
-                            boss_vivo1 = False
-                            fila_envio.put({"boss_morto": True})
-
-                # --- CLIENTE ACERTOU O BOSS (HIT ESPECIAL) ---
-                if "hit_boss_especial" in dados:
-                    if boss_vivo1 and vida_boss > 0:
-                        dano = dano_person_hit * 2
-                        vida_boss -= dano
-                        if vida_boss <= 0:
-                            boss_vivo1 = False
-                            fila_envio.put({"boss_morto": True})
-                if "vida_cliente" in dados:
-                    vida_remota = dados["vida_cliente"]
-
-
-            # --- Host aperta R para sugerir o boss ---
-        if not convite_boss_ativo and not r_press and pygame.key.get_pressed()[pygame.K_r]:
-            convite_boss_ativo = True
-            convite_boss_enviado = True
-            convite_boss_tempo = pygame.time.get_ticks()
-            fila_envio.put({"convite_boss": True})
-
-        # --- Tempo limite do convite ---
-        if convite_boss_ativo and pygame.time.get_ticks() - convite_boss_tempo > 5000:  
-            convite_boss_ativo = False
-            convite_boss_enviado = False
-            convite_boss_recebido = False
-        outro_jogador_morto = jogador_remoto_morto  # cliente remoto
-                
-
-
-
-    elif modo == "join":
-        # Medir ping: envia um pacote de teste e mede o tempo de resposta
-        if pygame.time.get_ticks() - tempo_envio_ping > 1000:
-            tempo_envio_ping = pygame.time.get_ticks()
-            try:
-                fila_envio.put({"ping": tempo_envio_ping})  # envia o tempo de envio
-            except:
-                pass
-
-        
-        fila_envio.put({
-            "p2": {
-                "x": pos_x_personagem,
-                "y": pos_y_personagem,
-                "direcao": direcao_atual_p2,
-                "morto": jogador_morto
-            }
-        })
-        # Se a vida mudou, envia ao host
-        if vida != ultima_vida_enviada:
-            fila_envio.put({"vida_cliente": vida})
-            ultima_vida_enviada = vida
-
-        if loja_aberta:
-            loja_aberta = False
-
-        
-            ret = tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_disparo, altura_disparo,
-                        trembo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,
-                        tempo_cooldown_dash, vida_maxima, Petro_active, Resistencia, vida_petro,
-                        vida_maxima_petro, dano_petro, xp_petro, petro_evolucao, Resistencia_petro,
-                        Chance_Sorte, Poison_Active, Dano_Veneno_Acumulado, Executa_inimigo, Ultimo_Estalo,
-                        mostrar_info, Mercenaria_Active, Valor_Bonus, dispositivo_ativo, Tempo_cura,
-                        porcentagem_cura, cartas_compradas, pontuacao_exib,
-                        max_cartas_compraveis=quantidade_cartas)
-            velocidade_personagem = ret[0]
-            intervalo_disparo = ret[1]
-            vida = ret[2]
-            largura_disparo =ret[3]
-            altura_disparo =ret[4]
-            trembo= ret[5]
-            dano_person_hit= ret[6]
-            chance_critico= ret[7]
-            roubo_de_vida= ret[8]
-            quantidade_roubo_vida= ret[9]
-            tempo_cooldown_dash= ret[10]
-            vida_maxima= ret[11]
-            Petro_active= ret[12]
-            Resistencia=  ret[13]
-            vida_petro= ret[14]
-            vida_maxima_petro= ret[15]
-            dano_petro= ret[16]
-            xp_petro= ret[17]
-            petro_evolucao= ret[18]
-            Resistencia_petro= ret[19]
-            Chance_Sorte= ret[20]
-            Poison_Active= ret[21]
-            Dano_Veneno_Acumulado= ret[22]
-            Executa_inimigo= ret[23]
-            Ultimo_Estalo= ret[24]
-            Mercenaria_Active= ret[25]
-            Valor_Bonus= ret[26]
-            dispositivo_ativo=ret[27]
-            Tempo_cura=ret[28]
-            porcentagem_cura=ret[29]
-            cartas_compradas= ret[30]
-            pontuacao_exib= ret[31]
-            tela_de_espera_client(tela, fila_envio, fila_recebimento)
-            fila_envio.put({"pontuacao_atual": pontuacao_exib})
-        # --- Cliente pode sugerir o boss ---
-        if not convite_boss_ativo and not r_press and pygame.key.get_pressed()[pygame.K_r]:
-            fila_envio.put({"convite_boss": True})
-            convite_boss_ativo = True
-            convite_boss_enviado = True
-            convite_boss_tempo = pygame.time.get_ticks()
-
-        # --- Cliente responde a convite ativo ---
-        if convite_boss_ativo and convite_boss_recebido:
-            keys = pygame.key.get_pressed()
-            if keys[pygame.K_y]:
-                fila_envio.put({"resposta_boss": True})
-                convite_boss_ativo = False
-            elif keys[pygame.K_n]:
-                fila_envio.put({"resposta_boss": False})
-                convite_boss_ativo = False 
-        outro_jogador_morto = jogador_remoto_morto  # host remoto
-                   
+                # --- Tempo limite do convite ---
+                if convite_boss_ativo and pygame.time.get_ticks() - convite_boss_tempo > 5000:  
+                    convite_boss_ativo = False
+                    convite_boss_enviado = False
+                    convite_boss_recebido = False
+                outro_jogador_morto = jogador_remoto_morto  # cliente remoto
 
 
 
 
-    nivel_impulsiva = upgrades.get("Impulsiva", 0)
-    if impulsiva_ativa:
-        duracao_buff = 3000 + nivel_impulsiva * 500  # 3s base + 0.5s por nível
-        if pygame.time.get_ticks() - tempo_inicio_buff_impulsiva >= duracao_buff:
-            impulsiva_ativa = False
-            tipo_buff_impulsiva = None
-        else:
-            if tipo_buff_impulsiva == "dano":
-                multiplicador_dano = 1.3 + (0.05 * nivel_impulsiva)
-            elif tipo_buff_impulsiva == "velocidade":
-                multiplicador_velocidade = 1.2 + (0.05 * nivel_impulsiva)
-        mensagem = "+ Buff: Dano ↑" if tipo_buff_impulsiva == "dano" else "+ Buff: Velocidade ↑"
-
-        efeitos_texto.append({
-            "texto": mensagem,
-            "x": pos_x_personagem,
-            "y": pos_y_personagem - 20,
-            "tempo_inicio": pygame.time.get_ticks(),
-            "cor": (255, 100, 100) if tipo_buff_impulsiva == "dano" else (100, 100, 255)
-        })
-
-
-    pos_mouse = pygame.mouse.get_pos()
-    botao_mouse = pygame.mouse.get_pressed()
-    mouse_x = max(0, min(pos_mouse[0], largura_mapa - cursor_tamanho[0]))
-    mouse_y = max(0, min(pos_mouse[1], altura_mapa - cursor_tamanho[1]))
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-            pygame.quit()
-            sys.exit()
-
-        if not jogador_morto:  # Só permite se estiver vivo
-            if botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo:  # Botão esquerdo do mouse
-                pos_mouse = pygame.mouse.get_pos()
-                angulo = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
-                Disparo_Geo.play()
-                # Crie o disparo com direção baseada no ângulo
-                novo_disparo = {
-                    "rect": pygame.Rect(pos_x_personagem, pos_y_personagem, largura_disparo, altura_disparo),
-                    "angulo": angulo
-                }
-                disparos.append(novo_disparo)
-                tempo_ultimo_disparo = tempo_atual  # Atualizar o tempo do último disparo
-            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3 and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade:  # Botão direito do mouse
-                pos_mouse = pygame.mouse.get_pos()
-                angulo = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
-                
-                # Criar uma onda cinética com as novas propriedades
-                nova_onda = {
-                    "rect": pygame.Rect(pos_x_personagem, pos_y_personagem, largura_onda, altura_onda),
-                    "angulo": angulo,
-                    "tempo_inicio": pygame.time.get_ticks(),
-                    "frame_atual": 0,
-                    "frames": frames_onda_cinetica  # Certifique-se de ter os frames para animação da onda
-                }
-                ondas.append(nova_onda)
-                tempo_ultimo_uso_habilidade = tempo_atual
-        
-    # Verificar eventos de teclado
-    keys = pygame.key.get_pressed()
-    
-    # Verificar eventos de joystick
-    joystick_count = pygame.joystick.get_count()
-    if joystick_count > 0:
-        joystick = pygame.joystick.Joystick(0)
-        joystick.init()
-    else:
-        joystick = None
-
-    # Chamar a função para atualizar a posição do personagem
-    ultimo_x = pos_x_personagem
-    ultimo_y = pos_y_personagem
-    if not jogador_morto:
-        if modo == "host" :
-            direcao_atual = atualizar_posicao_personagem(keys, joystick)
-        elif modo == "join":
-            direcao_atual_p2 = atualizar_posicao_personagem(keys, joystick)
-    else:
-        # Jogador morto não pode se mover
-        direcao_atual = "down"
-
-
-    
-
-    novos_inimigos = []
-    novos_disparos = []
-    inimig_atin=[]
-
-    tempo_passado += relogio.get_rawtime()
-    relogio.tick()
-
-     # Adicionar inimigos a cada 10 segundos
-    tempo_atual = pygame.time.get_ticks()
-    if modo == "host" :  # Apenas o host pode gerar inimigos
-        if mostrar_tutorial:
-            if (
-                tempo_atual > 23000
-                and apertou_q
-                and tempo_atual - tempo_ultimo_inimigo >= 1000
-                and len(inimigos_comum) < max_inimigos
-                and not boss_vivo1
-            ):
-                gerar_inimigo()
-                tempo_ultimo_inimigo = tempo_atual  # Atualiza o tempo do último inimigo adicionado
-        else:
-            if (
-                tempo_atual - tempo_ultimo_inimigo >= 1000
-                and len(inimigos_comum) < max_inimigos
-                and not boss_vivo1
-            ):
-                gerar_inimigo()
-                tempo_ultimo_inimigo = tempo_atual  # Atualiza o tempo do último inimigo adicionado
-
-    
-    nivel_racional = upgrades.get("Racional", 0)
-    #LUGAR AONDE COLOCAMOS AS AUREAS
-    if aurea == "Racional":
-        if pos_x_personagem == ultimo_x and pos_y_personagem == ultimo_y:
-            if tempo_atual - tempo_parado_person >= 5000:
-                ganho = 3 + nivel_racional  # ganho aumenta com o nível
-                pontuacao += ganho
-                pontuacao_exib += ganho
-                tempo_parado_person = tempo_atual
-
-                # Determina posição flutuante aleatória à direita ou esquerda do personagem
-                lado = random.choice(["esquerda", "direita"])
-                if lado == "esquerda":
-                    x = pos_x_personagem - 20
-                else:
-                    x = pos_x_personagem + largura_personagem + 5
-
-                y = pos_y_personagem - 10  # ligeiramente acima
-
-                # Adiciona efeito à lista
-                efeitos_texto.append({
-                    "texto": f"+{ganho}",
-                    "x": x,
-                    "y": y,
-                    "tempo_inicio": tempo_atual,
-                    "cor": (50, 255, 50)  # verde
-                })
-    if aurea == "Impulsiva":
-        
-        if eliminacoes_consecutivas_impulsiva >= 5 and not impulsiva_ativa:
-            impulsiva_ativa = True
-            tipo_buff_impulsiva = random.choice(["dano", "velocidade"])
-            tempo_inicio_buff_impulsiva = pygame.time.get_ticks()
-            eliminacoes_consecutivas_impulsiva = 0  # Zera para forçar novo ciclo
-    
-
-
-                
-    if direcao_atual == 'stop':
-        if tempo_passado >= tempo_animacao_stop:
-            tempo_passado = 0
-            frame_atual = (frame_atual + 1) % len(frames_animacao[direcao_atual])
-    
-   
-
-
-    tela.fill((255, 255, 255))
-    tela.blit(mapa, (0, 0))
-
-    
-
-    
-    # Desenhar os disparos normais
-    novos_disparos = []
-    for disparo in disparos:
-        disparo["rect"].x += velocidade_disparo * math.cos(disparo["angulo"])
-        disparo["rect"].y += velocidade_disparo * math.sin(disparo["angulo"])
-        
-        # Verificar se o disparo está dentro do mapa
-        if 0 <= disparo["rect"].x < largura_mapa and 0 <= disparo["rect"].y < altura_mapa:
-            novos_disparos.append(disparo)
-    disparos = novos_disparos
-    
-    # Renderizar os disparos
-    for disparo in disparos:
-        tela.blit(frames_disparo[frame_atual_disparo], disparo["rect"].topleft)
-
-
-
-    if modo == "join":
-        novas_ondas = []
-        for onda in ondas:
-            onda["rect"].x += velocidade_onda * math.cos(onda["angulo"])
-            onda["rect"].y += velocidade_onda * math.sin(onda["angulo"])
-            tempo_decorrido_onda = pygame.time.get_ticks() - onda["tempo_inicio"]
-            onda["frame_atual"] = (tempo_decorrido_onda // duracao_frame_onda) % len(onda["frames"])
-            tela.blit(onda["frames"][onda["frame_atual"]], onda["rect"])
-
-            if 0 <= onda["rect"].x < largura_mapa and 0 <= onda["rect"].y < altura_mapa:
-                novas_ondas.append(onda)
-
-            # detecta colisão, só avisa
-            for idx, inimigo in enumerate(inimigos_comum):
-                if onda["rect"].colliderect(inimigo["rect"]):
+            elif modo == "join":
+                # Medir ping: envia um pacote de teste e mede o tempo de resposta
+                if pygame.time.get_ticks() - tempo_envio_ping > 1000:
+                    tempo_envio_ping = pygame.time.get_ticks()
                     try:
-                        # CLIENTE
-                        for onda in ondas:
-                            fila_envio.put({
-                                "hit_especial": {
-                                    "x": onda["rect"].x,
-                                    "y": onda["rect"].y,
-                                    "w": onda["rect"].w,
-                                    "h": onda["rect"].h
-                                }
-                            })
-
+                        fila_envio.put({"ping": tempo_envio_ping})  # envia o tempo de envio
                     except:
                         pass
 
-        ondas = novas_ondas
 
-        
-
-    if modo == "host" :
-        novas_ondas = []
-        for onda in ondas:
-            onda["rect"].x += velocidade_onda * math.cos(onda["angulo"])
-            onda["rect"].y += velocidade_onda * math.sin(onda["angulo"])
-            tempo_decorrido_onda = pygame.time.get_ticks() - onda["tempo_inicio"]
-            onda["frame_atual"] = (tempo_decorrido_onda // duracao_frame_onda) % len(onda["frames"])
-            tela.blit(onda["frames"][onda["frame_atual"]], onda["rect"])
-
-            if 0 <= onda["rect"].x < largura_mapa and 0 <= onda["rect"].y < altura_mapa:
-                novas_ondas.append(onda)
-
-        ondas = novas_ondas
-
-        # Aplica dano real
-        for onda in ondas:
-            for inimigo in inimigos_comum[:]:  # [:] evita erro ao remover
-                inimigo_id = id(inimigo["rect"])
-                if onda["rect"].colliderect(inimigo["rect"]) and \
-                (inimigo_id not in inimigos_atingidos_por_onda or tempo_atual - inimigos_atingidos_por_onda[inimigo_id] >= 500):
-                    inimigo["vida"] -= dano_person_hit * 2
-                    inimigos_atingidos_por_onda[inimigo_id] = tempo_atual
-
-                    if inimigo["vida"] <= 0:
-                        inimigos_comum.remove(inimigo)
-                        # Pontuação escalada
-                        ganho = int(75 + math.log2(inimigos_eliminados + 1) * 4)
-                        pontuacao += ganho
-                        pontuacao_exib += ganho
-                        aplicar_crescimento_personalizado()
-                        fila_envio.put({"pontuacao_atual": pontuacao_exib})
-                        fila_envio.put({"crescimento_local": True})
-            
-                        
-
-                        # Cura da Petro se estiver muito ferida
-                        if vida_petro < (vida_maxima_petro * 0.6):
-                            vida_petro += (vida_maxima_petro * 0.4)
-                            if vida_petro > vida_maxima_petro:
-                                vida_petro = vida_maxima_petro
-
-                        # Boss: progressão escalada
-                        if not boss_vivo1:
-                            if vida_boss > 0:
-                                vida_boss += 15 + nivel_ameaca * 10
-                                vida_maxima_boss1 = vida_boss
-            # Controle de dano para o boss
-            if boss_vivo1 and onda["rect"].colliderect(pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)):
-                boss_id = "boss"  # Identificador único para o boss no dicionário
-                tempo_atual = pygame.time.get_ticks()
-
-                if tempo_atual - boss_atingido_por_onda >= 500: 
-                    vida_boss -= dano_person_hit * 5  
-                    
-                    boss_atingido_por_onda = tempo_atual  # Atualiza o tempo do último dano
-
-                    # Verifica se o boss foi derrotado
-                    if vida_boss <= 0:
-                        boss_vivo1 = False
-                        fila_envio.put({"boss_morto": True})
-                        vida_maxima_boss1 = 0
-                        # Aplique os efeitos ou recompensas ao derrotar o boss aqui            
-
-        # Depois do cálculo, envia sincronização pro cliente
-        try:
-            fila_envio.put({"inimigos": [{"x": i["x"], "y": i["y"], "vida": i["vida"], "vida_max": i["vida_maxima"]} for i in inimigos_comum],
-                            "pontuacao_atual": pontuacao_exib})
-            
-        except:
-            pass
-    
-    if modo == "host" :
-        for inimigo in inimigos_comum:
-            # Se o alvo atual morreu, força troca imediata
-            if alvo_atual == "host" and jogador_morto and not jogador_remoto_morto:
-                alvo_atual = "cliente"
-                tempo_ultima_troca_alvo = tempo_atual
-
-            elif alvo_atual == "cliente" and jogador_remoto_morto and not jogador_morto:
-                alvo_atual = "host"
-                tempo_ultima_troca_alvo = tempo_atual
-
-            else:
-                # Avalia se está na hora de reconsiderar o alvo
-                if tempo_atual - tempo_ultima_troca_alvo >= intervalo_troca_alvo:
-
-                    # Calcula distância até cada jogador
-                    for inimigo in inimigos_comum:  # Aqui a variável inimigo está sendo iterada de uma lista de inimigos
-                        dist_host = math.hypot(pos_x_personagem - inimigo["rect"].x, pos_y_personagem - inimigo["rect"].y)
-                        dist_cliente = math.hypot(pos_x_player2 - inimigo["rect"].x, pos_y_player2 - inimigo["rect"].y)
-
-                    # Atribui pontuação de prioridade para cada alvo
-                    prioridade_host = 0
-                    prioridade_cliente = 0
-
-                    if not jogador_morto:
-                        prioridade_host += max(0, 1000 - dist_host)
-                    if not jogador_remoto_morto:
-                        prioridade_cliente += max(0, 1000 - dist_cliente)
-
-                    # Bônus por vulnerabilidade: quanto menor a vida, mais atraente
-                    prioridade_host += max(0, (vida_maxima - vida) * 0.3)
-                    prioridade_cliente += max(0, (vida_maxima - vida_remota) * 0.3)
-
-                    # Chance aleatória leve para variação de comportamento
-                    prioridade_host *= random.uniform(0.8, 1.2)
-                    prioridade_cliente *= random.uniform(0.8, 1.2)
-
-                    # Define novo alvo se diferença for significativa
-                    if abs(prioridade_host - prioridade_cliente) > 150:
-                        novo_alvo = "host" if prioridade_host > prioridade_cliente else "cliente"
-                        if novo_alvo != alvo_atual:
-                            alvo_atual = novo_alvo
-                            tempo_ultima_troca_alvo = tempo_atual
-
-            # Define coordenadas do alvo com base na escolha
-            if alvo_atual == "host":
-                alvo_x, alvo_y = pos_x_personagem, pos_y_personagem
-                direcao_alvo = ultima_tecla_movimento
-            else:
-                alvo_x, alvo_y = pos_x_player2, pos_y_player2
-                direcao_alvo = direcao_player2
-
-    
-            
-
-    
-    # Desenhe os inimigos na tela
-    with lock_inimigos: # Evita ler enqaunto a threading escreve
-        for inimigo in inimigos_comum:
-            inimigo["image"] = frames_inimigo[frame_atual % len(frames_inimigo)]
-
-            tela.blit(inimigo["image"], inimigo["rect"])
-            desenhar_barra_de_vida(tela, inimigo["rect"].x, inimigo["rect"].y - 10, largura_inimigo, 5, inimigo["vida"], inimigo["vida_maxima"])
-        
-    personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem*0.5, altura_personagem*0.8)
-    inimigos_rects = [inimigo["rect"] for inimigo in inimigos_comum]
-
-    
-    if imune_tempo_restante > 0:
-        imune_tempo_restante -= relogio.get_time()  
-    else:
-        imune_tempo_restante = 0 
-
-    if not jogador_morto and not Safe:  # Só pode tomar dano se estiver vivo 
-        if verificar_colisao_personagem_inimigo(personagem_rect, inimigos_rects) and imune_tempo_restante <= 0:
-
-            if tempo_atual - tempo_ultimo_hit_inimigo >= intervalo_hit_inimigo:
-                Dano_pos_resistencia_person = int(((vida_maxima * 0.06)+dano_inimigo_perto) - Resistencia)
-                if aurea == "Vanguarda":
-                    for inimigo in inimigos_comum:
-                        if personagem_rect.colliderect(inimigo["rect"]):
-                            id_inimigo = id(inimigo)
-                            tempo_queimadura = pygame.time.get_ticks()
-                            inimigos_em_chamas[id_inimigo] = tempo_queimadura
-                        
-
-                if escudo_devota_ativo:
-                    escudo_devota_ativo= False
-                    pass
-                
-                elif Dano_pos_resistencia_person > 0:
-                    vida -= Dano_pos_resistencia_person
-                    if aurea == "Impulsiva":
-                        eliminacoes_consecutivas_impulsiva = 0  # Perde streak se levar dano
-
-                    eliminacoes_consecutivas = 0
-                    bonus_pontuacao = 0
-                
-                tempo_ultimo_hit_inimigo = tempo_atual
-                Dano_person.play()
-                piscando_vida = True
-                
-        if not escudo_devota_ativo and tempo_atual - tempo_ultimo_escudo >= intervalo_escudo:
-            escudo_devota_ativo = True
-            tempo_ultimo_escudo = tempo_atual
-            # adicionar um efeito visual de "escudo ativado"
-    else:
-        # Morto = não sofre dano
-        pass
-    
-        
-    # --- SISTEMA DE MORTE E REVIVAL ---
-
-    # Jogador morre
-    if vida <= 0 and not jogador_morto:
-        if trembo:
-            vida = vida_maxima  # Recupera a vida total
-            trembo = False  # Consome o "trembo"
-            imune_tempo_restante = 10000
-            teleportado = True  # Ativa o teleporte aleatório
-            porcentagem_cura = 0.02
-            Tempo_cura = 2500
-            pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(
-                largura_mapa, altura_mapa, largura_personagem, altura_personagem
-            )
-        else:
-            # Marca jogador como morto (revival temporário)
-            jogador_morto = True
-            tempo_morte = pygame.time.get_ticks()
-            vida = 0
-            sprite_atual = sprite_morto
-
-    # Se estiver morto, controla o revival
-    if jogador_morto:
-        tempo_passado_morte = pygame.time.get_ticks() - tempo_morte
-
-        # Desenha sprite de caído
-        tela.blit(sprite_morto, (pos_x_personagem, pos_y_personagem))
-
-        
-        # Calcula o tempo restante para reviver em segundos
-        segundos_restantes = max(0, (tempo_revive - (tempo_passado_morte // 1000)))  # tempo_revive é em segundos
-        texto_timer = fonte_mensagem.render(f"Revive em {segundos_restantes}s", True, (255, 80, 80))
-        tela.blit(texto_timer, (pos_x_personagem - 20, pos_y_personagem - 40))
-
-        # ⚙️ 1️⃣ Se o tempo de revival acabou e o outro jogador está morto → Game Over
-        if jogador_morto:
-            # Calcula o tempo passado desde a morte do jogador
-            tempo_passado_morte = pygame.time.get_ticks() - tempo_morte
-
-            # Desenha a sprite do jogador morto
-            tela.blit(sprite_morto, (pos_x_personagem, pos_y_personagem))
-
-            # Calcula o tempo restante para reviver em segundos
-            segundos_restantes = max(0, (tempo_revive - (tempo_passado_morte // 1000)))  # tempo_revive é em segundos
-            texto_timer = fonte_mensagem.render(f"Revive em {segundos_restantes}s", True, (255, 80, 80))
-            tela.blit(texto_timer, (pos_x_personagem - 20, pos_y_personagem - 40))
-
-            # ⚙️ 1️⃣ Se o tempo de revival acabou e o outro jogador também está morto → Game Over
-            if modo == "join" and jogador_remoto_morto:
-                fila_envio.put({"game_over": True})
-                mostrar_tutorial = False
-                pygame.time.delay(2000)
-                Musica_tema_fases.stop()
-                Som_tema_fases.stop()
-                tela_upgrade_aureas(tela, fonte, moedas_coletadas)
-                pygame.quit()
-                limpar_salvamento()
-                subprocess.run([python, "Game_Over.py"])
-                sys.exit()
-
-            # ⚙️ 2️⃣ Se o tempo de revival acabou, mas o outro jogador está vivo → revive
-            elif tempo_passado_morte >= tempo_revive * 1000 and not jogador_remoto_morto:
-                vida = vida_maxima // 2  # O jogador revive com metade da vida máxima
-                jogador_morto = False  # O jogador revive
-                sprite_atual = frames_animacao["down"][0]  # Restaura o sprite original do jogador
-
-                # Enviar para o host que o jogador reviveu
-                if modo == "join":
-                    fila_envio.put({"reviver": True})
-        if modo == "host" :
-            if estado_jogo == "game_over" or not running:
-                mostrar_tutorial = False
-                pygame.time.delay(2000)
-                Musica_tema_fases.stop()
-                Som_tema_fases.stop()
-                tela_upgrade_aureas(tela, fonte, moedas_coletadas)
-                pygame.quit()
-                limpar_salvamento()
-                subprocess.run([python, "Game_Over.py"])
-                sys.exit()
-        # No lado do host, quando o jogador renasce
-        if modo == "host" :
-            if jogador_morto and tempo_passado_morte >= tempo_revive * 1000:
-                jogador_morto = False  # O jogador revive
-                # Definir a posição e outras variáveis, se necessário
-                pos_x_personagem = largura_mapa // 2
-                pos_y_personagem = altura_mapa // 2
-                vida = vida_maxima // 2  # O jogador renasce com metade da vida
-                sprite_atual = frames_animacao["down"][0]  # Restabelece o sprite
-        
-
-
-    # Adicione esta verificação para controlar o piscar da barra de vida
-    if piscando_vida:
-        if tempo_atual % 500 < 250:  # Altere o valor 500 e 250 conforme necessário
-            # Desenha a barra de vida piscando em vermelho
-            pygame.draw.rect(tela, (255, 0, 0), (posicao_barra_vida[0], posicao_barra_vida[1], largura_barra_vida, altura_barra_vida))
-        else:
-            # Desenha a barra de vida normalmente
-            pygame.draw.rect(tela, verde, (posicao_barra_vida[0], posicao_barra_vida[1], (vida / vida_maxima) * largura_barra_vida, altura_barra_vida))
-
-        # Adicione esta verificação para parar o piscar depois de um tempo
-        if tempo_atual - tempo_ultimo_hit_inimigo >= intervalo_hit_inimigo:
-            piscando_vida = False
-
-    tempo_atual = pygame.time.get_ticks()
-
-    if boss_vivo1:
-        if not em_ataque_especial and pygame.time.get_ticks() - tempo_ultimo_ataque >= 5000:  # Intervalo entre ataques
-            # Inicia o ataque especial
-            em_ataque_especial = True
-            jogador_posicoes = []  # Reiniciar lista de posições
-            tempo_ataque_especial = pygame.time.get_ticks()
-
-        if em_ataque_especial:
-            tempo_atual = pygame.time.get_ticks()
-            indice_imagem = (tempo_atual - tempo_ataque_especial) // intervalo_troca
-            
-            # Atualizar a posição somente no início de cada intervalo, exceto no quinto frame
-            if len(jogador_posicoes) <= indice_imagem < len(imagens_ataque) - 2:
-                jogador_posicoes.append((pos_x_personagem, pos_y_personagem))
-
-            ataque_concluido = ataque_especial_boss(jogador_posicoes, imagens_ataque, tempo_ataque_especial, intervalo_troca, tela)
-            if ataque_concluido:
-                em_ataque_especial = False
-                tempo_ultimo_ataque = pygame.time.get_ticks()
-
-    # Verificar colisões com as bolhas e aplicar dano no loop principal
-    if em_ataque_especial:
-        personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-        for i, posicao in enumerate(jogador_posicoes[-1:]):
-            if i < len(imagens_ataque):
-                bolha_rect = pygame.Rect(posicao[0], posicao[1], 100, 100)  # Ajuste o tamanho da bolha aqui
-                hitboxes[i] = bolha_rect
-                # Verificar colisão com o personagem
-                if len(jogador_posicoes) == indice_imagem  and personagem_rect.colliderect(bolha_rect):
-                    if escudo_devota_ativo:
-                        escudo_devota_ativo= False
-                        pass
-                    elif pygame.time.get_ticks() - tempo_ultimo_dano_ataque >= 5000:  # Dano a cada 4 segundos
-                        vida -= (vida_maxima * 0.10) + Dano_Boss_Habilit
-                        tempo_ultimo_dano_ataque= pygame.time.get_ticks()
-    
-
-    ###############################################
-    #   DESENHA OS PERSONAGENS NA TELA
-    ###############################################
-
-    # HOST (jogador 1 local)
-    if modo == "host" :
-        # --- Desenha o próprio personagem ---
-        if jogador_morto:
-            tela.blit(sprite_morto, (pos_x_personagem, pos_y_personagem))
-        else:
-            tela.blit(frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])], (pos_x_personagem, pos_y_personagem))
-
-        # --- Desenha o segundo jogador (cliente) ---
-        if cliente_ativo:
-            try:
-                if jogador_remoto_morto:
-                    tela.blit(sprite_morto, (pos_x_player2, pos_y_player2))
-                else:
-                    tela.blit(frames_animacao2[direcao_player2][frame_atual % len(frames_animacao2[direcao_player2])], (pos_x_player2, pos_y_player2))
-            except KeyError:
-                tela.blit(frames_animacao2["down"][frame_atual % len(frames_animacao2["down"])], (pos_x_player2, pos_y_player2))
-
-    # JOIN (jogador 2 local)
-    elif modo == "join":
-        # --- Desenha o próprio personagem ---
-        if jogador_morto:
-            tela.blit(sprite_morto, (pos_x_personagem, pos_y_personagem))
-        else:
-            tela.blit(frames_animacao2[direcao_atual_p2][frame_atual % len(frames_animacao2[direcao_atual_p2])], (pos_x_personagem, pos_y_personagem))
-
-        # --- Desenha o host (jogador 1 remoto) ---
-        if host_ativo:
-            try:
-                if jogador_remoto_morto:
-                    tela.blit(sprite_morto, (pos_x_player2, pos_y_player2))
-                else:
-                    tela.blit(frames_animacao[direcao_player2][frame_atual % len(frames_animacao[direcao_player2])], (pos_x_player2, pos_y_player2))
-            except KeyError:
-                tela.blit(frames_animacao["down"][frame_atual % len(frames_animacao["down"])], (pos_x_player2, pos_y_player2))
-
-
-
-
-    
-
-    for moeda in moedas_soltadas[:]:  # cópia da lista para evitar erro ao remover
-        if personagem_rect.colliderect(moeda["rect"]):
-            moedas_coletadas+=1
-            moedas_soltadas.remove(moeda)
-            
-    nova_lista = []
-    for efeito in efeitos_texto:
-        tempo_passado = tempo_atual - efeito["tempo_inicio"]
-        if tempo_passado <= 800:  # mostra por 2 segundos
-            fonte_efeito = pygame.font.Font(None, 28)
-            x = efeito["x"]
-            y = efeito["y"] - (tempo_passado // 25)
-            texto_principal = fonte_efeito.render(efeito["texto"], True, efeito["cor"])
-
-            # Contorno preto em 8 direções
-            for dx in [-1, 0, 1]:
-                for dy in [-1, 0, 1]:
-                    if dx != 0 or dy != 0:
-                        contorno = fonte_efeito.render(efeito["texto"], True, (0, 0, 0))
-                        tela.blit(contorno, (x + dx, y + dy))
-
-            # Texto principal
-            tela.blit(texto_principal, (x, y))
-            nova_lista.append(efeito)
-    efeitos_texto = nova_lista
-    if trembo:
-        # Desenhar o segundo personagem ao lado do personagem original
-        pos_x_segundo_personagem = pos_x_personagem + largura_personagem + 4
-        pos_y_segundo_personagem = pos_y_personagem
-        tela.blit(frames_animacao_trembo[direcao_atual][frame_atual % len(frames_animacao_trembo[direcao_atual])], (pos_x_segundo_personagem, pos_y_segundo_personagem))
-    if trembo and tempo_atual- tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima :
-        if vida_maxima < vida:
-            vida=vida_maxima
-        vida+= (vida_maxima*porcentagem_cura)
-        tempo_ultima_regeneracao = tempo_atual
-    
-    
-    
-    if Petro_active:
-        # Calcula a direção para o inimigo mais próximo
-        
-        direcao_petro = calcular_direcao_para_inimigo({"rect": pygame.Rect(pos_x_petro, pos_y_petro, largura_personagem, altura_personagem)}, inimigos_comum)
-        
-        
-        # Se houver inimigos, atualize a posição de "Petro"
-        if inimigos_comum:
-            # Calcula as coordenadas do inimigo mais próximo
-            inimigo_mais_proximo = min(inimigos_comum, key=lambda inimigo: math.sqrt((inimigo["rect"].x - pos_x_petro) ** 2 + (inimigo["rect"].y - pos_y_petro) ** 2))
-            pos_x_inimigo_mais_proximo = inimigo_mais_proximo["rect"].x
-            pos_y_inimigo_mais_proximo = inimigo_mais_proximo["rect"].y
-            
-            posicao_petro = (pos_x_petro, pos_y_petro)
-            posicao_inimigo = (pos_x_inimigo_mais_proximo, pos_y_inimigo_mais_proximo)
-            tempo_atual = pygame.time.get_ticks()
-            if tempo_atual - tempo_ultima_atualizacao_direcao >= 1000:  # 1000 milissegundos = 1 segundo
-                # Atualiza a direção de Petro
-                direcao_atual_petro = determinar_frames_petro(posicao_petro, posicao_inimigo)
-                # Atualiza o tempo da última atualização da direção
-                tempo_ultima_atualizacao_direcao = tempo_atual
-            
-            
-            # Se "Petro" ainda não está na posição do inimigo, mova-o na direção calculada
-            if pos_x_petro != pos_x_inimigo_mais_proximo or pos_y_petro != pos_y_inimigo_mais_proximo:
-                pos_x_petro += 1 * direcao_petro[0]
-                pos_y_petro += 1 * direcao_petro[1]
-                
-
-            # Calcula a distância entre "Petro" e o inimigo mais próximo
-            distancia_petro_inimigo = math.sqrt((pos_x_petro - pos_x_inimigo_mais_proximo) ** 2 + (pos_y_petro - pos_y_inimigo_mais_proximo) ** 2)
-            
-            # Verifica se "Petro" está próximo o suficiente para aplicar dano
-            if distancia_petro_inimigo <= 50:
-                # Verifica se passou tempo suficiente desde o último dano
-                tempo_atual_petro = pygame.time.get_ticks()
-                if tempo_atual_petro - tempo_anterior_petro >= intervalo_dano_petro:
-                    # Aplica dano ao inimigo mais próximo
-                    Dano_pos_resistencia_petro=dano_inimigo-Resistencia_petro
-                    if Dano_pos_resistencia_petro < 0:
-                        pass
-                    
-                    else:
-                        vida_petro-=int(Dano_pos_resistencia_petro)#Dano em petro
-                    
-                    
-                    inimigo_mais_proximo["vida"] -= int(dano_person_hit * 0.005)+ dano_petro
-                    tempo_anterior_petro = tempo_atual_petro
-                    
-                    # Verifica se o inimigo foi derrotado
-                    if inimigo_mais_proximo["vida"] <= 0:
-                        vida_inimigo_maxima+=23
-                        pontuacao += int(75 + inimigos_eliminados * 0.5)
-                        pontuacao_exib += int(75 + inimigos_eliminados * 0.5)
-                        Resistencia_petro+=24.5
-                        vida_maxima_petro+=35
-                        dano_person_hit+=8
-                        inimigos_eliminados += 1
-                        dano_petro+=0.035 
-                        dano_inimigo_longe+=2
-                        dano_inimigo_perto+=0.35
-                        # Remove o inimigo da lista de inimigos comuns
-                        inimigos_comum.remove(inimigo_mais_proximo) 
-                        
-                    if not boss_vivo1:
-                        if vida_boss>0:
-                            vida_boss+=55
-                            vida_maxima_boss1= vida_boss
-
-                        
-        if vida_petro<=0:
-            Petro_active= False
-            vida_petro+= vida_maxima_petro
-            vida_maxima_petro= vida_petro                     
-                        
-        
-        if xp_petro == "nivel_1":
-            petro_nivel=frames_animacao_Petro
-            
-        elif xp_petro == "nivel_2":
-            petro_nivel=frames_animacao_Petro2
-            
-        elif xp_petro == "nivel_3":
-            petro_nivel=frames_animacao_Petro3                
-                      
-                    
-                    
-        if boss_vivo1:
-            # Define a direção de Petro em relação ao boss
-            dx = pos_x_chefe - pos_x_petro
-            dy = pos_y_chefe - pos_y_petro
-
-            # Normaliza a direção para manter a mesma velocidade em todas as direções
-            magnitude = math.sqrt(dx ** 2 + dy ** 2)
-            if magnitude != 0:
-                direcao_x = dx / magnitude
-                direcao_y = dy / magnitude
-            else:
-                direcao_x = 0
-                direcao_y = 0
-
-            # Move Petro na direção do boss
-            pos_x_petro += 1 * direcao_x
-            pos_y_petro += 1 * direcao_y
-
-            # Verifica se Petro está próximo o suficiente para aplicar dano ao boss
-            distancia_petro_boss = math.sqrt((pos_x_petro - pos_x_chefe) ** 2 + (pos_y_petro - pos_y_chefe) ** 2)
-            if distancia_petro_boss <= 50:
-                # Verifica se passou tempo suficiente desde o último dano
-                tempo_atual_petro = pygame.time.get_ticks()
-                if tempo_atual_petro - tempo_anterior_petro >= intervalo_dano_petro:
-                    # Aplica dano ao "boss"
-                    vida_petro -= int(dano_boss)
-                    vida_petro+= int(vida_maxima_petro-vida_petro)*quantidade_roubo_vida
-                    vida_boss-= int(dano_person_hit*0.15)+15
-                    tempo_anterior_petro = tempo_atual_petro
-
-        if comando_direção_petro:
-            direcao_atual_petro="left_petro"
-            comando_direção_petro=False
-            
-        desenhar_barra_de_vida_petro(tela, vida_petro, pos_x_petro, pos_y_petro - 20,vida_maxima_petro)  
-        tela.blit(petro_nivel[direcao_atual_petro][frame_atual % len(petro_nivel[direcao_atual_petro])], (pos_x_petro, pos_y_petro))
-
-
-    #AQUI GERAMOS O BOSS:
-        # --- ATIVAÇÃO DO BOSS ---
-    if iniciar_boss and not r_press:
-        r_press = True
-        iniciar_boss = False
-        boss_vivo1 = True
-        Musica_tema_fases.stop()
-        Musica_tema_Boss1.play(loops=-1)
-        tempo_inicio_boss = pygame.time.get_ticks()
-        tempo_ultima_mudanca_direcao_boss = tempo_inicio_boss
-        vida_boss = vida_maxima_boss1
-        boss_envenenado = False
-        frame_atual_chefe = 0
-        tempo_passado_animacao_chefe = 0
-
-    # --- LÓGICA DO BOSS (somente host controla) ---
-    if modo == "host"  and boss_vivo1:
-        tempo_passado_animacao_chefe += relogio.get_rawtime()
-        if tempo_passado_animacao_chefe >= tempo_animacao_chefe:
-            tempo_passado_animacao_chefe = 0
-            frame_atual_chefe = (frame_atual_chefe + 1) % 2
-
-        # Mudar direção aleatoriamente
-        tempo_atual = pygame.time.get_ticks()
-        intervalo_mudanca_direcao_boss = random.randint(1000, 3000)
-        if tempo_atual - tempo_ultima_mudanca_direcao_boss >= intervalo_mudanca_direcao_boss:
-            direcoes_possiveis = ['up', 'down', 'left', 'right']
-            direcoes_possiveis.remove(ultima_direcao_boss)
-            ultima_direcao_boss = random.choice(direcoes_possiveis)
-            tempo_ultima_mudanca_direcao_boss = tempo_atual
-
-        # Movimento do boss
-        inimigos_comum = []  # limpa inimigos comuns durante o boss
-        if ultima_direcao_boss == 'up':
-            pos_y_chefe = max(0, pos_y_chefe - Velocidade_boss)
-        elif ultima_direcao_boss == 'down':
-            pos_y_chefe = min(altura_mapa - chefe_altura, pos_y_chefe + Velocidade_boss)
-        elif ultima_direcao_boss == 'left':
-            pos_x_chefe = max(0, pos_x_chefe - Velocidade_boss)
-        elif ultima_direcao_boss == 'right':
-            pos_x_chefe = min(largura_mapa - chefe_largura, pos_x_chefe + Velocidade_boss)
-
-        # Muda direção se tocar na borda
-        if pos_x_chefe <= 0 or pos_x_chefe >= largura_mapa - chefe_largura or pos_y_chefe <= 0 or pos_y_chefe >= altura_mapa - chefe_altura:
-            if ultima_direcao_boss == 'up': ultima_direcao_boss = 'down'
-            elif ultima_direcao_boss == 'down': ultima_direcao_boss = 'up'
-            elif ultima_direcao_boss == 'left': ultima_direcao_boss = 'right'
-            elif ultima_direcao_boss == 'right': ultima_direcao_boss = 'left'
-
-        # --- Colisão com disparos do jogador ---
-        for disparo in disparos[:]:
-            rect_disparo = disparo["rect"]
-            rect_boss = pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)
-            if rect_disparo.colliderect(rect_boss):
-                if vida_boss > 0:
-                    if random.random() <= chance_critico:
-                        dano = dano_person_hit * 3
-                        cor = (255, 255, 0)
-                        fonte_dano = fonte_dano_critico
-                    else:
-                        dano = dano_person_hit
-                        cor = (255, 0, 0)
-                        fonte_dano = fonte_dano_normal
-
-                # Efeito de veneno
-                if not boss_envenenado and Poison_Active:
-                    boss_envenenado = True
-                    dano_por_tick_veneno_boss = vida_boss * (Dano_Veneno_Acumulado / 100)
-                    tempo_inicio_veneno_boss = pygame.time.get_ticks()
-                    ultimo_tick_veneno_boss = pygame.time.get_ticks()
-
-                # Aplica dano e roubo de vida
-                texto_dano = fonte_dano.render(f"-{int(dano)}", True, cor)
-                tela.blit(texto_dano, (pos_x_chefe + chefe_largura // 2, pos_y_chefe - 20))
-                vida_boss -= dano
-                disparos.remove(disparo)
-                if random.random() < roubo_de_vida:
-                    vida += (vida_maxima - vida) * quantidade_roubo_vida
-
-        # --- Colisão com jogador ---
-        rect_boss = pygame.Rect(pos_x_chefe, pos_y_chefe, 200, 100)
-        rect_personagem = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-        if rect_boss.colliderect(rect_personagem):
-            tempo_atual = pygame.time.get_ticks()
-            if tempo_atual - tempo_ultimo_ataque >= 2500:
-                dano_boss_total = int((vida_maxima * 0.10) + 150 + dano_boss)
-                if not escudo_devota_ativo:
-                    vida -= max(0, dano_boss_total - Resistencia)
-                Dano_person.play()
-                piscando_vida = True
-                tempo_ultimo_ataque = tempo_atual
-
-        # --- Atualiza frame de acordo com a vida ---
-        porcentagem_vida_boss = (vida_boss / vida_maxima_boss1) * 100
-        if porcentagem_vida_boss >= 90:
-            frame_porcentagem = frames_chefe1_1
-        elif 60 <= porcentagem_vida_boss < 90:
-            frame_porcentagem = frames_chefe1_2
-        elif 40 <= porcentagem_vida_boss < 60:
-            frame_porcentagem = frames_chefe1_3
-        else:
-            frame_porcentagem = frames_chefe1_4
-
-        # --- Renderizar ---
-        tela.blit(frame_porcentagem[frame_atual_chefe], (pos_x_chefe, pos_y_chefe))
-        desenhar_barra_de_vida(tela, pos_x_chefe, pos_y_chefe - 20, chefe_largura, 10, vida_boss, vida_maxima_boss1)
-
-        fila_envio.put({
-            "boss": {
-                "x": pos_x_chefe,
-                "y": pos_y_chefe,
-                "vida": vida_boss,
-                "vida_max": vida_maxima_boss1,
-                "fase": porcentagem_vida_boss  # ou use porcentagem_vida_boss
-            }
-        })
-    if modo == "join" and boss_vivo1:
-        for idx, disparo in enumerate(disparos[:]):
-            rect_disparo = disparo["rect"]
-            rect_boss = pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)
-            # Se o disparo colidir com o boss
-            if rect_disparo.colliderect(rect_boss):
-                try:
-                    fila_envio.put({"hit_boss": True})
-                except:
-                    pass
-                disparos.remove(disparo)
-    if modo == "join" and boss_vivo1:
-        for idx, onda in enumerate(ondas[:]):
-            rect_onda = onda["rect"]
-            rect_boss = pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)
-
-            if rect_onda.colliderect(rect_boss):
-                try:
-                    fila_envio.put({"hit_boss_especial": True})
-                except:
-                    pass
-                ondas.remove(onda)
-    # --- DESENHAR NO CLIENT ---
-    if modo == "join" and boss_vivo1:
-        tela.blit(frame_porcentagem[frame_atual_chefe], (pos_x_chefe, pos_y_chefe))
-        desenhar_barra_de_vida(
-            tela,
-            pos_x_chefe,
-            pos_y_chefe - 20,
-            chefe_largura,
-            10,
-            vida_boss,
-            vida_maxima_boss1
-        )
-
-    if modo == "host" :
-        for inimigo in inimigos_comum:
-            inimigo_rect = inimigo["rect"]
-            inimigo_image = inimigo["image"]
-
-            inimigo_atingido = False
-
-            for disparo in disparos:
-                
-                if verificar_colisao_disparo_inimigo(
-                    disparo,
-                    (inimigo["rect"].x, inimigo["rect"].y),
-                    largura_disparo,
-                    altura_disparo,
-                    largura_inimigo,
-                    altura_inimigo,
-                    inimigos_eliminados
-                ):
-                    if random.random() <= chance_critico:  # chance de dano crítico
-                        dano = dano_person_hit * 3  # Valor do dano crítico é 3 vezes o dano normal
-                        cor = (255, 255, 0)  # Amarelo (RGB)
-                        fonte_dano = fonte_dano_critico
-                    else:
-                        dano = dano_person_hit
-                        cor = (255, 0, 0)  # Vermelho (RGB)
-                        fonte_dano = fonte_dano_normal
-
-                    if Petro_active:
-                        if vida_petro < vida_maxima_petro:
-                            vida_petro += (vida_maxima_petro - vida_petro) * 0.25
-
-                    # Renderize o texto do dano
-                    texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
-                    # Desenhe o texto na tela perto do chefe
-                    pos_texto = (
-                        inimigo["rect"].x + largura_inimigo // 2 - texto_dano.get_width() // 2,
-                        inimigo["rect"].y - 20
-                    )
-                    # Rastreie o tempo de exibição do texto
-                    tempo_texto_dano = pygame.time.get_ticks()
-
-                    inimigo["vida"] -= dano
-                    disparos.remove(disparo)  # Remover o disparo após colisão
-
-                    
-                    
-                    if inimigo["vida"] <= 0:
-                        posicao_inimigo = inimigo["rect"].center
-                        soltar_moeda(posicao_inimigo)
-                        # envia pro client desenhar a moeda também
-                        try:
-                            fila_envio.put({"drop_moeda": posicao_inimigo})
-                        except:
-                            pass
-                        inimigos_comum.remove(inimigo)
-                        
-                        # Crescimento proporcional por nível de ameaça
-                        aplicar_crescimento_personalizado()
-                        
-                        ganho = int(75 + math.log2(inimigos_eliminados + 1) * 4)
-                        pontuacao += ganho
-                        eliminacoes_consecutivas_impulsiva += 1
-                        
-                        pontuacao_exib += ganho
-                        fila_envio.put({"pontuacao_atual": pontuacao_exib})
-                        fila_envio.put({"crescimento_local": True})
-
-                        # Boss: aumento escalonado
-                        if not boss_vivo1:
-                            if vida_boss > 0:
-                                vida_boss += 15 + nivel_ameaca * 10
-                                vida_maxima_boss1 = vida_boss
-
-                    if random.random() < roubo_de_vida:
-                        vida += (vida_maxima - vida) * quantidade_roubo_vida
-
-                    
-
-            if inimigo_atingido:
-                break  # Sair do loop externo se um inimigo foi atingido
-        
-
-        
-            if pontuacao_exib > pontuacao_magia:
-                pontuacao_magia = min(pontuacao_exib, maxima_pontuacao_magia)
-    
-    if modo == "join":
-        for inimigo in inimigos_comum:
-            inimigo_rect = inimigo["rect"]
-            inimigo_image = inimigo["image"]
-
-            inimigo_atingido = False
-
-            for disparo in disparos:
-                
-                if verificar_colisao_disparo_inimigo(
-                    disparo,
-                    (inimigo["rect"].x, inimigo["rect"].y),
-                    largura_disparo,
-                    altura_disparo,
-                    largura_inimigo,
-                    altura_inimigo,
-                    inimigos_eliminados
-                ):
-                    if random.random() <= chance_critico:  # chance de dano crítico
-                        dano = dano_person_hit * 3  # Valor do dano crítico é 3 vezes o dano normal
-                        cor = (255, 255, 0)  # Amarelo (RGB)
-                        fonte_dano = fonte_dano_critico
-                    else:
-                        dano = dano_person_hit
-                        cor = (255, 0, 0)  # Vermelho (RGB)
-                        fonte_dano = fonte_dano_normal
-
-                    if Petro_active:
-                        if vida_petro < vida_maxima_petro:
-                            vida_petro += (vida_maxima_petro - vida_petro) * 0.25
-
-                    # Renderize o texto do dano
-                    texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
-                    # Desenhe o texto na tela perto do chefe
-                    pos_texto = (
-                        inimigo["rect"].x + largura_inimigo // 2 - texto_dano.get_width() // 2,
-                        inimigo["rect"].y - 20
-                    )
-                    # Rastreie o tempo de exibição do texto
-                    tempo_texto_dano = pygame.time.get_ticks()
-                    disparos.remove(disparo)  # Remover o disparo após colisão
-                    # Notifica o host se for client
-                    if modo == "join":
-                        try:
-                            idx = inimigos_comum.index(inimigo)
-                            fila_envio.put({"hit": idx})
-                        except:
-                            pass
-                    
-                    
-                
-                        
-                    if random.random() < roubo_de_vida:
-                        vida += (vida_maxima - vida) * quantidade_roubo_vida
-
-                    
-
-            if inimigo_atingido:
-                break  # Sair do loop externo se um inimigo foi atingido
-        
-
-        
-            if pontuacao_exib > pontuacao_magia:
-                pontuacao_magia = min(pontuacao_exib, maxima_pontuacao_magia)
-    
-                    
-    
-
-        
-    total_cartas_compradas = sum(cartas_compradas.values())
-    custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
-    # Verifica se a pontuação atingiu 1500 e se o jogador pressionou 'Q'
-    if modo == "host" :
-        if (not jogador_remoto_morto) and (pontuacao_exib >= custo_carta_atual) and (keys[config_teclas["Comprar na loja"]] or (joystick and joystick.get_button(3))):
-            # Calcula quantas cartas o jogador pode comprar
-            max_cartas = pontuacao_exib // custo_carta_atual
-            if max_cartas <= 0:
-                continue  # segurança
-
-            # Debita tudo de uma vez
-            total_custo = custo_carta_atual * max_cartas
-            pontuacao_exib -= total_custo
-            pontuacao_magia -= total_custo
-            apertou_q = True
-
-            # Envia pro client abrir loja também
-            fila_envio.put({"abrir_loja": True, "quantidade_cartas": max_cartas})
-            Safe=True
-            ret = tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_disparo, altura_disparo,
+                fila_envio.put({
+                    "p2": {
+                        "x": pos_x_personagem,
+                        "y": pos_y_personagem,
+                        "direcao": direcao_atual_p2,
+                        "morto": jogador_morto
+                    }
+                })
+                # Se a vida mudou, envia ao host
+                if vida != ultima_vida_enviada:
+                    fila_envio.put({"vida_cliente": vida})
+                    ultima_vida_enviada = vida
+
+                if loja_aberta:
+                    loja_aberta = False
+
+
+                    ret = tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_disparo, altura_disparo,
                                 trembo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,
                                 tempo_cooldown_dash, vida_maxima, Petro_active, Resistencia, vida_petro,
                                 vida_maxima_petro, dano_petro, xp_petro, petro_evolucao, Resistencia_petro,
                                 Chance_Sorte, Poison_Active, Dano_Veneno_Acumulado, Executa_inimigo, Ultimo_Estalo,
                                 mostrar_info, Mercenaria_Active, Valor_Bonus, dispositivo_ativo, Tempo_cura,
-                                porcentagem_cura, cartas_compradas, pontuacao_exib,max_cartas_compraveis=max_cartas, inimigos_eliminados=inimigos_eliminados)
-            velocidade_personagem = ret[0]
-            intervalo_disparo = ret[1]
-            vida = ret[2]
-            largura_disparo =ret[3]
-            altura_disparo =ret[4]
-            trembo= ret[5]
-            dano_person_hit= ret[6]
-            chance_critico= ret[7]
-            roubo_de_vida= ret[8]
-            quantidade_roubo_vida= ret[9]
-            tempo_cooldown_dash= ret[10]
-            vida_maxima= ret[11]
-            Petro_active= ret[12]
-            Resistencia=  ret[13]
-            vida_petro= ret[14]
-            vida_maxima_petro= ret[15]
-            dano_petro= ret[16]
-            xp_petro= ret[17]
-            petro_evolucao= ret[18]
-            Resistencia_petro= ret[19]
-            Chance_Sorte= ret[20]
-            Poison_Active= ret[21]
-            Dano_Veneno_Acumulado= ret[22]
-            Executa_inimigo= ret[23]
-            Ultimo_Estalo= ret[24]
-            Mercenaria_Active= ret[25]
-            Valor_Bonus= ret[26]
-            dispositivo_ativo=ret[27]
-            Tempo_cura=ret[28]
-            porcentagem_cura=ret[29]
-            cartas_compradas= ret[30]
-            pontuacao_exib= ret[31]
+                                porcentagem_cura, cartas_compradas, pontuacao_exib,
+                                max_cartas_compraveis=quantidade_cartas)
+                    velocidade_personagem = ret[0]
+                    intervalo_disparo = ret[1]
+                    vida = ret[2]
+                    largura_disparo =ret[3]
+                    altura_disparo =ret[4]
+                    trembo= ret[5]
+                    dano_person_hit= ret[6]
+                    chance_critico= ret[7]
+                    roubo_de_vida= ret[8]
+                    quantidade_roubo_vida= ret[9]
+                    tempo_cooldown_dash= ret[10]
+                    vida_maxima= ret[11]
+                    Petro_active= ret[12]
+                    Resistencia=  ret[13]
+                    vida_petro= ret[14]
+                    vida_maxima_petro= ret[15]
+                    dano_petro= ret[16]
+                    xp_petro= ret[17]
+                    petro_evolucao= ret[18]
+                    Resistencia_petro= ret[19]
+                    Chance_Sorte= ret[20]
+                    Poison_Active= ret[21]
+                    Dano_Veneno_Acumulado= ret[22]
+                    Executa_inimigo= ret[23]
+                    Ultimo_Estalo= ret[24]
+                    Mercenaria_Active= ret[25]
+                    Valor_Bonus= ret[26]
+                    dispositivo_ativo=ret[27]
+                    Tempo_cura=ret[28]
+                    porcentagem_cura=ret[29]
+                    cartas_compradas= ret[30]
+                    pontuacao_exib= ret[31]
+                    tela_de_espera_client(tela, fila_envio, fila_recebimento)
+                    fila_envio.put({"pontuacao_atual": pontuacao_exib})
+                # --- Cliente pode sugerir o boss ---
+                if not convite_boss_ativo and not r_press and pygame.key.get_pressed()[pygame.K_r]:
+                    fila_envio.put({"convite_boss": True})
+                    convite_boss_ativo = True
+                    convite_boss_enviado = True
+                    convite_boss_tempo = pygame.time.get_ticks()
 
-            # após sair da loja, avisa o outro lado
-            fila_envio.put({"abrir_loja": False})
-            tela_de_espera_host(tela, fila_envio, fila_recebimento)
-            Safe=False
+                # --- Cliente responde a convite ativo ---
+                if convite_boss_ativo and convite_boss_recebido:
+                    keys = pygame.key.get_pressed()
+                    if keys[pygame.K_y]:
+                        fila_envio.put({"resposta_boss": True})
+                        convite_boss_ativo = False
+                    elif keys[pygame.K_n]:
+                        fila_envio.put({"resposta_boss": False})
+                        convite_boss_ativo = False 
+                outro_jogador_morto = jogador_remoto_morto  # host remoto
 
-        
 
-        
-        
 
-    posicao_barra_vida = (80, altura_mapa - (altura_mapa - 34))
-    fonte = pygame.font.Font(None, int(altura_barra_vida*1))
-    texto_pontuacao = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (250, 255,255))
-    fonte_vida = pygame.font.Font(None, int(altura_barra_vida*0.9))
-    texto_vida = fonte_vida.render(f'{int(vida)}/{int(vida_maxima)}', True, (255, 255, 255))
 
-    # Renderiza o texto de pontuação com uma borda
-    texto_pontuacao_borda = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (0, 0, 0))  # Cor preta para a borda
-    # Desenha o texto da borda um pouco deslocado para criar o efeito de contorno
-    tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 - 1))
-    tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 + 1, altura_mapa*0.118 - 1))
-    tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 + 1))
-    tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 + 1, altura_mapa*0.118 + 1))
 
-    # Desenha o texto da pontuação por cima da borda
-    tela.blit(texto_pontuacao, (largura_mapa*0.075, altura_mapa*0.118))
+            nivel_impulsiva = upgrades.get("Impulsiva", 0)
+            if impulsiva_ativa:
+                duracao_buff = 3000 + nivel_impulsiva * 500  # 3s base + 0.5s por nível
+                if pygame.time.get_ticks() - tempo_inicio_buff_impulsiva >= duracao_buff:
+                    impulsiva_ativa = False
+                    tipo_buff_impulsiva = None
+                else:
+                    if tipo_buff_impulsiva == "dano":
+                        multiplicador_dano = 1.3 + (0.05 * nivel_impulsiva)
+                    elif tipo_buff_impulsiva == "velocidade":
+                        multiplicador_velocidade = 1.2 + (0.05 * nivel_impulsiva)
+                mensagem = "+ Buff: Dano ↑" if tipo_buff_impulsiva == "dano" else "+ Buff: Velocidade ↑"
 
-    
+                efeitos_texto.append({
+                    "texto": mensagem,
+                    "x": pos_x_personagem,
+                    "y": pos_y_personagem - 20,
+                    "tempo_inicio": pygame.time.get_ticks(),
+                    "cor": (255, 100, 100) if tipo_buff_impulsiva == "dano" else (100, 100, 255)
+                })
 
-    
 
-    # Calculando o ângulo do preenchimento em graus
-    angulo_preenchimento = (pontuacao_magia / 735) * 360  # ângulo em graus
-    # Preenchendo a parte do círculo
-    if angulo_preenchimento > 0:
-        pontos = []
-        for i in range(int(angulo_preenchimento) + 1):
-            radianos = math.radians(i - 90) 
-            x = centro_circulo[0] + raio_circulo * math.cos(radianos)
-            y = centro_circulo[1] + raio_circulo * math.sin(radianos)
-            pontos.append((x, y))
-        pygame.draw.polygon(tela, (53, 239, 252), [centro_circulo] + pontos) 
-    
-    tela.blit(imagem_relogio, posicao_imagem_relogio)
-    
-        
+            pos_mouse = pygame.mouse.get_pos()
+            botao_mouse = pygame.mouse.get_pressed()
+            mouse_x = max(0, min(pos_mouse[0], largura_mapa - cursor_tamanho[0]))
+            mouse_y = max(0, min(pos_mouse[1], altura_mapa - cursor_tamanho[1]))
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    pygame.quit()
+                    sys.exit()
 
-    if vida > vida_maxima:
-        vida_maxima=vida
+                if not jogador_morto:  # Só permite se estiver vivo
+                    if botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo:  # Botão esquerdo do mouse
+                        pos_mouse = pygame.mouse.get_pos()
+                        angulo = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
+                        Disparo_Geo.play()
+                        # Crie o disparo com direção baseada no ângulo
+                        novo_disparo = {
+                            "rect": pygame.Rect(pos_x_personagem, pos_y_personagem, largura_disparo, altura_disparo),
+                            "angulo": angulo
+                        }
+                        disparos.append(novo_disparo)
+                        tempo_ultimo_disparo = tempo_atual  # Atualizar o tempo do último disparo
+                    elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3 and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade:  # Botão direito do mouse
+                        pos_mouse = pygame.mouse.get_pos()
+                        angulo = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
 
-    porcentagem_vida_personagem = (vida / vida_maxima) * 100
-    if aurea == "Devota" and escudo_devota_ativo:
-        cor_barra = (0, 150, 255)  # Azul para indicar o escudo ativo
-    else:
-        cor_barra = calcular_cor_barra_de_vida(porcentagem_vida_personagem)
+                        # Criar uma onda cinética com as novas propriedades
+                        nova_onda = {
+                            "rect": pygame.Rect(pos_x_personagem, pos_y_personagem, largura_onda, altura_onda),
+                            "angulo": angulo,
+                            "tempo_inicio": pygame.time.get_ticks(),
+                            "frame_atual": 0,
+                            "frames": frames_onda_cinetica  # Certifique-se de ter os frames para animação da onda
+                        }
+                        ondas.append(nova_onda)
+                        tempo_ultimo_uso_habilidade = tempo_atual
 
-    pygame.draw.rect(tela, cor_barra, (posicao_barra_vida[0], posicao_barra_vida[1], (vida / vida_maxima) * largura_barra_vida, altura_barra_vida))
-    pygame.draw.rect(tela, (0, 0, 0), (posicao_barra_vida[0], posicao_barra_vida[1], largura_barra_vida, altura_barra_vida), 2)
+            # Verificar eventos de teclado
+            keys = pygame.key.get_pressed()
 
-    
-    # Renderiza o texto de vida com uma borda
-    texto_vida_borda = fonte_vida.render(f'{int(vida)}/{int(vida_maxima)}', True, (0, 0, 0))  # Cor preta para a borda
-    # Desenha o texto da borda um pouco deslocado para criar o efeito de contorno
-    tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 - 1, posicao_barra_vida[1] + 5 - 1))
-    tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 + 1, posicao_barra_vida[1] + 5 - 1))
-    tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 - 1, posicao_barra_vida[1] + 5 + 1))
-    tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 + 1, posicao_barra_vida[1] + 5 + 1))
-
-    # Desenha o texto da vida por cima da borda
-    tela.blit(texto_vida, (posicao_barra_vida[0]*2, posicao_barra_vida[1] + 5))
-    
-    
-    tela.blit(imagem_vida, posicao_vida)
-        # Verifica se o personagem está passando pelo centro da tela e se a mensagem ainda não foi mostrada
-    if (pos_x_personagem >= centro_x_tela_pequena - 400 and
-        pos_x_personagem <= centro_x_tela_pequena + 400 and
-        pos_y_personagem >= centro_y_tela_pequena - 400 and
-        pos_y_personagem <= centro_y_tela_pequena + 400 and mensagem_mostrada):
-        
-        
-        # Renderiza o texto
-        texto_renderizado = fonte.render(mensagem, True, (0,0,0))
-        # Obtém o retângulo do texto
-        texto_rect = texto_renderizado.get_rect()
-        # Define a posição do texto para que ele fique no centro da tela
-        texto_rect.center = (centro_x_tela_pequena, centro_y_tela_pequena)
-
-        # Calcula as dimensões do retângulo de fundo da mensagem
-        largura_fundo = texto_rect.width + 20  # Adiciona um espaço de 10 pixels de cada lado
-        altura_fundo = texto_rect.height + 20  # Adiciona um espaço de 10 pixels em cima e embaixo
-        # Cria um retângulo branco para o fundo da mensagem
-        fundo_rect = pygame.Rect((centro_x_tela_pequena - largura_fundo // 2, centro_y_tela_pequena - altura_fundo // 2), (largura_fundo, altura_fundo))
-        # Desenha o retângulo branco na tela
-        pygame.draw.rect(tela, (225, 255, 255), fundo_rect)
-        # Desenha o texto na tela
-        tela.blit(texto_renderizado, texto_rect) 
-
-        # Incrementa o tempo que a mensagem está sendo mostrada
-        tempo_mostrando_mensagem += 1
-        
-        # Se a mensagem estiver sendo mostrada por mais de 3 segundos
-        if tempo_mostrando_mensagem > 420:  # 60 frames por segundo * 3 segundos = 180
-            mensagem_mostrada = False  # Define que a mensagem foi mostrada
-            tempo_mostrando_mensagem = 0  # Reinicia o contador de tempo
-    
-    # Remova o texto após 2 segundos
-    if texto_dano is not None and pygame.time.get_ticks() - tempo_texto_dano >= 250:
-        texto_dano = None
-
-    cooldowns = {
-        "disparo": max(0, tempo_atual - tempo_ultimo_disparo >= intervalo_disparo),
-        "teleporte": max(0, pygame.time.get_ticks() - tempo_ultimo_dash > tempo_cooldown_dash),
-        "onda": max(0, tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade),
-        "loja": 1 if pontuacao_exib >= custo_carta_atual else 0, 
-    }
-    if not area_icones.colliderect(
-    (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-    ):
-        # Desenhar habilidades na tela
-        desenhar_habilidades(tela, cooldowns,dispositivo_ativo)
-    if eliminacoes_consecutivas > 0:
-        fonte_combo = pygame.font.Font(None, 36)  # Tamanho maior para o combo
-        fonte_bonus = pygame.font.Font(None, 28)  # Tamanho menor para o bônus
-
-        # Texto do combo
-        texto_combo = f"Combo: {eliminacoes_consecutivas}"
-        posicao_combo = (largura_mapa - 170, 50)  
-        desenhar_texto_com_contorno(tela, texto_combo, fonte_combo, (255, 255, 255), (0, 0, 0), posicao_combo)
-
-        # Texto do bônus
-        texto_bonus = f"Bônus: +{bonus_pontuacao}"
-        posicao_bonus = (largura_mapa - 200, 90)  
-        desenhar_texto_com_contorno(tela, texto_bonus, fonte_bonus, (255, 255, 255), (0, 0, 0), posicao_bonus)
-    
-    # Desenhe o texto na tela
-    if texto_dano is not None:
-        tela.blit(texto_dano, pos_texto)
-    # Controle de exibição
-    if mostrar_tutorial:
-        tempo_decorrido = time.time() - tempo_inicial
-        if 'mensagens_exibidas' not in globals():
-            mensagens_exibidas = set()
-            mensagem_ativa = None
-            tempo_fim_mensagem = 0
-
-        # Ativando nova mensagem, se for o tempo certo
-        for tempo_msg, texto_msg in mensagens_iniciais:
-            if int(tempo_decorrido) == tempo_msg and tempo_msg not in mensagens_exibidas:
-                mensagem_ativa = texto_msg
-                tempo_fim_mensagem = tempo_decorrido + 10  # visível por 10 segundos
-                mensagens_exibidas.add(tempo_msg)
-
-        # Exibindo mensagem ativa com contorno
-        if mensagem_ativa and tempo_decorrido < tempo_fim_mensagem:
-            fonte_mensagem = pygame.font.Font(None, 48)
-            texto = mensagem_ativa
-            texto_renderizado = fonte_mensagem.render(texto, True, (255, 255, 255))
-            texto_borda = fonte_mensagem.render(texto, True, (0, 0, 0))
-
-            x = largura_mapa // 2 - texto_renderizado.get_width() // 2
-            y = int(altura_mapa * 0.15)
-
-            tela.blit(texto_borda, (x - 1, y))
-            tela.blit(texto_borda, (x + 1, y))
-            tela.blit(texto_borda, (x, y - 1))
-            tela.blit(texto_borda, (x, y + 1))
-            tela.blit(texto_renderizado, (x, y))
-        else:
-            mensagem_ativa = None
-    tempo_atual = pygame.time.get_ticks()
-    for inimigo in inimigos_comum:
-        i_id = id(inimigo)
-        if i_id in inimigos_em_chamas:
-            if tempo_atual - inimigos_em_chamas[i_id] <= duracao_incendio_vanguarda:
-                if tempo_atual - inimigo.get("ultimo_tick_queimando", 0) >= 1000:
-                    inimigo["ultimo_tick_queimando"] = tempo_atual
-                    
-                    # Escalonamento: 1% a 3% da vida máxima baseado no combo
-                    proporcao = min(0.03, 0.01 + (eliminacoes_consecutivas * 0.0005))
-                    dano_fogo = int(inimigo.get("vida_maxima", 100) * proporcao)
-
-                    inimigo["vida"] -= dano_fogo
-                    
-                    efeitos_texto.append({
-                        "texto": f"-{dano_fogo}",
-                        "x": inimigo["rect"].x,
-                        "y": inimigo["rect"].y - 20,
-                        "tempo_inicio": tempo_atual,
-                        "cor": (255, 60, 0)
-                    })
-
-                    if inimigo["vida"] <= 0:
-                        inimigos_em_chamas.pop(i_id, None)
+            # Verificar eventos de joystick
+            joystick_count = pygame.joystick.get_count()
+            if joystick_count > 0:
+                joystick = pygame.joystick.Joystick(0)
+                joystick.init()
             else:
-                inimigos_em_chamas.pop(i_id, None)
-    for moeda in moedas_soltadas:
-        tela.blit(moeda["image"], moeda["rect"])
-    # Exibir ping no canto superior direito
-    if modo == "join":  # apenas o cliente precisa ver o ping
-        fonte_ping = pygame.font.Font(None, 32)
-        texto_ping = fonte_ping.render(f"Ping: {ping_atual} ms", True, cor_ping)
-        tela.blit(texto_ping, (largura_mapa - texto_ping.get_width() - 20, 40))
-    # --- Popup Boss ---
-    if convite_boss_ativo:
-        fonte_popup = pygame.font.Font(None, 32)
-        rect_popup = pygame.Rect(tela.get_width() - 320, 20, 300, 60)
-        pygame.draw.rect(tela, (30, 30, 30), rect_popup, border_radius=8)
-        pygame.draw.rect(tela, (200, 200, 0), rect_popup, 2, border_radius=8)
+                joystick = None
 
-        if convite_boss_enviado:
-            texto = fonte_popup.render("Convite enviado...", True, (255, 255, 0))
-        elif convite_boss_recebido:
-            restante = 5 - (pygame.time.get_ticks() - convite_boss_tempo) // 1000
-            texto = fonte_popup.render("Aperte Y para aceitar o Boss", True, (255, 255, 255))
-        else:
-            texto = fonte_popup.render("Esperando confirmação...", True, (255, 255, 255))
-
-        tela.blit(texto, (rect_popup.x + 15, rect_popup.y + 20))
-    
+            # Chamar a função para atualizar a posição do personagem
+            ultimo_x = pos_x_personagem
+            ultimo_y = pos_y_personagem
+            if not jogador_morto:
+                if modo == "host" :
+                    direcao_atual = atualizar_posicao_personagem(keys, joystick)
+                elif modo == "join":
+                    direcao_atual_p2 = atualizar_posicao_personagem(keys, joystick)
+            else:
+                # Jogador morto não pode se mover
+                direcao_atual = "down"
 
 
 
-    tela.blit(cursor_imagem, (mouse_x, mouse_y))
-    exibir_cronometro(tela)
-    pygame.display.flip()
-    FPS.tick(100)  # Limita a 100 FPS
+
+            novos_inimigos = []
+            novos_disparos = []
+            inimig_atin=[]
+
+            tempo_passado += relogio.get_rawtime()
+            relogio.tick()
+
+             # Adicionar inimigos a cada 10 segundos
+            tempo_atual = pygame.time.get_ticks()
+            if modo == "host" :  # Apenas o host pode gerar inimigos
+                if mostrar_tutorial:
+                    if (
+                        tempo_atual > 23000
+                        and apertou_q
+                        and tempo_atual - tempo_ultimo_inimigo >= 1000
+                        and len(inimigos_comum) < max_inimigos
+                        and not boss_vivo1
+                    ):
+                        gerar_inimigo()
+                        tempo_ultimo_inimigo = tempo_atual  # Atualiza o tempo do último inimigo adicionado
+                else:
+                    if (
+                        tempo_atual - tempo_ultimo_inimigo >= 1000
+                        and len(inimigos_comum) < max_inimigos
+                        and not boss_vivo1
+                    ):
+                        gerar_inimigo()
+                        tempo_ultimo_inimigo = tempo_atual  # Atualiza o tempo do último inimigo adicionado
 
 
-# Encerrar o Pygame
-pygame.quit()
+            nivel_racional = upgrades.get("Racional", 0)
+            #LUGAR AONDE COLOCAMOS AS AUREAS
+            if aurea == "Racional":
+                if pos_x_personagem == ultimo_x and pos_y_personagem == ultimo_y:
+                    if tempo_atual - tempo_parado_person >= 5000:
+                        ganho = 3 + nivel_racional  # ganho aumenta com o nível
+                        pontuacao += ganho
+                        pontuacao_exib += ganho
+                        tempo_parado_person = tempo_atual
+
+                        # Determina posição flutuante aleatória à direita ou esquerda do personagem
+                        lado = random.choice(["esquerda", "direita"])
+                        if lado == "esquerda":
+                            x = pos_x_personagem - 20
+                        else:
+                            x = pos_x_personagem + largura_personagem + 5
+
+                        y = pos_y_personagem - 10  # ligeiramente acima
+
+                        # Adiciona efeito à lista
+                        efeitos_texto.append({
+                            "texto": f"+{ganho}",
+                            "x": x,
+                            "y": y,
+                            "tempo_inicio": tempo_atual,
+                            "cor": (50, 255, 50)  # verde
+                        })
+            if aurea == "Impulsiva":
+
+                if eliminacoes_consecutivas_impulsiva >= 5 and not impulsiva_ativa:
+                    impulsiva_ativa = True
+                    tipo_buff_impulsiva = random.choice(["dano", "velocidade"])
+                    tempo_inicio_buff_impulsiva = pygame.time.get_ticks()
+                    eliminacoes_consecutivas_impulsiva = 0  # Zera para forçar novo ciclo
+
+
+
+
+            if direcao_atual == 'stop':
+                if tempo_passado >= tempo_animacao_stop:
+                    tempo_passado = 0
+                    frame_atual = (frame_atual + 1) % len(frames_animacao[direcao_atual])
+
+
+
+
+            tela.fill((255, 255, 255))
+            tela.blit(mapa, (0, 0))
+
+
+
+
+            # Desenhar os disparos normais
+            novos_disparos = []
+            for disparo in disparos:
+                disparo["rect"].x += velocidade_disparo * math.cos(disparo["angulo"])
+                disparo["rect"].y += velocidade_disparo * math.sin(disparo["angulo"])
+
+                # Verificar se o disparo está dentro do mapa
+                if 0 <= disparo["rect"].x < largura_mapa and 0 <= disparo["rect"].y < altura_mapa:
+                    novos_disparos.append(disparo)
+            disparos = novos_disparos
+
+            # Renderizar os disparos
+            for disparo in disparos:
+                tela.blit(frames_disparo[frame_atual_disparo], disparo["rect"].topleft)
+
+
+
+            if modo == "join":
+                novas_ondas = []
+                for onda in ondas:
+                    onda["rect"].x += velocidade_onda * math.cos(onda["angulo"])
+                    onda["rect"].y += velocidade_onda * math.sin(onda["angulo"])
+                    tempo_decorrido_onda = pygame.time.get_ticks() - onda["tempo_inicio"]
+                    onda["frame_atual"] = (tempo_decorrido_onda // duracao_frame_onda) % len(onda["frames"])
+                    tela.blit(onda["frames"][onda["frame_atual"]], onda["rect"])
+
+                    if 0 <= onda["rect"].x < largura_mapa and 0 <= onda["rect"].y < altura_mapa:
+                        novas_ondas.append(onda)
+
+                    # detecta colisão, só avisa
+                    for idx, inimigo in enumerate(inimigos_comum):
+                        if onda["rect"].colliderect(inimigo["rect"]):
+                            try:
+                                # CLIENTE
+                                for onda in ondas:
+                                    fila_envio.put({
+                                        "hit_especial": {
+                                            "x": onda["rect"].x,
+                                            "y": onda["rect"].y,
+                                            "w": onda["rect"].w,
+                                            "h": onda["rect"].h
+                                        }
+                                    })
+
+                            except:
+                                pass
+
+                ondas = novas_ondas
+
+
+
+            if modo == "host" :
+                novas_ondas = []
+                for onda in ondas:
+                    onda["rect"].x += velocidade_onda * math.cos(onda["angulo"])
+                    onda["rect"].y += velocidade_onda * math.sin(onda["angulo"])
+                    tempo_decorrido_onda = pygame.time.get_ticks() - onda["tempo_inicio"]
+                    onda["frame_atual"] = (tempo_decorrido_onda // duracao_frame_onda) % len(onda["frames"])
+                    tela.blit(onda["frames"][onda["frame_atual"]], onda["rect"])
+
+                    if 0 <= onda["rect"].x < largura_mapa and 0 <= onda["rect"].y < altura_mapa:
+                        novas_ondas.append(onda)
+
+                ondas = novas_ondas
+
+                # Aplica dano real
+                for onda in ondas:
+                    for inimigo in inimigos_comum[:]:  # [:] evita erro ao remover
+                        inimigo_id = id(inimigo["rect"])
+                        if onda["rect"].colliderect(inimigo["rect"]) and \
+                        (inimigo_id not in inimigos_atingidos_por_onda or tempo_atual - inimigos_atingidos_por_onda[inimigo_id] >= 500):
+                            inimigo["vida"] -= dano_person_hit * 2
+                            inimigos_atingidos_por_onda[inimigo_id] = tempo_atual
+
+                            if inimigo["vida"] <= 0:
+                                inimigos_comum.remove(inimigo)
+                                # Pontuação escalada
+                                ganho = int(75 + math.log2(inimigos_eliminados + 1) * 4)
+                                pontuacao += ganho
+                                pontuacao_exib += ganho
+                                aplicar_crescimento_personalizado()
+                                fila_envio.put({"pontuacao_atual": pontuacao_exib})
+                                fila_envio.put({"crescimento_local": True})
+
+
+
+                                # Cura da Petro se estiver muito ferida
+                                if vida_petro < (vida_maxima_petro * 0.6):
+                                    vida_petro += (vida_maxima_petro * 0.4)
+                                    if vida_petro > vida_maxima_petro:
+                                        vida_petro = vida_maxima_petro
+
+                                # Boss: progressão escalada
+                                if not boss_vivo1:
+                                    if vida_boss > 0:
+                                        vida_boss += 15 + nivel_ameaca * 10
+                                        vida_maxima_boss1 = vida_boss
+                    # Controle de dano para o boss
+                    if boss_vivo1 and onda["rect"].colliderect(pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)):
+                        boss_id = "boss"  # Identificador único para o boss no dicionário
+                        tempo_atual = pygame.time.get_ticks()
+
+                        if tempo_atual - boss_atingido_por_onda >= 500: 
+                            vida_boss -= dano_person_hit * 5  
+
+                            boss_atingido_por_onda = tempo_atual  # Atualiza o tempo do último dano
+
+                            # Verifica se o boss foi derrotado
+                            if vida_boss <= 0:
+                                boss_vivo1 = False
+                                fila_envio.put({"boss_morto": True})
+                                vida_maxima_boss1 = 0
+                                # Aplique os efeitos ou recompensas ao derrotar o boss aqui            
+
+                # Depois do cálculo, envia sincronização pro cliente
+                try:
+                    fila_envio.put({"inimigos": [{"x": i["x"], "y": i["y"], "vida": i["vida"], "vida_max": i["vida_maxima"]} for i in inimigos_comum],
+                                    "pontuacao_atual": pontuacao_exib})
+
+                except:
+                    pass
+
+            if modo == "host" :
+                for inimigo in inimigos_comum:
+                    # Se o alvo atual morreu, força troca imediata
+                    if alvo_atual == "host" and jogador_morto and not jogador_remoto_morto:
+                        alvo_atual = "cliente"
+                        tempo_ultima_troca_alvo = tempo_atual
+
+                    elif alvo_atual == "cliente" and jogador_remoto_morto and not jogador_morto:
+                        alvo_atual = "host"
+                        tempo_ultima_troca_alvo = tempo_atual
+
+                    else:
+                        # Avalia se está na hora de reconsiderar o alvo
+                        if tempo_atual - tempo_ultima_troca_alvo >= intervalo_troca_alvo:
+
+                            # Calcula distância até cada jogador
+                            for inimigo in inimigos_comum:  # Aqui a variável inimigo está sendo iterada de uma lista de inimigos
+                                dist_host = math.hypot(pos_x_personagem - inimigo["rect"].x, pos_y_personagem - inimigo["rect"].y)
+                                dist_cliente = math.hypot(pos_x_player2 - inimigo["rect"].x, pos_y_player2 - inimigo["rect"].y)
+
+                            # Atribui pontuação de prioridade para cada alvo
+                            prioridade_host = 0
+                            prioridade_cliente = 0
+
+                            if not jogador_morto:
+                                prioridade_host += max(0, 1000 - dist_host)
+                            if not jogador_remoto_morto:
+                                prioridade_cliente += max(0, 1000 - dist_cliente)
+
+                            # Bônus por vulnerabilidade: quanto menor a vida, mais atraente
+                            prioridade_host += max(0, (vida_maxima - vida) * 0.3)
+                            prioridade_cliente += max(0, (vida_maxima - vida_remota) * 0.3)
+
+                            # Chance aleatória leve para variação de comportamento
+                            prioridade_host *= random.uniform(0.8, 1.2)
+                            prioridade_cliente *= random.uniform(0.8, 1.2)
+
+                            # Define novo alvo se diferença for significativa
+                            if abs(prioridade_host - prioridade_cliente) > 150:
+                                novo_alvo = "host" if prioridade_host > prioridade_cliente else "cliente"
+                                if novo_alvo != alvo_atual:
+                                    alvo_atual = novo_alvo
+                                    tempo_ultima_troca_alvo = tempo_atual
+
+                    # Define coordenadas do alvo com base na escolha
+                    if alvo_atual == "host":
+                        alvo_x, alvo_y = pos_x_personagem, pos_y_personagem
+                        direcao_alvo = ultima_tecla_movimento
+                    else:
+                        alvo_x, alvo_y = pos_x_player2, pos_y_player2
+                        direcao_alvo = direcao_player2
+
+
+
+
+
+            # Desenhe os inimigos na tela
+            with lock_inimigos: # Evita ler enqaunto a threading escreve
+                for inimigo in inimigos_comum:
+                    inimigo["image"] = frames_inimigo[frame_atual % len(frames_inimigo)]
+
+                    tela.blit(inimigo["image"], inimigo["rect"])
+                    desenhar_barra_de_vida(tela, inimigo["rect"].x, inimigo["rect"].y - 10, largura_inimigo, 5, inimigo["vida"], inimigo["vida_maxima"])
+
+            personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem*0.5, altura_personagem*0.8)
+            inimigos_rects = [inimigo["rect"] for inimigo in inimigos_comum]
+
+
+            if imune_tempo_restante > 0:
+                imune_tempo_restante -= relogio.get_time()  
+            else:
+                imune_tempo_restante = 0 
+
+            if not jogador_morto and not Safe:  # Só pode tomar dano se estiver vivo 
+                if verificar_colisao_personagem_inimigo(personagem_rect, inimigos_rects) and imune_tempo_restante <= 0:
+
+                    if tempo_atual - tempo_ultimo_hit_inimigo >= intervalo_hit_inimigo:
+                        Dano_pos_resistencia_person = int(((vida_maxima * 0.06)+dano_inimigo_perto) - Resistencia)
+                        if aurea == "Vanguarda":
+                            for inimigo in inimigos_comum:
+                                if personagem_rect.colliderect(inimigo["rect"]):
+                                    id_inimigo = id(inimigo)
+                                    tempo_queimadura = pygame.time.get_ticks()
+                                    inimigos_em_chamas[id_inimigo] = tempo_queimadura
+
+
+                        if escudo_devota_ativo:
+                            escudo_devota_ativo= False
+                            pass
+
+                        elif Dano_pos_resistencia_person > 0:
+                            vida -= Dano_pos_resistencia_person
+                            if aurea == "Impulsiva":
+                                eliminacoes_consecutivas_impulsiva = 0  # Perde streak se levar dano
+
+                            eliminacoes_consecutivas = 0
+                            bonus_pontuacao = 0
+
+                        tempo_ultimo_hit_inimigo = tempo_atual
+                        Dano_person.play()
+                        piscando_vida = True
+
+                if not escudo_devota_ativo and tempo_atual - tempo_ultimo_escudo >= intervalo_escudo:
+                    escudo_devota_ativo = True
+                    tempo_ultimo_escudo = tempo_atual
+                    # adicionar um efeito visual de "escudo ativado"
+            else:
+                # Morto = não sofre dano
+                pass
+
+
+            # --- SISTEMA DE MORTE E REVIVAL ---
+
+            # Jogador morre
+            if vida <= 0 and not jogador_morto:
+                if trembo:
+                    vida = vida_maxima  # Recupera a vida total
+                    trembo = False  # Consome o "trembo"
+                    imune_tempo_restante = 10000
+                    teleportado = True  # Ativa o teleporte aleatório
+                    porcentagem_cura = 0.02
+                    Tempo_cura = 2500
+                    pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(
+                        largura_mapa, altura_mapa, largura_personagem, altura_personagem
+                    )
+                else:
+                    # Marca jogador como morto (revival temporário)
+                    jogador_morto = True
+                    tempo_morte = pygame.time.get_ticks()
+                    vida = 0
+                    sprite_atual = sprite_morto
+
+            # Se estiver morto, controla o revival
+            if jogador_morto:
+                tempo_passado_morte = pygame.time.get_ticks() - tempo_morte
+
+                # Desenha sprite de caído
+                tela.blit(sprite_morto, (pos_x_personagem, pos_y_personagem))
+
+
+                # Calcula o tempo restante para reviver em segundos
+                segundos_restantes = max(0, (tempo_revive - (tempo_passado_morte // 1000)))  # tempo_revive é em segundos
+                texto_timer = fonte_mensagem.render(f"Revive em {segundos_restantes}s", True, (255, 80, 80))
+                tela.blit(texto_timer, (pos_x_personagem - 20, pos_y_personagem - 40))
+
+                # ⚙️ 1️⃣ Se o tempo de revival acabou e o outro jogador está morto → Game Over
+                if jogador_morto:
+                    # Calcula o tempo passado desde a morte do jogador
+                    tempo_passado_morte = pygame.time.get_ticks() - tempo_morte
+
+                    # Desenha a sprite do jogador morto
+                    tela.blit(sprite_morto, (pos_x_personagem, pos_y_personagem))
+
+                    # Calcula o tempo restante para reviver em segundos
+                    segundos_restantes = max(0, (tempo_revive - (tempo_passado_morte // 1000)))  # tempo_revive é em segundos
+                    texto_timer = fonte_mensagem.render(f"Revive em {segundos_restantes}s", True, (255, 80, 80))
+                    tela.blit(texto_timer, (pos_x_personagem - 20, pos_y_personagem - 40))
+
+                    # ⚙️ 1️⃣ Se o tempo de revival acabou e o outro jogador também está morto → Game Over
+                    if modo == "join" and jogador_remoto_morto:
+                        fila_envio.put({"game_over": True})
+                        mostrar_tutorial = False
+                        pygame.time.delay(2000)
+                        Musica_tema_fases.stop()
+                        Som_tema_fases.stop()
+                        tela_upgrade_aureas(tela, fonte, moedas_coletadas)
+                        limpar_salvamento()
+                        if game_manager:
+                            from game_manager import EstadoJogo
+                            game_manager.mudar_estado(EstadoJogo.GAME_OVER)
+                            raise CleanExit()
+                        else:
+                            pygame.quit()
+                            subprocess.run([python, "Game_Over.py"])
+                            sys.exit()
+
+                    # ⚙️ 2️⃣ Se o tempo de revival acabou, mas o outro jogador está vivo → revive
+                    elif tempo_passado_morte >= tempo_revive * 1000 and not jogador_remoto_morto:
+                        vida = vida_maxima // 2  # O jogador revive com metade da vida máxima
+                        jogador_morto = False  # O jogador revive
+                        sprite_atual = frames_animacao["down"][0]  # Restaura o sprite original do jogador
+
+                        # Enviar para o host que o jogador reviveu
+                        if modo == "join":
+                            fila_envio.put({"reviver": True})
+                if modo == "host" :
+                    if estado_jogo == "game_over" or not running:
+                        mostrar_tutorial = False
+                        pygame.time.delay(2000)
+                        Musica_tema_fases.stop()
+                        Som_tema_fases.stop()
+                        tela_upgrade_aureas(tela, fonte, moedas_coletadas)
+                        limpar_salvamento()
+                        if game_manager:
+                            from game_manager import EstadoJogo
+                            game_manager.mudar_estado(EstadoJogo.GAME_OVER)
+                            raise CleanExit()
+                        else:
+                            pygame.quit()
+                            subprocess.run([python, "Game_Over.py"])
+                            sys.exit()
+                # No lado do host, quando o jogador renasce
+                if modo == "host" :
+                    if jogador_morto and tempo_passado_morte >= tempo_revive * 1000:
+                        jogador_morto = False  # O jogador revive
+                        # Definir a posição e outras variáveis, se necessário
+                        pos_x_personagem = largura_mapa // 2
+                        pos_y_personagem = altura_mapa // 2
+                        vida = vida_maxima // 2  # O jogador renasce com metade da vida
+                        sprite_atual = frames_animacao["down"][0]  # Restabelece o sprite
+
+
+
+            # Adicione esta verificação para controlar o piscar da barra de vida
+            if piscando_vida:
+                if tempo_atual % 500 < 250:  # Altere o valor 500 e 250 conforme necessário
+                    # Desenha a barra de vida piscando em vermelho
+                    pygame.draw.rect(tela, (255, 0, 0), (posicao_barra_vida[0], posicao_barra_vida[1], largura_barra_vida, altura_barra_vida))
+                else:
+                    # Desenha a barra de vida normalmente
+                    pygame.draw.rect(tela, verde, (posicao_barra_vida[0], posicao_barra_vida[1], (vida / vida_maxima) * largura_barra_vida, altura_barra_vida))
+
+                # Adicione esta verificação para parar o piscar depois de um tempo
+                if tempo_atual - tempo_ultimo_hit_inimigo >= intervalo_hit_inimigo:
+                    piscando_vida = False
+
+            tempo_atual = pygame.time.get_ticks()
+
+            if boss_vivo1:
+                if not em_ataque_especial and pygame.time.get_ticks() - tempo_ultimo_ataque >= 5000:  # Intervalo entre ataques
+                    # Inicia o ataque especial
+                    em_ataque_especial = True
+                    jogador_posicoes = []  # Reiniciar lista de posições
+                    tempo_ataque_especial = pygame.time.get_ticks()
+
+                if em_ataque_especial:
+                    tempo_atual = pygame.time.get_ticks()
+                    indice_imagem = (tempo_atual - tempo_ataque_especial) // intervalo_troca
+
+                    # Atualizar a posição somente no início de cada intervalo, exceto no quinto frame
+                    if len(jogador_posicoes) <= indice_imagem < len(imagens_ataque) - 2:
+                        jogador_posicoes.append((pos_x_personagem, pos_y_personagem))
+
+                    ataque_concluido = ataque_especial_boss(jogador_posicoes, imagens_ataque, tempo_ataque_especial, intervalo_troca, tela)
+                    if ataque_concluido:
+                        em_ataque_especial = False
+                        tempo_ultimo_ataque = pygame.time.get_ticks()
+
+            # Verificar colisões com as bolhas e aplicar dano no loop principal
+            if em_ataque_especial:
+                personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+                for i, posicao in enumerate(jogador_posicoes[-1:]):
+                    if i < len(imagens_ataque):
+                        bolha_rect = pygame.Rect(posicao[0], posicao[1], 100, 100)  # Ajuste o tamanho da bolha aqui
+                        hitboxes[i] = bolha_rect
+                        # Verificar colisão com o personagem
+                        if len(jogador_posicoes) == indice_imagem  and personagem_rect.colliderect(bolha_rect):
+                            if escudo_devota_ativo:
+                                escudo_devota_ativo= False
+                                pass
+                            elif pygame.time.get_ticks() - tempo_ultimo_dano_ataque >= 5000:  # Dano a cada 4 segundos
+                                vida -= (vida_maxima * 0.10) + Dano_Boss_Habilit
+                                tempo_ultimo_dano_ataque= pygame.time.get_ticks()
+
+
+            ###############################################
+            #   DESENHA OS PERSONAGENS NA TELA
+            ###############################################
+
+            # HOST (jogador 1 local)
+            if modo == "host" :
+                # --- Desenha o próprio personagem ---
+                if jogador_morto:
+                    tela.blit(sprite_morto, (pos_x_personagem, pos_y_personagem))
+                else:
+                    tela.blit(frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])], (pos_x_personagem, pos_y_personagem))
+
+                # --- Desenha o segundo jogador (cliente) ---
+                if cliente_ativo:
+                    try:
+                        if jogador_remoto_morto:
+                            tela.blit(sprite_morto, (pos_x_player2, pos_y_player2))
+                        else:
+                            tela.blit(frames_animacao2[direcao_player2][frame_atual % len(frames_animacao2[direcao_player2])], (pos_x_player2, pos_y_player2))
+                    except KeyError:
+                        tela.blit(frames_animacao2["down"][frame_atual % len(frames_animacao2["down"])], (pos_x_player2, pos_y_player2))
+
+            # JOIN (jogador 2 local)
+            elif modo == "join":
+                # --- Desenha o próprio personagem ---
+                if jogador_morto:
+                    tela.blit(sprite_morto, (pos_x_personagem, pos_y_personagem))
+                else:
+                    tela.blit(frames_animacao2[direcao_atual_p2][frame_atual % len(frames_animacao2[direcao_atual_p2])], (pos_x_personagem, pos_y_personagem))
+
+                # --- Desenha o host (jogador 1 remoto) ---
+                if host_ativo:
+                    try:
+                        if jogador_remoto_morto:
+                            tela.blit(sprite_morto, (pos_x_player2, pos_y_player2))
+                        else:
+                            tela.blit(frames_animacao[direcao_player2][frame_atual % len(frames_animacao[direcao_player2])], (pos_x_player2, pos_y_player2))
+                    except KeyError:
+                        tela.blit(frames_animacao["down"][frame_atual % len(frames_animacao["down"])], (pos_x_player2, pos_y_player2))
+
+
+
+
+
+
+            for moeda in moedas_soltadas[:]:  # cópia da lista para evitar erro ao remover
+                if personagem_rect.colliderect(moeda["rect"]):
+                    moedas_coletadas+=1
+                    moedas_soltadas.remove(moeda)
+
+            nova_lista = []
+            for efeito in efeitos_texto:
+                tempo_passado = tempo_atual - efeito["tempo_inicio"]
+                if tempo_passado <= 800:  # mostra por 2 segundos
+                    fonte_efeito = pygame.font.Font(None, 28)
+                    x = efeito["x"]
+                    y = efeito["y"] - (tempo_passado // 25)
+                    texto_principal = fonte_efeito.render(efeito["texto"], True, efeito["cor"])
+
+                    # Contorno preto em 8 direções
+                    for dx in [-1, 0, 1]:
+                        for dy in [-1, 0, 1]:
+                            if dx != 0 or dy != 0:
+                                contorno = fonte_efeito.render(efeito["texto"], True, (0, 0, 0))
+                                tela.blit(contorno, (x + dx, y + dy))
+
+                    # Texto principal
+                    tela.blit(texto_principal, (x, y))
+                    nova_lista.append(efeito)
+            efeitos_texto = nova_lista
+            if trembo:
+                # Desenhar o segundo personagem ao lado do personagem original
+                pos_x_segundo_personagem = pos_x_personagem + largura_personagem + 4
+                pos_y_segundo_personagem = pos_y_personagem
+                tela.blit(frames_animacao_trembo[direcao_atual][frame_atual % len(frames_animacao_trembo[direcao_atual])], (pos_x_segundo_personagem, pos_y_segundo_personagem))
+            if trembo and tempo_atual- tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima :
+                if vida_maxima < vida:
+                    vida=vida_maxima
+                vida+= (vida_maxima*porcentagem_cura)
+                tempo_ultima_regeneracao = tempo_atual
+
+
+
+            if Petro_active:
+                # Calcula a direção para o inimigo mais próximo
+
+                direcao_petro = calcular_direcao_para_inimigo({"rect": pygame.Rect(pos_x_petro, pos_y_petro, largura_personagem, altura_personagem)}, inimigos_comum)
+
+
+                # Se houver inimigos, atualize a posição de "Petro"
+                if inimigos_comum:
+                    # Calcula as coordenadas do inimigo mais próximo
+                    inimigo_mais_proximo = min(inimigos_comum, key=lambda inimigo: math.sqrt((inimigo["rect"].x - pos_x_petro) ** 2 + (inimigo["rect"].y - pos_y_petro) ** 2))
+                    pos_x_inimigo_mais_proximo = inimigo_mais_proximo["rect"].x
+                    pos_y_inimigo_mais_proximo = inimigo_mais_proximo["rect"].y
+
+                    posicao_petro = (pos_x_petro, pos_y_petro)
+                    posicao_inimigo = (pos_x_inimigo_mais_proximo, pos_y_inimigo_mais_proximo)
+                    tempo_atual = pygame.time.get_ticks()
+                    if tempo_atual - tempo_ultima_atualizacao_direcao >= 1000:  # 1000 milissegundos = 1 segundo
+                        # Atualiza a direção de Petro
+                        direcao_atual_petro = determinar_frames_petro(posicao_petro, posicao_inimigo)
+                        # Atualiza o tempo da última atualização da direção
+                        tempo_ultima_atualizacao_direcao = tempo_atual
+
+
+                    # Se "Petro" ainda não está na posição do inimigo, mova-o na direção calculada
+                    if pos_x_petro != pos_x_inimigo_mais_proximo or pos_y_petro != pos_y_inimigo_mais_proximo:
+                        pos_x_petro += 1 * direcao_petro[0]
+                        pos_y_petro += 1 * direcao_petro[1]
+
+
+                    # Calcula a distância entre "Petro" e o inimigo mais próximo
+                    distancia_petro_inimigo = math.sqrt((pos_x_petro - pos_x_inimigo_mais_proximo) ** 2 + (pos_y_petro - pos_y_inimigo_mais_proximo) ** 2)
+
+                    # Verifica se "Petro" está próximo o suficiente para aplicar dano
+                    if distancia_petro_inimigo <= 50:
+                        # Verifica se passou tempo suficiente desde o último dano
+                        tempo_atual_petro = pygame.time.get_ticks()
+                        if tempo_atual_petro - tempo_anterior_petro >= intervalo_dano_petro:
+                            # Aplica dano ao inimigo mais próximo
+                            Dano_pos_resistencia_petro=dano_inimigo-Resistencia_petro
+                            if Dano_pos_resistencia_petro < 0:
+                                pass
+
+                            else:
+                                vida_petro-=int(Dano_pos_resistencia_petro)#Dano em petro
+
+
+                            inimigo_mais_proximo["vida"] -= int(dano_person_hit * 0.005)+ dano_petro
+                            tempo_anterior_petro = tempo_atual_petro
+
+                            # Verifica se o inimigo foi derrotado
+                            if inimigo_mais_proximo["vida"] <= 0:
+                                vida_inimigo_maxima+=23
+                                pontuacao += int(75 + inimigos_eliminados * 0.5)
+                                pontuacao_exib += int(75 + inimigos_eliminados * 0.5)
+                                Resistencia_petro+=24.5
+                                vida_maxima_petro+=35
+                                dano_person_hit+=8
+                                inimigos_eliminados += 1
+                                dano_petro+=0.035 
+                                dano_inimigo_longe+=2
+                                dano_inimigo_perto+=0.35
+                                # Remove o inimigo da lista de inimigos comuns
+                                inimigos_comum.remove(inimigo_mais_proximo) 
+
+                            if not boss_vivo1:
+                                if vida_boss>0:
+                                    vida_boss+=55
+                                    vida_maxima_boss1= vida_boss
+
+
+                if vida_petro<=0:
+                    Petro_active= False
+                    vida_petro+= vida_maxima_petro
+                    vida_maxima_petro= vida_petro                     
+
+
+                if xp_petro == "nivel_1":
+                    petro_nivel=frames_animacao_Petro
+
+                elif xp_petro == "nivel_2":
+                    petro_nivel=frames_animacao_Petro2
+
+                elif xp_petro == "nivel_3":
+                    petro_nivel=frames_animacao_Petro3                
+
+
+
+                if boss_vivo1:
+                    # Define a direção de Petro em relação ao boss
+                    dx = pos_x_chefe - pos_x_petro
+                    dy = pos_y_chefe - pos_y_petro
+
+                    # Normaliza a direção para manter a mesma velocidade em todas as direções
+                    magnitude = math.sqrt(dx ** 2 + dy ** 2)
+                    if magnitude != 0:
+                        direcao_x = dx / magnitude
+                        direcao_y = dy / magnitude
+                    else:
+                        direcao_x = 0
+                        direcao_y = 0
+
+                    # Move Petro na direção do boss
+                    pos_x_petro += 1 * direcao_x
+                    pos_y_petro += 1 * direcao_y
+
+                    # Verifica se Petro está próximo o suficiente para aplicar dano ao boss
+                    distancia_petro_boss = math.sqrt((pos_x_petro - pos_x_chefe) ** 2 + (pos_y_petro - pos_y_chefe) ** 2)
+                    if distancia_petro_boss <= 50:
+                        # Verifica se passou tempo suficiente desde o último dano
+                        tempo_atual_petro = pygame.time.get_ticks()
+                        if tempo_atual_petro - tempo_anterior_petro >= intervalo_dano_petro:
+                            # Aplica dano ao "boss"
+                            vida_petro -= int(dano_boss)
+                            vida_petro+= int(vida_maxima_petro-vida_petro)*quantidade_roubo_vida
+                            vida_boss-= int(dano_person_hit*0.15)+15
+                            tempo_anterior_petro = tempo_atual_petro
+
+                if comando_direção_petro:
+                    direcao_atual_petro="left_petro"
+                    comando_direção_petro=False
+
+                desenhar_barra_de_vida_petro(tela, vida_petro, pos_x_petro, pos_y_petro - 20,vida_maxima_petro)  
+                tela.blit(petro_nivel[direcao_atual_petro][frame_atual % len(petro_nivel[direcao_atual_petro])], (pos_x_petro, pos_y_petro))
+
+
+            #AQUI GERAMOS O BOSS:
+                # --- ATIVAÇÃO DO BOSS ---
+            if iniciar_boss and not r_press:
+                r_press = True
+                iniciar_boss = False
+                boss_vivo1 = True
+                Musica_tema_fases.stop()
+                Musica_tema_Boss1.play(loops=-1)
+                tempo_inicio_boss = pygame.time.get_ticks()
+                tempo_ultima_mudanca_direcao_boss = tempo_inicio_boss
+                vida_boss = vida_maxima_boss1
+                boss_envenenado = False
+                frame_atual_chefe = 0
+                tempo_passado_animacao_chefe = 0
+
+            # --- LÓGICA DO BOSS (somente host controla) ---
+            if modo == "host"  and boss_vivo1:
+                tempo_passado_animacao_chefe += relogio.get_rawtime()
+                if tempo_passado_animacao_chefe >= tempo_animacao_chefe:
+                    tempo_passado_animacao_chefe = 0
+                    frame_atual_chefe = (frame_atual_chefe + 1) % 2
+
+                # Mudar direção aleatoriamente
+                tempo_atual = pygame.time.get_ticks()
+                intervalo_mudanca_direcao_boss = random.randint(1000, 3000)
+                if tempo_atual - tempo_ultima_mudanca_direcao_boss >= intervalo_mudanca_direcao_boss:
+                    direcoes_possiveis = ['up', 'down', 'left', 'right']
+                    direcoes_possiveis.remove(ultima_direcao_boss)
+                    ultima_direcao_boss = random.choice(direcoes_possiveis)
+                    tempo_ultima_mudanca_direcao_boss = tempo_atual
+
+                # Movimento do boss
+                inimigos_comum = []  # limpa inimigos comuns durante o boss
+                if ultima_direcao_boss == 'up':
+                    pos_y_chefe = max(0, pos_y_chefe - Velocidade_boss)
+                elif ultima_direcao_boss == 'down':
+                    pos_y_chefe = min(altura_mapa - chefe_altura, pos_y_chefe + Velocidade_boss)
+                elif ultima_direcao_boss == 'left':
+                    pos_x_chefe = max(0, pos_x_chefe - Velocidade_boss)
+                elif ultima_direcao_boss == 'right':
+                    pos_x_chefe = min(largura_mapa - chefe_largura, pos_x_chefe + Velocidade_boss)
+
+                # Muda direção se tocar na borda
+                if pos_x_chefe <= 0 or pos_x_chefe >= largura_mapa - chefe_largura or pos_y_chefe <= 0 or pos_y_chefe >= altura_mapa - chefe_altura:
+                    if ultima_direcao_boss == 'up': ultima_direcao_boss = 'down'
+                    elif ultima_direcao_boss == 'down': ultima_direcao_boss = 'up'
+                    elif ultima_direcao_boss == 'left': ultima_direcao_boss = 'right'
+                    elif ultima_direcao_boss == 'right': ultima_direcao_boss = 'left'
+
+                # --- Colisão com disparos do jogador ---
+                for disparo in disparos[:]:
+                    rect_disparo = disparo["rect"]
+                    rect_boss = pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)
+                    if rect_disparo.colliderect(rect_boss):
+                        if vida_boss > 0:
+                            if random.random() <= chance_critico:
+                                dano = dano_person_hit * 3
+                                cor = (255, 255, 0)
+                                fonte_dano = fonte_dano_critico
+                            else:
+                                dano = dano_person_hit
+                                cor = (255, 0, 0)
+                                fonte_dano = fonte_dano_normal
+
+                        # Efeito de veneno
+                        if not boss_envenenado and Poison_Active:
+                            boss_envenenado = True
+                            dano_por_tick_veneno_boss = vida_boss * (Dano_Veneno_Acumulado / 100)
+                            tempo_inicio_veneno_boss = pygame.time.get_ticks()
+                            ultimo_tick_veneno_boss = pygame.time.get_ticks()
+
+                        # Aplica dano e roubo de vida
+                        texto_dano = fonte_dano.render(f"-{int(dano)}", True, cor)
+                        tela.blit(texto_dano, (pos_x_chefe + chefe_largura // 2, pos_y_chefe - 20))
+                        vida_boss -= dano
+                        disparos.remove(disparo)
+                        if random.random() < roubo_de_vida:
+                            vida += (vida_maxima - vida) * quantidade_roubo_vida
+
+                # --- Colisão com jogador ---
+                rect_boss = pygame.Rect(pos_x_chefe, pos_y_chefe, 200, 100)
+                rect_personagem = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+                if rect_boss.colliderect(rect_personagem):
+                    tempo_atual = pygame.time.get_ticks()
+                    if tempo_atual - tempo_ultimo_ataque >= 2500:
+                        dano_boss_total = int((vida_maxima * 0.10) + 150 + dano_boss)
+                        if not escudo_devota_ativo:
+                            vida -= max(0, dano_boss_total - Resistencia)
+                        Dano_person.play()
+                        piscando_vida = True
+                        tempo_ultimo_ataque = tempo_atual
+
+                # --- Atualiza frame de acordo com a vida ---
+                porcentagem_vida_boss = (vida_boss / vida_maxima_boss1) * 100
+                if porcentagem_vida_boss >= 90:
+                    frame_porcentagem = frames_chefe1_1
+                elif 60 <= porcentagem_vida_boss < 90:
+                    frame_porcentagem = frames_chefe1_2
+                elif 40 <= porcentagem_vida_boss < 60:
+                    frame_porcentagem = frames_chefe1_3
+                else:
+                    frame_porcentagem = frames_chefe1_4
+
+                # --- Renderizar ---
+                tela.blit(frame_porcentagem[frame_atual_chefe], (pos_x_chefe, pos_y_chefe))
+                desenhar_barra_de_vida(tela, pos_x_chefe, pos_y_chefe - 20, chefe_largura, 10, vida_boss, vida_maxima_boss1)
+
+                fila_envio.put({
+                    "boss": {
+                        "x": pos_x_chefe,
+                        "y": pos_y_chefe,
+                        "vida": vida_boss,
+                        "vida_max": vida_maxima_boss1,
+                        "fase": porcentagem_vida_boss  # ou use porcentagem_vida_boss
+                    }
+                })
+            if modo == "join" and boss_vivo1:
+                for idx, disparo in enumerate(disparos[:]):
+                    rect_disparo = disparo["rect"]
+                    rect_boss = pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)
+                    # Se o disparo colidir com o boss
+                    if rect_disparo.colliderect(rect_boss):
+                        try:
+                            fila_envio.put({"hit_boss": True})
+                        except:
+                            pass
+                        disparos.remove(disparo)
+            if modo == "join" and boss_vivo1:
+                for idx, onda in enumerate(ondas[:]):
+                    rect_onda = onda["rect"]
+                    rect_boss = pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)
+
+                    if rect_onda.colliderect(rect_boss):
+                        try:
+                            fila_envio.put({"hit_boss_especial": True})
+                        except:
+                            pass
+                        ondas.remove(onda)
+            # --- DESENHAR NO CLIENT ---
+            if modo == "join" and boss_vivo1:
+                tela.blit(frame_porcentagem[frame_atual_chefe], (pos_x_chefe, pos_y_chefe))
+                desenhar_barra_de_vida(
+                    tela,
+                    pos_x_chefe,
+                    pos_y_chefe - 20,
+                    chefe_largura,
+                    10,
+                    vida_boss,
+                    vida_maxima_boss1
+                )
+
+            if modo == "host" :
+                for inimigo in inimigos_comum:
+                    inimigo_rect = inimigo["rect"]
+                    inimigo_image = inimigo["image"]
+
+                    inimigo_atingido = False
+
+                    for disparo in disparos:
+
+                        if verificar_colisao_disparo_inimigo(
+                            disparo,
+                            (inimigo["rect"].x, inimigo["rect"].y),
+                            largura_disparo,
+                            altura_disparo,
+                            largura_inimigo,
+                            altura_inimigo,
+                            inimigos_eliminados
+                        ):
+                            if random.random() <= chance_critico:  # chance de dano crítico
+                                dano = dano_person_hit * 3  # Valor do dano crítico é 3 vezes o dano normal
+                                cor = (255, 255, 0)  # Amarelo (RGB)
+                                fonte_dano = fonte_dano_critico
+                            else:
+                                dano = dano_person_hit
+                                cor = (255, 0, 0)  # Vermelho (RGB)
+                                fonte_dano = fonte_dano_normal
+
+                            if Petro_active:
+                                if vida_petro < vida_maxima_petro:
+                                    vida_petro += (vida_maxima_petro - vida_petro) * 0.25
+
+                            # Renderize o texto do dano
+                            texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
+                            # Desenhe o texto na tela perto do chefe
+                            pos_texto = (
+                                inimigo["rect"].x + largura_inimigo // 2 - texto_dano.get_width() // 2,
+                                inimigo["rect"].y - 20
+                            )
+                            # Rastreie o tempo de exibição do texto
+                            tempo_texto_dano = pygame.time.get_ticks()
+
+                            inimigo["vida"] -= dano
+                            disparos.remove(disparo)  # Remover o disparo após colisão
+
+
+
+                            if inimigo["vida"] <= 0:
+                                posicao_inimigo = inimigo["rect"].center
+                                soltar_moeda(posicao_inimigo)
+                                # envia pro client desenhar a moeda também
+                                try:
+                                    fila_envio.put({"drop_moeda": posicao_inimigo})
+                                except:
+                                    pass
+                                inimigos_comum.remove(inimigo)
+
+                                # Crescimento proporcional por nível de ameaça
+                                aplicar_crescimento_personalizado()
+
+                                ganho = int(75 + math.log2(inimigos_eliminados + 1) * 4)
+                                pontuacao += ganho
+                                eliminacoes_consecutivas_impulsiva += 1
+
+                                pontuacao_exib += ganho
+                                fila_envio.put({"pontuacao_atual": pontuacao_exib})
+                                fila_envio.put({"crescimento_local": True})
+
+                                # Boss: aumento escalonado
+                                if not boss_vivo1:
+                                    if vida_boss > 0:
+                                        vida_boss += 15 + nivel_ameaca * 10
+                                        vida_maxima_boss1 = vida_boss
+
+                            if random.random() < roubo_de_vida:
+                                vida += (vida_maxima - vida) * quantidade_roubo_vida
+
+
+
+                    if inimigo_atingido:
+                        break  # Sair do loop externo se um inimigo foi atingido
+
+
+
+                    if pontuacao_exib > pontuacao_magia:
+                        pontuacao_magia = min(pontuacao_exib, maxima_pontuacao_magia)
+
+            if modo == "join":
+                for inimigo in inimigos_comum:
+                    inimigo_rect = inimigo["rect"]
+                    inimigo_image = inimigo["image"]
+
+                    inimigo_atingido = False
+
+                    for disparo in disparos:
+
+                        if verificar_colisao_disparo_inimigo(
+                            disparo,
+                            (inimigo["rect"].x, inimigo["rect"].y),
+                            largura_disparo,
+                            altura_disparo,
+                            largura_inimigo,
+                            altura_inimigo,
+                            inimigos_eliminados
+                        ):
+                            if random.random() <= chance_critico:  # chance de dano crítico
+                                dano = dano_person_hit * 3  # Valor do dano crítico é 3 vezes o dano normal
+                                cor = (255, 255, 0)  # Amarelo (RGB)
+                                fonte_dano = fonte_dano_critico
+                            else:
+                                dano = dano_person_hit
+                                cor = (255, 0, 0)  # Vermelho (RGB)
+                                fonte_dano = fonte_dano_normal
+
+                            if Petro_active:
+                                if vida_petro < vida_maxima_petro:
+                                    vida_petro += (vida_maxima_petro - vida_petro) * 0.25
+
+                            # Renderize o texto do dano
+                            texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
+                            # Desenhe o texto na tela perto do chefe
+                            pos_texto = (
+                                inimigo["rect"].x + largura_inimigo // 2 - texto_dano.get_width() // 2,
+                                inimigo["rect"].y - 20
+                            )
+                            # Rastreie o tempo de exibição do texto
+                            tempo_texto_dano = pygame.time.get_ticks()
+                            disparos.remove(disparo)  # Remover o disparo após colisão
+                            # Notifica o host se for client
+                            if modo == "join":
+                                try:
+                                    idx = inimigos_comum.index(inimigo)
+                                    fila_envio.put({"hit": idx})
+                                except:
+                                    pass
+
+
+
+
+                            if random.random() < roubo_de_vida:
+                                vida += (vida_maxima - vida) * quantidade_roubo_vida
+
+
+
+                    if inimigo_atingido:
+                        break  # Sair do loop externo se um inimigo foi atingido
+
+
+
+                    if pontuacao_exib > pontuacao_magia:
+                        pontuacao_magia = min(pontuacao_exib, maxima_pontuacao_magia)
+
+
+
+
+
+            total_cartas_compradas = sum(cartas_compradas.values())
+            custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
+            # Verifica se a pontuação atingiu 1500 e se o jogador pressionou 'Q'
+            if modo == "host" :
+                if (not jogador_remoto_morto) and (pontuacao_exib >= custo_carta_atual) and (keys[config_teclas["Comprar na loja"]] or (joystick and joystick.get_button(3))):
+                    # Calcula quantas cartas o jogador pode comprar
+                    max_cartas = pontuacao_exib // custo_carta_atual
+                    if max_cartas <= 0:
+                        continue  # segurança
+
+                    # Debita tudo de uma vez
+                    total_custo = custo_carta_atual * max_cartas
+                    pontuacao_exib -= total_custo
+                    pontuacao_magia -= total_custo
+                    apertou_q = True
+
+                    # Envia pro client abrir loja também
+                    fila_envio.put({"abrir_loja": True, "quantidade_cartas": max_cartas})
+                    Safe=True
+                    ret = tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_disparo, altura_disparo,
+                                        trembo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,
+                                        tempo_cooldown_dash, vida_maxima, Petro_active, Resistencia, vida_petro,
+                                        vida_maxima_petro, dano_petro, xp_petro, petro_evolucao, Resistencia_petro,
+                                        Chance_Sorte, Poison_Active, Dano_Veneno_Acumulado, Executa_inimigo, Ultimo_Estalo,
+                                        mostrar_info, Mercenaria_Active, Valor_Bonus, dispositivo_ativo, Tempo_cura,
+                                        porcentagem_cura, cartas_compradas, pontuacao_exib,max_cartas_compraveis=max_cartas, inimigos_eliminados=inimigos_eliminados)
+                    velocidade_personagem = ret[0]
+                    intervalo_disparo = ret[1]
+                    vida = ret[2]
+                    largura_disparo =ret[3]
+                    altura_disparo =ret[4]
+                    trembo= ret[5]
+                    dano_person_hit= ret[6]
+                    chance_critico= ret[7]
+                    roubo_de_vida= ret[8]
+                    quantidade_roubo_vida= ret[9]
+                    tempo_cooldown_dash= ret[10]
+                    vida_maxima= ret[11]
+                    Petro_active= ret[12]
+                    Resistencia=  ret[13]
+                    vida_petro= ret[14]
+                    vida_maxima_petro= ret[15]
+                    dano_petro= ret[16]
+                    xp_petro= ret[17]
+                    petro_evolucao= ret[18]
+                    Resistencia_petro= ret[19]
+                    Chance_Sorte= ret[20]
+                    Poison_Active= ret[21]
+                    Dano_Veneno_Acumulado= ret[22]
+                    Executa_inimigo= ret[23]
+                    Ultimo_Estalo= ret[24]
+                    Mercenaria_Active= ret[25]
+                    Valor_Bonus= ret[26]
+                    dispositivo_ativo=ret[27]
+                    Tempo_cura=ret[28]
+                    porcentagem_cura=ret[29]
+                    cartas_compradas= ret[30]
+                    pontuacao_exib= ret[31]
+
+                    # após sair da loja, avisa o outro lado
+                    fila_envio.put({"abrir_loja": False})
+                    tela_de_espera_host(tela, fila_envio, fila_recebimento)
+                    Safe=False
+
+
+
+
+
+
+            posicao_barra_vida = (80, altura_mapa - (altura_mapa - 34))
+            fonte = pygame.font.Font(None, int(altura_barra_vida*1))
+            texto_pontuacao = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (250, 255,255))
+            fonte_vida = pygame.font.Font(None, int(altura_barra_vida*0.9))
+            texto_vida = fonte_vida.render(f'{int(vida)}/{int(vida_maxima)}', True, (255, 255, 255))
+
+            # Renderiza o texto de pontuação com uma borda
+            texto_pontuacao_borda = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (0, 0, 0))  # Cor preta para a borda
+            # Desenha o texto da borda um pouco deslocado para criar o efeito de contorno
+            tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 - 1))
+            tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 + 1, altura_mapa*0.118 - 1))
+            tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 + 1))
+            tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 + 1, altura_mapa*0.118 + 1))
+
+            # Desenha o texto da pontuação por cima da borda
+            tela.blit(texto_pontuacao, (largura_mapa*0.075, altura_mapa*0.118))
+
+
+
+
+
+            # Calculando o ângulo do preenchimento em graus
+            angulo_preenchimento = (pontuacao_magia / 735) * 360  # ângulo em graus
+            # Preenchendo a parte do círculo
+            if angulo_preenchimento > 0:
+                pontos = []
+                for i in range(int(angulo_preenchimento) + 1):
+                    radianos = math.radians(i - 90) 
+                    x = centro_circulo[0] + raio_circulo * math.cos(radianos)
+                    y = centro_circulo[1] + raio_circulo * math.sin(radianos)
+                    pontos.append((x, y))
+                pygame.draw.polygon(tela, (53, 239, 252), [centro_circulo] + pontos) 
+
+            tela.blit(imagem_relogio, posicao_imagem_relogio)
+
+
+
+            if vida > vida_maxima:
+                vida_maxima=vida
+
+            porcentagem_vida_personagem = (vida / vida_maxima) * 100
+            if aurea == "Devota" and escudo_devota_ativo:
+                cor_barra = (0, 150, 255)  # Azul para indicar o escudo ativo
+            else:
+                cor_barra = calcular_cor_barra_de_vida(porcentagem_vida_personagem)
+
+            pygame.draw.rect(tela, cor_barra, (posicao_barra_vida[0], posicao_barra_vida[1], (vida / vida_maxima) * largura_barra_vida, altura_barra_vida))
+            pygame.draw.rect(tela, (0, 0, 0), (posicao_barra_vida[0], posicao_barra_vida[1], largura_barra_vida, altura_barra_vida), 2)
+
+
+            # Renderiza o texto de vida com uma borda
+            texto_vida_borda = fonte_vida.render(f'{int(vida)}/{int(vida_maxima)}', True, (0, 0, 0))  # Cor preta para a borda
+            # Desenha o texto da borda um pouco deslocado para criar o efeito de contorno
+            tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 - 1, posicao_barra_vida[1] + 5 - 1))
+            tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 + 1, posicao_barra_vida[1] + 5 - 1))
+            tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 - 1, posicao_barra_vida[1] + 5 + 1))
+            tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 + 1, posicao_barra_vida[1] + 5 + 1))
+
+            # Desenha o texto da vida por cima da borda
+            tela.blit(texto_vida, (posicao_barra_vida[0]*2, posicao_barra_vida[1] + 5))
+
+
+            tela.blit(imagem_vida, posicao_vida)
+                # Verifica se o personagem está passando pelo centro da tela e se a mensagem ainda não foi mostrada
+            if (pos_x_personagem >= centro_x_tela_pequena - 400 and
+                pos_x_personagem <= centro_x_tela_pequena + 400 and
+                pos_y_personagem >= centro_y_tela_pequena - 400 and
+                pos_y_personagem <= centro_y_tela_pequena + 400 and mensagem_mostrada):
+
+
+                # Renderiza o texto
+                texto_renderizado = fonte.render(mensagem, True, (0,0,0))
+                # Obtém o retângulo do texto
+                texto_rect = texto_renderizado.get_rect()
+                # Define a posição do texto para que ele fique no centro da tela
+                texto_rect.center = (centro_x_tela_pequena, centro_y_tela_pequena)
+
+                # Calcula as dimensões do retângulo de fundo da mensagem
+                largura_fundo = texto_rect.width + 20  # Adiciona um espaço de 10 pixels de cada lado
+                altura_fundo = texto_rect.height + 20  # Adiciona um espaço de 10 pixels em cima e embaixo
+                # Cria um retângulo branco para o fundo da mensagem
+                fundo_rect = pygame.Rect((centro_x_tela_pequena - largura_fundo // 2, centro_y_tela_pequena - altura_fundo // 2), (largura_fundo, altura_fundo))
+                # Desenha o retângulo branco na tela
+                pygame.draw.rect(tela, (225, 255, 255), fundo_rect)
+                # Desenha o texto na tela
+                tela.blit(texto_renderizado, texto_rect) 
+
+                # Incrementa o tempo que a mensagem está sendo mostrada
+                tempo_mostrando_mensagem += 1
+
+                # Se a mensagem estiver sendo mostrada por mais de 3 segundos
+                if tempo_mostrando_mensagem > 420:  # 60 frames por segundo * 3 segundos = 180
+                    mensagem_mostrada = False  # Define que a mensagem foi mostrada
+                    tempo_mostrando_mensagem = 0  # Reinicia o contador de tempo
+
+            # Remova o texto após 2 segundos
+            if texto_dano is not None and pygame.time.get_ticks() - tempo_texto_dano >= 250:
+                texto_dano = None
+
+            cooldowns = {
+                "disparo": max(0, tempo_atual - tempo_ultimo_disparo >= intervalo_disparo),
+                "teleporte": max(0, pygame.time.get_ticks() - tempo_ultimo_dash > tempo_cooldown_dash),
+                "onda": max(0, tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade),
+                "loja": 1 if pontuacao_exib >= custo_carta_atual else 0, 
+            }
+            if not area_icones.colliderect(
+            (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+            ):
+                # Desenhar habilidades na tela
+                desenhar_habilidades(tela, cooldowns,dispositivo_ativo)
+            if eliminacoes_consecutivas > 0:
+                fonte_combo = pygame.font.Font(None, 36)  # Tamanho maior para o combo
+                fonte_bonus = pygame.font.Font(None, 28)  # Tamanho menor para o bônus
+
+                # Texto do combo
+                texto_combo = f"Combo: {eliminacoes_consecutivas}"
+                posicao_combo = (largura_mapa - 170, 50)  
+                desenhar_texto_com_contorno(tela, texto_combo, fonte_combo, (255, 255, 255), (0, 0, 0), posicao_combo)
+
+                # Texto do bônus
+                texto_bonus = f"Bônus: +{bonus_pontuacao}"
+                posicao_bonus = (largura_mapa - 200, 90)  
+                desenhar_texto_com_contorno(tela, texto_bonus, fonte_bonus, (255, 255, 255), (0, 0, 0), posicao_bonus)
+
+            # Desenhe o texto na tela
+            if texto_dano is not None:
+                tela.blit(texto_dano, pos_texto)
+            # Controle de exibição
+            if mostrar_tutorial:
+                tempo_decorrido = time.time() - tempo_inicial
+                if 'mensagens_exibidas' not in globals():
+                    mensagens_exibidas = set()
+                    mensagem_ativa = None
+                    tempo_fim_mensagem = 0
+
+                # Ativando nova mensagem, se for o tempo certo
+                for tempo_msg, texto_msg in mensagens_iniciais:
+                    if int(tempo_decorrido) == tempo_msg and tempo_msg not in mensagens_exibidas:
+                        mensagem_ativa = texto_msg
+                        tempo_fim_mensagem = tempo_decorrido + 10  # visível por 10 segundos
+                        mensagens_exibidas.add(tempo_msg)
+
+                # Exibindo mensagem ativa com contorno
+                if mensagem_ativa and tempo_decorrido < tempo_fim_mensagem:
+                    fonte_mensagem = pygame.font.Font(None, 48)
+                    texto = mensagem_ativa
+                    texto_renderizado = fonte_mensagem.render(texto, True, (255, 255, 255))
+                    texto_borda = fonte_mensagem.render(texto, True, (0, 0, 0))
+
+                    x = largura_mapa // 2 - texto_renderizado.get_width() // 2
+                    y = int(altura_mapa * 0.15)
+
+                    tela.blit(texto_borda, (x - 1, y))
+                    tela.blit(texto_borda, (x + 1, y))
+                    tela.blit(texto_borda, (x, y - 1))
+                    tela.blit(texto_borda, (x, y + 1))
+                    tela.blit(texto_renderizado, (x, y))
+                else:
+                    mensagem_ativa = None
+            tempo_atual = pygame.time.get_ticks()
+            for inimigo in inimigos_comum:
+                i_id = id(inimigo)
+                if i_id in inimigos_em_chamas:
+                    if tempo_atual - inimigos_em_chamas[i_id] <= duracao_incendio_vanguarda:
+                        if tempo_atual - inimigo.get("ultimo_tick_queimando", 0) >= 1000:
+                            inimigo["ultimo_tick_queimando"] = tempo_atual
+
+                            # Escalonamento: 1% a 3% da vida máxima baseado no combo
+                            proporcao = min(0.03, 0.01 + (eliminacoes_consecutivas * 0.0005))
+                            dano_fogo = int(inimigo.get("vida_maxima", 100) * proporcao)
+
+                            inimigo["vida"] -= dano_fogo
+
+                            efeitos_texto.append({
+                                "texto": f"-{dano_fogo}",
+                                "x": inimigo["rect"].x,
+                                "y": inimigo["rect"].y - 20,
+                                "tempo_inicio": tempo_atual,
+                                "cor": (255, 60, 0)
+                            })
+
+                            if inimigo["vida"] <= 0:
+                                inimigos_em_chamas.pop(i_id, None)
+                    else:
+                        inimigos_em_chamas.pop(i_id, None)
+            for moeda in moedas_soltadas:
+                tela.blit(moeda["image"], moeda["rect"])
+            # Exibir ping no canto superior direito
+            if modo == "join":  # apenas o cliente precisa ver o ping
+                fonte_ping = pygame.font.Font(None, 32)
+                texto_ping = fonte_ping.render(f"Ping: {ping_atual} ms", True, cor_ping)
+                tela.blit(texto_ping, (largura_mapa - texto_ping.get_width() - 20, 40))
+            # --- Popup Boss ---
+            if convite_boss_ativo:
+                fonte_popup = pygame.font.Font(None, 32)
+                rect_popup = pygame.Rect(tela.get_width() - 320, 20, 300, 60)
+                pygame.draw.rect(tela, (30, 30, 30), rect_popup, border_radius=8)
+                pygame.draw.rect(tela, (200, 200, 0), rect_popup, 2, border_radius=8)
+
+                if convite_boss_enviado:
+                    texto = fonte_popup.render("Convite enviado...", True, (255, 255, 0))
+                elif convite_boss_recebido:
+                    restante = 5 - (pygame.time.get_ticks() - convite_boss_tempo) // 1000
+                    texto = fonte_popup.render("Aperte Y para aceitar o Boss", True, (255, 255, 255))
+                else:
+                    texto = fonte_popup.render("Esperando confirmação...", True, (255, 255, 255))
+
+                tela.blit(texto, (rect_popup.x + 15, rect_popup.y + 20))
+
+
+
+
+            tela.blit(cursor_imagem, (mouse_x, mouse_y))
+            exibir_cronometro(tela)
+            pygame.display.flip()
+            FPS.tick(100)  # Limita a 100 FPS
+
+
+        # Encerrar o Pygame
+        pygame.quit()
+    except CleanExit:
+        return
+    finally:
+        _sys.exit = _orig_sys_exit
+        _os._exit = _orig_os_exit
+        if _orig_builtins_exit:
+            _builtins.exit = _orig_builtins_exit
+
+
+if __name__ == '__main__':
+    executar_jogo()

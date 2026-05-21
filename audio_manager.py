@@ -4,7 +4,7 @@ import pygame
 def carregar_config_audio():
     """Carrega as configurações de áudio do arquivo JSON"""
     try:
-        with open("config_audio.json", "r") as f:
+        with open("saves/config_audio.json", "r") as f:
             return json.load(f)
     except:
         return {
@@ -41,5 +41,5 @@ def aplicar_volume_musica(config_audio=None):
 
 def salvar_config_audio(config_audio):
     """Salva as configurações de áudio no arquivo JSON"""
-    with open("config_audio.json", "w") as f:
+    with open("saves/config_audio.json", "w") as f:
         json.dump(config_audio, f, indent=4)

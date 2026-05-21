@@ -6,8 +6,29 @@ import math
 
 python = sys.executable
 
-def tela_de_controles(config_teclas, largura_tela, altura_tela):
-    pygame.init()
+def render_glitch_text_with_fallback(texto, fonte_glitch, fonte_fallback, cor):
+    surfaces = []
+    largura_total = 0
+    altura_max = 0
+    for char in texto:
+        ord_char = ord(char)
+        if ord_char > 127 or char in "ÇçÃãÕõÉéÍíÓóÚúÂâÊêÔôÀà":
+            char_surf = fonte_fallback.render(char, True, cor)
+        else:
+            char_surf = fonte_glitch.render(char, True, cor)
+        surfaces.append(char_surf)
+        largura_total += char_surf.get_width()
+        altura_max = max(altura_max, char_surf.get_height())
+        
+    surf_final = pygame.Surface((largura_total, altura_max), pygame.SRCALPHA)
+    x_offset = 0
+    for char_surf in surfaces:
+        y_offset = (altura_max - char_surf.get_height()) // 2
+        surf_final.blit(char_surf, (x_offset, y_offset))
+        x_offset += char_surf.get_width()
+    return surf_final
+
+def tela_de_controles(tela, config_teclas, largura_tela, altura_tela):
     pygame.mouse.set_visible(True)
     
     padrao_config_teclas = {
@@ -23,23 +44,28 @@ def tela_de_controles(config_teclas, largura_tela, altura_tela):
         if chave not in config_teclas:
             config_teclas[chave] = valor
 
-    tela = pygame.display.set_mode((largura_tela, altura_tela))
-    pygame.display.set_caption("Configuração de Controles")
-
     try:
         fundo = pygame.image.load("Sprites/botao_menu.png").convert()
         fundo = pygame.transform.scale(fundo, (largura_tela, altura_tela))
     except:
         fundo = None
 
+    caminho_titulo = "Texto/Top_Menu.otf"
+    caminho_letras = "Texto/Broken.otf"
+    caminho_letra1 = "Texto/World.otf"
+
     try:
-        fonte_titulo = pygame.font.Font("Texto/fonte.ttf", 52)
-        fonte      = pygame.font.Font("Texto/fonte.ttf", 32)
-        fonte_hint  = pygame.font.Font("Texto/fonte.ttf", 22)
+        fonte_titulo = pygame.font.Font(caminho_titulo, 52)
+        fonte_fallback_titulo = pygame.font.Font(caminho_letra1, 52)
+        fonte = pygame.font.Font(caminho_letras, 24)
+        fonte_valores = pygame.font.Font(caminho_letra1, 22)
+        fonte_hint = pygame.font.Font(caminho_letras, 16)
     except:
         fonte_titulo = pygame.font.Font(None, 52)
-        fonte       = pygame.font.Font(None, 36)
-        fonte_hint   = pygame.font.Font(None, 26)
+        fonte_fallback_titulo = pygame.font.Font(None, 52)
+        fonte = pygame.font.Font(None, 28)
+        fonte_valores = pygame.font.Font(None, 24)
+        fonte_hint = pygame.font.Font(None, 18)
 
     COR_BG         = (10, 8, 20)
     COR_PAINEL     = (20, 16, 40, 200)
@@ -95,7 +121,7 @@ def tela_de_controles(config_teclas, largura_tela, altura_tela):
         tela.blit(borda_surface, (CARD_X, CARD_Y))
 
         # Título
-        titulo = fonte_titulo.render("CONTROLES", True, COR_TITULO)
+        titulo = render_glitch_text_with_fallback("CONTROLES", fonte_titulo, fonte_fallback_titulo, COR_TITULO)
         tela.blit(titulo, (largura_tela // 2 - titulo.get_width() // 2, CARD_Y - 55))
 
         # Lista de teclas
@@ -124,7 +150,7 @@ def tela_de_controles(config_teclas, largura_tela, altura_tela):
             if is_sel and redefinindo_tecla:
                 nome_tecla = "▶ _ ◀" if mostrar_piscar else "▶   ◀"
 
-            txt_tecla = fonte.render(f"[ {nome_tecla} ]", True, cor)
+            txt_tecla = fonte_valores.render(f"[ {nome_tecla} ]", True, cor)
             tela.blit(txt_tecla, (CARD_X + CARD_W - txt_tecla.get_width() - 24, y_item))
 
             # Separador sutil
@@ -163,7 +189,8 @@ def tela_de_controles(config_teclas, largura_tela, altura_tela):
         # Events
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
-                rodando = False
+                pygame.quit()
+                sys.exit()
             elif evento.type == pygame.KEYDOWN:
                 if redefinindo_tecla:
                     nova_tecla = evento.key
@@ -192,9 +219,7 @@ def tela_de_controles(config_teclas, largura_tela, altura_tela):
                     elif evento.key == pygame.K_SPACE or evento.key == pygame.K_RETURN:
                         redefinindo_tecla = True
                     elif evento.key == pygame.K_ESCAPE:
-                        pygame.quit()
-                        subprocess.run([python, "Ruptura_Temporal.py"])
-                        sys.exit()
+                        rodando = False
             elif evento.type == pygame.MOUSEBUTTONDOWN:
                 mx, my = evento.pos
                 for i in range(len(funcoes)):
@@ -211,17 +236,14 @@ def tela_de_controles(config_teclas, largura_tela, altura_tela):
             mostrar_piscar = not mostrar_piscar
             tempo_piscar = 0
 
-    config_teclas = carregar_config_teclas()
-    pygame.quit()
-
 
 def salvar_config_teclas(config_teclas):
-    with open("config_teclas.json", "w") as arquivo:
+    with open("saves/config_teclas.json", "w") as arquivo:
         json.dump(config_teclas, arquivo)
 
 def carregar_config_teclas():
     try:
-        with open("config_teclas.json", "r") as arquivo:
+        with open("saves/config_teclas.json", "r") as arquivo:
             return json.load(arquivo)
     except FileNotFoundError:
         return {
@@ -236,4 +258,6 @@ def carregar_config_teclas():
 if __name__ == "__main__":
     config_teclas = carregar_config_teclas()
     largura_tela, altura_tela = 800, 600
-    tela_de_controles(config_teclas, largura_tela, altura_tela)
+    pygame.init()
+    tela = pygame.display.set_mode((largura_tela, altura_tela))
+    tela_de_controles(tela, config_teclas, largura_tela, altura_tela)
