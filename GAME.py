@@ -15,6 +15,9 @@ from audio_manager import carregar_config_audio, aplicar_volume_som
 # Forward declarations (atribuídos no loop principal)
 botao_mouse = (False, False, False)
 sprite_moeda = None
+escudo_devota_ativo = True
+duracao_incendio_vanguarda = 5000
+intervalo_escudo = 30000
 
 pygame.init()
 
@@ -197,11 +200,14 @@ running = True
 tempo_atual = 0
 texto = None
 ultima_tecla_movimento = None
+teleporte_sprites = []
+teleporte_index = 0
+teleporte_timer = 0
 x = 0
 y = 0
 
 def executar_jogo(game_manager=None):
-    global Chance_Sorte, Dano_Boss_Habilit, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss1, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, Velocidade_Inimigos_1, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apertou_q, atributos, bonus_pontuacao, boss_envenenado, cartas_compradas, chance_critico, cooldown_dash, dano, dano_boss, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_atual_petro, disparos, dispositivo_ativo, distancia_dash, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_ataque_especial, escudo_devota_ativo, espacamento, f, fonte, frame_atual_chefe, frame_porcentagem, hitboxes, i, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, jogador_posicoes, lado, largura_disparo, largura_personagem, linha, mensagem, mensagem_ativa, mensagem_mostrada, mensagens_exibidas, moedas_coletadas, moedas_soltadas, moedas_totais, musica_boss1, ondas, petro_evolucao, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe, pos_x_personagem, pos_x_petro, pos_y_chefe, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, r_press, rect_boss, relogio, roubo_de_vida, running, teleportado, teleporte_duration, teleporte_index, teleporte_timer, tempo_anterior_petro, tempo_ataque_especial, tempo_atual, tempo_cooldown_dash, tempo_fase_completa, tempo_fim_mensagem, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_mostrando_mensagem, tempo_passado_animacao_chefe, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_mudanca_direcao_boss, tempo_ultima_regeneracao, tempo_ultimo_ataque, tempo_ultimo_dano_ataque, tempo_ultimo_dash, tempo_ultimo_uso_habilidade, texto, texto_dano, tipo_buff_impulsiva, toque, trembo, tutorial_dash_count, tutorial_fase, tutorial_lado_inicial, tutorial_parede_ativa, tutorial_parede_rect, tutorial_wasd, ultima_direcao_animacao, ultima_direcao_boss, ultima_tecla_movimento, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_boss2, vida_boss3, vida_boss4, vida_maxima, vida_maxima_boss1, vida_maxima_boss2, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, x, xp_petro, tutorial_inimigo_ativo, tutorial_inimigo, y
+    global Chance_Sorte, Dano_Boss_Habilit, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss1, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, Velocidade_Inimigos_1, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apertou_q, atributos, bonus_pontuacao, boss_envenenado, cartas_compradas, chance_critico, cooldown_dash, dano, dano_boss, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_atual_petro, disparos, dispositivo_ativo, distancia_dash, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_ataque_especial, escudo_devota_ativo, espacamento, f, fonte, frame_atual_chefe, frame_porcentagem, hitboxes, i, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, jogador_posicoes, lado, largura_disparo, largura_personagem, linha, mensagem, mensagem_ativa, mensagem_mostrada, mensagens_exibidas, moedas_coletadas, moedas_soltadas, moedas_totais, musica_boss1, ondas, petro_evolucao, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe, pos_x_personagem, pos_x_petro, pos_y_chefe, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, r_press, rect_boss, relogio, roubo_de_vida, running, teleportado, teleporte_duration, teleporte_index, teleporte_timer, tempo_anterior_petro, tempo_ataque_especial, tempo_atual, tempo_cooldown_dash, tempo_fase_completa, tempo_fim_mensagem, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_mostrando_mensagem, tempo_passado_animacao_chefe, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_mudanca_direcao_boss, tempo_ultima_regeneracao, tempo_ultimo_ataque, tempo_ultimo_dano_ataque, tempo_ultimo_dash, tempo_ultimo_uso_habilidade, texto, texto_dano, tipo_buff_impulsiva, toque, trembo, tutorial_dash_count, tutorial_fase, tutorial_lado_inicial, tutorial_parede_ativa, tutorial_parede_rect, tutorial_wasd, ultima_direcao_animacao, ultima_direcao_boss, ultima_tecla_movimento, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_boss2, vida_boss3, vida_boss4, vida_maxima, vida_maxima_boss1, vida_maxima_boss2, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, x, xp_petro, tutorial_inimigo_ativo, tutorial_inimigo, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -211,12 +217,12 @@ def executar_jogo(game_manager=None):
         if game_manager:
             raise CleanExit()
         else:
-            _sys.exit(*args, **kwargs)
+            _orig_sys_exit(*args, **kwargs)
     def local_os_exit(*args, **kwargs):
         if game_manager:
             raise CleanExit()
         else:
-            _os._exit(*args, **kwargs)
+            _orig_os_exit(*args, **kwargs)
     _orig_sys_exit = _sys.exit
     _orig_os_exit = _os._exit
     _orig_builtins_exit = getattr(_builtins, 'exit', None)
@@ -264,6 +270,13 @@ def executar_jogo(game_manager=None):
         # Carregar a imagem do mapa
         mapa = pygame.image.load(mapa_path1).convert()
         mapa = pygame.transform.scale(mapa, (largura_mapa, altura_mapa))
+
+        teleporte_sprites = [
+            pygame.transform.scale(pygame.image.load("Sprites/icon_teleport.png").convert_alpha(), (80, 80)),
+            pygame.transform.scale(pygame.image.load("Sprites/icon_teleport2.png").convert_alpha(), (80, 80))
+        ]
+        teleporte_index = 0
+        teleporte_timer = 0
         # Carregar as sequências de imagens do personagem
 
         # Configurações do loop principal
@@ -303,57 +316,11 @@ def executar_jogo(game_manager=None):
 
         def atualizar_posicao_personagem(keys, joystick):
             global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento
-            global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_timer, teleporte_duration, teleporte_index
+            global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_duration
             global tutorial_wasd, tutorial_fase, tutorial_dash_count, tempo_fase_completa, tutorial_parede_ativa, tutorial_parede_rect, tutorial_lado_inicial
+            global angulo_inclinacao_personagem
 
             direcao_atual = 'stop'  # Por padrão, definimos a direção como 'stop'
-
-            if  keys[config_teclas["Teleporte"]] and not cooldown_dash:
-                # Animação de teletransporte
-                Som_portal.play()
-                teleporte_timer += velocidade_personagem
-                if teleporte_timer >= teleporte_duration:
-                    teleporte_index = (teleporte_index + 1) % len(teleporte_sprites)
-                    teleporte_timer = 0
-
-                # Desenhe a sprite de teletransporte
-                tela.blit(teleporte_sprites[teleporte_index], (pos_x_personagem, pos_y_personagem))
-
-                # Atualize a tela
-                pygame.display.flip()
-                pygame.time.delay(teleporte_duration // 2)  # Tempo de espera entre cada quadro (metade da duração)
-
-                # Continue com o código do dash como antes
-                if ultima_tecla_movimento == 'up':
-                    pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
-                elif ultima_tecla_movimento == 'down':
-                    pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
-                elif ultima_tecla_movimento == 'left':
-                    pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
-                elif ultima_tecla_movimento == 'right':
-                    pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
-
-                # Inicie o cooldown do dash
-                cooldown_dash = True
-                tempo_ultimo_dash = pygame.time.get_ticks()
-
-                # Contar dashes para o tutorial
-                if mostrar_tutorial and tutorial_fase == 2:
-                    tutorial_dash_count += 1
-                    if tutorial_dash_count >= 3:
-                        tutorial_fase = 3
-                        tutorial_parede_ativa = True
-                        # Parede roxa vertical no centro do mapa
-                        parede_w = 20
-                        parede_h = int(altura_mapa * 0.5)
-                        tutorial_parede_rect = pygame.Rect(
-                            largura_mapa // 2 - parede_w // 2,
-                            altura_mapa // 2 - parede_h // 2,
-                            parede_w, parede_h
-                        )
-                        tempo_fase_completa = time.time()
-
-            global angulo_inclinacao_personagem
             dx, dy = 0, 0
 
             # ---- TECLADO ----
@@ -428,37 +395,41 @@ def executar_jogo(game_manager=None):
                     elif dy < 0:
                         pos_y_personagem = tutorial_parede_rect.bottom
 
-            # Verificar botões do joystick para teletransporte
-            if joystick and joystick.get_button(2) and not cooldown_dash:
-                # Animação de teletransporte
+            # ---- DASH/TELEPORTE ----
+            dash_teclado = keys[config_teclas["Teleporte"]]
+            dash_joystick = joystick and joystick.get_button(4) if joystick else False
+
+            if (dash_teclado or dash_joystick) and cooldown_dash == False:
                 Som_portal.play()
-                teleporte_timer += velocidade_personagem
-                if teleporte_timer >= teleporte_duration:
-                    teleporte_index = (teleporte_index + 1) % len(teleporte_sprites)
-                    teleporte_timer = 0
 
-                # Desenhar a sprite de teletransporte
-                tela.blit(teleporte_sprites[teleporte_index], (pos_x_personagem, pos_y_personagem))
+                # Animação de teletransporte (plasma procedural)
+                animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
+                tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
 
-                # Atualizar a tela
-                pygame.display.flip()
-                pygame.time.delay(teleporte_duration // 2)  # Tempo de espera entre cada quadro (metade da duração)
+                if ultima_tecla_movimento == 'up': pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
+                elif ultima_tecla_movimento == 'down': pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
+                elif ultima_tecla_movimento == 'left': pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
+                elif ultima_tecla_movimento == 'right': pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
 
-                # Continuar com o código do dash como antes
-                if ultima_tecla_movimento == 'up':
-                    pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
-                elif ultima_tecla_movimento == 'down':
-                    pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
-                elif ultima_tecla_movimento == 'left':
-                    pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
-                elif ultima_tecla_movimento == 'right':
-                    pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
-
-                # Iniciar o cooldown do dash
                 cooldown_dash = True
                 tempo_ultimo_dash = pygame.time.get_ticks()
 
-            # Atualizar o cooldown do dash
+                # Contar dashes para o tutorial
+                if mostrar_tutorial and tutorial_fase == 2:
+                    tutorial_dash_count += 1
+                    if tutorial_dash_count >= 3:
+                        tutorial_fase = 3
+                        tutorial_parede_ativa = True
+                        # Parede roxa vertical no centro do mapa
+                        parede_w = 20
+                        parede_h = int(altura_mapa * 0.5)
+                        tutorial_parede_rect = pygame.Rect(
+                            largura_mapa // 2 - parede_w // 2,
+                            altura_mapa // 2 - parede_h // 2,
+                            parede_w, parede_h
+                        )
+                        tempo_fase_completa = time.time()
+
             if cooldown_dash and pygame.time.get_ticks() - tempo_ultimo_dash > tempo_cooldown_dash:
                 cooldown_dash = False
 
@@ -759,6 +730,19 @@ def executar_jogo(game_manager=None):
 
         upgrades = carregar_upgrade_aureas("saves/aureas_upgrade.json")
 
+        # Configurar e escalar as passivas das áureas
+        nivel_devota = upgrades.get("Devota", 0)
+        nivel_vanguarda = upgrades.get("Vanguarda", 0)
+
+        if aurea == "Devota":
+            escudo_devota_ativo = True
+            intervalo_escudo = max(10000, 30000 - (nivel_devota * 3000))
+        else:
+            escudo_devota_ativo = False
+
+        if aurea == "Vanguarda":
+            duracao_incendio_vanguarda = 5000 + (nivel_vanguarda * 1000)
+
         FPS=pygame.time.Clock()
         pygame.mouse.set_visible(False)
         cursor_imagem = pygame.image.load("Sprites/Ponteiro.png").convert_alpha()  # Ajuste o caminho
@@ -850,25 +834,23 @@ def executar_jogo(game_manager=None):
             # Verificar eventos de teclado
             # --- Tela de pausa (ESC) ---
             if jogo_pausado:
-                # Overlay escuro semi-transparente
-                overlay_pausa = pygame.Surface((largura_mapa, altura_mapa), pygame.SRCALPHA)
-                overlay_pausa.fill((0, 0, 0, 160))
-                tela.blit(overlay_pausa, (0, 0))
-
-                fonte_pausa = pygame.font.Font(None, 72)
-                fonte_opcao = pygame.font.Font(None, 42)
-
-                # Título "PAUSADO"
-                txt_pausa = fonte_pausa.render("PAUSADO", True, (255, 255, 255))
-                tela.blit(txt_pausa, (largura_mapa // 2 - txt_pausa.get_width() // 2, altura_mapa // 2 - 80))
-
-                # Opção "Continuar (ESC)"
-                txt_continuar = fonte_opcao.render("Pressione ESC para continuar", True, (200, 200, 200))
-                tela.blit(txt_continuar, (largura_mapa // 2 - txt_continuar.get_width() // 2, altura_mapa // 2 + 10))
-
-                pygame.display.flip()
-                FPS.tick(30)
-                continue  # Pula o resto do loop enquanto pausado
+                pausar_cronometro()
+                pygame.event.set_grab(False)
+                pygame.mouse.set_visible(True)
+                
+                joystick_count = pygame.joystick.get_count()
+                joy = pygame.joystick.Joystick(0) if joystick_count > 0 else None
+                if joy:
+                    joy.init()
+                
+                from Tela_Pause import exibir_tela_pause
+                exibir_tela_pause(tela, cartas_compradas, joy)
+                
+                retomar_cronometro()
+                pygame.event.set_grab(True)
+                pygame.mouse.set_visible(False)
+                jogo_pausado = False
+                continue
 
             keys = pygame.key.get_pressed()
 
@@ -1140,7 +1122,7 @@ def executar_jogo(game_manager=None):
                     Dano_person.play()
                     piscando_vida = True
 
-            if not escudo_devota_ativo and tempo_atual - tempo_ultimo_escudo >= intervalo_escudo:
+            if aurea == "Devota" and not escudo_devota_ativo and tempo_atual - tempo_ultimo_escudo >= intervalo_escudo:
                 escudo_devota_ativo = True
                 tempo_ultimo_escudo = tempo_atual
                 # adicionar um efeito visual de "escudo ativado"
@@ -1269,12 +1251,53 @@ def executar_jogo(game_manager=None):
                     nova_lista.append(efeito)
             efeitos_texto = nova_lista
             if trembo:
-                # Desenhar o segundo personagem ao lado do personagem original
-                pos_x_segundo_personagem = pos_x_personagem + largura_personagem + 4
-                pos_y_segundo_personagem = pos_y_personagem
-                # Desenhar sombra do Trembo
-                desenhar_sombra(tela, pos_x_segundo_personagem, pos_y_segundo_personagem, largura_personagem, altura_personagem)
-                tela.blit(frames_animacao_trembo[direcao_atual][frame_atual % len(frames_animacao_trembo[direcao_atual])], (pos_x_segundo_personagem, pos_y_segundo_personagem))
+                # --- SISTEMA DINÂMICO DE POSICIONAMENTO DO TREMBO ---
+                if 'trembo_lado' not in locals() and 'trembo_lado' not in globals():
+                    trembo_lado = 'direita'
+                    trembo_pos_x_atual = float(pos_x_personagem + largura_personagem + 4)
+                    trembo_pos_y_atual = float(pos_y_personagem)
+                    trembo_transicao = False
+                TREMBO_VEL_CORRIDA = 4.0
+                margem_borda = int(largura_trembo) + 10
+                lado_ideal = trembo_lado
+                if pos_x_personagem + largura_personagem + largura_trembo + 8 > largura_mapa - margem_borda:
+                    lado_ideal = 'esquerda'
+                elif pos_x_personagem - largura_trembo - 8 < margem_borda:
+                    lado_ideal = 'direita'
+                if lado_ideal != trembo_lado:
+                    trembo_lado = lado_ideal
+                    trembo_transicao = True
+                if trembo_lado == 'direita':
+                    alvo_x_trembo = pos_x_personagem + largura_personagem + 4
+                else:
+                    alvo_x_trembo = pos_x_personagem - largura_trembo - 4
+                diferenca_altura =   altura_personagem - 115
+                alvo_y_trembo = pos_y_personagem - diferenca_altura
+                diff_x = alvo_x_trembo - trembo_pos_x_atual
+                diff_y = alvo_y_trembo - trembo_pos_y_atual
+                dist_total = max(1.0, (diff_x**2 + diff_y**2) ** 0.5)
+                if dist_total > 2:
+                    vel = min(TREMBO_VEL_CORRIDA, dist_total)
+                    trembo_pos_x_atual += (diff_x / dist_total) * vel
+                    trembo_pos_y_atual += (diff_y / dist_total) * vel
+                    trembo_transicao = True
+                else:
+                    trembo_pos_x_atual = alvo_x_trembo
+                    trembo_pos_y_atual = alvo_y_trembo
+                    trembo_transicao = False
+                pos_x_segundo_personagem = int(trembo_pos_x_atual)
+                pos_y_segundo_personagem = int(trembo_pos_y_atual)
+                pos_x_segundo_personagem = max(0, min(largura_mapa - int(largura_trembo), pos_x_segundo_personagem))
+                pos_y_segundo_personagem = max(0, min(altura_mapa - int(altura_trembo), pos_y_segundo_personagem))
+                if trembo_transicao and dist_total > 3:
+                    if abs(diff_x) > abs(diff_y):
+                        direcao_trembo = 'right' if diff_x > 0 else 'left'
+                    else:
+                        direcao_trembo = 'down' if diff_y > 0 else 'up'
+                else:
+                    direcao_trembo = direcao_atual
+                desenhar_sombra(tela, pos_x_segundo_personagem, pos_y_segundo_personagem, int(largura_trembo), int(altura_trembo), offset_y=2)
+                tela.blit(frames_animacao_trembo[direcao_trembo][frame_atual % len(frames_animacao_trembo[direcao_trembo])], (pos_x_segundo_personagem, pos_y_segundo_personagem))
             if trembo and tempo_atual- tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima :
                 if vida_maxima < vida:
                     vida=vida_maxima
@@ -2196,8 +2219,11 @@ def executar_jogo(game_manager=None):
                         if tempo_atual - inimigo.get("ultimo_tick_queimando", 0) >= 1000:
                             inimigo["ultimo_tick_queimando"] = tempo_atual
 
-                            # Escalonamento: 1% a 3% da vida máxima baseado no combo
-                            proporcao = min(0.03, 0.01 + (eliminacoes_consecutivas * 0.0005))
+                            # Escalonamento: base 1% a 3% da vida máxima, mais 0.2% base e 0.5% max por nível do upgrade
+                            nivel_vanguarda = upgrades.get("Vanguarda", 0)
+                            limite_max = 0.03 + (nivel_vanguarda * 0.005)
+                            proporcao_base = 0.01 + (nivel_vanguarda * 0.002)
+                            proporcao = min(limite_max, proporcao_base + (eliminacoes_consecutivas * 0.0005))
                             dano_fogo = int(inimigo.get("vida_maxima", 100) * proporcao)
 
                             inimigo["vida"] -= dano_fogo

@@ -175,8 +175,18 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo,vida,largura_disparo,
         carta.update(atributos_cartas[i])
         cartas.append(carta)
 
+    def obter_cartas_disponiveis(cartas, cartas_compradas, qtd=3):
+        disponiveis = [c for c in cartas if cartas_compradas.get(c["nome"], 0) == 0]
+        if len(disponiveis) >= qtd:
+            return random.sample(disponiveis, qtd)
+        elif len(disponiveis) > 0:
+            completar = [c for c in cartas if c not in disponiveis]
+            return disponiveis + random.sample(completar, min(len(completar), qtd - len(disponiveis)))
+        else:
+            return random.sample(cartas, min(len(cartas), qtd))
+
     # Select three cards randomly from the combined list
-    cartas_selecionadas = random.sample(cartas, 3)
+    cartas_selecionadas = obter_cartas_disponiveis(cartas, cartas_compradas, 3)
 
     # Variável para rastrear a carta selecionada
     carta_selecionada_index = 0
@@ -218,7 +228,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo,vida,largura_disparo,
                         vida_petro += int(vida_maxima_petro * 0.30 + (inimigos_eliminados // 40) * 0.03)  # Aumenta conforme inimigos eliminados
                         if vida_petro > vida_maxima_petro:
                             vida_maxima_petro = vida_petro
-                        
+                        cartas_compradas["Porção"] += 1
 
                     elif carta_selecionada["nome"] == "Disparo crescente":
                         dano_person_hit += 27 + (inimigos_eliminados // 50) * 10  # Aumenta o dano conforme inimigos são eliminados
@@ -228,7 +238,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo,vida,largura_disparo,
                         trembo = True
                         Tempo_cura -= Tempo_cura * 0.05
                         porcentagem_cura += 0.001 + (inimigos_eliminados // 100) * 0.0005  # Aumenta a cura gradualmente
-                        
+                        cartas_compradas["Trembo"] += 1
 
                     elif carta_selecionada["nome"] == "Tempestade":
                         dano_person_hit += 10 + (inimigos_eliminados // 50) * 4  # Aumenta o dano conforme inimigos são eliminados
@@ -284,14 +294,14 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo,vida,largura_disparo,
                         cartas_compradas["Sorte"] += 1
 
 
-                    compras_restantes -= 1  # diminui o contador
+                    compras_restantes -= 1
                     if compras_restantes > 0:
-                        cartas_selecionadas = cartas_selecionadas = random.sample(cartas, 3)
+                        cartas_selecionadas = obter_cartas_disponiveis(cartas, cartas_compradas, 3)
                 elif evento.key == pygame.K_w:  # Exibe informações da carta
                     mostrar_info = True
                 elif Rolagens_possiveis > Rolagens_Dadas  and evento.key == pygame.K_q:
                     Rolagens_Dadas+=1
-                    cartas_selecionadas = random.sample(cartas, 3)
+                    cartas_selecionadas = obter_cartas_disponiveis(cartas, cartas_compradas, 3)
 
             elif evento.type == pygame.KEYUP:
                 if evento.key == pygame.K_w:  # Para de exibir informações da carta ao soltar "W"
@@ -306,7 +316,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo,vida,largura_disparo,
                         elif evento.value > 0.5:  # Movimento para a direita
                             carta_selecionada_index = (carta_selecionada_index + 1) % 3
                             ultima_mudanca_de_carta = pygame.time.get_ticks()
-            elif evento.type == pygame.JOYBUTTONDOWN or evento.type == pygame.KEYDOWN:
+            elif evento.type == pygame.JOYBUTTONDOWN:
                 if evento.button == 0:  # Botão X do controle do Xbox pressionado
                     carta_selecionada = cartas_selecionadas[carta_selecionada_index]
                     # Coloque aqui a lógica relacionada à seleção da carta usando o botão do joystick
@@ -321,6 +331,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo,vida,largura_disparo,
                         vida_petro+=int(vida_maxima_petro*0.30)
                         if vida_petro > vida_maxima_petro:
                             vida_maxima_petro= vida_petro
+                        cartas_compradas["Porção"] += 1
                     elif carta_selecionada["nome"] == "Disparo crescente":
                         dano_person_hit+=27
                         cartas_compradas["Disparo crescente"] += 1
@@ -328,6 +339,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo,vida,largura_disparo,
                         trembo=True
                         Tempo_cura-= Tempo_cura*0.05
                         porcentagem_cura+= 0.001
+                        cartas_compradas["Trembo"] += 1
                     elif carta_selecionada["nome"] == "Tempestade":
                         dano_person_hit+= 10
                         chance_critico+= 0.02
@@ -384,6 +396,10 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo,vida,largura_disparo,
                         Mercenaria_Active=True
                         Valor_Bonus+=25
                         cartas_compradas["Coletora"] += 1   
+
+                    compras_restantes -= 1
+                    if compras_restantes > 0:
+                        cartas_selecionadas = obter_cartas_disponiveis(cartas, cartas_compradas, 3)
                 if evento.type == pygame.JOYBUTTONDOWN:
                     if evento.button == 2:  # Botão X do controle do Xbox
                         mostrar_info = True

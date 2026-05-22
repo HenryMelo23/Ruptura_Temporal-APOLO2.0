@@ -1,4 +1,7 @@
 import pygame
+escudo_devota_ativo = True
+duracao_incendio_vanguarda = 5000
+intervalo_escudo = 30000
 import sys
 import random
 import math
@@ -38,10 +41,13 @@ tempo_ultimo_disparo = 0
 running = True
 tempo_atual = 0
 ultima_tecla_movimento = None
+teleporte_sprites = []
+teleporte_index = 0
+teleporte_timer = 0
 
 
 def executar_jogo(game_manager=None):
-    global Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, _VORTICE_SURF_CACHE, _fonte_bonus_cached, _fonte_combo_cached, altura_boss, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apolo, bonus_cura_sifon, bonus_pontuacao, boss_envenenado, cartas_compradas_apolo_global, chance_critico, cooldown_dash, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_boss, disparos, distancia_dash, duracao_frame_onda, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_transicao_mapa, erros_player_contagem, escudo_devota_ativo, esferas_energia_umbra, espacamento, estado_atual_ia, frame_boss, gerenciador_ratos, hitbox_boss5, impulsiva_ativa, inicio_transicao_mapa, inimigos_eliminados, intervalo_disparo, largura_boss, largura_disparo, largura_personagem, linha, mapa_antigo, mapa_novo, modo_ia_treino, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, multiplicador_chamas, multiplicador_dano_umbra, particulas_fogo_player, petro_evolucao, player_em_chamas, pontuacao, pontuacao_exib, porcentagem_cura, pos_x_personagem, pos_x_petro, pos_x_umbra, pos_y_personagem, pos_y_petro, pos_y_umbra, projeteis_boss, quantidade_roubo_vida, reducao_cooldown_umbra, relogio, resistencia_umbra, roubo_de_vida, running, surf, teleporte_duration, teleporte_index, teleporte_timer, tempo_atual, tempo_cooldown_dash, tempo_fim_chamas, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado_boss, tempo_ultima_esfera_umbra, tempo_ultima_regeneracao, tempo_ultimo_dash, tempo_ultimo_disparo, tempo_ultimo_uso_habilidade, tipo_buff_impulsiva, trauma_umbra_acumulado, trembo, ultima_direcao_animacao, ultima_tecla_movimento, ultimo_tick_chamas, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_maxima, vida_maxima_petro, vida_maxima_umbra, vida_petro, vida_umbra, xp_petro
+    global Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, _VORTICE_SURF_CACHE, _fonte_bonus_cached, _fonte_combo_cached, altura_boss, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apolo, bonus_cura_sifon, bonus_pontuacao, boss_envenenado, cartas_compradas_apolo_global, chance_critico, cooldown_dash, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_boss, disparos, distancia_dash, duracao_frame_onda, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_transicao_mapa, erros_player_contagem, escudo_devota_ativo, esferas_energia_umbra, espacamento, estado_atual_ia, frame_boss, gerenciador_ratos, hitbox_boss5, impulsiva_ativa, inicio_transicao_mapa, inimigos_eliminados, intervalo_disparo, largura_boss, largura_disparo, largura_personagem, linha, mapa_antigo, mapa_novo, modo_ia_treino, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, multiplicador_chamas, multiplicador_dano_umbra, particulas_fogo_player, petro_evolucao, player_em_chamas, pontuacao, pontuacao_exib, porcentagem_cura, pos_x_personagem, pos_x_petro, pos_x_umbra, pos_y_personagem, pos_y_petro, pos_y_umbra, projeteis_boss, quantidade_roubo_vida, reducao_cooldown_umbra, relogio, resistencia_umbra, roubo_de_vida, running, surf, teleporte_duration, teleporte_index, teleporte_timer, tempo_atual, tempo_cooldown_dash, tempo_fim_chamas, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado_boss, tempo_ultima_esfera_umbra, tempo_ultima_regeneracao, tempo_ultimo_dash, tempo_ultimo_disparo, tempo_ultimo_uso_habilidade, tipo_buff_impulsiva, trauma_umbra_acumulado, trembo, ultima_direcao_animacao, ultima_tecla_movimento, ultimo_tick_chamas, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_maxima, vida_maxima_petro, vida_maxima_umbra, vida_petro, vida_umbra, xp_petro, duracao_incendio_vanguarda, intervalo_escudo
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -51,12 +57,12 @@ def executar_jogo(game_manager=None):
         if game_manager:
             raise CleanExit()
         else:
-            _sys.exit(*args, **kwargs)
+            _orig_sys_exit(*args, **kwargs)
     def local_os_exit(*args, **kwargs):
         if game_manager:
             raise CleanExit()
         else:
-            _os._exit(*args, **kwargs)
+            _orig_os_exit(*args, **kwargs)
     _orig_sys_exit = _sys.exit
     _orig_os_exit = _os._exit
     _orig_builtins_exit = getattr(_builtins, 'exit', None)
@@ -428,6 +434,13 @@ def executar_jogo(game_manager=None):
         mapa = pygame.image.load(mapa_atual_path).convert()
         mapa = pygame.transform.scale(mapa, (largura_mapa, altura_mapa))
 
+        teleporte_sprites = [
+            pygame.transform.scale(pygame.image.load("Sprites/icon_teleport.png").convert_alpha(), (80, 80)),
+            pygame.transform.scale(pygame.image.load("Sprites/icon_teleport2.png").convert_alpha(), (80, 80))
+        ]
+        teleporte_index = 0
+        teleporte_timer = 0
+
         # Configurações do loop principal
         relogio = pygame.time.Clock()
         tempo_passado = 0
@@ -457,10 +470,10 @@ def executar_jogo(game_manager=None):
         #####################################################################APOLO1######################################################################################################
         def atualizar_posicao_personagem(keys, joystick):#APOLO
             global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento
-            global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_timer, teleporte_duration, teleporte_index
+            global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_duration
             global hitbox_boss5, estado_atual_ia, modo_ia_treino
             global tempo_ultimo_disparo, intervalo_disparo, disparos
-            global vida, largura_disparo, altura_disparo
+            global vida, largura_disparo, altura_disparo, angulo_inclinacao_personagem
 
             dx, dy = 0, 0
             direcao_atual = 'stop'
@@ -541,9 +554,11 @@ def executar_jogo(game_manager=None):
             else:
                 angulo_inclinacao_personagem = 0
 
+            dash_teclado = keys[config_teclas["Teleporte"]]
+            dash_joystick = joystick and joystick.get_button(4) if joystick else False
             ia_precisa_dash = modo_ia_treino and getattr(apolo, 'usar_dash', False)
 
-            if (keys[config_teclas["Teleporte"]] or ia_precisa_dash) and cooldown_dash == False and atordoado == False:
+            if (dash_teclado or dash_joystick or ia_precisa_dash) and cooldown_dash == False and atordoado == False:
                 Som_portal.play()
                 # Animação de teletransporte (plasma procedural)
                 animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
@@ -767,6 +782,19 @@ def executar_jogo(game_manager=None):
         Musica_tema_fases.play(loops=-1)
 
         upgrades = carregar_upgrade_aureas("saves/aureas_upgrade.json")
+
+        # Configurar e escalar as passivas das áureas
+        nivel_devota = upgrades.get("Devota", 0)
+        nivel_vanguarda = upgrades.get("Vanguarda", 0)
+
+        if aurea == "Devota":
+            escudo_devota_ativo = True
+            intervalo_escudo = max(10000, 30000 - (nivel_devota * 3000))
+        else:
+            escudo_devota_ativo = False
+
+        if aurea == "Vanguarda":
+            duracao_incendio_vanguarda = 5000 + (nivel_vanguarda * 1000)
 
         FPS=pygame.time.Clock()
         pygame.mouse.set_visible(False)
@@ -1119,7 +1147,7 @@ def executar_jogo(game_manager=None):
                     mask_laser = em_frente & (menor_dist_laser < 180)
                     mask_fatal = mask_laser & (menor_dist_laser < 50)
                     mask_dano = mask_laser & ~mask_fatal
-                    SCORE[mask_fatal] -= np.inf
+                    SCORE[mask_fatal] -= 100000.0
                     SCORE[mask_dano] -= (180 - menor_dist_laser[mask_dano]) * 15.0
 
                 # 5. Distância Apolo e Bordas
@@ -1459,7 +1487,7 @@ def executar_jogo(game_manager=None):
                 tensor = torch.tensor(features, dtype=torch.float32, device=self.device).unsqueeze(0)
                 return tensor
 
-            def pensar(self, pos_p, boss_hitbox, projeteis_boss, cds, vida_jogador, vida_boss, esferas_energia, velocidade_atual=5, estado_ia=None):
+            def _pensar_raw(self, pos_p, boss_hitbox, projeteis_boss, cds, vida_jogador, vida_boss, esferas_energia, velocidade_atual=5, estado_ia=None):
                 import random
                 import math  # Movido para o início para estar disponível em todo o método
                 agora = pygame.time.get_ticks()  # Necessário para cálculos de tempo do laser
@@ -1973,6 +2001,59 @@ def executar_jogo(game_manager=None):
                     motivo = "Evasão alta" if mag_evasao > 2.5 else "Buscando orbe distante" if dist_orbe > 200 else "Boss muito perto"
                     self._log_decisao("TELEPORTE", f"Dash acionado (fallback mecânico). Motivo: {motivo}")
 
+            def pensar(self, pos_p, boss_hitbox, projeteis_boss, cds, vida_jogador, vida_boss, esferas_energia, velocidade_atual=5, estado_ia=None):
+                import math
+                import pygame
+
+                # Executa o raciocínio original para obter direções brutas desejadas
+                self._pensar_raw(pos_p, boss_hitbox, projeteis_boss, cds, vida_jogador, vida_boss, esferas_energia, velocidade_atual, estado_ia)
+
+                # 1. Determinar se há perigo iminente
+                perigo_iminente = False
+                px, py = pos_p
+
+                # Projéteis próximos (limiar menor para reação rápida de evasão)
+                if projeteis_boss:
+                    for proj in projeteis_boss:
+                        px_proj = proj['rect'].centerx if 'rect' in proj else proj.get('x', px)
+                        py_proj = proj['rect'].centery if 'rect' in proj else proj.get('y', py)
+                        if math.hypot(px_proj - px, py_proj - py) < 120:
+                            perigo_iminente = True
+                            break
+
+                # Se o laser está carregando ou disparando
+                if estado_ia and estado_ia.get('laser_ativo'):
+                    perigo_iminente = True
+
+                # 2. Cooldown dinâmico de mudança de direção
+                # 80ms (~5 frames) sob estresse/perigo para manter responsividade
+                # 250ms (~15 frames) sob condições normais (movimento fluido e contínuo)
+                cooldown_atual = 80 if perigo_iminente else 250
+                agora = pygame.time.get_ticks()
+
+                # Inicializa atributos persistentes na instância
+                if not hasattr(self, 'direcao_x_efetiva'):
+                    self.direcao_x_efetiva = 0
+                    self.direcao_y_efetiva = 0
+                    self.ultimo_tempo_mudanca_x = 0
+                    self.ultimo_tempo_mudanca_y = 0
+
+                # Suavização para o eixo X
+                if self.direcao_x != self.direcao_x_efetiva:
+                    if agora - self.ultimo_tempo_mudanca_x >= cooldown_atual:
+                        self.direcao_x_efetiva = self.direcao_x
+                        self.ultimo_tempo_mudanca_x = agora
+
+                # Suavização para o eixo Y
+                if self.direcao_y != self.direcao_y_efetiva:
+                    if agora - self.ultimo_tempo_mudanca_y >= cooldown_atual:
+                        self.direcao_y_efetiva = self.direcao_y
+                        self.ultimo_tempo_mudanca_y = agora
+
+                # Substitui as direções expostas pelas direções suavizadas
+                self.direcao_x = self.direcao_x_efetiva
+                self.direcao_y = self.direcao_y_efetiva
+
         apolo = AgenteApolo()
 
         import atexit, signal
@@ -1994,11 +2075,6 @@ def executar_jogo(game_manager=None):
         # =====================================================================
         # NÚCLEO DE APRENDIZADO DE CARTAS (APOLO)
         # =====================================================================
-        import collections
-        import os
-        import json
-        import random
-
         cartas_compradas_apolo_global = []
 
         def carregar_memoria_cartas():
@@ -2257,6 +2333,13 @@ def executar_jogo(game_manager=None):
                     if 'apolo' in globals() and hasattr(apolo, 'encerrar'):
                         apolo.encerrar()
                     os._exit(0)
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    pygame.event.set_grab(False)
+                    pygame.mouse.set_visible(True)
+                    from Tela_Pause import exibir_tela_pause
+                    exibir_tela_pause(tela, cartas_compradas, joystick)
+                    pygame.event.set_grab(True)
+                    pygame.mouse.set_visible(False)
                 elif botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo and tempo_atual >= tempo_fim_stun:
                     pos_mouse = pygame.mouse.get_pos()
                     angulo = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
@@ -2448,7 +2531,7 @@ def executar_jogo(game_manager=None):
 
 
 
-            if not escudo_devota_ativo and tempo_atual - tempo_ultimo_escudo >= intervalo_escudo:
+            if aurea == "Devota" and not escudo_devota_ativo and tempo_atual - tempo_ultimo_escudo >= intervalo_escudo:
                 escudo_devota_ativo = True
                 tempo_ultimo_escudo = tempo_atual
                 # adicionar um efeito visual de "escudo ativado"
@@ -2603,7 +2686,7 @@ def executar_jogo(game_manager=None):
                 boss_pos_ia = {
                     'x': pos_x_umbra,
                     'y': pos_y_umbra,
-                    'hitbox_centro': hitbox_boss5.center if 'hitbox_boss5' in locals() or 'hitbox_boss5' in globals() else (pos_x_umbra + largura_boss // 2, pos_y_umbra + altura_boss // 2)
+                    'hitbox_centro': hitbox_boss5.center if hitbox_boss5 is not None else (pos_x_umbra + largura_boss // 2, pos_y_umbra + altura_boss // 2)
                 }
                 player_pos_data = (pos_x_personagem, pos_y_personagem)
                 dados_p = {
@@ -3314,6 +3397,7 @@ def executar_jogo(game_manager=None):
                                     laser['tempo_inicio'] = agora
                                 else:
                                     estado_atual_ia['laser_ativo'] = None
+                                    estado_atual_ia['ultimo_laser'] = agora
                     if player_em_chamas:
                         if agora > tempo_fim_chamas:
                             player_em_chamas = False
@@ -3401,9 +3485,23 @@ def executar_jogo(game_manager=None):
                     if dimensao_atual:
                         tempo_na_dimensao = agora - estado_atual_ia['tempo_inicio_dimensao']
 
-                        if tempo_na_dimensao > estado_atual_ia['duracao_dimensao'] and not em_transicao_mapa:
+                        # Só transiciona se nenhuma habilidade dimensional estiver ativa
+                        habilidade_ativa = False
+                        chaves_limpas = ['vortice_ativo', 'prisao_ativa', 'caminho_espinhos', 'laser_ativo', 'descarga_eletrica', 'miasma_ativo']
+                        for k in chaves_limpas:
+                            if estado_atual_ia.get(k) is not None:
+                                habilidade_ativa = True
+                                break
+                        if not habilidade_ativa:
+                            ratos = estado_atual_ia.get('praga_ratos')
+                            if ratos is not None:
+                                dur = ratos.get('duracao', 9000)
+                                if agora - ratos.get('tempo_inicio', 0) < dur:
+                                    habilidade_ativa = True
+
+                        if tempo_na_dimensao > estado_atual_ia['duracao_dimensao'] and not em_transicao_mapa and not habilidade_ativa:
                             estado_atual_ia['dimensao_ativa'] = None
-                            estado_atual_ia['ultimo_transmutar'] = agora 
+                            estado_atual_ia['ultimo_transmutar'] = agora
 
                             mapa_antigo = mapa.copy().convert_alpha() 
                             mapa_atual_path = mapa_path5 
@@ -3426,7 +3524,6 @@ def executar_jogo(game_manager=None):
                             em_transicao_mapa = True
                             inicio_transicao_mapa = agora
                     if agora - tempo_ultima_esfera_umbra >= 30000:
-                        import random
                         esferas_energia_umbra.append({
                             "x": random.randint(100, largura_mapa - 100),
                             "y": random.randint(100, altura_mapa - 100),
@@ -3626,18 +3723,19 @@ def executar_jogo(game_manager=None):
                         # O Escudo de Atrito (Reduz dano em 70% e carrega a fúria)
                         if estado_atual_ia.get('dimensao_ativa') == "atrito":
                             dano_final *= 0.3
-                            estado_atual_ia['carga_atrito'] = estado_atual_ia.get('carga_atrito', 0) + 8
+                            if not estado_atual_ia.get('laser_ativo'):
+                                estado_atual_ia['carga_atrito'] = estado_atual_ia.get('carga_atrito', 0) + 8
 
-                            if estado_atual_ia['carga_atrito'] >= 100 and not estado_atual_ia.get('laser_ativo'):
-                                estado_atual_ia['laser_ativo'] = {
-                                    'tempo_inicio':          agora,
-                                    'fase':                  'carregando',
-                                    'rodada':                1,
-                                    'duracao_carga':         1500,
-                                    'duracao_disparo':       4000,
-                                    'angulo_base_inicio':    random.uniform(0, math.pi * 2)  # angulo real do inicio
-                                }
-                                estado_atual_ia['carga_atrito'] = 0
+                                if estado_atual_ia['carga_atrito'] >= 100:
+                                    estado_atual_ia['laser_ativo'] = {
+                                        'tempo_inicio':          agora,
+                                        'fase':                  'carregando',
+                                        'rodada':                1,
+                                        'duracao_carga':         1500,
+                                        'duracao_disparo':       4000,
+                                        'angulo_base_inicio':    random.uniform(0, math.pi * 2)  # angulo real do inicio
+                                    }
+                                    estado_atual_ia['carga_atrito'] = 0
 
                         # Aplicação de Dano e Treino
                         if vida_umbra > 0:
@@ -3820,12 +3918,52 @@ def executar_jogo(game_manager=None):
             efeitos_texto = nova_lista
 
             if trembo:
-                # Desenhar o segundo personagem ao lado do personagem original
-                pos_x_segundo_personagem = pos_x_personagem + largura_personagem + 4
-                pos_y_segundo_personagem = pos_y_personagem
-                # Desenhar sombra do Trembo
-                desenhar_sombra(tela, pos_x_segundo_personagem, pos_y_segundo_personagem, largura_personagem, altura_personagem)
-                tela.blit(frames_animacao_trembo[direcao_atual][frame_atual % len(frames_animacao_trembo[direcao_atual])], (pos_x_segundo_personagem, pos_y_segundo_personagem))
+                if 'trembo_lado' not in locals() and 'trembo_lado' not in globals():
+                    trembo_lado = 'direita'
+                    trembo_pos_x_atual = float(pos_x_personagem + largura_personagem + 4)
+                    trembo_pos_y_atual = float(pos_y_personagem)
+                    trembo_transicao = False
+                TREMBO_VEL_CORRIDA = 4.0
+                margem_borda = int(largura_trembo) + 10
+                lado_ideal = trembo_lado
+                if pos_x_personagem + largura_personagem + largura_trembo + 8 > largura_mapa - margem_borda:
+                    lado_ideal = 'esquerda'
+                elif pos_x_personagem - largura_trembo - 8 < margem_borda:
+                    lado_ideal = 'direita'
+                if lado_ideal != trembo_lado:
+                    trembo_lado = lado_ideal
+                    trembo_transicao = True
+                if trembo_lado == 'direita':
+                    alvo_x_trembo = pos_x_personagem + largura_personagem + 4
+                else:
+                    alvo_x_trembo = pos_x_personagem - largura_trembo - 4
+                diferenca_altura =  altura_personagem - 115
+                alvo_y_trembo = pos_y_personagem - diferenca_altura
+                diff_x = alvo_x_trembo - trembo_pos_x_atual
+                diff_y = alvo_y_trembo - trembo_pos_y_atual
+                dist_total = max(1.0, (diff_x**2 + diff_y**2) ** 0.5)
+                if dist_total > 2:
+                    vel = min(TREMBO_VEL_CORRIDA, dist_total)
+                    trembo_pos_x_atual += (diff_x / dist_total) * vel
+                    trembo_pos_y_atual += (diff_y / dist_total) * vel
+                    trembo_transicao = True
+                else:
+                    trembo_pos_x_atual = alvo_x_trembo
+                    trembo_pos_y_atual = alvo_y_trembo
+                    trembo_transicao = False
+                pos_x_segundo_personagem = int(trembo_pos_x_atual)
+                pos_y_segundo_personagem = int(trembo_pos_y_atual)
+                pos_x_segundo_personagem = max(0, min(largura_mapa - int(largura_trembo), pos_x_segundo_personagem))
+                pos_y_segundo_personagem = max(0, min(altura_mapa - int(altura_trembo), pos_y_segundo_personagem))
+                if trembo_transicao and dist_total > 3:
+                    if abs(diff_x) > abs(diff_y):
+                        direcao_trembo = 'right' if diff_x > 0 else 'left'
+                    else:
+                        direcao_trembo = 'down' if diff_y > 0 else 'up'
+                else:
+                    direcao_trembo = direcao_atual
+                desenhar_sombra(tela, pos_x_segundo_personagem, pos_y_segundo_personagem, int(largura_trembo), int(altura_trembo), offset_y=2)
+                tela.blit(frames_animacao_trembo[direcao_trembo][frame_atual % len(frames_animacao_trembo[direcao_trembo])], (pos_x_segundo_personagem, pos_y_segundo_personagem))
             if trembo and tempo_atual - tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima:
                 cura_trembo = vida_maxima * porcentagem_cura
 

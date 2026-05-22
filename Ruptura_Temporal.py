@@ -14,8 +14,8 @@ import pyperclip
 from Config_Teclas import tela_de_controles,carregar_config_teclas
 from Variaveis import largura_tela, altura_tela, python
 from rede import descobrir_host_udp, conectar_ao_host
-from audio_manager import carregar_config_audio, aplicar_volume_musica
-from utils import configurar_tela, tocar_trailer_se_necessario, redimensionar_cover
+from audio_manager import carregar_config_audio, aplicar_volume_musica, aplicar_volume_som
+from utils import configurar_tela, tocar_trailer_se_necessario, redimensionar_cover, carregar_upgrade_aureas
 
 
 # --- Declaração de Variáveis Globais (Inicialização Adiada para Evitar Telas Pretas por Dupla Importação) ---
@@ -261,42 +261,152 @@ def tela_escolha_modo():
 
 
 def tela_selecao_aurea(tela, fonte):
+    # Carregar som do tick
+    try:
+        som_tick = aplicar_volume_som(pygame.mixer.Sound("Sounds/Estalo.mp3"))
+    except Exception:
+        som_tick = None
+
     aureas = [
-        {"nome": "Racional", "imagem": "Sprites/aurea_cientista.png", "ativa": True},
-        {"nome": "Impulsiva", "imagem": "Sprites/aurea_impulsiva.png", "ativa": True},
-        {"nome": "Devota", "imagem": "Sprites/aurea_devota.png", "ativa": True},
-        {"nome": "Vanguarda", "imagem": "Sprites/aurea_vanguarda.png", "ativa": True},
-        {"nome": "?", "imagem": "Sprites/aurea_misteriosa.png", "ativa": False}
+        {
+            "nome": "Racional",
+            "imagem": "Sprites/aurea_cientista.png",
+            "ativa": True,
+            "cor_tema": (0, 191, 255),       # Azul Elétrico / Ciano
+            "bg_tema": (8, 20, 42),          # Fundo Deep Blue
+            "categoria": "ANÁLISE E PRECISÃO TEMPORAL",
+            "efeito": "Aumenta drasticamente a probabilidade de acerto crítico e melhora a cadência de disparos.",
+            "atributos": [
+                "• Chance de Crítico: +15%",
+                "• Cadência de Tiro: +10% de velocidade de ataque",
+                "• Ideal para jogabilidade focada em DPS e precisão."
+            ],
+            "lore": "A mente fria calcula trajetórias e enxerga padrões em meio ao caos da ruptura temporal."
+        },
+        {
+            "nome": "Impulsiva",
+            "imagem": "Sprites/aurea_impulsiva.png",
+            "ativa": True,
+            "cor_tema": (255, 99, 71),       # Vermelho Coral / Laranja
+            "bg_tema": (42, 14, 8),          # Fundo Deep Red/Orange
+            "categoria": "COMBATE VELOZ E AGRESSIVO",
+            "efeito": "Concede bônus de dano ou velocidade de movimento temporário após realizar eliminações rápidas.",
+            "atributos": [
+                "• Buff após Eliminação: +30% de Dano ou +20% de Velocidade",
+                "• Duração do Buff: 3s (+0.5s por Nível)",
+                "• Ideal para jogadores dinâmicos que gostam de velocidade."
+            ],
+            "lore": "Ação imediata. O instinto puro reage antes que o próprio tempo possa processar."
+        },
+        {
+            "nome": "Devota",
+            "imagem": "Sprites/aurea_devota.png",
+            "ativa": True,
+            "cor_tema": (255, 215, 0),       # Dourado Divino
+            "bg_tema": (36, 30, 8),          # Fundo Deep Gold
+            "categoria": "SOBREVIVÊNCIA E PROTEÇÃO SAGRADA",
+            "efeito": "Manifesta um escudo sagrado automático que absorve completamente um golpe sofrido.",
+            "atributos": [
+                "• Escudo Protetor: Absorve 1 hit fatal ou dano",
+                "• Cooldown do Escudo: 30s (-3s por Nível, mínimo 10s)",
+                "• Excelente para garantir segurança contra ataques inesperados."
+            ],
+            "lore": "A fé inabalável manifesta-se como uma barreira divina que desafia a própria causalidade."
+        },
+        {
+            "nome": "Vanguarda",
+            "imagem": "Sprites/aurea_vanguarda.png",
+            "ativa": True,
+            "cor_tema": (230, 0, 120),       # Magenta / Carmesim
+            "bg_tema": (36, 8, 28),          # Fundo Deep Purple/Magenta
+            "categoria": "DANO EM ÁREA E INCÊNDIO CONTÍNUO",
+            "efeito": "Deixa um rastro de chamas purificadoras por onde passa, causando dano aos inimigos.",
+            "atributos": [
+                "• Duração do Rastro de Fogo: 5s (+1s por Nível)",
+                "• Dano de Incêndio: Causa dano contínuo a inimigos que tocarem o rastro",
+                "• Ideal para controle de hordas e movimentação tática."
+            ],
+            "lore": "Liderando o avanço, o pioneiro incendeia o solo para que nada o siga no fluxo temporal."
+        },
+        {
+            "nome": "Aleatória",
+            "imagem": "Sprites/aurea_misteriosa.png",
+            "ativa": True,
+            "cor_tema": (0, 255, 180),       # Verde Esmeralda / Neon
+            "bg_tema": (8, 32, 24),          # Fundo Deep Green
+            "categoria": "SURPRESA E DESTINO INCERTO",
+            "efeito": "Escolhe uma das quatro áureas ativas aleatoriamente ao iniciar a jornada.",
+            "atributos": [
+                "• Racional, Impulsiva, Devota ou Vanguarda",
+                "• Uma nova estratégia a cada tentativa.",
+                "• Destinado aos jogadores que buscam adaptação constante."
+            ],
+            "lore": "O destino é incerto, e o tempo se desdobra em infinitas possibilidades."
+        }
     ]
 
-    # 🔹 Carrega os níveis salvos (ou usa 0 se o arquivo não existir)
-    try:
-        with open("saves/aureas_upgrade.json", "r") as f:
-            data = json.load(f)
-            upgrades = data.get("upgrades", {})
-    except:
-        upgrades = {}
+    upgrades = carregar_upgrade_aureas("saves/aureas_upgrade.json")
 
     selecionado = 0
     clock = pygame.time.Clock()
     largura, altura = tela.get_size()
 
-    largura_quadro = 120
-    altura_quadro = 140
-    espacamento = 50
-    colunas = 3
-    # --- Adicionar mensagem de instrução no canto inferior direito ---
-    fonte_instrucao = pygame.font.Font(caminho_fonte_letras, 18)  # Use o mesmo estilo de fonte
-    texto_instrucao = "A para esquerda e D para direita, espaço ou enter para selecionar"
-    render_instrucao = fonte_instrucao.render(texto_instrucao, True, (0, 0, 0))  # Texto preto
-    while True:
-        tela.fill((15, 15, 15))
+    # Fontes específicas
+    import random
+    caminho_fonte_aureas = "Texto/rainyhearts.ttf"
+    fonte_nome = pygame.font.Font(caminho_fonte_aureas, 36)
+    fonte_desc = pygame.font.Font(caminho_fonte_aureas, 22)
+    fonte_status = pygame.font.Font(caminho_fonte_aureas, 14)
+    fonte_instrucao = pygame.font.Font(caminho_fonte_aureas, 20)
+    fonte_categoria = pygame.font.Font(caminho_fonte_aureas, 18)
 
+    # Variáveis de animação (Interpolação LERP)
+    cor_fundo_atual = list(aureas[selecionado]["bg_tema"])
+    
+    # Propriedades dos cards
+    card_x = [largura // 2 for _ in aureas]
+    card_scale = [0.85 for _ in aureas]
+    card_y_offset = [20 for _ in aureas]
+    card_alpha = [100 for _ in aureas]
+
+    # Carregar imagens das áureas antecipadamente
+    imagens_aureas = []
+    for item in aureas:
+        try:
+            img = pygame.image.load(item["imagem"]).convert_alpha()
+        except:
+            img = pygame.Surface((180, 240))
+            img.fill((30, 30, 30))
+            pygame.draw.line(img, (100, 100, 100), (0, 0), (180, 240), 2)
+            pygame.draw.line(img, (100, 100, 100), (180, 0), (0, 240), 2)
+        imagens_aureas.append(img)
+
+    # Sistema de Partículas Celestiais
+    particulas = []
+    for _ in range(50):
+        particulas.append({
+            "x": random.randint(0, largura),
+            "y": random.randint(0, altura),
+            "vel_y": random.uniform(-1.2, -0.4),
+            "tamanho": random.uniform(2.0, 5.0),
+            "alpha": random.randint(50, 200),
+            "breathe_speed": random.uniform(0.02, 0.05),
+            "breathe_dir": 1
+        })
+
+    # Controle de repetição do analógico
+    analogo_movido = False
+    
+    while True:
+        agora = pygame.time.get_ticks()
+        
+        # 1. Processamento de Eventos
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 exit()
             elif evento.type == pygame.KEYDOWN:
+                anterior = selecionado
                 if evento.key in [pygame.K_RIGHT, pygame.K_d]:
                     selecionado = (selecionado + 1) % len(aureas)
                     while not aureas[selecionado]["ativa"]:
@@ -307,48 +417,273 @@ def tela_selecao_aurea(tela, fonte):
                         selecionado = (selecionado - 1) % len(aureas)
                 elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
                     if aureas[selecionado]["ativa"]:
+                        nome_aurea = aureas[selecionado]["nome"]
+                        if nome_aurea == "Aleatória":
+                            nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda"])
+                        
+                        # Salva a escolha
+                        os.makedirs("saves", exist_ok=True)
                         with open("saves/aurea_selecionada.json", "w") as file:
-                            json.dump({"aurea": aureas[selecionado]["nome"]}, file)
+                            json.dump({"aurea": nome_aurea}, file)
+                        if som_tick:
+                            som_tick.play()
+                        return
+                
+                if selecionado != anterior and som_tick:
+                    som_tick.play()
+            
+            # Suporte a Controle / Gamepad
+            elif evento.type == pygame.JOYAXISMOTION and controle is not None:
+                if evento.axis == 0:  # Analógico Horizontal
+                    anterior = selecionado
+                    if evento.value > 0.5 and not analogo_movido:
+                        selecionado = (selecionado + 1) % len(aureas)
+                        while not aureas[selecionado]["ativa"]:
+                            selecionado = (selecionado + 1) % len(aureas)
+                        analogo_movido = True
+                        if som_tick:
+                            som_tick.play()
+                    elif evento.value < -0.5 and not analogo_movido:
+                        selecionado = (selecionado - 1) % len(aureas)
+                        while not aureas[selecionado]["ativa"]:
+                            selecionado = (selecionado - 1) % len(aureas)
+                        analogo_movido = True
+                        if som_tick:
+                            som_tick.play()
+                    elif abs(evento.value) < 0.3:
+                        analogo_movido = False
+            
+            elif evento.type == pygame.JOYHATMOTION and controle is not None:
+                anterior = selecionado
+                # D-Pad
+                dx, dy = evento.value
+                if dx > 0:
+                    selecionado = (selecionado + 1) % len(aureas)
+                    while not aureas[selecionado]["ativa"]:
+                        selecionado = (selecionado + 1) % len(aureas)
+                    if som_tick:
+                        som_tick.play()
+                elif dx < 0:
+                    selecionado = (selecionado - 1) % len(aureas)
+                    while not aureas[selecionado]["ativa"]:
+                        selecionado = (selecionado - 1) % len(aureas)
+                    if som_tick:
+                        som_tick.play()
+            
+            elif evento.type == pygame.JOYBUTTONDOWN and controle is not None:
+                if evento.button == 0:  # Botão A do controle para confirmar
+                    if aureas[selecionado]["ativa"]:
+                        nome_aurea = aureas[selecionado]["nome"]
+                        if nome_aurea == "Aleatória":
+                            nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda"])
+                        os.makedirs("saves", exist_ok=True)
+                        with open("saves/aurea_selecionada.json", "w") as file:
+                            json.dump({"aurea": nome_aurea}, file)
+                        if som_tick:
+                            som_tick.play()
                         return
 
+        # 2. Interpolação de Fundo
+        bg_alvo = aureas[selecionado]["bg_tema"]
+        for c in range(3):
+            cor_fundo_atual[c] += (bg_alvo[c] - cor_fundo_atual[c]) * 0.08
+        tela.fill((int(cor_fundo_atual[0]), int(cor_fundo_atual[1]), int(cor_fundo_atual[2])))
+
+        # 3. Desenhar Partículas Dinâmicas
+        cor_accent = aureas[selecionado]["cor_tema"]
+        for p in particulas:
+            # Move para cima
+            p["y"] += p["vel_y"]
+            if p["y"] < -10:
+                p["y"] = altura + 10
+                p["x"] = random.randint(0, largura)
+            
+            # Animação de brilho respiratório
+            p["alpha"] += p["breathe_dir"] * p["breathe_speed"] * 50
+            if p["alpha"] >= 255:
+                p["alpha"] = 255
+                p["breathe_dir"] = -1
+            elif p["alpha"] <= 40:
+                p["alpha"] = 40
+                p["breathe_dir"] = 1
+            
+            # Desenha com mistura aditiva / alfa
+            cor_part = cor_accent + (int(p["alpha"]),)
+            surf_p = pygame.Surface((int(p["tamanho"]*2), int(p["tamanho"]*2)), pygame.SRCALPHA)
+            pygame.draw.circle(surf_p, cor_part, (int(p["tamanho"]), int(p["tamanho"])), int(p["tamanho"]))
+            tela.blit(surf_p, (int(p["x"] - p["tamanho"]), int(p["y"] - p["tamanho"])))
+
+        # 4. Renderizar Título Geral (Sem acento para evitar falhas com a fonte Doctor Glitch)
+        render_titulo = render_glitch_text_with_fallback("ESCOLHA DE AUREA", fonte_titulo, fonte_letra1, (255, 255, 255))
+        tela.blit(render_titulo, (largura // 2 - render_titulo.get_width() // 2, altura // 14))
+
+        # 5. Cálculo das Posições e Escalas dos Cards (Animação Fluida)
+        largura_quadro = 160
+        altura_quadro = 220
+        espacamento_cards = 180
+
         for i, aurea in enumerate(aureas):
-            linha = i // colunas
-            coluna = i % colunas
-
-            x = largura // 2 - ((colunas * largura_quadro + (colunas - 1) * espacamento) // 2) + coluna * (largura_quadro + espacamento)
-            y = altura // 4 + linha * (altura_quadro + 30)
-
-            cor_borda = (255, 255, 255) if i == selecionado else (80, 80, 80)
-            pygame.draw.rect(tela, cor_borda, (x, y, largura_quadro, altura_quadro), 3)
-
-            cor_texto = cor_borda
-
-            # 🔹 Nome com nível, se aplicável
-            nome = aurea["nome"]
-            if nome != "?" and aurea["ativa"]:
-                nivel = upgrades.get(nome, 0)
-                nome_display = f"{nome} (Nv. {nivel})" if nivel > 0 else nome
+            # Define alvos
+            dist = i - selecionado
+            target_x = largura // 2 + dist * espacamento_cards
+            
+            if i == selecionado:
+                target_scale = 1.15
+                target_y_offset = -20
+                target_alpha = 255
             else:
-                nome_display = nome
+                target_scale = 0.85
+                target_y_offset = 15
+                target_alpha = 100
+            
+            # Interpolação suave
+            card_x[i] += (target_x - card_x[i]) * 0.1
+            card_scale[i] += (target_scale - card_scale[i]) * 0.1
+            card_y_offset[i] += (target_y_offset - card_y_offset[i]) * 0.1
+            card_alpha[i] += (target_alpha - card_alpha[i]) * 0.1
 
-            texto = fonte.render(nome_display, True, cor_texto)
-            tela.blit(texto, (x + largura_quadro // 2 - texto.get_width() // 2, y - 25))
+        # 6. Renderizar Cards
+        for i, aurea in enumerate(aureas):
+            curr_scale = card_scale[i]
+            w_scaled = int(largura_quadro * curr_scale)
+            h_scaled = int(altura_quadro * curr_scale)
+            x_pos = int(card_x[i] - w_scaled // 2)
+            y_pos = int(altura // 3.3 + card_y_offset[i])
 
-            try:
-                imagem = pygame.image.load(aurea["imagem"]).convert_alpha()
-                imagem = pygame.transform.scale(imagem, (largura_quadro, altura_quadro))
-                tela.blit(imagem, (x, y))
-            except:
-                pass
-        # Cria contorno branco desenhando o texto levemente deslocado em várias direções
-        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-            contorno = fonte_instrucao.render(texto_instrucao, True, (255, 255, 255))  # Contorno branco
-            tela.blit(contorno, (largura - render_instrucao.get_width() - 20 + dx,
-                                altura - render_instrucao.get_height() - 20 + dy))
+            # Superfície temporária para o card com canal alpha
+            surf_card = pygame.Surface((w_scaled, h_scaled), pygame.SRCALPHA)
+            
+            # Fundo glassmorphic do card
+            alpha_fundo = int(50 + (card_alpha[i] / 255.0) * 110)
+            pygame.draw.rect(surf_card, (20, 20, 25, alpha_fundo), (0, 0, w_scaled, h_scaled), border_radius=12)
 
-        # Renderiza o texto principal (preto)
-        tela.blit(render_instrucao, (largura - render_instrucao.get_width() - 20,
-                                    altura - render_instrucao.get_height() - 20))        
+            # Imagem da Áurea
+            img_scaled = pygame.transform.scale(imagens_aureas[i], (w_scaled - 12, h_scaled - 12))
+            
+            # Aplicar transparência à imagem da Áurea
+            surf_img_alpha = pygame.Surface(img_scaled.get_size(), pygame.SRCALPHA)
+            surf_img_alpha.blit(img_scaled, (0, 0))
+            # Aplica canal alpha geral da imagem
+            surf_img_alpha.fill((255, 255, 255, int(card_alpha[i])), special_flags=pygame.BLEND_RGBA_MULT)
+            surf_card.blit(surf_img_alpha, (6, 6))
+
+            # Desenhar Borda do Card
+            cor_borda = aurea["cor_tema"] + (int(card_alpha[i]),)
+            largura_linha = 3 if i == selecionado else 1
+            pygame.draw.rect(surf_card, cor_borda, (0, 0, w_scaled, h_scaled), width=largura_linha, border_radius=12)
+
+            # Efeito Glow Concêntrico se estiver selecionado
+            if i == selecionado:
+                for g in range(1, 5):
+                    glow_alpha = int((1.0 - g/5.0) * 80)
+                    glow_color = aurea["cor_tema"] + (glow_alpha,)
+                    glow_surf = pygame.Surface((w_scaled + g*4, h_scaled + g*4), pygame.SRCALPHA)
+                    pygame.draw.rect(glow_surf, glow_color, (0, 0, w_scaled + g*4, h_scaled + g*4), width=1, border_radius=12 + g)
+                    tela.blit(glow_surf, (x_pos - g*2, y_pos - g*2))
+
+            # Blitar card final na tela
+            tela.blit(surf_card, (x_pos, y_pos))
+
+            # Badge do Nível (se aplicável)
+            nome_aurea = aurea["nome"]
+            if nome_aurea != "?" and nome_aurea != "Aleatória" and aurea["ativa"]:
+                nivel = upgrades.get(nome_aurea, 0)
+                if nivel > 0:
+                    badge_texto = f"Nv. {nivel}"
+                    render_badge = fonte_status.render(badge_texto, True, (255, 255, 255))
+                    
+                    largura_badge = render_badge.get_width() + 16
+                    altura_badge = 20
+                    surf_badge = pygame.Surface((largura_badge, altura_badge), pygame.SRCALPHA)
+                    
+                    pygame.draw.rect(surf_badge, (20, 20, 20, 230), (0, 0, largura_badge, altura_badge), border_radius=4)
+                    pygame.draw.rect(surf_badge, aurea["cor_tema"], (0, 0, largura_badge, altura_badge), width=1, border_radius=4)
+                    surf_badge.blit(render_badge, (8, (altura_badge - render_badge.get_height()) // 2))
+                    
+                    # Desenhar no canto superior direito do card
+                    tela.blit(surf_badge, (x_pos + w_scaled - largura_badge - 6, y_pos - 8))
+
+        # 7. Renderizar Painel Descritivo Glassmorphic (Apenas para a selecionada)
+        aurea_sel = aureas[selecionado]
+        
+        largura_painel = largura - 160
+        altura_painel = 180
+        x_painel = 80
+        y_painel = altura - altura_painel - 70
+
+        surf_painel = pygame.Surface((largura_painel, altura_painel), pygame.SRCALPHA)
+        # Fundo do painel
+        pygame.draw.rect(surf_painel, (10, 10, 15, 210), (0, 0, largura_painel, altura_painel), border_radius=16)
+        # Borda brilhante combinando com o tema da áurea
+        cor_borda_p = aurea_sel["cor_tema"] + (180,)
+        pygame.draw.rect(surf_painel, cor_borda_p, (0, 0, largura_painel, altura_painel), width=2, border_radius=16)
+
+        # Desenhar Conteúdo do Painel
+        # Título da Áurea
+        nome_display = aurea_sel["nome"].upper()
+        if nome_display not in ["?", "ALEATÓRIA"] and upgrades.get(aurea_sel["nome"], 0) > 0:
+            nome_display += f" (NÍVEL {upgrades[aurea_sel['nome']]})"
+        
+        render_nome = fonte_nome.render(nome_display, True, aurea_sel["cor_tema"])
+        surf_painel.blit(render_nome, (24, 16))
+
+        # Subtítulo / Categoria
+        render_cat = fonte_categoria.render(aurea_sel["categoria"], True, (150, 150, 150))
+        surf_painel.blit(render_cat, (26, 48))
+
+        # Linha Divisória Vertical
+        x_divisor = largura_painel // 2
+        pygame.draw.line(surf_painel, (50, 50, 60, 150), (x_divisor, 16), (x_divisor, altura_painel - 16), 1)
+
+        # Descrição principal com auto-quebra de linha dinâmica (máx largura_limite)
+        palavras = aurea_sel["efeito"].split(' ')
+        linhas_desc = []
+        linha_atual = []
+        largura_limite = x_divisor - 48
+        for palavra in palavras:
+            test_linha = ' '.join(linha_atual + [palavra])
+            if fonte_desc.size(test_linha)[0] <= largura_limite:
+                linha_atual.append(palavra)
+            else:
+                linhas_desc.append(' '.join(linha_atual))
+                linha_atual = [palavra]
+        if linha_atual:
+            linhas_desc.append(' '.join(linha_atual))
+
+        y_desc = 76
+        for linha in linhas_desc:
+            render_linha = fonte_desc.render(linha, True, (230, 230, 230))
+            surf_painel.blit(render_linha, (24, y_desc))
+            y_desc += 22
+
+        # Atributos (Lado Direito)
+        y_attr = 20
+        for attr in aurea_sel["atributos"]:
+            render_attr = fonte_status.render(attr, True, (190, 190, 200))
+            surf_painel.blit(render_attr, (x_divisor + 24, y_attr))
+            y_attr += 24
+
+        # Lore/Flavor text (Dinamicamente abaixo das linhas da descrição)
+        render_lore = fonte_status.render(f'"{aurea_sel["lore"]}"', True, (120, 120, 130))
+        y_lore = max(124, y_desc + 10)
+        surf_painel.blit(render_lore, (24, y_lore))
+
+        # Renderiza o painel final na tela
+        tela.blit(surf_painel, (x_painel, y_painel))
+
+        # 8. Barra de instrução no rodapé
+        texto_instr = "A / D ou SETAS para navegar | ESPAÇO ou ENTER para selecionar"
+        render_instr_text = fonte_instrucao.render(texto_instr, True, (0, 255, 230))
+        largura_instr = render_instr_text.get_width() + 40
+        altura_instr = 32
+        
+        surf_instr = pygame.Surface((largura_instr, altura_instr), pygame.SRCALPHA)
+        pygame.draw.rect(surf_instr, (10, 10, 15, 200), (0, 0, largura_instr, altura_instr), border_radius=6)
+        pygame.draw.rect(surf_instr, (0, 240, 255, 80), (0, 0, largura_instr, altura_instr), width=1, border_radius=6)
+        surf_instr.blit(render_instr_text, (20, (altura_instr - render_instr_text.get_height()) // 2))
+        
+        tela.blit(surf_instr, (largura // 2 - largura_instr // 2, altura - 42))
+
         pygame.display.flip()
         clock.tick(60)
 
@@ -984,23 +1319,13 @@ def executar_menu_principal(game_manager=None):
         # Texto de instrução
         texto_instrucao = "Use W ou S para alternar e Espaço ou Enter para selecionar"
         
-        # COOP no canto
-        texto_coop = "COOP"
-        cor_texto_coop = (0, 255, 255)
-        cor_borda_coop = (255, 255, 0)
-        render_coop = fonte_coop.render(texto_coop, True, cor_texto_coop)
-        render_coop_borda = fonte_coop.render(texto_coop, True, cor_borda_coop)
+
         
         # Renderização do título
         texto_titulo = fonte_titulo.render(titulo_jogo, True, cor_letra)
         retangulo_titulo = texto_titulo.get_rect(center=posicao_titulo)
         
-        # Posicionamento inteligente do COOP à direita do título para nunca sobrepor
-        posicao_coop = (retangulo_titulo.right + 15, retangulo_titulo.centery - render_coop.get_height() // 2 + 5)
-        
-        # Desenho da borda COOP
-        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-            tela.blit(render_coop_borda, (posicao_coop[0] + dx, posicao_coop[1] + dy))
+
         
         # Sombra e Contorno do Título (AAA volumetric effect)
         texto_titulo_sombra = fonte_titulo.render(titulo_jogo, True, (15, 5, 25))
@@ -1011,7 +1336,7 @@ def executar_menu_principal(game_manager=None):
             tela.blit(texto_titulo_contorno, (retangulo_titulo.left + dx, retangulo_titulo.top + dy))
             
         tela.blit(texto_titulo, retangulo_titulo)
-        tela.blit(render_coop, posicao_coop)
+
         
         # Barra glassy de instrução no rodapé
         render_instrucao_aaa = fonte_instrucao.render(texto_instrucao, True, (0, 255, 230))
@@ -1055,7 +1380,13 @@ def executar_menu_principal(game_manager=None):
             particulas_eclosao = []
             
             if escolha == 0:  # Iniciar Jornada
-                tela_inserir_nome(tela)
+                if not os.path.exists("saves/nome_jogador.json"):
+                    try:
+                        os.makedirs("saves", exist_ok=True)
+                        with open("saves/nome_jogador.json", "w") as f:
+                            json.dump({"nome": "Apolo"}, f)
+                    except:
+                        pass
                 if not os.path.exists("saves/tutorial_config.json"):
                     mostrar_tutorial = tela_decisao_tutorial(tela, fonte)
                     with open("saves/tutorial_config.json", "w") as f:

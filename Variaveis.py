@@ -804,9 +804,11 @@ mostrar_info = False
 # Dicionário para armazenar as cartas compradas e suas quantidades
 cartas_compradas = {
     "Speed Boost": 0,
+    "Porção": 0,
     "Disparo crescente": 0,
     "Tempestade": 0,
     "Cura": 0,
+    "Trembo": 0,
     "Speed Atack": 0,
     "Teleporte": 0,
     "Petro": 0,
@@ -817,9 +819,11 @@ cartas_compradas = {
 }
 cartas_imagens = {
     "Speed Boost": pygame.image.load('Sprites/Deck/Speed_boost1.png'),
+    "Porção": pygame.image.load('Sprites/Deck/carta_por1.png'),
     "Disparo crescente": pygame.image.load('Sprites/Deck/carta_odio1.png'),
     "Tempestade": pygame.image.load('Sprites/Deck/Carta_tempestade_crescente1.png'),
     "Cura": pygame.image.load('Sprites/Deck/Carta_roubo_vida1.png'),
+    "Trembo": pygame.image.load('Sprites/Deck/carta_trem1.png'),
     "Speed Atack": pygame.image.load('Sprites/Deck/carta_onda.png'),
     "Teleporte": pygame.image.load('Sprites/Deck/carta_teleporte1.png'),
     "Petro": pygame.image.load('Sprites/Deck/carta_petro1.png'),
@@ -830,9 +834,11 @@ cartas_imagens = {
 }
 cartas_disponiveis_nomes = [
     "Speed Boost", 
+    "Porção",
     "Disparo crescente", 
     "Tempestade", 
     "Cura", 
+    "Trembo",
     "Speed Atack", 
     "Teleporte", 
     "Petro", 

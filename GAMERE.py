@@ -17,6 +17,9 @@ lock_inimigos = threading.Lock()
 
 # Forward declaration (atribuído no loop principal)
 botao_mouse = (False, False, False)
+escudo_devota_ativo = True
+duracao_incendio_vanguarda = 5000
+intervalo_escudo = 30000
 
 with open("saves/modo_jogo.json", "r") as f:
     dados = json.load(f)
@@ -847,6 +850,8 @@ def verificar_colisao_personagem(projeteis):
 
     return False  # Sem colisão
 
+    
+
 def verificar_colisao_personagem_inimigo(personagem_rect, inimigos_rects):
     tempo_atual = pygame.time.get_ticks()
     for inimigo_rect in inimigos_rects:
@@ -978,7 +983,7 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
 
 
 def executar_jogo(game_manager=None):
-    global Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss1, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Safe, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, alvo_x, alvo_y, apertou_q, bonus_pontuacao, boss, boss_envenenado, boss_vivo1, cartas_compradas, chance_critico, cliente_ativo, conn, convite_boss_ativo, convite_boss_recebido, convite_boss_tempo, dados, dano, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_alvo, direcao_atual, direcao_atual_p2, direcao_atual_petro, direcao_player2, direcao_x, direcao_y, disparos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_ataque_especial, escudo_devota_ativo, estado, estado_jogo, fila_envio, fila_recebimento, fonte, fonte_mensagem, frame_atual, frame_atual_chefe, frame_porcentagem, hitboxes, impulsiva_ativa, imune_tempo_restante, iniciar_boss, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, jogador_morto, jogador_posicoes, jogador_remoto_morto, largura_disparo, loja_aberta, mensagem, mensagem_ativa, mensagem_mostrada, mensagens_exibidas, moedas_coletadas, moedas_soltadas, mostrar_tutorial, movimento_pressionado, ondas, outro_jogador_morto, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe, pos_x_personagem, pos_x_petro, pos_x_player2, pos_y_chefe, pos_y_personagem, pos_y_petro, pos_y_player2, quantidade_roubo_vida, r_press, roubo_de_vida, running, sprite_moeda, tela, teleportado, tempo_anterior_petro, tempo_ataque_especial, tempo_atual, tempo_cooldown_dash, tempo_envio_ping, tempo_fim_mensagem, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_morte, tempo_mostrando_mensagem, tempo_passado, tempo_passado_animacao_chefe, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_mudanca_direcao_boss, tempo_ultima_regeneracao, tempo_ultima_troca_alvo, tempo_ultimo_ataque, tempo_ultimo_dano_ataque, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, tipo_buff_impulsiva, trembo, ultima_direcao_boss, ultima_vida_enviada, ultimo_tick_veneno_boss, upgrades, velocidade_personagem, vida, vida_boss, vida_inimigo_maxima, vida_maxima, vida_maxima_boss1, vida_maxima_petro, vida_petro, xp_petro
+    global Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss1, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Safe, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, alvo_x, alvo_y, apertou_q, bonus_pontuacao, boss, boss_envenenado, boss_vivo1, cartas_compradas, chance_critico, cliente_ativo, conn, convite_boss_ativo, convite_boss_recebido, convite_boss_tempo, dados, dano, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_alvo, direcao_atual, direcao_atual_p2, direcao_atual_petro, direcao_player2, direcao_x, direcao_y, disparos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_ataque_especial, escudo_devota_ativo, estado, estado_jogo, fila_envio, fila_recebimento, fonte, fonte_mensagem, frame_atual, frame_atual_chefe, frame_porcentagem, hitboxes, impulsiva_ativa, imune_tempo_restante, iniciar_boss, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, jogador_morto, jogador_posicoes, jogador_remoto_morto, largura_disparo, loja_aberta, mensagem, mensagem_ativa, mensagem_mostrada, mensagens_exibidas, moedas_coletadas, moedas_soltadas, mostrar_tutorial, movimento_pressionado, ondas, outro_jogador_morto, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe, pos_x_personagem, pos_x_petro, pos_x_player2, pos_y_chefe, pos_y_personagem, pos_y_petro, pos_y_player2, quantidade_roubo_vida, r_press, roubo_de_vida, running, sprite_moeda, tela, teleportado, tempo_anterior_petro, tempo_ataque_especial, tempo_atual, tempo_cooldown_dash, tempo_envio_ping, tempo_fim_mensagem, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_morte, tempo_mostrando_mensagem, tempo_passado, tempo_passado_animacao_chefe, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_mudanca_direcao_boss, tempo_ultima_regeneracao, tempo_ultima_troca_alvo, tempo_ultimo_ataque, tempo_ultimo_dano_ataque, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, tipo_buff_impulsiva, trembo, ultima_direcao_boss, ultima_vida_enviada, ultimo_tick_veneno_boss, upgrades, velocidade_personagem, vida, vida_boss, vida_inimigo_maxima, vida_maxima, vida_maxima_boss1, vida_maxima_petro, vida_petro, xp_petro, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -988,12 +993,12 @@ def executar_jogo(game_manager=None):
         if game_manager:
             raise CleanExit()
         else:
-            _sys.exit(*args, **kwargs)
+            _orig_sys_exit(*args, **kwargs)
     def local_os_exit(*args, **kwargs):
         if game_manager:
             raise CleanExit()
         else:
-            _os._exit(*args, **kwargs)
+            _orig_os_exit(*args, **kwargs)
     _orig_sys_exit = _sys.exit
     _orig_os_exit = _os._exit
     _orig_builtins_exit = getattr(_builtins, 'exit', None)
@@ -1012,6 +1017,19 @@ def executar_jogo(game_manager=None):
 
         upgrades = carregar_upgrade_aureas("saves/aureas_upgrade.json")
 
+        # Configurar e escalar as passivas das áureas
+        nivel_devota = upgrades.get("Devota", 0)
+        nivel_vanguarda = upgrades.get("Vanguarda", 0)
+
+        if aurea == "Devota":
+            escudo_devota_ativo = True
+            intervalo_escudo = max(10000, 30000 - (nivel_devota * 3000))
+        else:
+            escudo_devota_ativo = False
+
+        if aurea == "Vanguarda":
+            duracao_incendio_vanguarda = 5000 + (nivel_vanguarda * 1000)
+
         FPS=pygame.time.Clock()
         pygame.mouse.set_visible(False)
         cursor_imagem = pygame.image.load("Sprites/Ponteiro.png").convert_alpha()  # Ajuste o caminho
@@ -1022,6 +1040,7 @@ def executar_jogo(game_manager=None):
 
         ###################################################################################################PRINCIPAL#################################################################################################################
         #LOOP PRINCIPAL
+        jogo_pausado = False
         running = True
         while running:
             tempo_atual = pygame.time.get_ticks()
@@ -1310,6 +1329,17 @@ def executar_jogo(game_manager=None):
                     running = False
                     pygame.quit()
                     sys.exit()
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    # Alternar pausa
+                    jogo_pausado = not jogo_pausado
+                    if jogo_pausado:
+                        pausar_cronometro()
+                        pygame.event.set_grab(False)  # Liberar mouse
+                        pygame.mouse.set_visible(True)  # Mostrar cursor do sistema
+                    else:
+                        retomar_cronometro()
+                        pygame.event.set_grab(True)  # Travar mouse de novo
+                        pygame.mouse.set_visible(False)  # Esconder cursor do sistema
 
                 if not jogador_morto:  # Só permite se estiver vivo
                     if botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo:  # Botão esquerdo do mouse
@@ -1339,6 +1369,26 @@ def executar_jogo(game_manager=None):
                         tempo_ultimo_uso_habilidade = tempo_atual
 
             # Verificar eventos de teclado
+            # --- Tela de pausa (ESC) ---
+            if jogo_pausado:
+                pausar_cronometro()
+                pygame.event.set_grab(False)
+                pygame.mouse.set_visible(True)
+                
+                joystick_count = pygame.joystick.get_count()
+                joy = pygame.joystick.Joystick(0) if joystick_count > 0 else None
+                if joy:
+                    joy.init()
+                
+                from Tela_Pause import exibir_tela_pause
+                exibir_tela_pause(tela, cartas_compradas, joy)
+                
+                retomar_cronometro()
+                pygame.event.set_grab(True)
+                pygame.mouse.set_visible(False)
+                jogo_pausado = False
+                continue
+
             keys = pygame.key.get_pressed()
 
             # Verificar eventos de joystick
@@ -1670,7 +1720,7 @@ def executar_jogo(game_manager=None):
                         Dano_person.play()
                         piscando_vida = True
 
-                if not escudo_devota_ativo and tempo_atual - tempo_ultimo_escudo >= intervalo_escudo:
+                if aurea == "Devota" and not escudo_devota_ativo and tempo_atual - tempo_ultimo_escudo >= intervalo_escudo:
                     escudo_devota_ativo = True
                     tempo_ultimo_escudo = tempo_atual
                     # adicionar um efeito visual de "escudo ativado"
@@ -1904,10 +1954,52 @@ def executar_jogo(game_manager=None):
                     nova_lista.append(efeito)
             efeitos_texto = nova_lista
             if trembo:
-                # Desenhar o segundo personagem ao lado do personagem original
-                pos_x_segundo_personagem = pos_x_personagem + largura_personagem + 4
-                pos_y_segundo_personagem = pos_y_personagem
-                tela.blit(frames_animacao_trembo[direcao_atual][frame_atual % len(frames_animacao_trembo[direcao_atual])], (pos_x_segundo_personagem, pos_y_segundo_personagem))
+                if 'trembo_lado' not in locals() and 'trembo_lado' not in globals():
+                    trembo_lado = 'direita'
+                    trembo_pos_x_atual = float(pos_x_personagem + largura_personagem + 4)
+                    trembo_pos_y_atual = float(pos_y_personagem)
+                    trembo_transicao = False
+                TREMBO_VEL_CORRIDA = 4.0
+                margem_borda = int(largura_trembo) + 10
+                lado_ideal = trembo_lado
+                if pos_x_personagem + largura_personagem + largura_trembo + 8 > largura_mapa - margem_borda:
+                    lado_ideal = 'esquerda'
+                elif pos_x_personagem - largura_trembo - 8 < margem_borda:
+                    lado_ideal = 'direita'
+                if lado_ideal != trembo_lado:
+                    trembo_lado = lado_ideal
+                    trembo_transicao = True
+                if trembo_lado == 'direita':
+                    alvo_x_trembo = pos_x_personagem + largura_personagem + 4
+                else:
+                    alvo_x_trembo = pos_x_personagem - largura_trembo - 4
+                diferenca_altura = altura_personagem - 115
+                alvo_y_trembo = pos_y_personagem - diferenca_altura
+                diff_x = alvo_x_trembo - trembo_pos_x_atual
+                diff_y = alvo_y_trembo - trembo_pos_y_atual
+                dist_total = max(1.0, (diff_x**2 + diff_y**2) ** 0.5)
+                if dist_total > 2:
+                    vel = min(TREMBO_VEL_CORRIDA, dist_total)
+                    trembo_pos_x_atual += (diff_x / dist_total) * vel
+                    trembo_pos_y_atual += (diff_y / dist_total) * vel
+                    trembo_transicao = True
+                else:
+                    trembo_pos_x_atual = alvo_x_trembo
+                    trembo_pos_y_atual = alvo_y_trembo
+                    trembo_transicao = False
+                pos_x_segundo_personagem = int(trembo_pos_x_atual)
+                pos_y_segundo_personagem = int(trembo_pos_y_atual)
+                pos_x_segundo_personagem = max(0, min(largura_mapa - int(largura_trembo), pos_x_segundo_personagem))
+                pos_y_segundo_personagem = max(0, min(altura_mapa - int(altura_trembo), pos_y_segundo_personagem))
+                if trembo_transicao and dist_total > 3:
+                    if abs(diff_x) > abs(diff_y):
+                        direcao_trembo = 'right' if diff_x > 0 else 'left'
+                    else:
+                        direcao_trembo = 'down' if diff_y > 0 else 'up'
+                else:
+                    direcao_trembo = direcao_atual
+                
+                tela.blit(frames_animacao_trembo[direcao_trembo][frame_atual % len(frames_animacao_trembo[direcao_trembo])], (pos_x_segundo_personagem, pos_y_segundo_personagem))
             if trembo and tempo_atual- tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima :
                 if vida_maxima < vida:
                     vida=vida_maxima
@@ -2583,8 +2675,11 @@ def executar_jogo(game_manager=None):
                         if tempo_atual - inimigo.get("ultimo_tick_queimando", 0) >= 1000:
                             inimigo["ultimo_tick_queimando"] = tempo_atual
 
-                            # Escalonamento: 1% a 3% da vida máxima baseado no combo
-                            proporcao = min(0.03, 0.01 + (eliminacoes_consecutivas * 0.0005))
+                            # Escalonamento: base 1% a 3% da vida máxima, mais 0.2% base e 0.5% max por nível do upgrade
+                            nivel_vanguarda = upgrades.get("Vanguarda", 0)
+                            limite_max = 0.03 + (nivel_vanguarda * 0.005)
+                            proporcao_base = 0.01 + (nivel_vanguarda * 0.002)
+                            proporcao = min(limite_max, proporcao_base + (eliminacoes_consecutivas * 0.0005))
                             dano_fogo = int(inimigo.get("vida_maxima", 100) * proporcao)
 
                             inimigo["vida"] -= dano_fogo
