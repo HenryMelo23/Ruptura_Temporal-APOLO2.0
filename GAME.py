@@ -9,8 +9,11 @@ import os
 import json
 from Tela_Cartas import tela_de_pausa
 from Variaveis import *
+from habilidades_personagem import processar_habilidade_onda, atualizar_e_desenhar_correntes
+import Variaveis
 from utils import *
 from audio_manager import carregar_config_audio, aplicar_volume_som
+dt = 1.0
 
 # Forward declarations (atribuídos no loop principal)
 botao_mouse = (False, False, False)
@@ -207,6 +210,7 @@ x = 0
 y = 0
 
 def executar_jogo(game_manager=None):
+    global dt
     global Chance_Sorte, Dano_Boss_Habilit, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss1, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, Velocidade_Inimigos_1, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apertou_q, atributos, bonus_pontuacao, boss_envenenado, cartas_compradas, chance_critico, cooldown_dash, dano, dano_boss, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_atual_petro, disparos, dispositivo_ativo, distancia_dash, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_ataque_especial, escudo_devota_ativo, espacamento, f, fonte, frame_atual_chefe, frame_porcentagem, hitboxes, i, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, jogador_posicoes, lado, largura_disparo, largura_personagem, linha, mensagem, mensagem_ativa, mensagem_mostrada, mensagens_exibidas, moedas_coletadas, moedas_soltadas, moedas_totais, musica_boss1, ondas, petro_evolucao, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe, pos_x_personagem, pos_x_petro, pos_y_chefe, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, r_press, rect_boss, relogio, roubo_de_vida, running, teleportado, teleporte_duration, teleporte_index, teleporte_timer, tempo_anterior_petro, tempo_ataque_especial, tempo_atual, tempo_cooldown_dash, tempo_fase_completa, tempo_fim_mensagem, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_mostrando_mensagem, tempo_passado_animacao_chefe, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_mudanca_direcao_boss, tempo_ultima_regeneracao, tempo_ultimo_ataque, tempo_ultimo_dano_ataque, tempo_ultimo_dash, tempo_ultimo_uso_habilidade, texto, texto_dano, tipo_buff_impulsiva, toque, trembo, tutorial_dash_count, tutorial_fase, tutorial_lado_inicial, tutorial_parede_ativa, tutorial_parede_rect, tutorial_wasd, ultima_direcao_animacao, ultima_direcao_boss, ultima_tecla_movimento, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_boss2, vida_boss3, vida_boss4, vida_maxima, vida_maxima_boss1, vida_maxima_boss2, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, x, xp_petro, tutorial_inimigo_ativo, tutorial_inimigo, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
     class CleanExit(BaseException):
         pass
@@ -249,9 +253,13 @@ def executar_jogo(game_manager=None):
         boss_vivo1=False
         relogio = pygame.time.Clock()
         ultimo_tempo_reducao = time.time()
+        alerta_boss_ativo = False
+        tempo_inicio_alerta_boss = 0
+        alerta_boss_mostrado_para = 0
         largura_disparo, altura_disparo = 40, 40
         velocidade_disparo = 10
         disparos = []
+        ondas_choque = []
 
         tela = pygame.display.set_mode((largura_mapa, altura_mapa))
         pygame.display.set_caption("Renderizando Mapa com Personagem")
@@ -315,10 +323,15 @@ def executar_jogo(game_manager=None):
 
 
         def atualizar_posicao_personagem(keys, joystick):
-            global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento
+            global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento, dano_person_hit
             global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_duration
             global tutorial_wasd, tutorial_fase, tutorial_dash_count, tempo_fase_completa, tutorial_parede_ativa, tutorial_parede_rect, tutorial_lado_inicial
             global angulo_inclinacao_personagem
+            global Resistencia_petro, dano_inimigo_perto, vida_maxima_petro, dano_petro, dano_inimigo_longe
+            global dano_boss, Dano_Boss_Habilit, Velocidade_Inimigos_1, inimigos_eliminados, pontuacao
+            global eliminacoes_consecutivas_impulsiva, eliminacoes_consecutivas, pontuacao_exib, bonus_pontuacao, vida_boss
+            global vida_maxima_boss1, vida_boss2, vida_maxima_boss2, vida_boss3, vida_maxima_boss3, vida_boss4, vida_maxima_boss4
+            nonlocal vida_inimigo_maxima
 
             direcao_atual = 'stop'  # Por padrão, definimos a direção como 'stop'
             dx, dy = 0, 0
@@ -365,15 +378,15 @@ def executar_jogo(game_manager=None):
 
                     fator_normalizacao = 0.7071
                     pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
-                                                 pos_x_personagem + dx * velocidade_personagem * fator_normalizacao))
+                                                 pos_x_personagem + dx * velocidade_personagem * fator_normalizacao * dt))
                     pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
-                                                 pos_y_personagem + dy * velocidade_personagem * fator_normalizacao))
+                                                 pos_y_personagem + dy * velocidade_personagem * fator_normalizacao * dt))
                 else:
                     angulo_inclinacao_personagem = 0
                     pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
-                                                 pos_x_personagem + dx * velocidade_personagem))
+                                                 pos_x_personagem + dx * velocidade_personagem * dt))
                     pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
-                                                 pos_y_personagem + dy * velocidade_personagem))
+                                                 pos_y_personagem + dy * velocidade_personagem * dt))
             else:
                 angulo_inclinacao_personagem = 0
                 if botao_mouse[0]:
@@ -385,15 +398,12 @@ def executar_jogo(game_manager=None):
             if tutorial_parede_ativa and tutorial_parede_rect:
                 personagem_rect_check = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
                 if personagem_rect_check.colliderect(tutorial_parede_rect):
-                    # Reverter a posição (empurrar pra fora da parede)
-                    if dx > 0:
+                    # Como a parede é totalmente vertical de ponta a ponta do mapa, a colisão é apenas horizontal.
+                    # Determina o lado baseado na posição do personagem em relação ao centro da parede para empurrar.
+                    if (pos_x_personagem + largura_personagem / 2) < tutorial_parede_rect.centerx:
                         pos_x_personagem = tutorial_parede_rect.left - largura_personagem
-                    elif dx < 0:
+                    else:
                         pos_x_personagem = tutorial_parede_rect.right
-                    if dy > 0:
-                        pos_y_personagem = tutorial_parede_rect.top - altura_personagem
-                    elif dy < 0:
-                        pos_y_personagem = tutorial_parede_rect.bottom
 
             # ---- DASH/TELEPORTE ----
             dash_teclado = keys[config_teclas["Teleporte"]]
@@ -414,18 +424,107 @@ def executar_jogo(game_manager=None):
                 cooldown_dash = True
                 tempo_ultimo_dash = pygame.time.get_ticks()
 
+                # Onda de choque no destino do teletransporte
+                cx_t = pos_x_personagem + largura_personagem // 2
+                cy_t = pos_y_personagem + altura_personagem // 2
+                raio_choque = 120
+                dano_choque = dano_person_hit * 0.3
+
+                ondas_choque.append({
+                    "cx": cx_t,
+                    "cy": cy_t,
+                    "raio_atual": 10.0,
+                    "raio_max": raio_choque,
+                    "velocidade": 8.0,
+                    "cor": (0, 191, 255)
+                })
+
+                # Dano nos inimigos comuns próximos
+                inimigos_atingidos = []
+                for inimigo in inimigos_comum:
+                    dist = math.hypot(inimigo["rect"].centerx - cx_t, inimigo["rect"].centery - cy_t)
+                    if dist <= raio_choque:
+                        inimigos_atingidos.append(inimigo)
+
+                for inimigo in inimigos_atingidos:
+                    inimigo["vida"] -= dano_choque
+                    efeitos_texto.append({
+                        "texto": f"-{int(dano_choque)}",
+                        "x": inimigo["rect"].x,
+                        "y": inimigo["rect"].y - 20,
+                        "tempo_inicio": pygame.time.get_ticks(),
+                        "cor": (0, 191, 255)
+                    })
+                    if inimigo["vida"] <= 0:
+                        posicao_inimigo = inimigo["rect"].center
+                        soltar_moeda(posicao_inimigo)
+                        gerar_fragmentos_morte(inimigo, 1)
+                        if inimigo in inimigos_comum:
+                            inimigos_comum.remove(inimigo)
+                        
+                        # Escalonamento por nível de ameaça
+                        vida_inimigo_maxima += 1.2 + nivel_ameaca * 0.8
+                        Resistencia_petro += 0.2 + nivel_ameaca * 0.1
+                        dano_inimigo_perto += 0.2 + nivel_ameaca * 0.1
+                        dano_person_hit += 0.15 + nivel_ameaca * 0.05
+                        vida_maxima_petro += 0.5 + nivel_ameaca * 0.3
+                        dano_petro += 0.02 + nivel_ameaca * 0.01
+                        dano_inimigo_longe += 0.03 + nivel_ameaca * 0.02
+                        dano_boss += 0.04 + nivel_ameaca * 0.02
+                        Dano_Boss_Habilit += 0.05 + nivel_ameaca * 0.03
+                        Velocidade_Inimigos_1 += 0.0015 + nivel_ameaca * 0.0005
+
+                        inimigos_eliminados += 1
+                        ganho = int(75 + math.log2(inimigos_eliminados + 1) * 4)
+                        pontuacao += ganho
+                        eliminacoes_consecutivas_impulsiva += 1
+
+                        if Mercenaria_Active:
+                            eliminacoes_consecutivas += 1
+                            pontuacao_exib += ganho + bonus_pontuacao
+                            if eliminacoes_consecutivas % 5 == 0:
+                                bonus_pontuacao = min(500, bonus_pontuacao + Valor_Bonus)
+                        else:
+                            pontuacao_exib += ganho
+
+                        if not boss_vivo1:
+                            if vida_boss > 0:
+                                vida_boss += 15 + nivel_ameaca * 10
+                                vida_maxima_boss1 = vida_boss
+                                vida_boss2 += 20 + nivel_ameaca * 12
+                                vida_maxima_boss2 = vida_boss2
+                                vida_boss3 += 25 + nivel_ameaca * 15
+                                vida_maxima_boss3 = vida_boss3
+                                vida_boss4 += 30 + nivel_ameaca * 18
+                                vida_maxima_boss4 = vida_boss4
+
+                # Dano ao Boss
+                if boss_vivo1:
+                    bx = pos_x_chefe + chefe_largura // 2
+                    by = pos_y_chefe + chefe_altura // 2
+                    dist_boss = math.hypot(bx - cx_t, by - cy_t)
+                    if dist_boss <= raio_choque:
+                        vida_boss -= dano_choque
+                        efeitos_texto.append({
+                            "texto": f"-{int(dano_choque)}",
+                            "x": pos_x_chefe + chefe_largura // 2,
+                            "y": pos_y_chefe - 20,
+                            "tempo_inicio": pygame.time.get_ticks(),
+                            "cor": (0, 191, 255)
+                        })
+
                 # Contar dashes para o tutorial
                 if mostrar_tutorial and tutorial_fase == 2:
                     tutorial_dash_count += 1
                     if tutorial_dash_count >= 3:
                         tutorial_fase = 3
                         tutorial_parede_ativa = True
-                        # Parede roxa vertical no centro do mapa
+                        # Parede roxa vertical no centro do mapa de ponta a ponta
                         parede_w = 20
-                        parede_h = int(altura_mapa * 0.5)
+                        parede_h = altura_mapa
                         tutorial_parede_rect = pygame.Rect(
                             largura_mapa // 2 - parede_w // 2,
-                            altura_mapa // 2 - parede_h // 2,
+                            0,
                             parede_w, parede_h
                         )
                         tempo_fase_completa = time.time()
@@ -752,6 +851,194 @@ def executar_jogo(game_manager=None):
 
         sprite_moeda = pygame.image.load("Sprites/moeda.png").convert_alpha()
         moedas_soltadas = []
+        fragmentos_morte = []
+
+        def gerar_fragmentos_morte(inimigo, fase):
+            if not (config_graficos.get("particulas_ativas", True) and config_graficos.get("efeitos_visuais", True)):
+                return
+            rect_inimigo = inimigo["rect"]
+            gerar_particulas_pontos(rect_inimigo)
+            for _ in range(random.randint(15, 25)):
+                px = random.uniform(rect_inimigo.left, rect_inimigo.right)
+                py = random.uniform(rect_inimigo.top, rect_inimigo.bottom)
+                vx = random.uniform(-3, 3)
+                vy = random.uniform(-4, 1)
+                
+                if fase == 1:
+                    r = random.randint(120, 200)
+                    g = random.randint(30, 80)
+                    b = random.randint(200, 255)
+                    color = (r, g, b)
+                elif fase == 2:
+                    r = random.randint(0, 50)
+                    g = random.randint(130, 220)
+                    b = random.randint(220, 255)
+                    color = (r, g, b)
+                elif fase == 3:
+                    r = random.randint(220, 255)
+                    g = random.randint(180, 225)
+                    b = random.randint(0, 50)
+                    color = (r, g, b)
+                elif fase == 4:
+                    if random.random() < 0.5:
+                        r = random.randint(120, 180)
+                        g = random.randint(30, 70)
+                        b = random.randint(180, 240)
+                    else:
+                        r = random.randint(210, 255)
+                        g = random.randint(170, 210)
+                        b = random.randint(0, 40)
+                    color = (r, g, b)
+                else:
+                    color = (255, 255, 255)
+                    
+                size = random.uniform(3, 8)
+                shape_type = random.choice(["triangulo", "losango", "quadrado"])
+                if shape_type == "triangulo":
+                    vertices = [
+                        (0, -size),
+                        (-size * 0.8, size * 0.6),
+                        (size * 0.8, size * 0.6)
+                    ]
+                elif shape_type == "losango":
+                    vertices = [
+                        (0, -size),
+                        (size * 0.6, 0),
+                        (0, size),
+                        (-size * 0.6, 0)
+                    ]
+                else:
+                    vertices = [
+                        (-size * 0.5, -size * 0.5),
+                        (size * 0.5, -size * 0.5),
+                        (size * 0.5, size * 0.5),
+                        (-size * 0.5, size * 0.5)
+                    ]
+                    
+                fragmentos_morte.append({
+                    "x": px,
+                    "y": py,
+                    "vx": vx,
+                    "vy": vy,
+                    "color": color,
+                    "vertices": vertices,
+                    "rot": random.uniform(0, 360),
+                    "vrot": random.uniform(-10, 10),
+                    "life": random.randint(30, 50)
+                })
+
+        def atualizar_e_desenhar_fragmentos(tela):
+            if not (config_graficos.get("particulas_ativas", True) and config_graficos.get("efeitos_visuais", True)):
+                fragmentos_morte.clear()
+                return
+            novos_frag = []
+            for f in fragmentos_morte:
+                f["x"] += f["vx"]
+                f["y"] += f["vy"]
+                f["vy"] += 0.15
+                f["vx"] *= 0.98
+                f["rot"] += f["vrot"]
+                f["life"] -= 1
+                
+                if f["life"] <= 0:
+                    continue
+                    
+                rad = math.radians(f["rot"])
+                cos_r = math.cos(rad)
+                sin_r = math.sin(rad)
+                
+                rotated_vertices = []
+                for vx, vy in f["vertices"]:
+                    rx = f["x"] + (vx * cos_r - vy * sin_r)
+                    ry = f["y"] + (vx * sin_r + vy * cos_r)
+                    rotated_vertices.append((rx, ry))
+                    
+                pygame.draw.polygon(tela, f["color"], rotated_vertices)
+                novos_frag.append(f)
+            fragmentos_morte[:] = novos_frag
+
+        particulas_pontos = []
+
+        def gerar_particulas_pontos(rect_inimigo):
+            if not (config_graficos.get("particulas_ativas", True) and config_graficos.get("efeitos_visuais", True)):
+                return
+            qualidade = config_graficos.get("qualidade_grafica", "alta")
+            quantidade = random.randint(5, 8) if qualidade == "alta" else random.randint(2, 3)
+            
+            for _ in range(quantidade):
+                px = random.uniform(rect_inimigo.left, rect_inimigo.right)
+                py = random.uniform(rect_inimigo.top, rect_inimigo.bottom)
+                vx = random.uniform(-4, 4)
+                vy = random.uniform(-4, 4)
+                
+                particulas_pontos.append({
+                    "x": px,
+                    "y": py,
+                    "vx": vx,
+                    "vy": vy,
+                    "timer": random.randint(10, 20),
+                    "history": [],
+                    "speed": random.uniform(0.1, 0.3)
+                })
+
+        def atualizar_e_desenhar_particulas_pontos(tela):
+            if not (config_graficos.get("particulas_ativas", True) and config_graficos.get("efeitos_visuais", True)):
+                particulas_pontos.clear()
+                return
+            
+            qualidade = config_graficos.get("qualidade_grafica", "alta")
+            px_centro = pos_x_personagem + largura_personagem // 2
+            py_centro = pos_y_personagem + altura_personagem // 2
+            
+            novas_particulas = []
+            for p in particulas_pontos:
+                if qualidade == "alta":
+                    p["history"].append((p["x"], p["y"]))
+                    if len(p["history"]) > 4:
+                        p["history"].pop(0)
+                
+                if p["timer"] > 0:
+                    p["x"] += p["vx"]
+                    p["y"] += p["vy"]
+                    p["vx"] *= 0.92
+                    p["vy"] *= 0.92
+                    p["timer"] -= 1
+                else:
+                    dx = px_centro - p["x"]
+                    dy = py_centro - p["y"]
+                    dist = math.sqrt(dx*dx + dy*dy)
+                    if dist < 15:
+                        continue
+                    
+                    dx /= dist
+                    dy /= dist
+                    
+                    p["vx"] += dx * p["speed"]
+                    p["vy"] += dy * p["speed"]
+                    max_speed = 12.0
+                    speed = math.sqrt(p["vx"]**2 + p["vy"]**2)
+                    if speed > max_speed:
+                        p["vx"] = (p["vx"] / speed) * max_speed
+                        p["vy"] = (p["vy"] / speed) * max_speed
+                        
+                    p["x"] += p["vx"]
+                    p["y"] += p["vy"]
+                    p["speed"] += 0.05
+                    
+                if qualidade == "alta":
+                    for idx, (hx, hy) in enumerate(p["history"]):
+                        alpha_factor = (idx + 1) / len(p["history"])
+                        r = int(0 * alpha_factor)
+                        g = int(191 * alpha_factor)
+                        b = int(255 * alpha_factor)
+                        size = max(1, int(3 * alpha_factor))
+                        pygame.draw.circle(tela, (r, g, b), (int(hx), int(hy)), size)
+                
+                # Desenhar partícula principal (azul brilhante)
+                pygame.draw.circle(tela, (135, 206, 250), (int(p["x"]), int(p["y"])), 3)
+                novas_particulas.append(p)
+                
+            particulas_pontos[:] = novas_particulas
 
         ###################################################################################################PRINCIPAL#################################################################################################################
         #LOOP PRINCIPAL
@@ -776,15 +1063,6 @@ def executar_jogo(game_manager=None):
                         multiplicador_dano = 1.3 + (0.05 * nivel_impulsiva)
                     elif tipo_buff_impulsiva == "velocidade":
                         multiplicador_velocidade = 1.2 + (0.05 * nivel_impulsiva)
-                mensagem = "+ Buff: Dano ↑" if tipo_buff_impulsiva == "dano" else "+ Buff: Velocidade ↑"
-
-                efeitos_texto.append({
-                    "texto": mensagem,
-                    "x": pos_x_personagem,
-                    "y": pos_y_personagem - 20,
-                    "tempo_inicio": pygame.time.get_ticks(),
-                    "cor": (255, 100, 100) if tipo_buff_impulsiva == "dano" else (100, 100, 255)
-                })
 
 
             pos_mouse = pygame.mouse.get_pos()
@@ -794,35 +1072,51 @@ def executar_jogo(game_manager=None):
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
-                elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                    # Alternar pausa
-                    jogo_pausado = not jogo_pausado
-                    if jogo_pausado:
-                        pausar_cronometro()
-                        pygame.event.set_grab(False)  # Liberar mouse
-                        pygame.mouse.set_visible(True)  # Mostrar cursor do sistema
-                    else:
-                        retomar_cronometro()
-                        pygame.event.set_grab(True)  # Travar mouse de novo
-                        pygame.mouse.set_visible(False)  # Esconder cursor do sistema
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        # Alternar pausa
+                        jogo_pausado = not jogo_pausado
+                        if jogo_pausado:
+                            pausar_cronometro()
+                            pygame.event.set_grab(False)  # Liberar mouse
+                            pygame.mouse.set_visible(True)  # Mostrar cursor do sistema
+                        else:
+                            retomar_cronometro()
+                            pygame.event.set_grab(True)  # Travar mouse de novo
+                            pygame.mouse.set_visible(False)  # Esconder cursor do sistema
+                    elif mostrar_tutorial and tutorial_fase == 6:
+                        if event.key in [pygame.K_RETURN, pygame.K_SPACE, pygame.K_r]:
+                            if event.key == pygame.K_r:
+                                r_press = True
+                            tutorial_fase = 7
+                            mostrar_tutorial = False
+                            try:
+                                with open("saves/tutorial_config.json", "w") as f:
+                                    json.dump({"mostrar_tutorial": False}, f)
+                            except:
+                                pass
                 elif botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo:  # Botão esquerdo do mouse
                     pos_mouse = pygame.mouse.get_pos()
-                    angulo = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
+                    px_centro = pos_x_personagem + largura_personagem // 2
+                    py_centro = pos_y_personagem + altura_personagem // 2
+                    angulo = calcular_angulo_disparo((px_centro, py_centro), pos_mouse)
                     Disparo_Geo.play()
                     # Crie o disparo com direção baseada no ângulo
                     novo_disparo = {
-                        "rect": pygame.Rect(pos_x_personagem, pos_y_personagem, largura_disparo, altura_disparo),
+                        "rect": pygame.Rect(px_centro - largura_disparo // 2, py_centro - altura_disparo // 2, largura_disparo, altura_disparo),
                         "angulo": angulo
                     }
                     disparos.append(novo_disparo)
                     tempo_ultimo_disparo = tempo_atual  # Atualizar o tempo do último disparo
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3 and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade:  # Botão direito do mouse
                     pos_mouse = pygame.mouse.get_pos()
-                    angulo = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
+                    px_centro = pos_x_personagem + largura_personagem // 2
+                    py_centro = pos_y_personagem + altura_personagem // 2
+                    angulo = calcular_angulo_disparo((px_centro, py_centro), pos_mouse)
 
                     # Criar uma onda cinética com as novas propriedades
                     nova_onda = {
-                        "rect": pygame.Rect(pos_x_personagem, pos_y_personagem, largura_onda, altura_onda),
+                        "rect": pygame.Rect(px_centro - largura_onda // 2, py_centro - altura_onda // 2, largura_onda, altura_onda),
                         "angulo": angulo,
                         "tempo_inicio": pygame.time.get_ticks(),
                         "frame_atual": 0,
@@ -918,6 +1212,15 @@ def executar_jogo(game_manager=None):
                     tempo_inicio_buff_impulsiva = pygame.time.get_ticks()
                     eliminacoes_consecutivas_impulsiva = 0  # Zera para forçar novo ciclo
 
+                    mensagem_buff = "+ Buff: Dano ↑" if tipo_buff_impulsiva == "dano" else "+ Buff: Velocidade ↑"
+                    efeitos_texto.append({
+                        "texto": mensagem_buff,
+                        "x": pos_x_personagem,
+                        "y": pos_y_personagem - 20,
+                        "tempo_inicio": pygame.time.get_ticks(),
+                        "cor": (255, 100, 100) if tipo_buff_impulsiva == "dano" else (100, 100, 255)
+                    })
+
 
 
 
@@ -948,8 +1251,14 @@ def executar_jogo(game_manager=None):
             # Desenhar os disparos normais
             novos_disparos = []
             for disparo in disparos:
-                disparo["rect"].x += velocidade_disparo * math.cos(disparo["angulo"])
-                disparo["rect"].y += velocidade_disparo * math.sin(disparo["angulo"])
+                if "pos_x" not in disparo:
+                    disparo["pos_x"] = float(disparo["rect"].x)
+                if "pos_y" not in disparo:
+                    disparo["pos_y"] = float(disparo["rect"].y)
+                disparo["pos_x"] += velocidade_disparo * math.cos(disparo["angulo"]) * dt
+                disparo["pos_y"] += velocidade_disparo * math.sin(disparo["angulo"]) * dt
+                disparo["rect"].x = int(disparo["pos_x"])
+                disparo["rect"].y = int(disparo["pos_y"])
 
                 # Verificar se o disparo está dentro do mapa
                 if 0 <= disparo["rect"].x < largura_mapa and 0 <= disparo["rect"].y < altura_mapa:
@@ -963,93 +1272,62 @@ def executar_jogo(game_manager=None):
 
 
 
-            novas_ondas = []
-            for onda in ondas:
-                onda["rect"].x += velocidade_onda * math.cos(onda["angulo"])
-                onda["rect"].y += velocidade_onda * math.sin(onda["angulo"])
+            boss_info = {
+                "vivo": boss_vivo1,
+                "rect": pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura) if boss_vivo1 else None,
+                "atingido_por_onda": boss_atingido_por_onda,
+                "hit_flag": False
+            }
+            inimigos_mortos_neste_frame = processar_habilidade_onda(
+                ondas, correntes_eletricas, inimigos_comum, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda
+            )
+            if boss_info.get("hit_flag"):
+                vida_boss -= dano_person_hit * 5
+                boss_atingido_por_onda = boss_info["atingido_por_onda"]
+                if vida_boss <= 0:
+                    boss_vivo1 = False
+                    vida_maxima_boss1 = 0
 
-                # Atualizar o frame atual da animação da onda
-                tempo_decorrido_onda = pygame.time.get_ticks() - onda["tempo_inicio"]
-                onda["frame_atual"] = (tempo_decorrido_onda // duracao_frame_onda) % len(onda["frames"])
+            # Atualizar e desenhar correntes elétricas
+            inimigos_mortos_correntes = atualizar_e_desenhar_correntes(tela, correntes_eletricas, inimigos_comum, tempo_atual, dano_person_hit)
+            
+            inimigos_mortos = inimigos_mortos_neste_frame + inimigos_mortos_correntes
+            for morto in inimigos_mortos:
+                if morto in inimigos_comum:
+                    gerar_fragmentos_morte(morto, 1)
+                    inimigos_comum.remove(morto)
+                    inimigos_eliminados += 1
+                    
+                    # --- ESCALONAMENTO POR NIVEL DE AMEAÇA ---
+                    mult = 1.0 + (nivel_ameaca * 0.1)
+                    vida_inimigo_maxima += 0.5 * mult
+                    Resistencia_petro += 0.05 * mult
+                    dano_inimigo_perto += 0.04 * mult
+                    dano_person_hit += 0.03 * mult
+                    vida_maxima_petro += 0.2 * mult
+                    dano_petro += 0.005 * mult
+                    dano_inimigo_longe += 0.01 * mult
+                    dano_boss += 0.01 * mult
+                    Dano_Boss_Habilit += 0.02 * mult
+                    Velocidade_Inimigos_1 = min(4.8, Velocidade_Inimigos_1 + 0.0001)
 
-                # Renderizar a onda
-                tela.blit(onda["frames"][onda["frame_atual"]], onda["rect"])
-
-                # Verificar se a onda ainda está dentro do mapa
-                if (
-                    0 <= onda["rect"].x < largura_mapa and
-                    0 <= onda["rect"].y < altura_mapa
-                ):
-                    novas_ondas.append(onda)
-
-            ondas = novas_ondas
-
-            for onda in ondas:
-                for inimigo in inimigos_comum:
-                    inimigo_id = id(inimigo["rect"])  # Use o id do rect como identificador único
-                    if onda["rect"].colliderect(inimigo["rect"]) and \
-                    (inimigo_id not in inimigos_atingidos_por_onda or tempo_atual - inimigos_atingidos_por_onda[inimigo_id] >= 500):
-                        # Aplica o dano ao inimigo
-                        inimigo["vida"] -= dano_person_hit*2  
-                        inimigos_atingidos_por_onda[inimigo_id] = tempo_atual  # Atualiza o tempo do último dano
-
-                        if inimigo["vida"] <= 0:
-                            inimigos_comum.remove(inimigo)
-                            inimigos_eliminados += 1
-
-                            # --- ESCALONAMENTO POR NIVEL DE AMEAÇA ---
-                            # Multiplicador que cresce suavemente para evitar o "Power Creep" imediato
-                            mult = 1.0 + (nivel_ameaca * 0.1)
-
-                            vida_inimigo_maxima += 0.5 * mult
-                            Resistencia_petro += 0.05 * mult
-                            dano_inimigo_perto += 0.04 * mult
-                            dano_person_hit += 0.03 * mult
-                            vida_maxima_petro += 0.2 * mult
-                            dano_petro += 0.005 * mult
-                            dano_inimigo_longe += 0.01 * mult
-                            dano_boss += 0.01 * mult
-                            Dano_Boss_Habilit += 0.02 * mult
-                            # Velocidade com teto máximo para evitar bugs de física
-                            Velocidade_Inimigos_1 = min(4.8, Velocidade_Inimigos_1 + 0.0001)
-
-                            # --- ECONOMIA DE PONTOS PARA AS 50 CARTAS ---
-                            # Ganho logarítmico: quanto mais mata, mais ganha, mas sem explosão de valores
-                            ganho = int(120 * (1 + math.log10(inimigos_eliminados + 1)))
-                            pontuacao += ganho
-                            pontuacao_exib += ganho
-
-                            if vida_petro < (vida_maxima_petro * 0.6):
-                                vida_petro = min(vida_maxima_petro, vida_petro + (vida_maxima_petro * 0.2))
-
-                            if not boss_vivo1:
-                                # Bosses escalam 15% do ganho de vida dos inimigos comuns
-                                vida_boss += 12 * mult
-                                vida_maxima_boss1 = vida_boss
-                                vida_boss2 += 15 * mult
-                                vida_maxima_boss2 = vida_boss2
-                                vida_boss3 += 18 * mult
-                                vida_maxima_boss3 = vida_boss3
-                                vida_boss4 += 22 * mult
-                                vida_maxima_boss4 = vida_boss4
-
-
-
-                # Controle de dano para o boss
-                if boss_vivo1 and onda["rect"].colliderect(pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)):
-                    boss_id = "boss"  # Identificador único para o boss no dicionário
-                    tempo_atual = pygame.time.get_ticks()
-
-                    if tempo_atual - boss_atingido_por_onda >= 500: 
-                        vida_boss -= dano_person_hit * 5  
-
-                        boss_atingido_por_onda = tempo_atual  # Atualiza o tempo do último dano
-
-                        # Verifica se o boss foi derrotado
-                        if vida_boss <= 0:
-                            boss_vivo1 = False
-                            vida_maxima_boss1 = 0
-                            # Aplique os efeitos ou recompensas ao derrotar o boss aqui
+                    # --- ECONOMIA DE PONTOS PARA AS 50 CARTAS ---
+                    ganho = int(120 * (1 + math.log10(inimigos_eliminados + 1)))
+                    pontuacao += ganho
+                    pontuacao_exib += ganho
+                    
+                    if vida_petro < (vida_maxima_petro * 0.6):
+                        vida_petro = min(vida_maxima_petro, vida_petro + (vida_maxima_petro * 0.2))
+                        
+                    if not boss_vivo1:
+                        vida_boss += 12 * mult
+                        vida_maxima_boss1 = vida_boss
+                        vida_boss2 += 15 * mult
+                        vida_maxima_boss2 = vida_boss2
+                        vida_boss3 += 18 * mult
+                        vida_maxima_boss3 = vida_boss3
+                        vida_boss4 += 22 * mult
+                        vida_maxima_boss4 = vida_boss4
 
             tempo_atual = pygame.time.get_ticks()
             if movendo:
@@ -1082,7 +1360,7 @@ def executar_jogo(game_manager=None):
                 # Desenhar sombra do inimigo
                 desenhar_sombra(tela, inimigo["rect"].x, inimigo["rect"].y, largura_inimigo, altura_inimigo)
                 tela.blit(inimigo["image"], inimigo["rect"])
-                desenhar_barra_de_vida(tela, inimigo["rect"].x, inimigo["rect"].y - 10, largura_inimigo, 5, inimigo["vida"], inimigo["vida_maxima"])
+                desenhar_barra_de_vida(tela, inimigo["rect"].x, inimigo["rect"].y - 10, largura_inimigo, 5, inimigo["vida"], inimigo["vida_maxima"], inimigo.get("eletrocutado", False))
 
             personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem*0.5, altura_personagem*0.8)
             inimigos_rects = [inimigo["rect"] for inimigo in inimigos_comum]
@@ -1140,6 +1418,11 @@ def executar_jogo(game_manager=None):
                     pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem)
                 else:
                     mostrar_tutorial=False
+                    try:
+                        with open("saves/tutorial_config.json", "w") as f:
+                            json.dump({"mostrar_tutorial": False}, f)
+                    except:
+                        pass
                     pausar_cronometro()
                     pygame.time.delay(2000)
                     Musica_tema_fases.stop()
@@ -1331,8 +1614,8 @@ def executar_jogo(game_manager=None):
 
                     # Se "Petro" ainda não está na posição do inimigo, mova-o na direção calculada
                     if pos_x_petro != pos_x_inimigo_mais_proximo or pos_y_petro != pos_y_inimigo_mais_proximo:
-                        pos_x_petro += 1 * direcao_petro[0]
-                        pos_y_petro += 1 * direcao_petro[1]
+                        pos_x_petro += 1 * direcao_petro[0] * dt
+                        pos_y_petro += 1 * direcao_petro[1] * dt
 
 
                     # Calcula a distância entre "Petro" e o inimigo mais próximo
@@ -1366,6 +1649,7 @@ def executar_jogo(game_manager=None):
                                 pontuacao_exib += pontos_petro
 
                                 if inimigo_mais_proximo in inimigos_comum:
+                                    gerar_fragmentos_morte(inimigo_mais_proximo, 1)
                                     inimigos_comum.remove(inimigo_mais_proximo)
 
                             if not boss_vivo1:
@@ -1411,8 +1695,8 @@ def executar_jogo(game_manager=None):
                         direcao_y = 0
 
                     # Move Petro na direção do boss
-                    pos_x_petro += 1 * direcao_x
-                    pos_y_petro += 1 * direcao_y
+                    pos_x_petro += 1 * direcao_x * dt
+                    pos_y_petro += 1 * direcao_y * dt
 
                     # Verifica se Petro está próximo o suficiente para aplicar dano ao boss
                     distancia_petro_boss = math.sqrt((pos_x_petro - pos_x_chefe) ** 2 + (pos_y_petro - pos_y_chefe) ** 2)
@@ -1477,13 +1761,13 @@ def executar_jogo(game_manager=None):
 
 
                     if ultima_direcao_boss == 'up':
-                        pos_y_chefe = max(0, pos_y_chefe - Velocidade_boss   )  # Garanta que o boss não ultrapasse o topo
+                        pos_y_chefe = max(0, pos_y_chefe - Velocidade_boss * dt)  # Garanta que o boss não ultrapasse o topo
                     elif ultima_direcao_boss == 'down':
-                        pos_y_chefe = min(altura_mapa - chefe_altura, pos_y_chefe + Velocidade_boss   )  # Garanta que o boss não ultrapasse a base
+                        pos_y_chefe = min(altura_mapa - chefe_altura, pos_y_chefe + Velocidade_boss * dt)  # Garanta que o boss não ultrapasse a base
                     elif ultima_direcao_boss == 'left':
-                        pos_x_chefe = max(0, pos_x_chefe - Velocidade_boss   )  # Garanta que o boss não ultrapasse a borda esquerda
+                        pos_x_chefe = max(0, pos_x_chefe - Velocidade_boss * dt)  # Garanta que o boss não ultrapasse a borda esquerda
                     elif ultima_direcao_boss == 'right':
-                        pos_x_chefe = min(largura_mapa - chefe_largura, pos_x_chefe + Velocidade_boss   )  # Garanta que o boss não ultrapasse a borda direita
+                        pos_x_chefe = min(largura_mapa - chefe_largura, pos_x_chefe + Velocidade_boss * dt)  # Garanta que o boss não ultrapasse a borda direita
 
                     # Verifica se o boss chegou à borda da tela
                     if pos_x_chefe <= 0 or pos_x_chefe >= largura_mapa - chefe_largura or pos_y_chefe <= 0 or pos_y_chefe >= altura_mapa - chefe_altura:
@@ -1519,6 +1803,8 @@ def executar_jogo(game_manager=None):
                                 raise CleanExit()
                             else:
                                 import GAME2
+                                GAME2.executar_jogo()
+                                raise CleanExit()
 
 
                             toque+=1
@@ -1689,7 +1975,9 @@ def executar_jogo(game_manager=None):
                             estalos.play()
                             posicao_inimigo = inimigo["rect"].center
                             soltar_moeda(posicao_inimigo)
-                            if inimigo in inimigos_comum: inimigos_comum.remove(inimigo)
+                            if inimigo in inimigos_comum:
+                                gerar_fragmentos_morte(inimigo, 1)
+                                inimigos_comum.remove(inimigo)
 
                             inimigos_eliminados += 1
                             mult_exec = 1.0 + (nivel_ameaca * 0.12) # Execução dá 12% a mais de escala
@@ -1730,6 +2018,7 @@ def executar_jogo(game_manager=None):
                         elif inimigo["vida"] <= 0:
                             posicao_inimigo = inimigo["rect"].center
                             soltar_moeda(posicao_inimigo)
+                            gerar_fragmentos_morte(inimigo, 1)
                             inimigos_comum.remove(inimigo)
 
                             # Crescimento proporcional por nível de ameaça
@@ -1819,17 +2108,30 @@ def executar_jogo(game_manager=None):
 
             total_cartas_compradas = sum(cartas_compradas.values())
             custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
-            # Verifica se a pontuação atingiu 1500 e se o jogador pressionou 'Q'
-            if pontuacao_exib >= custo_carta_atual and keys[config_teclas["Comprar na loja"]] or (joystick and joystick.get_button(3)):
-                pontuacao_exib -= custo_carta_atual
-                pontuacao_magia -= custo_carta_atual
-                apertou_q= True
+            # Verifica se a pontuação atingiu o custo e se o jogador pressionou o botão da loja
+            if (pontuacao_exib >= custo_carta_atual) and (keys[config_teclas["Comprar na loja"]] or (joystick and joystick.get_button(3))):
+                # Calcula quantas cartas o jogador pode comprar com o custo progressivo
+                max_cartas = 0
+                total_custo = 0
+                temp_cartas_compradas = total_cartas_compradas
+                while True:
+                    proximo_custo = custo_base_carta + (temp_cartas_compradas * custo_por_carta)
+                    if total_custo + proximo_custo <= pontuacao_exib:
+                        total_custo += proximo_custo
+                        temp_cartas_compradas += 1
+                        max_cartas += 1
+                    else:
+                        break
 
+                if max_cartas > 0:
+                    pontuacao_exib -= total_custo
+                    pontuacao_magia -= total_custo
+                    apertou_q = True
 
-                pausar_cronometro()
-                ret = tela_de_pausa(velocidade_personagem, intervalo_disparo,vida,largura_disparo, altura_disparo,trembo,dano_person_hit,chance_critico,roubo_de_vida,
-                                    quantidade_roubo_vida,tempo_cooldown_dash,vida_maxima,Petro_active,Resistencia,vida_petro,vida_maxima_petro,dano_petro,xp_petro,petro_evolucao,Resistencia_petro,
-                                    Chance_Sorte,Poison_Active,Dano_Veneno_Acumulado,Executa_inimigo,Ultimo_Estalo,mostrar_info,Mercenaria_Active,Valor_Bonus,dispositivo_ativo,Tempo_cura,porcentagem_cura,cartas_compradas,pontuacao_exib)
+                    pausar_cronometro()
+                    ret = tela_de_pausa(velocidade_personagem, intervalo_disparo,vida,largura_disparo, altura_disparo,trembo,dano_person_hit,chance_critico,roubo_de_vida,
+                                        quantidade_roubo_vida,tempo_cooldown_dash,vida_maxima,Petro_active,Resistencia,vida_petro,vida_maxima_petro,dano_petro,xp_petro,petro_evolucao,Resistencia_petro,
+                                        Chance_Sorte,Poison_Active,Dano_Veneno_Acumulado,Executa_inimigo,Ultimo_Estalo,mostrar_info,Mercenaria_Active,Valor_Bonus,dispositivo_ativo,Tempo_cura,porcentagem_cura,cartas_compradas,pontuacao_exib, max_cartas_compraveis=max_cartas, inimigos_eliminados=inimigos_eliminados)
                 velocidade_personagem = ret[0]
                 intervalo_disparo = ret[1]
                 vida = ret[2]
@@ -1928,10 +2230,7 @@ def executar_jogo(game_manager=None):
 
             tela.blit(imagem_vida, posicao_vida)
                 # Verifica se o personagem está passando pelo centro da tela e se a mensagem ainda não foi mostrada
-            if (pos_x_personagem >= centro_x_tela_pequena - 400 and
-                pos_x_personagem <= centro_x_tela_pequena + 400 and
-                pos_y_personagem >= centro_y_tela_pequena - 400 and
-                pos_y_personagem <= centro_y_tela_pequena + 400 and mensagem_mostrada):
+            if False:
 
 
                 # Renderiza o texto
@@ -1993,9 +2292,53 @@ def executar_jogo(game_manager=None):
                 tela.blit(texto_dano, pos_texto)
             # Controle de exibição
             if mostrar_tutorial:
+                # Desenhar a barreira roxa se estiver ativa, ANTES de desenhar o painel de glassmorphism e as legendas
+                # Isso garante que a legenda e o painel fiquem por cima e não fiquem escondidos sob a barreira
+                if tutorial_parede_ativa and tutorial_parede_rect:
+                    pulso = abs(pygame.time.get_ticks() % 800 - 400) / 400.0
+                    r_val = int(140 + 40 * pulso)
+                    parede_surf = pygame.Surface((tutorial_parede_rect.width, tutorial_parede_rect.height), pygame.SRCALPHA)
+                    parede_surf.fill((r_val, 40, 200, 180))
+                    tela.blit(parede_surf, tutorial_parede_rect.topleft)
+                    pygame.draw.rect(tela, (200, 80, 255), tutorial_parede_rect, 2)
+
                 cx = largura_mapa // 2
                 y_msg = int(altura_mapa * 0.15)
                 fonte_tut = pygame.font.Font(None, 48)
+
+                # Definir dimensões do painel de informações com base na fase do tutorial para enquadrar perfeitamente
+                w, h = 600, 160  # padrão
+                if tutorial_fase == 1:
+                    w, h = 580, 150
+                elif tutorial_fase == 2:
+                    w, h = 720, 185
+                elif tutorial_fase == 3:
+                    w, h = 680, 115
+                elif tutorial_fase == 4:
+                    w, h = 720, 190
+                elif tutorial_fase == 5:
+                    w, h = 720, 160
+                elif tutorial_fase == 6:
+                    w, h = 720, 180
+
+                # Painel com efeito de vidro (glassmorphism) e brilho neon nas bordas
+                card_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+                
+                # Fundo escuro semi-transparente para dar alto contraste sobre o chão cinza/roxo/preto
+                pygame.draw.rect(card_surf, (12, 10, 18, 220), (0, 0, w, h), border_radius=15)
+                
+                # Borda neon pulsante
+                pulso_borda = abs(pygame.time.get_ticks() % 2000 - 1000) / 1000.0
+                # Cor pulsante combinando violeta neon com ciano neural/plasma do jogo
+                cor_borda = (
+                    int(130 + 80 * pulso_borda),
+                    int(30 + 150 * (1 - pulso_borda)),
+                    255
+                )
+                pygame.draw.rect(card_surf, cor_borda, (0, 0, w, h), width=2, border_radius=15)
+                
+                # Blit do painel na tela
+                tela.blit(card_surf, (cx - w // 2, y_msg - 20))
 
                 # --- Função auxiliar para desenhar texto com contorno ---
                 def _draw_msg(txt, y_pos):
@@ -2043,16 +2386,16 @@ def executar_jogo(game_manager=None):
                 elif tutorial_fase == 2:
                     _draw_msg("Aperte SHIFT para teleportar!", y_msg)
                     fonte_sub = pygame.font.Font(None, 32)
-                    # Subtexto 1 com contraste
+                    # Subtexto 1 com contraste (Sky Blue)
                     t1 = "O teleporte vai na direção da última tecla apertada"
                     sub1_b = fonte_sub.render(t1, True, (0, 0, 0))
-                    sub1 = fonte_sub.render(t1, True, (220, 220, 220))
+                    sub1 = fonte_sub.render(t1, True, (170, 240, 255))
                     tela.blit(sub1_b, (cx - sub1.get_width() // 2 + 1, y_msg + 46))
                     tela.blit(sub1, (cx - sub1.get_width() // 2, y_msg + 45))
-                    # Subtexto 2 com contraste
+                    # Subtexto 2 com contraste (Sky Blue)
                     t2 = f"Use para se reposicionar! ({tutorial_dash_count}/3)"
                     sub2_b = fonte_sub.render(t2, True, (0, 0, 0))
-                    sub2 = fonte_sub.render(t2, True, (220, 220, 220))
+                    sub2 = fonte_sub.render(t2, True, (170, 240, 255))
                     tela.blit(sub2_b, (cx - sub2.get_width() // 2 + 1, y_msg + 76))
                     tela.blit(sub2, (cx - sub2.get_width() // 2, y_msg + 75))
 
@@ -2077,19 +2420,12 @@ def executar_jogo(game_manager=None):
                     fonte_sub = pygame.font.Font(None, 32)
                     t_sub = "Você não pode passar andando, apenas teleportando"
                     sub_b = fonte_sub.render(t_sub, True, (0, 0, 0))
-                    sub = fonte_sub.render(t_sub, True, (220, 220, 220))
+                    sub = fonte_sub.render(t_sub, True, (170, 240, 255))
                     tela.blit(sub_b, (cx - sub.get_width() // 2 + 1, y_msg + 46))
                     tela.blit(sub, (cx - sub.get_width() // 2, y_msg + 45))
 
-                    # Desenhar a parede roxa
+                    # Desenhar a parede roxa (movido para o topo do bloco mostrar_tutorial)
                     if tutorial_parede_ativa and tutorial_parede_rect:
-                        pulso = abs(pygame.time.get_ticks() % 800 - 400) / 400.0
-                        r_val = int(140 + 40 * pulso)
-                        parede_surf = pygame.Surface((tutorial_parede_rect.width, tutorial_parede_rect.height), pygame.SRCALPHA)
-                        parede_surf.fill((r_val, 40, 200, 180))
-                        tela.blit(parede_surf, tutorial_parede_rect.topleft)
-                        pygame.draw.rect(tela, (200, 80, 255), tutorial_parede_rect, 2)
-
                         # Verificar se o personagem cruzou pro outro lado
                         centro_parede_x = tutorial_parede_rect.centerx
                         personagem_rect_tut = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
@@ -2116,7 +2452,7 @@ def executar_jogo(game_manager=None):
                     fonte_sub = pygame.font.Font(None, 32)
                     t_sub = "Elimine o inimigo para continuar"
                     sub_b = fonte_sub.render(t_sub, True, (0, 0, 0))
-                    sub = fonte_sub.render(t_sub, True, (220, 220, 220))
+                    sub = fonte_sub.render(t_sub, True, (170, 240, 255))
                     tela.blit(sub_b, (cx - sub.get_width() // 2 + 1, y_msg + 46))
                     tela.blit(sub, (cx - sub.get_width() // 2, y_msg + 45))
 
@@ -2147,7 +2483,7 @@ def executar_jogo(game_manager=None):
                         tutorial_inimigo["image"] = frames_inimigo[frame_atual % len(frames_inimigo)]
                         desenhar_sombra(tela, tutorial_inimigo["rect"].x, tutorial_inimigo["rect"].y, largura_inimigo, altura_inimigo)
                         tela.blit(tutorial_inimigo["image"], tutorial_inimigo["rect"])
-                        desenhar_barra_de_vida(tela, tutorial_inimigo["rect"].x, tutorial_inimigo["rect"].y - 10, largura_inimigo, 5, tutorial_inimigo["vida"], tutorial_inimigo["vida_maxima"])
+                        desenhar_barra_de_vida(tela, tutorial_inimigo["rect"].x, tutorial_inimigo["rect"].y - 10, largura_inimigo, 5, tutorial_inimigo["vida"], tutorial_inimigo["vida_maxima"], tutorial_inimigo.get("eletrocutado", False))
 
                         # Seta indicadora pulsando apontando para o inimigo
                         seta_pulso = abs(pygame.time.get_ticks() % 1000 - 500) / 500.0
@@ -2169,6 +2505,7 @@ def executar_jogo(game_manager=None):
                                 Hit_inimigo1.play()
 
                                 if tutorial_inimigo["vida"] <= 0:
+                                    gerar_fragmentos_morte(tutorial_inimigo, 1)
                                     tutorial_inimigo_ativo = False
                                     tutorial_inimigo = None
                                     tutorial_fase = 5
@@ -2188,7 +2525,7 @@ def executar_jogo(game_manager=None):
                     fonte_sub = pygame.font.Font(None, 32)
                     t_sub = "Use seus pontos para ficar mais forte"
                     sub_b = fonte_sub.render(t_sub, True, (0, 0, 0))
-                    sub = fonte_sub.render(t_sub, True, (220, 220, 220))
+                    sub = fonte_sub.render(t_sub, True, (170, 240, 255))
                     tela.blit(sub_b, (cx - sub.get_width() // 2 + 1, y_msg + 46))
                     tela.blit(sub, (cx - sub.get_width() // 2, y_msg + 45))
 
@@ -2207,10 +2544,44 @@ def executar_jogo(game_manager=None):
                     qt = ft_q.render("Q", True, (255, 255, 255))
                     tela.blit(qt, (qx + q_w // 2 - qt.get_width() // 2, qy + q_h // 2 - qt.get_height() // 2))
 
-                    # Quando o jogador comprar (apertou_q fica True), o tutorial acaba
+                    # Quando o jogador comprar (apertou_q fica True), o tutorial avança para o summon
                     if apertou_q:
-                        tutorial_fase = 6  # Tutorial completo
-                        mostrar_tutorial = False
+                        tutorial_fase = 6
+                elif tutorial_fase == 6:
+                    _draw_msg("Aperte R para chamar o Boss quando achar pronto!", y_msg)
+                    fonte_sub = pygame.font.Font(None, 28)
+                    t1 = "Você pode chamar o Boss apertando R a qualquer momento."
+                    sub1_b = fonte_sub.render(t1, True, (0, 0, 0))
+                    sub1 = fonte_sub.render(t1, True, (170, 240, 255))
+                    tela.blit(sub1_b, (cx - sub1.get_width() // 2 + 1, y_msg + 46))
+                    tela.blit(sub1, (cx - sub1.get_width() // 2, y_msg + 45))
+
+                    t2 = "Recomendamos ficar forte com upgrades antes de invocar."
+                    sub2_b = fonte_sub.render(t2, True, (0, 0, 0))
+                    sub2 = fonte_sub.render(t2, True, (170, 240, 255))
+                    tela.blit(sub2_b, (cx - sub2.get_width() // 2 + 1, y_msg + 71))
+                    tela.blit(sub2, (cx - sub2.get_width() // 2, y_msg + 70))
+
+                    t3 = "Aperte ENTER/ESPAÇO para começar ou R para summonar agora."
+                    sub3_b = fonte_sub.render(t3, True, (0, 0, 0))
+                    sub3 = fonte_sub.render(t3, True, (170, 240, 255))
+                    tela.blit(sub3_b, (cx - sub3.get_width() // 2 + 1, y_msg + 96))
+                    tela.blit(sub3, (cx - sub3.get_width() // 2, y_msg + 95))
+
+                    # Desenhar tecla R pulsando
+                    pulso = abs(pygame.time.get_ticks() % 1200 - 600) / 600.0
+                    r_w, r_h = 40, 40
+                    rx = cx - r_w // 2
+                    ry = y_msg + 120
+                    alpha_r = int(100 + 60 * pulso)
+                    rs = pygame.Surface((r_w, r_h), pygame.SRCALPHA)
+                    rs.fill((20, 30, 50, alpha_r))
+                    tela.blit(rs, (rx, ry))
+                    cor_bd_r = (int(53 + 80 * pulso), int(100 + 60 * pulso), 200)
+                    pygame.draw.rect(tela, cor_bd_r, (rx, ry, r_w, r_h), 2)
+                    ft_r = pygame.font.Font(None, 28)
+                    rt = ft_r.render("R", True, (255, 255, 255))
+                    tela.blit(rt, (rx + r_w // 2 - rt.get_width() // 2, ry + r_h // 2 - rt.get_height() // 2))
             tempo_atual = pygame.time.get_ticks()
             for inimigo in inimigos_comum:
                 i_id = id(inimigo)
@@ -2240,15 +2611,69 @@ def executar_jogo(game_manager=None):
                                 inimigos_em_chamas.pop(i_id, None)
                     else:
                         inimigos_em_chamas.pop(i_id, None)
+            atualizar_e_desenhar_fragmentos(tela)
+            atualizar_e_desenhar_particulas_pontos(tela)
+
+            # Atualizar e desenhar ondas de choque do teleporte
+            ondas_ativas = []
+            for oc in ondas_choque:
+                oc["raio_atual"] += oc["velocidade"]
+                if oc["raio_atual"] <= oc["raio_max"]:
+                    ondas_ativas.append(oc)
+                    # Desenhar círculo em expansão com transparência
+                    diametro = int(oc["raio_atual"] * 2)
+                    surf = pygame.Surface((diametro, diametro), pygame.SRCALPHA)
+                    
+                    progresso = oc["raio_atual"] / oc["raio_max"]
+                    alpha = int(180 * (1.0 - progresso))
+                    
+                    cor = oc["cor"]
+                    r, g, b = cor
+                    # Círculo externo
+                    pygame.draw.circle(surf, (r, g, b, alpha), (int(oc["raio_atual"]), int(oc["raio_atual"])), int(oc["raio_atual"]), width=max(1, int(4 * (1.0 - progresso))))
+                    # Brilho interno sutil
+                    pygame.draw.circle(surf, (r, g, b, alpha // 2), (int(oc["raio_atual"]), int(oc["raio_atual"])), int(oc["raio_atual"]))
+                    
+                    tela.blit(surf, (oc["cx"] - int(oc["raio_atual"]), oc["cy"] - int(oc["raio_atual"])))
+            ondas_choque = ondas_ativas
             for moeda in moedas_soltadas:
                 tela.blit(moeda["image"], moeda["rect"])
 
 
 
+            # A cada 1300 inimigos eliminados, avisa por 3s que R chama o Boss
+            if inimigos_eliminados > 0 and inimigos_eliminados % 1300 == 0:
+                if alerta_boss_mostrado_para != inimigos_eliminados:
+                    alerta_boss_ativo = True
+                    tempo_inicio_alerta_boss = pygame.time.get_ticks()
+                    alerta_boss_mostrado_para = inimigos_eliminados
+
+            if alerta_boss_ativo:
+                if pygame.time.get_ticks() - tempo_inicio_alerta_boss >= 3000:
+                    alerta_boss_ativo = False
+                else:
+                    # Painel de notificação com efeito de vidro
+                    w_n, h_n = 700, 100
+                    cx_n = largura_mapa // 2
+                    cy_n = altura_mapa // 2
+                    card_n = pygame.Surface((w_n, h_n), pygame.SRCALPHA)
+                    pygame.draw.rect(card_n, (20, 10, 12, 235), (0, 0, w_n, h_n), border_radius=12)
+                    pygame.draw.rect(card_n, (255, 60, 60), (0, 0, w_n, h_n), width=2, border_radius=12)
+                    tela.blit(card_n, (cx_n - w_n // 2, cy_n - h_n // 2))
+                    
+                    font_n = pygame.font.Font(None, 32)
+                    msg_line1 = font_n.render("Aperte R para chamar o Boss quando achar pronto!", True, (255, 230, 230))
+                    msg_line2 = font_n.render("Recomendável fazer isso quando estiver forte.", True, (255, 100, 100))
+                    
+                    tela.blit(msg_line1, (cx_n - msg_line1.get_width() // 2, cy_n - 30))
+                    tela.blit(msg_line2, (cx_n - msg_line2.get_width() // 2, cy_n + 5))
+
             tela.blit(cursor_imagem, (mouse_x, mouse_y))
             exibir_cronometro(tela)
             pygame.display.flip()
-            FPS.tick(config_graficos.get("fps_limite", 60))  # Limita a taxa de quadros conforme configuração
+            dt_ms = FPS.tick(config_graficos.get("fps_limite", 60))  # Limita a taxa de quadros conforme configuração
+            dt = max(0.05, min(3.0, dt_ms / 16.666667))
+            Variaveis.dt = dt
 
 
         # Encerrar o Pygame

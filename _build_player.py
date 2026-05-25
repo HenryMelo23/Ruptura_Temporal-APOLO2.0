@@ -22,6 +22,21 @@ def build_player():
 
     output = []
 
+    # Localizar índices dinâmicos
+    if_main_idx = find_line('if __name__ == "__main__":')
+    if if_main_idx == -1:
+        if_main_idx = find_line("if __name__ == '__main__':")
+    if if_main_idx == -1:
+        print("Erro: Bloco main não encontrado em GAME5.py")
+        sys.exit(1)
+
+    setup_start = find_line("def executar_jogo(game_manager=None):", 0)
+    setup_end = find_line("app = Flask(__name__)", setup_start)
+
+    if setup_start == -1 or setup_end == -1:
+        print("Erro: Setup global ou Flask não encontrados em GAME5.py")
+        sys.exit(1)
+
     # ============================================================
     # PARTE 1: IMPORTS (reescritos, sem flask/torch/vfx_engine_apolo)
     # ============================================================
@@ -36,30 +51,32 @@ import os
 import json
 from Tela_Cartas import tela_de_pausa
 from Variaveis import *
+import Variaveis
 from utils import *
 import habilidade_boss as hb
 import collections
 from audio_manager import carregar_config_audio, aplicar_volume_som
 from sistema_ratos_umbra import GerenciadorRatos
-
-if __name__ == "__main__":
-    pygame.init()
-    memoria_umbra = hb.MemoriaEvolutivaUmbra()
+from vfx_engine_apolo import ApoloVFXManager
+from habilidades_personagem import desenhar_onda, criar_particulas_explosao_onda as criar_particulas_explosao
 """
     output.append(new_imports)
 
-    # Localizar índices dinâmicos
-    if_main_idx = find_line('if __name__ == "__main__":')
-    if if_main_idx == -1:
-        print("Erro: Bloco main não encontrado em GAME5.py")
-        sys.exit(1)
-
-    setup_start = find_line("CACHE GLOBAL DE PERFORMANCE", if_main_idx)
-    setup_end = find_line("app = Flask(__name__)", setup_start)
-
-    if setup_start == -1 or setup_end == -1:
-        print("Erro: Setup global ou Flask não encontrados em GAME5.py")
-        sys.exit(1)
+    # Extrair variáveis globais do início de GAME5.py
+    global_vars = []
+    for idx in range(setup_start):
+        line = lines[idx]
+        stripped = line.strip()
+        if (
+            stripped 
+            and not stripped.startswith("import ") 
+            and not stripped.startswith("from ") 
+            and not stripped.startswith("\"\"\"")
+            and not stripped.startswith("#")
+        ):
+            global_vars.append(line)
+    output.extend(global_vars)
+    output.append("\n")
 
     # ============================================================
     # PARTE 2: Cache global e setup (do CACHE GLOBAL até antes do Flask)
@@ -99,78 +116,78 @@ if __name__ == "__main__":
     # ============================================================
     new_movement = """\
 
-    #####################################################################CONTROLE DO JOGADOR######################################################################################################
-    def atualizar_posicao_personagem(keys, joystick):
-        global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento
-        global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_duration
-        global hitbox_boss5, estado_atual_ia
+        #####################################################################CONTROLE DO JOGADOR######################################################################################################
+        def atualizar_posicao_personagem(keys, joystick):
+            global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento
+            global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_duration
+            global hitbox_boss5, estado_atual_ia
 
-        dx, dy = 0, 0
-        direcao_atual = 'stop'
-    
-        tempo_agora = pygame.time.get_ticks()
-        tempo_fim_stun_ia = estado_atual_ia.get('fim_stun', 0) if 'estado_atual_ia' in globals() else 0
-        atordoado = tempo_agora < tempo_fim_stun_ia
-
-        # ---- TECLADO ----
-        if keys[config_teclas["Mover para direita"]]: dx, ultima_tecla_movimento = 1, 'right'
-        elif keys[config_teclas["Mover para esquerda"]]: dx, ultima_tecla_movimento = -1, 'left'
-        if keys[config_teclas["Mover para cima"]]: dy, ultima_tecla_movimento = -1, 'up'
-        elif keys[config_teclas["Mover para baixo"]]: dy, ultima_tecla_movimento = 1, 'down'
-
-        # ---- JOYSTICK ----
-        if joystick:
-            eixo_x = joystick.get_axis(0)
-            eixo_y = joystick.get_axis(1)
-            if abs(eixo_x) > 0.3:
-                dx = 1 if eixo_x > 0 else -1
-                ultima_tecla_movimento = 'right' if eixo_x > 0 else 'left'
-            if abs(eixo_y) > 0.3:
-                dy = 1 if eixo_y > 0 else -1
-                ultima_tecla_movimento = 'down' if eixo_y > 0 else 'up'
-
-        if dx != 0 or dy != 0:
-            movimento_pressionado = True
-            direcao_atual = ultima_tecla_movimento
+            dx, dy = 0, 0
+            direcao_atual = 'stop'
         
-            # Normalização de movimento diagonal
-            if dx != 0 and dy != 0:
-                fator_normalizacao = 0.7071
-                pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
-                                             pos_x_personagem + dx * velocidade_personagem * fator_normalizacao))
-                pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
-                                             pos_y_personagem + dy * velocidade_personagem * fator_normalizacao))
-            else:
-                pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
-                                             pos_x_personagem + dx * velocidade_personagem))
-                pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
-                                             pos_y_personagem + dy * velocidade_personagem))
+            tempo_agora = pygame.time.get_ticks()
+            tempo_fim_stun_ia = estado_atual_ia.get('fim_stun', 0) if 'estado_atual_ia' in globals() else 0
+            atordoado = tempo_agora < tempo_fim_stun_ia
 
-        # ---- DASH/TELEPORTE ----
-        dash_teclado = keys[config_teclas["Teleporte"]]
-        dash_joystick = joystick and joystick.get_button(4) if joystick else False
-        
-        if (dash_teclado or dash_joystick) and cooldown_dash == False and atordoado == False:
-            Som_portal.play()
+            # ---- TECLADO ----
+            if keys[config_teclas["Mover para direita"]]: dx, ultima_tecla_movimento = 1, 'right'
+            elif keys[config_teclas["Mover para esquerda"]]: dx, ultima_tecla_movimento = -1, 'left'
+            if keys[config_teclas["Mover para cima"]]: dy, ultima_tecla_movimento = -1, 'up'
+            elif keys[config_teclas["Mover para baixo"]]: dy, ultima_tecla_movimento = 1, 'down'
+
+            # ---- JOYSTICK ----
+            if joystick:
+                eixo_x = joystick.get_axis(0)
+                eixo_y = joystick.get_axis(1)
+                if abs(eixo_x) > 0.3:
+                    dx = 1 if eixo_x > 0 else -1
+                    ultima_tecla_movimento = 'right' if eixo_x > 0 else 'left'
+                if abs(eixo_y) > 0.3:
+                    dy = 1 if eixo_y > 0 else -1
+                    ultima_tecla_movimento = 'down' if eixo_y > 0 else 'up'
+
+            if dx != 0 or dy != 0:
+                movimento_pressionado = True
+                direcao_atual = ultima_tecla_movimento
             
-            # Animação de teletransporte (plasma procedural)
-            animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
-            tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
+                # Normalização de movimento diagonal (com escala dt)
+                if dx != 0 and dy != 0:
+                    fator_normalizacao = 0.7071
+                    pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
+                                                 pos_x_personagem + dx * velocidade_personagem * fator_normalizacao * dt))
+                    pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
+                                                 pos_y_personagem + dy * velocidade_personagem * fator_normalizacao * dt))
+                else:
+                    pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
+                                                 pos_x_personagem + dx * velocidade_personagem * dt))
+                    pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
+                                                 pos_y_personagem + dy * velocidade_personagem * dt))
+
+            # ---- DASH/TELEPORTE ----
+            dash_teclado = keys[config_teclas["Teleporte"]]
+            dash_joystick = joystick and joystick.get_button(4) if joystick else False
+            
+            if (dash_teclado or dash_joystick) and cooldown_dash == False and atordoado == False:
+                Som_portal.play()
+                
+                # Animação de teletransporte (plasma procedural)
+                animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
+                tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
 
 
-            if ultima_tecla_movimento == 'up': pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
-            elif ultima_tecla_movimento == 'down': pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
-            elif ultima_tecla_movimento == 'left': pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
-            elif ultima_tecla_movimento == 'right': pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
-        
-            cooldown_dash = True
-            tempo_ultimo_dash = pygame.time.get_ticks()
+                if ultima_tecla_movimento == 'up': pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
+                elif ultima_tecla_movimento == 'down': pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
+                elif ultima_tecla_movimento == 'left': pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
+                elif ultima_tecla_movimento == 'right': pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
+            
+                cooldown_dash = True
+                tempo_ultimo_dash = pygame.time.get_ticks()
 
-        if cooldown_dash and pygame.time.get_ticks() - tempo_ultimo_dash > tempo_cooldown_dash:
-            cooldown_dash = False
+            if cooldown_dash and pygame.time.get_ticks() - tempo_ultimo_dash > tempo_cooldown_dash:
+                cooldown_dash = False
 
-        return direcao_atual
-    #####################################################################
+            return direcao_atual
+        #####################################################################
 """
     output.append(new_movement)
 
@@ -197,17 +214,17 @@ if __name__ == "__main__":
     # PARTE 7: Pula AgenteApolo e escreve o novo quit handler
     # ============================================================
     new_atexit = """
-    import atexit, signal
-    def _salvar_tudo_ao_sair():
-        try:
-            memoria_umbra.salvar()
-        except Exception:
-            pass
-    atexit.register(_salvar_tudo_ao_sair)
-    def _handler_ctrl_c(sig, frame):
-        _salvar_tudo_ao_sair()
-        sys.exit(0)
-    signal.signal(signal.SIGINT, _handler_ctrl_c)
+        import atexit, signal
+        def _salvar_tudo_ao_sair():
+            try:
+                memoria_umbra.salvar()
+            except Exception:
+                pass
+        atexit.register(_salvar_tudo_ao_sair)
+        def _handler_ctrl_c(sig, frame):
+            _salvar_tudo_ao_sair()
+            sys.exit(0)
+        signal.signal(signal.SIGINT, _handler_ctrl_c)
 
 """
     output.append(new_atexit)

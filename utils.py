@@ -231,8 +231,8 @@ def tocar_trailer_se_necessario(tela):
     # 2. Carrega python-vlc
     try:
         import vlc
-    except ImportError:
-        print("[Trailer] python-vlc nao esta instalado. Pulando.")
+    except Exception as e:
+        print(f"[Trailer] Erro ao carregar python-vlc: {e}. Pulando.")
         return
 
     # 3. Executa a reproducao

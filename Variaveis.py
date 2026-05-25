@@ -284,7 +284,7 @@ Ultimo_Estalo=False
 imagem_vida=pygame.image.load("Sprites/vida.png").convert_alpha()
 imagem_vida = pygame.transform.scale(imagem_vida, (largura_tela* 0.25, altura_tela*0.20))
 posicao_vida = (13, -40)  
-Chance_Sorte=0
+Chance_Sorte=0.02
 Poison_Active=False
 boss_envenenado = False
 dano_por_tick_veneno_boss = 0
@@ -375,11 +375,12 @@ queijo_geracao=1
 dano_boss=90
 Dano_Boss_Habilit= 100
 dano_inimigo_longe=24
-largura_onda, altura_onda = 70, 70 
-velocidade_onda = 5
+largura_onda, altura_onda = 90, 90
+velocidade_onda = 12
 tempo_ultimo_uso_habilidade = 0
 cooldown_habilidade = 10000  # Cooldown de 3 segundos
 ondas = []
+correntes_eletricas = []
 duracao_frame_onda = 100
 eliminacoes_consecutivas = 0
 bonus_pontuacao = 0
@@ -1003,13 +1004,13 @@ def desenhar_texto_com_contorno(surface, texto, fonte, cor_texto, cor_contorno, 
 
 def calcular_posicao_prevista(pos_x, pos_y, direcao, velocidade, tempo_previsao):
     if direcao == 'up':
-        pos_y -= velocidade * tempo_previsao
+        pos_y -= velocidade * tempo_previsao * dt
     elif direcao == 'down':
-        pos_y += velocidade * tempo_previsao
+        pos_y += velocidade * tempo_previsao * dt
     elif direcao == 'left':
-        pos_x -= velocidade * tempo_previsao
+        pos_x -= velocidade * tempo_previsao * dt
     elif direcao == 'right':
-        pos_x += velocidade * tempo_previsao
+        pos_x += velocidade * tempo_previsao * dt
     return pos_x, pos_y
 
 def atualizar_movimento_inimigos(inimigos, pos_x_p, pos_y_p, direcao_j, vel_p, tempo_p, movendo_agora):
@@ -1033,8 +1034,8 @@ def atualizar_movimento_inimigos(inimigos, pos_x_p, pos_y_p, direcao_j, vel_p, t
 
         if distancia > 0:
             # 1. Movimentação suave com sub-pixel precision
-            inimigo["pos_x"] += (dx / distancia) * Velocidade_Inimigos_1
-            inimigo["pos_y"] += (dy / distancia) * Velocidade_Inimigos_1
+            inimigo["pos_x"] += (dx / distancia) * Velocidade_Inimigos_1 * dt
+            inimigo["pos_y"] += (dy / distancia) * Velocidade_Inimigos_1 * dt
             
             # 2. Sincronização obrigatória com o RECT (Inteiro) para renderização
             inimigo["rect"].x = int(inimigo["pos_x"])
@@ -1076,15 +1077,50 @@ def calcular_cor_barra_de_vida(porcentagem_vida):
     else:
         return (255, 0, 0)  # Vermelho
 
-#Função que desenha  a barra de vida do personagem
-def desenhar_barra_de_vida(surface, x, y, largura_total, altura, vida_atual, vida_maxima):
+def desenhar_barra_de_vida(surface, x, y, largura_total, altura, vida_atual, vida_maxima, eletrocutado=False):
+    if eletrocutado:
+        x += random.randint(-2, 2)
+        y += random.randint(-2, 2)
+        altura = max(8, altura + 3)
+
     porcentagem_vida = (vida_atual / vida_maxima) * 100
     cor_barra = calcular_cor_barra_de_vida(porcentagem_vida)
     largura_vida = int(largura_total * (vida_atual / vida_maxima))
-    borda = pygame.Rect(x, y, largura_total, altura)
-    barra = pygame.Rect(x, y, largura_vida, altura)
-    pygame.draw.rect(surface, (0, 0,0), borda, 2)  # Borda branca
-    pygame.draw.rect(surface, cor_barra, barra)  # Cor variável
+
+    if eletrocutado:
+        # Generate horizontal lightning bolt points
+        p1 = (x, y)
+        p2 = (x + largura_total * 0.4, y)
+        p3 = (x + largura_total * 0.35, y + altura * 0.4)
+        p4 = (x + largura_total * 0.75, y + altura * 0.2)
+        p5 = (x + largura_total * 0.7, y + altura * 0.6)
+        p6 = (x + largura_total, y + altura * 0.5)
+        
+        p7 = (x + largura_total * 0.65, y + altura)
+        p8 = (x + largura_total * 0.7, y + altura * 0.7)
+        p9 = (x + largura_total * 0.3, y + altura)
+        p10 = (x + largura_total * 0.35, y + altura * 0.5)
+        p11 = (x, y + altura)
+        
+        pts_bg = [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11]
+        
+        # Draw background
+        pygame.draw.polygon(surface, (30, 30, 40), pts_bg)
+        
+        # Clip surface to health width to draw filled potion
+        clip_rect = surface.get_clip()
+        surface.set_clip(pygame.Rect(x - 2, y - 2, largura_vida + 4, altura + 4))
+        pygame.draw.polygon(surface, cor_barra, pts_bg)
+        surface.set_clip(clip_rect)
+        
+        # Electric border color alternating
+        border_color = (0, 255, 255) if pygame.time.get_ticks() % 200 < 100 else (138, 43, 226)
+        pygame.draw.polygon(surface, border_color, pts_bg, 1)
+    else:
+        borda = pygame.Rect(x, y, largura_total, altura)
+        barra = pygame.Rect(x, y, largura_vida, altura)
+        pygame.draw.rect(surface, (0, 0, 0), borda, 2)  # Borda preta
+        pygame.draw.rect(surface, cor_barra, barra)  # Cor variável
 
 #Função que desenha a barra de vida do Petro
 def desenhar_barra_de_vida_petro(surface, vida_petro, pos_x, pos_y,vida_maxima_petro):
@@ -1148,3 +1184,8 @@ posicoes_icones = [
     (centro_tela + 2 * espacamento, altura_base),
 ]
 area_icones = pygame.Rect(0, altura_tela - 100, largura_tela, 100)  # Exemplo: região inferior de 100px
+
+# Delta time global factor (normalized to 60 FPS)
+dt = 1.0
+
+

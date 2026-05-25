@@ -1423,7 +1423,6 @@ def executar_menu_principal(game_manager=None):
                     return
 
             elif escolha == 1:  # Configuração
-                opcoes_config = ["Controles", "Gráficos", "Áudio", "Voltar"]
                 indice_config = 0
                 
                 opcao_conf_confirmada = None
@@ -1433,6 +1432,15 @@ def executar_menu_principal(game_manager=None):
                 config_rodando = True
                 while config_rodando:
                     agora_conf = pygame.time.get_ticks()
+                    
+                    try:
+                        with open("saves/tutorial_config.json", "r") as f:
+                            mostrar_tut = json.load(f).get("mostrar_tutorial", True)
+                    except:
+                        mostrar_tut = True
+                    
+                    status_tut = "ATIVADO" if mostrar_tut else "DESATIVADO"
+                    opcoes_config = ["Controles", "Gráficos", "Áudio", f"Tutorial: {status_tut}", "Voltar"]
                     
                     # Atualiza e desenha o fundo dinâmico do menu
                     if exibindo_fundo1:
@@ -1618,7 +1626,11 @@ def executar_menu_principal(game_manager=None):
                             tela_configuracoes_graficas(tela, fonte)
                         elif escolha_config == 2:  # Áudio
                             tela_configuracoes_audio(tela, fonte)
-                        elif escolha_config == 3:  # Voltar
+                        elif escolha_config == 3:  # Tutorial: Alternar status
+                            mostrar_tut = not mostrar_tut
+                            with open("saves/tutorial_config.json", "w") as f:
+                                json.dump({"mostrar_tutorial": mostrar_tut}, f)
+                        elif escolha_config == 4:  # Voltar
                             config_rodando = False
 
             elif escolha == 2:  # Sair

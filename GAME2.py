@@ -9,8 +9,11 @@ import subprocess
 import sys
 import json
 from Variaveis import *
+from habilidades_personagem import processar_habilidade_onda, atualizar_e_desenhar_correntes
+import Variaveis
 from utils import *
 from audio_manager import carregar_config_audio, aplicar_volume_som
+dt = 1.0
 
 # Forward declarations (atribuídos no loop principal)
 botao_mouse = (False, False, False)
@@ -228,10 +231,12 @@ def determinar_frames_petro(posicao_petro, posicao_inimigo):
 
 
 def atualizar_posicao_personagem(keys, joystick):
-    global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento
+    global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento, dano_person_hit
     global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_duration
     global personagem_imovel, tempo_ultimo_atingido
     global angulo_inclinacao_personagem
+    global vida_inimigo_maxima, Resistencia_petro, dano_inimigo_perto, vida_maxima_petro, dano_petro, dano_boss2, dano_inimigo_longe
+    global inimigos_eliminados, pontuacao, pontuacao_exib, eliminacoes_consecutivas, bonus_pontuacao, vida_boss2, Valor_Bonus
 
     # Se o personagem estiver imóvel, não atualize a posição
     if personagem_imovel:
@@ -272,15 +277,15 @@ def atualizar_posicao_personagem(keys, joystick):
                 
             fator_normalizacao = 0.7071
             pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
-                                         pos_x_personagem + dx * velocidade_personagem * fator_normalizacao))
+                                         pos_x_personagem + dx * velocidade_personagem * fator_normalizacao * dt))
             pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
-                                         pos_y_personagem + dy * velocidade_personagem * fator_normalizacao))
+                                         pos_y_personagem + dy * velocidade_personagem * fator_normalizacao * dt))
         else:
             angulo_inclinacao_personagem = 0
             pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
-                                         pos_x_personagem + dx * velocidade_personagem))
+                                         pos_x_personagem + dx * velocidade_personagem * dt))
             pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
-                                         pos_y_personagem + dy * velocidade_personagem))
+                                         pos_y_personagem + dy * velocidade_personagem * dt))
     else:
         angulo_inclinacao_personagem = 0
         if botao_mouse[0]:
@@ -306,6 +311,82 @@ def atualizar_posicao_personagem(keys, joystick):
 
         cooldown_dash = True
         tempo_ultimo_dash = pygame.time.get_ticks()
+
+        # Onda de choque no destino do teletransporte
+        cx_t = pos_x_personagem + largura_personagem // 2
+        cy_t = pos_y_personagem + altura_personagem // 2
+        raio_choque = 120
+        dano_choque = dano_person_hit * 0.3
+
+        ondas_choque.append({
+            "cx": cx_t,
+            "cy": cy_t,
+            "raio_atual": 10.0,
+            "raio_max": raio_choque,
+            "velocidade": 8.0,
+            "cor": (0, 191, 255)
+        })
+
+        # Dano nos inimigos comuns próximos
+        inimigos_atingidos = []
+        for inimigo in inimigos_comum:
+            dist = math.hypot(inimigo["rect"].centerx - cx_t, inimigo["rect"].centery - cy_t)
+            if dist <= raio_choque:
+                inimigos_atingidos.append(inimigo)
+
+        for inimigo in inimigos_atingidos:
+            inimigo["vida"] -= dano_choque
+            efeitos_texto.append({
+                "texto": f"-{int(dano_choque)}",
+                "x": inimigo["rect"].x,
+                "y": inimigo["rect"].y - 20,
+                "tempo_inicio": pygame.time.get_ticks(),
+                "cor": (0, 191, 255)
+            })
+            if inimigo["vida"] <= 0:
+                posicao_inimigo = inimigo["rect"].center
+                soltar_moeda(posicao_inimigo)
+                gerar_fragmentos_morte(inimigo, 2)
+                if inimigo in inimigos_comum:
+                    inimigos_comum.remove(inimigo)
+                
+                # Escalonamento recalibrado
+                mult = 1.0 + (nivel_ameaca * 0.12)
+                vida_inimigo_maxima += 0.6 * mult
+                Resistencia_petro += 0.01 * mult
+                dano_inimigo_perto += 0.06 * mult
+                dano_person_hit += 0.1 * mult
+                vida_maxima_petro += 0.8 * mult
+                dano_petro += 0.008 * mult
+                dano_boss2 += 0.02 * mult
+                dano_inimigo_longe += 0.015 * mult
+
+                inimigos_eliminados += 1
+                ganho = int(130 * (1 + math.log10(inimigos_eliminados + 1)))
+                pontuacao += ganho
+
+                if Mercenaria_Active:
+                    eliminacoes_consecutivas += 1
+                    pontuacao_exib += ganho + bonus_pontuacao
+                    if eliminacoes_consecutivas % 5 == 0:
+                        bonus_pontuacao = min(500, bonus_pontuacao + Valor_Bonus)
+                else:
+                    pontuacao_exib += ganho
+
+        # Dano ao Boss 2
+        if boss_vivo2:
+            bx = pos_x_chefe2 + chefe_largura2 // 2
+            by = pos_y_chefe2 + chefe_altura2 // 2
+            dist_boss = math.hypot(bx - cx_t, by - cy_t)
+            if dist_boss <= raio_choque:
+                vida_boss2 -= dano_choque
+                efeitos_texto.append({
+                    "texto": f"-{int(dano_choque)}",
+                    "x": pos_x_chefe2 + chefe_largura2 // 2,
+                    "y": pos_y_chefe2 - 20,
+                    "tempo_inicio": pygame.time.get_ticks(),
+                    "cor": (0, 191, 255)
+                })
 
     # Atualizar o cooldown do dash
     if cooldown_dash and pygame.time.get_ticks() - tempo_ultimo_dash > tempo_cooldown_dash:
@@ -588,7 +669,8 @@ x = 0
 y = 0
 
 def executar_jogo(game_manager=None):
-    global Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss2, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, ataque_horizontal_ativo, ataque_vertical_ativo, bonus_pontuacao, boss_envenenado, carregar_atributos_na_fase, cartas_compradas, cartas_visiveis, chance_critico, dano, dano_boss2, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, disparos, disparos_inimigos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, escudo_devota_ativo, fonte, frame_atual, frame_atual_chefe, frame_atual_disparo, frame_porcentagem, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, largura_disparo, max_inimigos2, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, musica_boss2, nivel_ameaca, ondas, personagem_imovel, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_personagem, pos_x_petro, pos_y_personagem, pos_y_petro, posicao_ataque_horizontal, posicao_ataque_vertical, quantidade_roubo_vida, r_press, rect_boss, roubo_de_vida, running, teleportado, tempo_anterior_petro, tempo_atual, tempo_cooldown_dash, tempo_inicio_ataque_horizontal, tempo_inicio_buff_impulsiva, tempo_inicio_dano_horizontal, tempo_inicio_veneno_boss, tempo_passado, tempo_passado_animacao_chefe2, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_regeneracao, tempo_ultimo_atingido, tempo_ultimo_dano_horizontal, tempo_ultimo_dano_vertical, tempo_ultimo_disparo_inimigo, tempo_ultimo_hit_inimigo, tempo_ultimo_uso_habilidade, texto_dano, tipo_buff_impulsiva, toque, trembo, ultima_direcao_animacao, ultimo_tick_veneno_boss, upgrades, velocidade_ataque_horizontal, velocidade_ataque_vertical, velocidade_inimigo2, velocidade_personagem, vida, vida_boss, vida_boss2, vida_boss3, vida_boss4, vida_inimigo_maxima, vida_maxima, vida_maxima_boss2, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, x, xp_petro, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
+    global dt
+    global Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss2, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, ataque_horizontal_ativo, ataque_vertical_ativo, bonus_pontuacao, boss_envenenado, carregar_atributos_na_fase, cartas_compradas, cartas_visiveis, chance_critico, dano, dano_boss2, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, disparos, disparos_inimigos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, escudo_devota_ativo, fonte, frame_atual, frame_atual_chefe, frame_atual_disparo, frame_porcentagem, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, largura_disparo, max_inimigos2, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, musica_boss2, nivel_ameaca, ondas, personagem_imovel, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_personagem, pos_x_petro, pos_y_personagem, pos_y_petro, posicao_ataque_horizontal, posicao_ataque_vertical, quantidade_roubo_vida, r_press, rect_boss, roubo_de_vida, running, teleportado, tempo_anterior_petro, tempo_atual, tempo_cooldown_dash, tempo_inicio_ataque_horizontal, tempo_inicio_buff_impulsiva, tempo_inicio_dano_horizontal, tempo_inicio_veneno_boss, tempo_passado, tempo_passado_animacao_chefe2, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_regeneracao, tempo_ultimo_atingido, tempo_ultimo_dano_horizontal, tempo_ultimo_dano_vertical, tempo_ultimo_disparo_inimigo, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, texto_dano, tipo_buff_impulsiva, toque, trembo, ultima_direcao_animacao, ultimo_tick_veneno_boss, upgrades, velocidade_ataque_horizontal, velocidade_ataque_vertical, velocidade_inimigo2, velocidade_personagem, vida, vida_boss, vida_boss2, vida_boss3, vida_boss4, vida_inimigo_maxima, vida_maxima, vida_maxima_boss2, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, x, xp_petro, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -619,6 +701,7 @@ def executar_jogo(game_manager=None):
         Musica_tema_fases.play(loops=-1)
         Som_tema_fases.play(loops=-1)
         upgrades = carregar_upgrade_aureas("saves/aureas_upgrade.json")
+        ondas_choque = []
 
         # Configurar e escalar as passivas das áureas
         nivel_devota = upgrades.get("Devota", 0)
@@ -641,6 +724,194 @@ def executar_jogo(game_manager=None):
 
         sprite_moeda = pygame.image.load("Sprites/moeda.png").convert_alpha()
         moedas_soltadas = []
+        fragmentos_morte = []
+
+        def gerar_fragmentos_morte(inimigo, fase):
+            if not (config_graficos.get("particulas_ativas", True) and config_graficos.get("efeitos_visuais", True)):
+                return
+            rect_inimigo = inimigo["rect"]
+            gerar_particulas_pontos(rect_inimigo)
+            for _ in range(random.randint(15, 25)):
+                px = random.uniform(rect_inimigo.left, rect_inimigo.right)
+                py = random.uniform(rect_inimigo.top, rect_inimigo.bottom)
+                vx = random.uniform(-3, 3)
+                vy = random.uniform(-4, 1)
+                
+                if fase == 1:
+                    r = random.randint(120, 200)
+                    g = random.randint(30, 80)
+                    b = random.randint(200, 255)
+                    color = (r, g, b)
+                elif fase == 2:
+                    r = random.randint(0, 50)
+                    g = random.randint(130, 220)
+                    b = random.randint(220, 255)
+                    color = (r, g, b)
+                elif fase == 3:
+                    r = random.randint(220, 255)
+                    g = random.randint(180, 225)
+                    b = random.randint(0, 50)
+                    color = (r, g, b)
+                elif fase == 4:
+                    if random.random() < 0.5:
+                        r = random.randint(120, 180)
+                        g = random.randint(30, 70)
+                        b = random.randint(180, 240)
+                    else:
+                        r = random.randint(210, 255)
+                        g = random.randint(170, 210)
+                        b = random.randint(0, 40)
+                    color = (r, g, b)
+                else:
+                    color = (255, 255, 255)
+                    
+                size = random.uniform(3, 8)
+                shape_type = random.choice(["triangulo", "losango", "quadrado"])
+                if shape_type == "triangulo":
+                    vertices = [
+                        (0, -size),
+                        (-size * 0.8, size * 0.6),
+                        (size * 0.8, size * 0.6)
+                    ]
+                elif shape_type == "losango":
+                    vertices = [
+                        (0, -size),
+                        (size * 0.6, 0),
+                        (0, size),
+                        (-size * 0.6, 0)
+                    ]
+                else:
+                    vertices = [
+                        (-size * 0.5, -size * 0.5),
+                        (size * 0.5, -size * 0.5),
+                        (size * 0.5, size * 0.5),
+                        (-size * 0.5, size * 0.5)
+                    ]
+                    
+                fragmentos_morte.append({
+                    "x": px,
+                    "y": py,
+                    "vx": vx,
+                    "vy": vy,
+                    "color": color,
+                    "vertices": vertices,
+                    "rot": random.uniform(0, 360),
+                    "vrot": random.uniform(-10, 10),
+                    "life": random.randint(30, 50)
+                })
+
+        def atualizar_e_desenhar_fragmentos(tela):
+            if not (config_graficos.get("particulas_ativas", True) and config_graficos.get("efeitos_visuais", True)):
+                fragmentos_morte.clear()
+                return
+            novos_frag = []
+            for f in fragmentos_morte:
+                f["x"] += f["vx"]
+                f["y"] += f["vy"]
+                f["vy"] += 0.15
+                f["vx"] *= 0.98
+                f["rot"] += f["vrot"]
+                f["life"] -= 1
+                
+                if f["life"] <= 0:
+                    continue
+                    
+                rad = math.radians(f["rot"])
+                cos_r = math.cos(rad)
+                sin_r = math.sin(rad)
+                
+                rotated_vertices = []
+                for vx, vy in f["vertices"]:
+                    rx = f["x"] + (vx * cos_r - vy * sin_r)
+                    ry = f["y"] + (vx * sin_r + vy * cos_r)
+                    rotated_vertices.append((rx, ry))
+                    
+                pygame.draw.polygon(tela, f["color"], rotated_vertices)
+                novos_frag.append(f)
+            fragmentos_morte[:] = novos_frag
+
+        particulas_pontos = []
+
+        def gerar_particulas_pontos(rect_inimigo):
+            if not (config_graficos.get("particulas_ativas", True) and config_graficos.get("efeitos_visuais", True)):
+                return
+            qualidade = config_graficos.get("qualidade_grafica", "alta")
+            quantidade = random.randint(5, 8) if qualidade == "alta" else random.randint(2, 3)
+            
+            for _ in range(quantidade):
+                px = random.uniform(rect_inimigo.left, rect_inimigo.right)
+                py = random.uniform(rect_inimigo.top, rect_inimigo.bottom)
+                vx = random.uniform(-4, 4)
+                vy = random.uniform(-4, 4)
+                
+                particulas_pontos.append({
+                    "x": px,
+                    "y": py,
+                    "vx": vx,
+                    "vy": vy,
+                    "timer": random.randint(10, 20),
+                    "history": [],
+                    "speed": random.uniform(0.1, 0.3)
+                })
+
+        def atualizar_e_desenhar_particulas_pontos(tela):
+            if not (config_graficos.get("particulas_ativas", True) and config_graficos.get("efeitos_visuais", True)):
+                particulas_pontos.clear()
+                return
+            
+            qualidade = config_graficos.get("qualidade_grafica", "alta")
+            px_centro = pos_x_personagem + largura_personagem // 2
+            py_centro = pos_y_personagem + altura_personagem // 2
+            
+            novas_particulas = []
+            for p in particulas_pontos:
+                if qualidade == "alta":
+                    p["history"].append((p["x"], p["y"]))
+                    if len(p["history"]) > 4:
+                        p["history"].pop(0)
+                
+                if p["timer"] > 0:
+                    p["x"] += p["vx"]
+                    p["y"] += p["vy"]
+                    p["vx"] *= 0.92
+                    p["vy"] *= 0.92
+                    p["timer"] -= 1
+                else:
+                    dx = px_centro - p["x"]
+                    dy = py_centro - p["y"]
+                    dist = math.sqrt(dx*dx + dy*dy)
+                    if dist < 15:
+                        continue
+                    
+                    dx /= dist
+                    dy /= dist
+                    
+                    p["vx"] += dx * p["speed"]
+                    p["vy"] += dy * p["speed"]
+                    max_speed = 12.0
+                    speed = math.sqrt(p["vx"]**2 + p["vy"]**2)
+                    if speed > max_speed:
+                        p["vx"] = (p["vx"] / speed) * max_speed
+                        p["vy"] = (p["vy"] / speed) * max_speed
+                        
+                    p["x"] += p["vx"]
+                    p["y"] += p["vy"]
+                    p["speed"] += 0.05
+                    
+                if qualidade == "alta":
+                    for idx, (hx, hy) in enumerate(p["history"]):
+                        alpha_factor = (idx + 1) / len(p["history"])
+                        r = int(0 * alpha_factor)
+                        g = int(191 * alpha_factor)
+                        b = int(255 * alpha_factor)
+                        size = max(1, int(3 * alpha_factor))
+                        pygame.draw.circle(tela, (r, g, b), (int(hx), int(hy)), size)
+                
+                # Desenhar partícula principal (azul brilhante)
+                pygame.draw.circle(tela, (135, 206, 250), (int(p["x"]), int(p["y"])), 3)
+                novas_particulas.append(p)
+                
+            particulas_pontos[:] = novas_particulas
 
         ###################################################################################################PRINCIPAL#################################################################################################################
         #LOOP PRINCIPAL
@@ -671,15 +942,6 @@ def executar_jogo(game_manager=None):
                         multiplicador_dano = 1.3 + (0.05 * nivel_impulsiva)
                     elif tipo_buff_impulsiva == "velocidade":
                         multiplicador_velocidade = 1.2 + (0.05 * nivel_impulsiva)
-                mensagem = "+ Buff: Dano ↑" if tipo_buff_impulsiva == "dano" else "+ Buff: Velocidade ↑"
-
-                efeitos_texto.append({
-                    "texto": mensagem,
-                    "x": pos_x_personagem,
-                    "y": pos_y_personagem - 20,
-                    "tempo_inicio": pygame.time.get_ticks(),
-                    "cor": (255, 100, 100) if tipo_buff_impulsiva == "dano" else (100, 100, 255)
-                })
 
 
             pos_mouse = pygame.mouse.get_pos()
@@ -703,22 +965,26 @@ def executar_jogo(game_manager=None):
                         pygame.mouse.set_visible(False)  # Esconder cursor do sistema
                 elif botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo:  # Botão esquerdo do mouse
                     pos_mouse = pygame.mouse.get_pos()
-                    angulo = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
+                    px_centro = pos_x_personagem + largura_personagem // 2
+                    py_centro = pos_y_personagem + altura_personagem // 2
+                    angulo = calcular_angulo_disparo((px_centro, py_centro), pos_mouse)
 
                     # Crie o disparo com direção baseada no ângulo
                     novo_disparo = {
-                        "rect": pygame.Rect(pos_x_personagem, pos_y_personagem, largura_disparo, altura_disparo),
+                        "rect": pygame.Rect(px_centro - largura_disparo // 2, py_centro - altura_disparo // 2, largura_disparo, altura_disparo),
                         "angulo": angulo
                     }
                     disparos.append(novo_disparo)
                     tempo_ultimo_disparo = tempo_atual  # Atualizar o tempo do último disparo
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3 and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade:  # Botão direito do mouse
                     pos_mouse = pygame.mouse.get_pos()
-                    angulo = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
+                    px_centro = pos_x_personagem + largura_personagem // 2
+                    py_centro = pos_y_personagem + altura_personagem // 2
+                    angulo = calcular_angulo_disparo((px_centro, py_centro), pos_mouse)
 
                     # Criar uma onda cinética com as novas propriedades
                     nova_onda = {
-                        "rect": pygame.Rect(pos_x_personagem, pos_y_personagem, largura_onda, altura_onda),
+                        "rect": pygame.Rect(px_centro - largura_onda // 2, py_centro - altura_onda // 2, largura_onda, altura_onda),
                         "angulo": angulo,
                         "tempo_inicio": pygame.time.get_ticks(),
                         "frame_atual": 0,
@@ -815,7 +1081,9 @@ def executar_jogo(game_manager=None):
                         if random.random() < roubo_de_vida:
                             vida += (vida_maxima-vida)*quantidade_roubo_vida
                         if Ultimo_Estalo and inimigo["vida"] <= Executa_inimigo * inimigo["vida_maxima"]:
-                            if inimigo in inimigos_comum: inimigos_comum.remove(inimigo)
+                            if inimigo in inimigos_comum:
+                                gerar_fragmentos_morte(inimigo, 2)
+                                inimigos_comum.remove(inimigo)
                             posicao_inimigo = inimigo["rect"].center
                             soltar_moeda(posicao_inimigo)
                             inimigos_eliminados += 1
@@ -861,6 +1129,7 @@ def executar_jogo(game_manager=None):
                         elif inimigo["vida"] <= 0:
                             posicao_inimigo = inimigo["rect"].center
                             soltar_moeda(posicao_inimigo)
+                            gerar_fragmentos_morte(inimigo, 2)
                             inimigos_comum.remove(inimigo)
                             inimigos_eliminados += 1
 
@@ -987,6 +1256,15 @@ def executar_jogo(game_manager=None):
                     tipo_buff_impulsiva = random.choice(["dano", "velocidade"])
                     tempo_inicio_buff_impulsiva = pygame.time.get_ticks()
                     eliminacoes_consecutivas_impulsiva = 0  # Zera para forçar novo ciclo
+
+                    mensagem_buff = "+ Buff: Dano ↑" if tipo_buff_impulsiva == "dano" else "+ Buff: Velocidade ↑"
+                    efeitos_texto.append({
+                        "texto": mensagem_buff,
+                        "x": pos_x_personagem,
+                        "y": pos_y_personagem - 20,
+                        "tempo_inicio": pygame.time.get_ticks(),
+                        "cor": (255, 100, 100) if tipo_buff_impulsiva == "dano" else (100, 100, 255)
+                    })
 
 
 
@@ -1135,8 +1413,8 @@ def executar_jogo(game_manager=None):
 
                     # Se "Petro" ainda não está na posição do inimigo, mova-o na direção calculada
                     if pos_x_petro != pos_x_inimigo_mais_proximo or pos_y_petro != pos_y_inimigo_mais_proximo:
-                        pos_x_petro += 1.5 * direcao_petro[0]
-                        pos_y_petro += 1.5 * direcao_petro[1]
+                        pos_x_petro += 1.5 * direcao_petro[0] * dt
+                        pos_y_petro += 1.5 * direcao_petro[1] * dt
 
                     # Calcula a distância entre "Petro" e o inimigo mais próximo
                     distancia_petro_inimigo = math.sqrt((pos_x_petro - pos_x_inimigo_mais_proximo) ** 2 + (pos_y_petro - pos_y_inimigo_mais_proximo) ** 2)
@@ -1168,6 +1446,7 @@ def executar_jogo(game_manager=None):
                                 pontuacao_exib += pontos_p
 
                                 if inimigo_mais_proximo in inimigos_comum:
+                                    gerar_fragmentos_morte(inimigo_mais_proximo, 2)
                                     inimigos_comum.remove(inimigo_mais_proximo)
 
 
@@ -1213,8 +1492,8 @@ def executar_jogo(game_manager=None):
                         direcao_y = 0
 
                     # Move Petro na direção do boss
-                    pos_x_petro += 1 * direcao_x
-                    pos_y_petro += 1 * direcao_y
+                    pos_x_petro += 1 * direcao_x * dt
+                    pos_y_petro += 1 * direcao_y * dt
 
                     # Verifica se Petro está próximo o suficiente para aplicar dano ao boss
                     distancia_petro_boss = math.sqrt((pos_x_petro - pos_x_chefe2) ** 2 + (pos_y_petro - pos_y_chefe2) ** 2)
@@ -1244,8 +1523,14 @@ def executar_jogo(game_manager=None):
             # Desenhar os disparos normais
             novos_disparos = []
             for disparo in disparos:
-                disparo["rect"].x += velocidade_disparo * math.cos(disparo["angulo"])
-                disparo["rect"].y += velocidade_disparo * math.sin(disparo["angulo"])
+                if "pos_x" not in disparo:
+                    disparo["pos_x"] = float(disparo["rect"].x)
+                if "pos_y" not in disparo:
+                    disparo["pos_y"] = float(disparo["rect"].y)
+                disparo["pos_x"] += velocidade_disparo * math.cos(disparo["angulo"]) * dt
+                disparo["pos_y"] += velocidade_disparo * math.sin(disparo["angulo"]) * dt
+                disparo["rect"].x = int(disparo["pos_x"])
+                disparo["rect"].y = int(disparo["pos_y"])
 
                 # Verificar se o disparo está dentro do mapa
                 if 0 <= disparo["rect"].x < largura_mapa and 0 <= disparo["rect"].y < altura_mapa:
@@ -1259,98 +1544,71 @@ def executar_jogo(game_manager=None):
 
             frame_atual_disparo = (frame_atual_disparo + 1) % len(frames_disparo)
 
-            novas_ondas = []
-            for onda in ondas:
-                onda["rect"].x += velocidade_onda * math.cos(onda["angulo"])
-                onda["rect"].y += velocidade_onda * math.sin(onda["angulo"])
+            boss_info = {
+                "vivo": boss_vivo2,
+                "rect": pygame.Rect(pos_x_chefe2, pos_y_chefe2, chefe_largura2, chefe_altura2) if boss_vivo2 else None,
+                "atingido_por_onda": boss_atingido_por_onda,
+                "hit_flag": False
+            }
+            inimigos_mortos_neste_frame = processar_habilidade_onda(
+                ondas, correntes_eletricas, inimigos_comum, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda
+            )
+            if boss_info.get("hit_flag"):
+                vida_boss -= dano_person_hit * 2
+                boss_atingido_por_onda = boss_info["atingido_por_onda"]
+                if vida_boss2 <= 0:
+                    frame_porcentagem = frames_chefe2_4
+                    rect_boss = pygame.Rect(pos_x_chefe2, pos_y_chefe2, 64, 64)
+                    rect_personagem = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+                    ataque_vertical_ativo = False
+                    ataque_horizontal_ativo = False
+                    if rect_boss.colliderect(rect_personagem):
+                        if toque == 0:
+                            salvar_atributos()
+                            Musica_tema_Boss2.stop()
+                            pausar_cronometro()
+                            if game_manager:
+                                from game_manager import EstadoJogo
+                                game_manager.mudar_estado(EstadoJogo.JOGO_FASE_3)
+                                raise CleanExit()
+                            else:
+                                import GAME3
+                                GAME3.executar_jogo()
+                                raise CleanExit()
 
-                # Atualizar o frame atual da animação da onda
-                tempo_decorrido_onda = pygame.time.get_ticks() - onda["tempo_inicio"]
-                onda["frame_atual"] = (tempo_decorrido_onda // duracao_frame_onda) % len(onda["frames"])
-
-                # Renderizar a onda
-                tela.blit(onda["frames"][onda["frame_atual"]], onda["rect"])
-
-                # Verificar se a onda ainda está dentro do mapa
-                if (
-                    0 <= onda["rect"].x < largura_mapa and
-                    0 <= onda["rect"].y < altura_mapa
-                ):
-                    novas_ondas.append(onda)
-
-            ondas = novas_ondas
-            for onda in ondas:
-                for inimigo in inimigos_comum:
-                    inimigo_id = id(inimigo["rect"])  # Identificador único baseado no objeto
-                    if onda["rect"].colliderect(inimigo["rect"]) and \
-                    (inimigo_id not in inimigos_atingidos_por_onda or tempo_atual - inimigos_atingidos_por_onda[inimigo_id] >= 500):
-
-                        # Aplica o dano
-                        inimigo["vida"] -= dano_person_hit * 2
-                        inimigos_atingidos_por_onda[inimigo_id] = tempo_atual  # Atualiza o tempo do último hit
-
-                        if inimigo["vida"] <= 0:
-                            inimigos_comum.remove(inimigo)
-
-                            # Escalonamento baseado no progresso
-                            nivel_ameaca = min(inimigos_eliminados // 10, 100)
-
-                            vida_inimigo_maxima += 1.2 + nivel_ameaca * 0.8
-                            Resistencia_petro += 0.02 + nivel_ameaca * 0.02
-                            dano_inimigo_perto += 0.25 + nivel_ameaca * 0.15
-                            dano_person_hit += 4 + nivel_ameaca * 1.5
-                            vida_maxima_petro += 15 + nivel_ameaca * 8
-                            dano_petro += 0.02 + nivel_ameaca * 0.01
-                            dano_boss2 += 3 + nivel_ameaca * 1.2
-                            dano_inimigo_longe += 1 + nivel_ameaca * 0.6
-
-                            inimigos_eliminados += 1
-
-                            ganho = int(75 + math.log2(inimigos_eliminados + 1) * 5)
-                            pontuacao += ganho
-                            pontuacao_exib += ganho
-
-                            if not boss_vivo2:
-                                vida_boss2 += 20 + nivel_ameaca * 8
-                                vida_maxima_boss2 = vida_boss2
-                                vida_boss3 += 25 + nivel_ameaca * 10
-                                vida_maxima_boss3 = vida_boss3
-                                vida_boss4 += 30 + nivel_ameaca * 12
-                                vida_maxima_boss4 = vida_boss4
-
-
-                # Controle de dano para o boss
-                if boss_vivo2 and onda["rect"].colliderect(pygame.Rect(pos_x_chefe2, pos_y_chefe2, chefe_largura2, chefe_altura2)):
-                    boss_id = "boss"  # Identificador único para o boss no dicionário
-                    tempo_atual = pygame.time.get_ticks()
-
-                    if boss_id and tempo_atual - boss_atingido_por_onda >= 1500: 
-                        vida_boss -= dano_person_hit *2 
-                        boss_atingido_por_onda = tempo_atual  # Atualiza o tempo do último dano
-
-                        # Verifica se o boss foi derrotado
-                        if vida_boss2 <= 0:
-                            frame_porcentagem=frames_chefe2_4
-                            rect_boss = pygame.Rect(pos_x_chefe2, pos_y_chefe2, 64, 64)
-                            rect_personagem = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-                            ataque_vertical_ativo=False
-                            ataque_horizontal_ativo=False
+            # Atualizar e desenhar correntes elétricas
+            inimigos_mortos_correntes = atualizar_e_desenhar_correntes(tela, correntes_eletricas, inimigos_comum, tempo_atual, dano_person_hit)
+            
+            inimigos_mortos = inimigos_mortos_neste_frame + inimigos_mortos_correntes
+            for morto in inimigos_mortos:
+                if morto in inimigos_comum:
+                    gerar_fragmentos_morte(morto, 2)
+                    inimigos_comum.remove(morto)
+                    nivel_ameaca = min(inimigos_eliminados // 10, 100)
+                    vida_inimigo_maxima += 1.2 + nivel_ameaca * 0.8
+                    Resistencia_petro += 0.02 + nivel_ameaca * 0.02
+                    dano_inimigo_perto += 0.25 + nivel_ameaca * 0.15
+                    dano_person_hit += 4 + nivel_ameaca * 1.5
+                    vida_maxima_petro += 15 + nivel_ameaca * 8
+                    dano_petro += 0.02 + nivel_ameaca * 0.01
+                    dano_boss2 += 3 + nivel_ameaca * 1.2
+                    dano_inimigo_longe += 1 + nivel_ameaca * 0.6
+                    
+                    inimigos_eliminados += 1
+                    
+                    ganho = int(75 + math.log2(inimigos_eliminados + 1) * 5)
+                    pontuacao += ganho
+                    pontuacao_exib += ganho
+                    
+                    if not boss_vivo2:
+                        vida_boss2 += 20 + nivel_ameaca * 8
+                        vida_maxima_boss2 = vida_boss2
+                        vida_boss3 += 25 + nivel_ameaca * 10
+                        vida_maxima_boss3 = vida_boss3
+                        vida_boss4 += 30 + nivel_ameaca * 12
+                        vida_maxima_boss4 = vida_boss4
 
 
-
-                            if rect_boss.colliderect(rect_personagem):
-                                if toque == 0:
-                                    salvar_atributos()
-                                    Musica_tema_Boss2.stop()
-                                    pausar_cronometro()
-                                    if game_manager:
-                                        from game_manager import EstadoJogo
-                                        game_manager.mudar_estado(EstadoJogo.JOGO_FASE_3)
-                                        raise CleanExit()
-                                    else:
-                                        import GAME3
-
-                                    toque+=1
 
             #MODIFICA O TEMPO QUE OS INIMIGOS DISPARAM REFERENTE O BOSS ESTÁ VIVO OU NÃO                
             if not boss_vivo2:
@@ -1373,7 +1631,7 @@ def executar_jogo(game_manager=None):
                 # Desenhar sombra do inimigo
                 desenhar_sombra(tela, inimigo["rect"].x, inimigo["rect"].y, largura_inimigo, altura_inimigo)
                 tela.blit(inimigo["image"], inimigo["rect"])
-                desenhar_barra_de_vida(tela, inimigo["rect"].x, inimigo["rect"].y - 10, largura_inimigo, 5, inimigo["vida"], inimigo["vida_maxima"])
+                desenhar_barra_de_vida(tela, inimigo["rect"].x, inimigo["rect"].y - 10, largura_inimigo, 5, inimigo["vida"], inimigo["vida_maxima"], inimigo.get("eletrocutado", False))
 
                 tempo_atual = pygame.time.get_ticks()
                 if tempo_atual - tempo_ultimo_disparo_inimigo >= intervalo_disparo_inimigo and random.random() <= 0.25:  #frequencia do disparo do sinimigos
@@ -1556,6 +1814,8 @@ def executar_jogo(game_manager=None):
                                 raise CleanExit()
                             else:
                                 import GAME3
+                                GAME3.executar_jogo()
+                                raise CleanExit()
 
                             toque+=1
                 #  onde verifica a colisão dos disparos com o boss
@@ -1749,15 +2009,28 @@ def executar_jogo(game_manager=None):
 
             total_cartas_compradas = sum(cartas_compradas.values())
             custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
-            # Verifica se a pontuação atingiu 1500 e se o jogador pressionou 'Q'
-            if pontuacao_exib >= custo_carta_atual and keys[config_teclas["Comprar na loja"]] or (joystick and joystick.get_button(3)):
-                pontuacao_exib -= custo_carta_atual
-                pontuacao_magia -= custo_carta_atual
+            # Verifica se a pontuação atingiu o custo e se o jogador pressionou o botão da loja
+            if (pontuacao_exib >= custo_carta_atual) and (keys[config_teclas["Comprar na loja"]] or (joystick and joystick.get_button(3))):
+                # Calcula quantas cartas o jogador pode comprar com o custo progressivo
+                max_cartas = 0
+                total_custo = 0
+                temp_cartas_compradas = total_cartas_compradas
+                while True:
+                    proximo_custo = custo_base_carta + (temp_cartas_compradas * custo_por_carta)
+                    if total_custo + proximo_custo <= pontuacao_exib:
+                        total_custo += proximo_custo
+                        temp_cartas_compradas += 1
+                        max_cartas += 1
+                    else:
+                        break
 
+                if max_cartas > 0:
+                    pontuacao_exib -= total_custo
+                    pontuacao_magia -= total_custo
 
-                ret = tela_de_pausa(velocidade_personagem, intervalo_disparo,vida,largura_disparo, altura_disparo,trembo,dano_person_hit,chance_critico,roubo_de_vida,
-                                    quantidade_roubo_vida,tempo_cooldown_dash,vida_maxima,Petro_active,Resistencia,vida_petro,vida_maxima_petro,dano_petro,xp_petro,petro_evolucao,Resistencia_petro,
-                                    Chance_Sorte,Poison_Active,Dano_Veneno_Acumulado,Executa_inimigo,Ultimo_Estalo,mostrar_info,Mercenaria_Active,Valor_Bonus,dispositivo_ativo,Tempo_cura,porcentagem_cura,cartas_compradas,pontuacao_exib)
+                    ret = tela_de_pausa(velocidade_personagem, intervalo_disparo,vida,largura_disparo, altura_disparo,trembo,dano_person_hit,chance_critico,roubo_de_vida,
+                                        quantidade_roubo_vida,tempo_cooldown_dash,vida_maxima,Petro_active,Resistencia,vida_petro,vida_maxima_petro,dano_petro,xp_petro,petro_evolucao,Resistencia_petro,
+                                        Chance_Sorte,Poison_Active,Dano_Veneno_Acumulado,Executa_inimigo,Ultimo_Estalo,mostrar_info,Mercenaria_Active,Valor_Bonus,dispositivo_ativo,Tempo_cura,porcentagem_cura,cartas_compradas,pontuacao_exib, max_cartas_compraveis=max_cartas, inimigos_eliminados=inimigos_eliminados)
                 velocidade_personagem = ret[0]
                 intervalo_disparo = ret[1]
                 vida = ret[2]
@@ -1917,6 +2190,31 @@ def executar_jogo(game_manager=None):
                                 inimigos_em_chamas.pop(i_id, None)
                     else:
                         inimigos_em_chamas.pop(i_id, None)
+            atualizar_e_desenhar_fragmentos(tela)
+            atualizar_e_desenhar_particulas_pontos(tela)
+
+            # Atualizar e desenhar ondas de choque do teleporte
+            ondas_ativas = []
+            for oc in ondas_choque:
+                oc["raio_atual"] += oc["velocidade"]
+                if oc["raio_atual"] <= oc["raio_max"]:
+                    ondas_ativas.append(oc)
+                    # Desenhar círculo em expansão com transparência
+                    diametro = int(oc["raio_atual"] * 2)
+                    surf = pygame.Surface((diametro, diametro), pygame.SRCALPHA)
+                    
+                    progresso = oc["raio_atual"] / oc["raio_max"]
+                    alpha = int(180 * (1.0 - progresso))
+                    
+                    cor = oc["cor"]
+                    r, g, b = cor
+                    # Círculo externo
+                    pygame.draw.circle(surf, (r, g, b, alpha), (int(oc["raio_atual"]), int(oc["raio_atual"])), int(oc["raio_atual"]), width=max(1, int(4 * (1.0 - progresso))))
+                    # Brilho interno sutil
+                    pygame.draw.circle(surf, (r, g, b, alpha // 2), (int(oc["raio_atual"]), int(oc["raio_atual"])), int(oc["raio_atual"]))
+                    
+                    tela.blit(surf, (oc["cx"] - int(oc["raio_atual"]), oc["cy"] - int(oc["raio_atual"])))
+            ondas_choque = ondas_ativas
             for moeda in moedas_soltadas:
                 tela.blit(moeda["image"], moeda["rect"])
 
@@ -1924,7 +2222,9 @@ def executar_jogo(game_manager=None):
             tela.blit(cursor_imagem, (mouse_x, mouse_y))
             exibir_cronometro(tela)
             pygame.display.flip()
-            FPS.tick(config_graficos.get("fps_limite", 60))  # Limita a taxa de quadros conforme configuração
+            dt_ms = FPS.tick(config_graficos.get("fps_limite", 60))  # Limita a taxa de quadros conforme configuração
+            dt = max(0.05, min(3.0, dt_ms / 16.666667))
+            Variaveis.dt = dt
 
 
         # Encerrar o Pygame

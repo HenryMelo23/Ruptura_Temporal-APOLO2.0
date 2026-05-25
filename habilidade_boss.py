@@ -1114,12 +1114,15 @@ def movimentacao_inteligente_umbra(agora, boss_pos, player_pos, disparos, estado
     
     # Agilidade reduzida para 0.08 cria forte Inércia (Simula peso e curvas mais orgânicas)
     AGILIDADE_NATURAL = 0.08
-    vx += (v_desejada_x - vx) * AGILIDADE_NATURAL
-    vy += (v_desejada_y - vy) * AGILIDADE_NATURAL
+    import Variaveis
+    dt = getattr(Variaveis, 'dt', 1.0)
+    fator_agilidade = min(1.0, AGILIDADE_NATURAL * dt)
+    vx += (v_desejada_x - vx) * fator_agilidade
+    vy += (v_desejada_y - vy) * fator_agilidade
     estado_mov['vel_x'], estado_mov['vel_y'] = vx, vy
 
-    nx = max(int(espacamento), min(int(largura_mapa - largura_boss - espacamento), int(bx + vx)))
-    ny = max(int(espacamento), min(int(altura_mapa - altura_boss - espacamento), int(by + vy)))
+    nx = max(int(espacamento), min(int(largura_mapa - largura_boss - espacamento), int(bx + vx * dt)))
+    ny = max(int(espacamento), min(int(altura_mapa - altura_boss - espacamento), int(by + vy * dt)))
 
     return (nx, ny), "GENERATIVE_MOVE"
 
