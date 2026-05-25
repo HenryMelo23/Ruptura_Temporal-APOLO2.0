@@ -469,10 +469,10 @@ def executar_jogo(game_manager=None):
             atordoado = tempo_agora < tempo_fim_stun_ia
 
             # ---- TECLADO ----
-            if keys[config_teclas["Mover para direita"]]: dx, ultima_tecla_movimento = 1, 'right'
-            elif keys[config_teclas["Mover para esquerda"]]: dx, ultima_tecla_movimento = -1, 'left'
-            if keys[config_teclas["Mover para cima"]]: dy, ultima_tecla_movimento = -1, 'up'
-            elif keys[config_teclas["Mover para baixo"]]: dy, ultima_tecla_movimento = 1, 'down'
+            if Variaveis.verificar_input("Mover para direita"): dx, ultima_tecla_movimento = 1, 'right'
+            elif Variaveis.verificar_input("Mover para esquerda"): dx, ultima_tecla_movimento = -1, 'left'
+            if Variaveis.verificar_input("Mover para cima"): dy, ultima_tecla_movimento = -1, 'up'
+            elif Variaveis.verificar_input("Mover para baixo"): dy, ultima_tecla_movimento = 1, 'down'
 
             # ---- JOYSTICK ----
             if joystick:
@@ -503,7 +503,7 @@ def executar_jogo(game_manager=None):
                                                  pos_y_personagem + dy * velocidade_personagem * dt))
 
             # ---- DASH/TELEPORTE ----
-            dash_teclado = keys[config_teclas["Teleporte"]]
+            dash_teclado = Variaveis.verificar_input("Teleporte")
             dash_joystick = joystick and joystick.get_button(4) if joystick else False
             
             if (dash_teclado or dash_joystick) and cooldown_dash == False and atordoado == False:
@@ -597,122 +597,7 @@ def executar_jogo(game_manager=None):
                 })
 
 
-        def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
-            if not os.path.exists("saves/aureas_upgrade.json"):
-                dados_iniciais = {
-                    "Racional": 0,
-                    "Impulsiva": 0,
-                    "Devota": 0,
-                    "Vanguarda": 0
-                }
-                with open("saves/aureas_upgrade.json", "w") as f:
-                    json.dump(dados_iniciais, f, indent=4)
 
-            with open("saves/aureas_upgrade.json", "r") as f:
-                upgrades = json.load(f)
-            aureas = [
-                {"nome": "Racional", "imagem": "Sprites/aurea_cientista.png", "ativa": True},
-                {"nome": "Impulsiva", "imagem": "Sprites/aurea_impulsiva.png", "ativa": True},
-                {"nome": "Devota", "imagem": "Sprites/aurea_devota.png", "ativa": True},
-                {"nome": "Vanguarda", "imagem": "Sprites/aurea_vanguarda.png", "ativa": True},
-                {"nome": "?", "imagem": "Sprites/aurea_misteriosa.png", "ativa": False}
-            ]
-            for nome in ["Racional", "Impulsiva", "Devota", "Vanguarda"]:
-                if nome not in upgrades:
-                    upgrades[nome] = 0
-
-            upgrades = carregar_upgrade_aureas("saves/aureas_upgrade.json")
-
-            selecionado = 0
-            clock = pygame.time.Clock()
-            largura, altura = tela.get_size()
-
-            largura_quadro = 120
-            altura_quadro = 140
-            espacamento = 50
-            colunas = 3
-
-            while True:
-                tela.fill((15, 15, 15))
-
-                for evento in pygame.event.get():
-                    if evento.type == pygame.QUIT:
-                        memoria_umbra.salvar() # Garante que a experiência seja gravada no JSON
-                        rodando = False
-                        pygame.quit()
-                        os._exit(0)
-                    elif evento.type == pygame.KEYDOWN:
-                        if evento.key in [pygame.K_RIGHT, pygame.K_d]:
-                            selecionado = (selecionado + 1) % len(aureas)
-                            while not aureas[selecionado]["ativa"]:
-                                selecionado = (selecionado + 1) % len(aureas)
-                        elif evento.key in [pygame.K_LEFT, pygame.K_a]:
-                            selecionado = (selecionado - 1) % len(aureas)
-                            while not aureas[selecionado]["ativa"]:
-                                selecionado = (selecionado - 1) % len(aureas)
-                        elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
-                            nome = aureas[selecionado]["nome"]
-                            if aureas[selecionado]["ativa"] and nome != "?":
-                                if moedas_disponiveis > 0:
-                                    upgrades[nome] += 1
-                                    moedas_disponiveis -= 1
-                                    salvar_upgrade_aureas("saves/aureas_upgrade.json", upgrades)
-
-
-                                    # 🪙 salva o novo total no arquivo de atributos
-                                    with open("saves/atributos.json", "r") as f:
-                                        atributos = json.load(f)
-                                    atributos["moedas_totais"] = moedas_disponiveis
-                                    with open("saves/atributos.json", "w") as f:
-                                        json.dump(atributos, f)
-
-                        elif evento.key == pygame.K_ESCAPE:
-                            return
-
-                for i, aurea in enumerate(aureas):
-                    linha = i // colunas
-                    coluna = i % colunas
-
-                    x = largura // 2 - ((colunas * largura_quadro + (colunas - 1) * espacamento) // 2) + coluna * (largura_quadro + espacamento)
-                    y = altura // 4 + linha * (altura_quadro + 30)
-
-                    cor_borda = (255, 255, 255) if i == selecionado else (80, 80, 80)
-                    pygame.draw.rect(tela, cor_borda, (x, y, largura_quadro, altura_quadro), 3)
-
-                    # Texto com nome
-                    cor_texto = cor_borda
-                    nome_display = aurea["nome"]
-                    if nome_display != "?" and upgrades.get(nome_display, 0) > 0:
-                        nome_display += f" (Nv. {upgrades[nome_display]})"
-
-                    texto = fonte.render(nome_display, True, cor_texto)
-                    tela.blit(texto, (x + largura_quadro // 2 - texto.get_width() // 2, y - 25))
-
-
-
-                    # Texto com nível
-                    if aurea["ativa"] and aurea["nome"] != "?":
-                        nivel = upgrades.get(aurea["nome"], 0)
-                        texto_nivel = fonte.render(f"Nível {nivel}", True, (200, 200, 100))
-                        tela.blit(texto_nivel, (x + largura_quadro // 2 - texto_nivel.get_width() // 2, y + altura_quadro + 5))
-
-                    # Imagem
-                    try:
-                        imagem = pygame.image.load(aurea["imagem"]).convert_alpha()
-                        imagem = pygame.transform.scale(imagem, (largura_quadro, altura_quadro))
-                        tela.blit(imagem, (x, y))
-                    except:
-                        pass
-
-                # Mostrar moedas
-                texto_moedas = fonte.render(f"Moedas: {moedas_disponiveis}", True, (255, 255, 100))
-                tela.blit(texto_moedas, (50, 40))
-
-                instrucoes = fonte.render("← → para navegar | ENTER para melhorar | ESC para sair", True, (150, 150, 150))
-                tela.blit(instrucoes, (largura // 2 - instrucoes.get_width() // 2, altura - 60))
-
-                pygame.display.flip()
-                clock.tick(60)
 
 
         # Variáveis Globais de Mutação da Umbra
@@ -1028,6 +913,7 @@ def executar_jogo(game_manager=None):
             tempo_fim_stun = estado_atual_ia.get('fim_stun', 0) if 'estado_atual_ia' in globals() else 0
 
             for event in pygame.event.get():
+                Variaveis.atualizar_estado_mouse(event)
                 if event.type == pygame.QUIT:
                     running = False
                     pass
@@ -1039,7 +925,17 @@ def executar_jogo(game_manager=None):
                     pygame.event.set_grab(False)
                     pygame.mouse.set_visible(True)
                     from Tela_Pause import exibir_tela_pause
-                    exibir_tela_pause(tela, cartas_compradas, joystick)
+                    ret_pause = exibir_tela_pause(tela, cartas_compradas, joystick)
+                    if ret_pause == "sair":
+                        if game_manager:
+                            from game_manager import EstadoJogo
+                            game_manager.mudar_estado(EstadoJogo.MENU_PRINCIPAL)
+                            raise CleanExit()
+                        else:
+                            running = False
+                            pygame.event.set_grab(True)
+                            pygame.mouse.set_visible(False)
+                            break
                     pygame.event.set_grab(True)
                     pygame.mouse.set_visible(False)
                 elif botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo and tempo_atual >= tempo_fim_stun:
@@ -1054,7 +950,7 @@ def executar_jogo(game_manager=None):
                     }
                     disparos.append(novo_disparo)
                     tempo_ultimo_disparo = tempo_atual  
-                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3 and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade and tempo_atual >= tempo_fim_stun:  
+                elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade and tempo_atual >= tempo_fim_stun:  
                     pos_mouse = pygame.mouse.get_pos()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
@@ -2781,10 +2677,10 @@ def executar_jogo(game_manager=None):
                 texto_dano = None
 
             cooldowns = {
-                "disparo": max(0, tempo_atual - tempo_ultimo_disparo >= intervalo_disparo),
-                "teleporte": max(0, pygame.time.get_ticks() - tempo_ultimo_dash > tempo_cooldown_dash),
-                "onda": max(0, tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade),
-                "loja": 1 if pontuacao_exib >= custo_carta_atual else 0, 
+                "disparo": max(0.0, (intervalo_disparo - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
+                "teleporte": max(0.0, (tempo_cooldown_dash - (pygame.time.get_ticks() - tempo_ultimo_dash)) / 1000.0),
+                "onda": max(0.0, (cooldown_habilidade - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
+                "loja": 1 if pontuacao_exib >= custo_carta_atual else 0,
             }
             if not area_icones.colliderect(
             (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)

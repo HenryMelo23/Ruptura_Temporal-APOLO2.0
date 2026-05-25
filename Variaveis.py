@@ -934,37 +934,146 @@ def criar_onda(posicao,ultima_tecla_movimento):
 def rotacionar_frames(frames, angulo):
     return [pygame.transform.rotate(frame, angulo) for frame in frames]
 
-def desenhar_habilidades(tela, cooldowns,dispositivo_ativo):
-   
-    if dispositivo_ativo == "teclado":
-        tecla_disparo=  "LMB"
-        tecla_teleporte= pygame.key.name(config_teclas["Teleporte"])
-        tecla_onda=  "RMB"
-        tecla_loja=  pygame.key.name(config_teclas["Comprar na loja"])
+estado_mouse_botoes = {}
+
+def atualizar_estado_mouse(evento):
+    global estado_mouse_botoes
+    if evento.type == pygame.MOUSEBUTTONDOWN:
+        estado_mouse_botoes[evento.button] = True
+    elif evento.type == pygame.MOUSEBUTTONUP:
+        estado_mouse_botoes[evento.button] = False
+
+def verificar_input(acao):
+    if acao not in config_teclas:
+        return False
+    tecla = config_teclas[acao]
+    if isinstance(tecla, str) and tecla.startswith("MOUSE_"):
+        try:
+            btn_idx = int(tecla.split("_")[1])
+            if btn_idx in [1, 2, 3]:
+                return pygame.mouse.get_pressed()[btn_idx - 1]
+            return estado_mouse_botoes.get(btn_idx, False)
+        except:
+            return False
     else:
-        tecla_disparo=  "A"
-        tecla_teleporte= "X"
-        tecla_onda=  "B"
-        tecla_loja=  "Y"
+        try:
+            return pygame.key.get_pressed()[tecla]
+        except:
+            return False
+
+def verificar_evento_input(evento, acao):
+    if acao not in config_teclas:
+        return False
+    tecla = config_teclas[acao]
+    if isinstance(tecla, str) and tecla.startswith("MOUSE_"):
+        try:
+            btn_idx = int(tecla.split("_")[1])
+            return evento.type == pygame.MOUSEBUTTONDOWN and evento.button == btn_idx
+        except:
+            return False
+    else:
+        return evento.type == pygame.KEYDOWN and evento.key == tecla
+
+def formatar_nome_tecla(tecla):
+    if isinstance(tecla, str) and tecla.startswith("MOUSE_"):
+        try:
+            btn_idx = int(tecla.split("_")[1])
+            nomes_mouse = {
+                1: "LMB",
+                2: "MMB",
+                3: "RMB",
+                4: "M4",
+                5: "M5"
+            }
+            return nomes_mouse.get(btn_idx, f"M{btn_idx}")
+        except:
+            return tecla
+    elif isinstance(tecla, int):
+        nome = pygame.key.name(tecla)
+        traducoes = {
+            "left shift": "LSHIFT",
+            "right shift": "RSHIFT",
+            "left ctrl": "LCTRL",
+            "right ctrl": "RCTRL",
+            "left alt": "LALT",
+            "right alt": "RALT",
+            "space": "ESPAÇO",
+            "return": "ENTER",
+            "escape": "ESC"
+        }
+        return traducoes.get(nome.lower(), nome.upper())
+    return str(tecla)
+
+def recarregar_teclas():
+    global config_teclas
+    config_teclas = carregar_config_teclas()
+
+def desenhar_habilidades(tela, cooldowns, dispositivo_ativo):
+    if dispositivo_ativo == "teclado":
+        tecla_disparo = "LMB"
+        tecla_teleporte = formatar_nome_tecla(config_teclas.get("Teleporte", pygame.K_LSHIFT))
+        tecla_onda = formatar_nome_tecla(config_teclas.get("Habilidade Onda", "MOUSE_3"))
+        tecla_loja = formatar_nome_tecla(config_teclas.get("Comprar na loja", pygame.K_e))
+    else:
+        tecla_disparo = "A"
+        tecla_teleporte = "X"
+        tecla_onda = "B"
+        tecla_loja = "Y"
 
     habilidades = [
-    ("disparo", tecla_disparo, icone_disparo_pronto, icone_disparo_recarga, cooldowns['disparo']),
-    ("teleporte", tecla_teleporte, icone_teleporte_pronto, icone_teleporte_recarga, cooldowns['teleporte']),
-    ("onda",tecla_onda, icone_onda_pronto, icone_onda_recarga, cooldowns['onda']),
-    ("loja", tecla_loja, icone_loja, icone_loja_pronto, cooldowns['loja']),
+        ("disparo", tecla_disparo, icone_disparo_pronto, icone_disparo_recarga, cooldowns.get('disparo', 0.0)),
+        ("teleporte", tecla_teleporte, icone_teleporte_pronto, icone_teleporte_recarga, cooldowns.get('teleporte', 0.0)),
+        ("onda", tecla_onda, icone_onda_pronto, icone_onda_recarga, cooldowns.get('onda', 0.0)),
+        ("loja", tecla_loja, icone_loja, icone_loja_pronto, cooldowns.get('loja', 0.0)),
     ]
     
     for i, (nome, tecla, icone_pronto, icone_recarga, cooldown) in enumerate(habilidades):
         x, y = posicoes_icones[i]
         
         # Escolher o ícone baseado no cooldown
-        if cooldown is not None and cooldown > 0:
-            icone = icone_recarga
+        if nome == "loja":
+            # Para a loja: 1 = pronto (ícone colorido), 0 = indisponível (ícone cinza)
+            if cooldown > 0:
+                icone = icone_recarga
+            else:
+                icone = icone_pronto
         else:
-            icone = icone_pronto
+            # Para habilidades normais: cooldown > 0 segundos significa em recarga (ícone cinza)
+            if cooldown > 0.0:
+                icone = icone_recarga
+            else:
+                icone = icone_pronto
         
         # Desenhar o ícone
         tela.blit(icone, (x, y))
+        
+        # Desenhar o tempo de cooldown se for relevante (> 0.0s) e não for a loja
+        if nome != "loja" and cooldown > 0.0:
+            # Desenhar overlay translúcido para indicar recarga
+            overlay = pygame.Surface(icone_tamanho, pygame.SRCALPHA)
+            pygame.draw.rect(overlay, (0, 0, 0, 160), (0, 0, icone_tamanho[0], icone_tamanho[1]), border_radius=15)
+            tela.blit(overlay, (x, y))
+
+            # Desenhar texto com contorno e sombra de forma premium
+            fonte_cd = pygame.font.Font("Fonts/Outfit-Bold.ttf" if os.path.exists("Fonts/Outfit-Bold.ttf") else None, 26)
+            texto_cd = f"{cooldown:.1f}s"
+            
+            # Renderizar contorno/sombra primeiro
+            texto_sombra = fonte_cd.render(texto_cd, True, (0, 0, 0))
+            # Texto principal em ciano neon brilhante
+            texto_surf = fonte_cd.render(texto_cd, True, (0, 255, 240))
+            
+            tx = x + (icone_tamanho[0] - texto_surf.get_width()) // 2
+            ty = y + (icone_tamanho[1] - texto_surf.get_height()) // 2
+            
+            # Blitar sombra deslocada
+            tela.blit(texto_sombra, (tx - 1, ty - 1))
+            tela.blit(texto_sombra, (tx + 1, ty - 1))
+            tela.blit(texto_sombra, (tx - 1, ty + 1))
+            tela.blit(texto_sombra, (tx + 1, ty + 1))
+            tela.blit(texto_sombra, (tx + 2, ty + 2))
+            # Blitar texto principal
+            tela.blit(texto_surf, (tx, ty))
         
         cor_texto = (255, 255, 255)  # Branco para o texto principal
         cor_contorno = (0, 0, 0)    # Preto para o contorno
@@ -1188,4 +1297,42 @@ area_icones = pygame.Rect(0, altura_tela - 100, largura_tela, 100)  # Exemplo: r
 # Delta time global factor (normalized to 60 FPS)
 dt = 1.0
 
-
+######################################### VARIÁVEIS COMPARTILHADAS ENTRE FASES
+running = True
+movimento_pressionado = False
+tempo_atual = 0
+teleportado = False
+tempo_texto_dano = 0
+fonte = None
+Musica_tema_fases = None
+imune_tempo_restante = 0
+toque = 0
+dano = 0
+x = 0
+y = 0
+texto_dano = None
+Som_tema_fases = None
+vida_inimigo_maxima = 30
+vida_inimigo = vida_inimigo_maxima
+tempo_passado = 0
+tempo_ultimo_hit_inimigo = 0
+tempo_ultimo_inimigo = 0
+tempo_ultimo_inimigo_apos_morte = 0
+tempo_ultimo_atingido = 0
+piscando_vida = False
+frame_atual = 0
+carregar_atributos_na_fase = True
+upgrades = {}
+disparos_inimigos = []
+tempo_ultimo_disparo_inimigo = 0
+spawn_inimigo = True
+intervalo_disparo_inimigo = 1500
+velocidade_disparo_inimigo = 3
+velocidade_inimigo2 = 1.70
+tempo_imobilizacao = 1000
+personagem_imovel = False
+tempo_parado_person = 0
+tempo_ultimo_disparo = 0
+tempo_ultimo_escudo = 0
+sprite_moeda = None
+ondas_choque = []

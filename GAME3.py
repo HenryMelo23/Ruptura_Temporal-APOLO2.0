@@ -12,6 +12,7 @@ from habilidades_personagem import processar_habilidade_onda, atualizar_e_desenh
 import Variaveis
 from utils import *
 from audio_manager import carregar_config_audio, aplicar_volume_som
+from Tela_Upgrade_Aureas import tela_upgrade_aureas
 dt = 1.0
 
 # Forward declarations (atribuídos no loop principal)
@@ -20,6 +21,7 @@ sprite_moeda = None
 escudo_devota_ativo = True
 duracao_incendio_vanguarda = 5000
 intervalo_escudo = 30000
+gerar_fragmentos_morte = None
 # Inicializar o Pygame
 pygame.init()
 
@@ -309,11 +311,11 @@ def atualizar_posicao_personagem(keys, joystick):
     dx, dy = 0, 0
 
     # ---- TECLADO ----
-    if keys[config_teclas["Mover para direita"]]: dx, ultima_tecla_movimento = 1, 'right'
-    elif keys[config_teclas["Mover para esquerda"]]: dx, ultima_tecla_movimento = -1, 'left'
+    if Variaveis.verificar_input("Mover para direita"): dx, ultima_tecla_movimento = 1, 'right'
+    elif Variaveis.verificar_input("Mover para esquerda"): dx, ultima_tecla_movimento = -1, 'left'
     
-    if keys[config_teclas["Mover para cima"]]: dy, ultima_tecla_movimento = -1, 'up'
-    elif keys[config_teclas["Mover para baixo"]]: dy, ultima_tecla_movimento = 1, 'down'
+    if Variaveis.verificar_input("Mover para cima"): dy, ultima_tecla_movimento = -1, 'up'
+    elif Variaveis.verificar_input("Mover para baixo"): dy, ultima_tecla_movimento = 1, 'down'
 
     # ---- JOYSTICK ----
     if joystick:
@@ -368,7 +370,7 @@ def atualizar_posicao_personagem(keys, joystick):
             direcao_atual = 'stop'
 
     # ---- DASH/TELEPORTE ----
-    dash_teclado = keys[config_teclas["Teleporte"]]
+    dash_teclado = Variaveis.verificar_input("Teleporte")
     dash_joystick = joystick and joystick.get_button(4) if joystick else False
 
     if (dash_teclado or dash_joystick) and cooldown_dash == False:
@@ -636,113 +638,6 @@ def soltar_moeda(posicao):
             "image": sprite_redimensionada
         })
 
-def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
-    if not os.path.exists("saves/aureas_upgrade.json"):
-        dados_iniciais = {
-            "Racional": 0,
-            "Impulsiva": 0,
-            "Devota": 0,
-            "Vanguarda": 0
-        }
-        with open("saves/aureas_upgrade.json", "w") as f:
-            json.dump(dados_iniciais, f, indent=4)
-    
-    with open("saves/aureas_upgrade.json", "r") as f:
-        upgrades = json.load(f)
-    aureas = [
-        {"nome": "Racional", "imagem": "Sprites/aurea_cientista.png", "ativa": True},
-        {"nome": "Impulsiva", "imagem": "Sprites/aurea_impulsiva.png", "ativa": True},
-        {"nome": "Devota", "imagem": "Sprites/aurea_devota.png", "ativa": True},
-        {"nome": "Vanguarda", "imagem": "Sprites/aurea_vanguarda.png", "ativa": True},
-        {"nome": "?", "imagem": "Sprites/aurea_misteriosa.png", "ativa": False}
-    ]
-    for nome in ["Racional", "Impulsiva", "Devota", "Vanguarda"]:
-        if nome not in upgrades:
-            upgrades[nome] = 0
-
-    upgrades = carregar_upgrade_aureas("saves/aureas_upgrade.json")
-
-    selecionado = 0
-    clock = pygame.time.Clock()
-    largura, altura = tela.get_size()
-
-    largura_quadro = 120
-    altura_quadro = 140
-    espacamento = 50
-    colunas = 3
-
-    while True:
-        tela.fill((15, 15, 15))
-
-        for evento in pygame.event.get():
-            if evento.type == pygame.QUIT:
-                pygame.quit()
-                exit()
-            elif evento.type == pygame.KEYDOWN:
-                if evento.key in [pygame.K_RIGHT, pygame.K_d]:
-                    selecionado = (selecionado + 1) % len(aureas)
-                    while not aureas[selecionado]["ativa"]:
-                        selecionado = (selecionado + 1) % len(aureas)
-                elif evento.key in [pygame.K_LEFT, pygame.K_a]:
-                    selecionado = (selecionado - 1) % len(aureas)
-                    while not aureas[selecionado]["ativa"]:
-                        selecionado = (selecionado - 1) % len(aureas)
-                elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
-                    nome = aureas[selecionado]["nome"]
-                    if aureas[selecionado]["ativa"] and nome != "?":
-                        if moedas_disponiveis > 0:
-                            upgrades[nome] += 1
-                            moedas_disponiveis -= 1
-                            salvar_upgrade_aureas("saves/aureas_upgrade.json", upgrades)
-
-                elif evento.key == pygame.K_ESCAPE:
-                    return
-
-        for i, aurea in enumerate(aureas):
-            linha = i // colunas
-            coluna = i % colunas
-
-            x = largura // 2 - ((colunas * largura_quadro + (colunas - 1) * espacamento) // 2) + coluna * (largura_quadro + espacamento)
-            y = altura // 4 + linha * (altura_quadro + 30)
-
-            cor_borda = (255, 255, 255) if i == selecionado else (80, 80, 80)
-            pygame.draw.rect(tela, cor_borda, (x, y, largura_quadro, altura_quadro), 3)
-
-            # Texto com nome
-            cor_texto = cor_borda
-            nome_display = aurea["nome"]
-            if nome_display != "?" and upgrades.get(nome_display, 0) > 0:
-                nome_display += f" (Nv. {upgrades[nome_display]})"
-
-            texto = fonte.render(nome_display, True, cor_texto)
-            tela.blit(texto, (x + largura_quadro // 2 - texto.get_width() // 2, y - 25))
-
-            
-
-            # Texto com nível
-            if aurea["ativa"] and aurea["nome"] != "?":
-                nivel = upgrades.get(aurea["nome"], 0)
-                texto_nivel = fonte.render(f"Nível {nivel}", True, (200, 200, 100))
-                tela.blit(texto_nivel, (x + largura_quadro // 2 - texto_nivel.get_width() // 2, y + altura_quadro + 5))
-
-            # Imagem
-            try:
-                imagem = pygame.image.load(aurea["imagem"]).convert_alpha()
-                imagem = pygame.transform.scale(imagem, (largura_quadro, altura_quadro))
-                tela.blit(imagem, (x, y))
-            except:
-                pass
-
-        # Mostrar moedas
-        texto_moedas = fonte.render(f"Moedas: {moedas_disponiveis}", True, (255, 255, 100))
-        tela.blit(texto_moedas, (50, 40))
-
-        instrucoes = fonte.render("← → para navegar | ENTER para melhorar | ESC para sair", True, (150, 150, 150))
-        tela.blit(instrucoes, (largura // 2 - instrucoes.get_width() // 2, altura - 60))
-
-        pygame.display.flip()
-        clock.tick(60)
-
 
 tempo_parado_person = pygame.time.get_ticks() 
 tempo_ultimo_disparo = pygame.time.get_ticks()
@@ -759,7 +654,7 @@ y = 0
 
 def executar_jogo(game_manager=None):
     global dt
-    global Boss_vivo3, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss3, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, bonus_pontuacao, boss_envenenado, boss_frame_andando, boss_frame_atual, boss_frame_peca, carregar_atributos_na_fase, cartas_compradas, chance_critico, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, disparos, disparos_boss3, disparos_inimigos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, escudo_devota_ativo, fonte, frame_atual, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, largura_disparo, max_inimigos2, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, musica_boss3, nivel_ameaca, ondas, personagem_doente, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe3, pos_x_personagem, pos_x_petro, pos_y_chefe3, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, queijo_geracao, queijo_spawn, r_press, rect_boss, roubo_de_vida, running, spawn_inimigo, teleportado, tempo_anterior_petro, tempo_atual, tempo_cooldown_dash, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_regeneracao, tempo_ultimo_atingido, tempo_ultimo_disparo_inimigo, tempo_ultimo_frame_boss, tempo_ultimo_grupo_disparo_boss3, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, texto_dano, tipo_buff_impulsiva, toque, trembo, ultima_direcao_animacao, ultimo_tick_veneno_boss, upgrades, velocidade_personagem, vida, vida_boss3, vida_boss4, vida_inimigo_maxima, vida_maxima, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, vida_queijo, x, xp_petro, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
+    global Boss_vivo3, gerar_fragmentos_morte, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss3, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, bonus_pontuacao, boss_envenenado, boss_frame_andando, boss_frame_atual, boss_frame_peca, carregar_atributos_na_fase, cartas_compradas, chance_critico, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, disparos, disparos_boss3, disparos_inimigos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, escudo_devota_ativo, fonte, frame_atual, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, largura_disparo, max_inimigos2, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, musica_boss3, nivel_ameaca, ondas, personagem_doente, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe3, pos_x_personagem, pos_x_petro, pos_y_chefe3, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, queijo_geracao, queijo_spawn, r_press, rect_boss, roubo_de_vida, running, spawn_inimigo, sprite_moeda, teleportado, tempo_anterior_petro, tempo_atual, tempo_cooldown_dash, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_regeneracao, tempo_ultimo_atingido, tempo_ultimo_disparo_inimigo, tempo_ultimo_frame_boss, tempo_ultimo_grupo_disparo_boss3, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, texto_dano, tipo_buff_impulsiva, toque, trembo, ultima_direcao_animacao, ultimo_tick_veneno_boss, upgrades, velocidade_personagem, vida, vida_boss3, vida_boss4, vida_inimigo_maxima, vida_maxima, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, vida_queijo, x, xp_petro, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -1032,6 +927,7 @@ def executar_jogo(game_manager=None):
             mouse_x = max(0, min(pos_mouse[0], largura_mapa - cursor_tamanho[0]))
             mouse_y = max(0, min(pos_mouse[1], altura_mapa - cursor_tamanho[1]))
             for event in pygame.event.get():
+                Variaveis.atualizar_estado_mouse(event)
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
@@ -1058,7 +954,7 @@ def executar_jogo(game_manager=None):
                     }
                     disparos.append(novo_disparo)
                     tempo_ultimo_disparo = tempo_atual  # Atualizar o tempo do último disparo
-                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3 and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade:  # Botão direito do mouse
+                elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade:
                     pos_mouse = pygame.mouse.get_pos()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
@@ -1088,7 +984,15 @@ def executar_jogo(game_manager=None):
                     joy.init()
                 
                 from Tela_Pause import exibir_tela_pause
-                exibir_tela_pause(tela, cartas_compradas, joy)
+                ret_pause = exibir_tela_pause(tela, cartas_compradas, joy)
+                if ret_pause == "sair":
+                    if game_manager:
+                        from game_manager import EstadoJogo
+                        game_manager.mudar_estado(EstadoJogo.MENU_PRINCIPAL)
+                        raise CleanExit()
+                    else:
+                        running = False
+                        break
                 
                 retomar_cronometro()
                 pygame.event.set_grab(True)
@@ -2346,7 +2250,7 @@ def executar_jogo(game_manager=None):
             total_cartas_compradas = sum(cartas_compradas.values())
             custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
             # Verifica se a pontuação atingiu o custo e se o jogador pressionou o botão da loja
-            if (pontuacao_exib >= custo_carta_atual) and (keys[config_teclas["Comprar na loja"]] or (joystick and joystick.get_button(3))):
+            if (pontuacao_exib >= custo_carta_atual) and (Variaveis.verificar_input("Comprar na loja") or (joystick and joystick.get_button(3))):
                 # Calcula quantas cartas o jogador pode comprar com o custo progressivo
                 max_cartas = 0
                 total_custo = 0
@@ -2469,9 +2373,9 @@ def executar_jogo(game_manager=None):
             if texto_dano is not None and pygame.time.get_ticks() - tempo_texto_dano >= 250:
                 texto_dano = None
             cooldowns = {
-                "disparo": max(0, tempo_atual - tempo_ultimo_disparo >= intervalo_disparo),
-                "teleporte": max(0, pygame.time.get_ticks() - tempo_ultimo_dash > tempo_cooldown_dash),
-                "onda": max(0, tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade),
+                "disparo": max(0.0, (intervalo_disparo - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
+                "teleporte": max(0.0, (tempo_cooldown_dash - (pygame.time.get_ticks() - tempo_ultimo_dash)) / 1000.0),
+                "onda": max(0.0, (cooldown_habilidade - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
                 "loja": 1 if pontuacao_exib >= custo_carta_atual else 0, 
             }
             if not area_icones.colliderect(

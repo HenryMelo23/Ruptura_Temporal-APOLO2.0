@@ -13,14 +13,18 @@ from habilidades_personagem import processar_habilidade_onda, atualizar_e_desenh
 import Variaveis
 from utils import *
 from audio_manager import carregar_config_audio, aplicar_volume_som
+from Tela_Upgrade_Aureas import tela_upgrade_aureas
 dt = 1.0
 
 # Forward declarations (atribuídos no loop principal)
 botao_mouse = (False, False, False)
 sprite_moeda = None
+joystick = None
 escudo_devota_ativo = True
 duracao_incendio_vanguarda = 5000
 intervalo_escudo = 30000
+boss_morte_processada = False
+grupo_fragmentos = None
 
 pygame.init()
 
@@ -209,9 +213,158 @@ teleporte_timer = 0
 x = 0
 y = 0
 
+class FragmentoTemporal(pygame.sprite.Sprite):
+    """Fragmento temporal coletável que aparece após a morte do boss.
+    Renderizado proceduralmente com pygame.draw — sem dependência de imagem externa."""
+
+    def __init__(self, posicao):
+        super().__init__()
+        self.posicao_base = pygame.math.Vector2(posicao)
+        # Hitbox menor que o visual para coleta precisa
+        self.rect = pygame.Rect(0, 0, 32, 32)
+        self.rect.center = posicao
+
+        self.w, self.h = 128, 128
+        self.image = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
+        self.angle_ring = 0.0
+        self.time = 0
+        self.particulas = []
+        self.coletado = False  # Flag para impedir coleta dupla
+
+    def update(self, *args, **kwargs):
+        if self.coletado:
+            return
+
+        self.time += 1
+        self.angle_ring += 0.05
+
+        # Movimento flutuante vertical usando seno
+        floating_offset = math.sin(self.time * 0.07) * 8
+        self.rect.centery = int(self.posicao_base.y + floating_offset)
+
+        # Limpar imagem
+        self.image.fill((0, 0, 0, 0))
+
+        cx, cy = self.w // 2, self.h // 2
+
+        # === GLOW EXTERNO PULSANTE ===
+        glow_pulse = 1.0 + 0.20 * math.sin(self.time * 0.1)
+        for r in range(48, 5, -4):
+            glow_radius = int(r * glow_pulse)
+            alpha = int(40 * (1.0 - r / 48.0))
+            pygame.draw.circle(self.image, (0, 191, 255, alpha), (cx, cy), glow_radius)
+            if r > 30:
+                pygame.draw.circle(self.image, (128, 0, 200, alpha // 2), (cx, cy), glow_radius + 6)
+
+        # === SOMBRA SUAVE ABAIXO ===
+        sombra_w = int(44 - floating_offset * 0.5)
+        sombra_h = int(12 - floating_offset * 0.15)
+        if sombra_w > 0 and sombra_h > 0:
+            sombra_rect = pygame.Rect(cx - sombra_w // 2, self.h - 16, sombra_w, sombra_h)
+            pygame.draw.ellipse(self.image, (0, 0, 0, 55), sombra_rect)
+
+        # === ANEL TEMPORAL GIRANDO ===
+        anel_w = int(55 + 12 * math.sin(self.time * 0.05))
+        anel_h = 18
+        num_pontos = 20
+        for i in range(num_pontos):
+            ang = self.angle_ring + (i * (2 * math.pi / num_pontos))
+            px = cx + int(anel_w * math.cos(ang))
+            py = cy + int(anel_h * math.sin(ang))
+            depth = math.sin(ang)
+            size = max(1, int(2.5 + depth * 1.5))
+            alpha = max(0, min(255, int(180 + depth * 75)))
+            p_color = (0, 220, 255, alpha) if i % 2 == 0 else (180, 50, 255, alpha)
+            pygame.draw.circle(self.image, p_color, (px, py), size)
+
+        # === PARTÍCULAS ORBITANDO ===
+        if len(self.particulas) < 18 and random.random() < 0.35:
+            self.particulas.append({
+                "radius": random.uniform(22, 55),
+                "angle": random.uniform(0, 2 * math.pi),
+                "speed": random.uniform(0.02, 0.07),
+                "size": random.uniform(1.5, 3.5),
+                "color": random.choice([
+                    (0, 191, 255), (100, 200, 255), (143, 33, 252),
+                    (200, 100, 255), (255, 255, 255)
+                ]),
+                "life": random.randint(35, 70),
+                "max_life": 70
+            })
+
+        particulas_vivas = []
+        for p in self.particulas:
+            p["angle"] += p["speed"]
+            p["radius"] -= 0.18
+            p["life"] -= 1
+            if p["life"] > 0 and p["radius"] >= 5:
+                alpha = max(0, min(255, int((p["life"] / p["max_life"]) * 220)))
+                px = cx + int(p["radius"] * math.cos(p["angle"]))
+                py = cy + int(p["radius"] * math.sin(p["angle"]))
+                cor = p["color"]
+                pygame.draw.circle(self.image, (cor[0], cor[1], cor[2], alpha), (px, py), int(p["size"]))
+                particulas_vivas.append(p)
+        self.particulas = particulas_vivas
+
+        # === LOSANGO CENTRAL (CRISTAL) ===
+        cristal_w = 22
+        cristal_h = 38
+        pontos_losango = [
+            (cx, cy - cristal_h // 2),       # Topo
+            (cx + cristal_w // 2, cy),        # Direita
+            (cx, cy + cristal_h // 2),        # Base
+            (cx - cristal_w // 2, cy)         # Esquerda
+        ]
+
+        # Corpo escuro do cristal
+        pygame.draw.polygon(self.image, (10, 25, 55, 240), pontos_losango)
+
+        # Face direita iluminada com brilho pulsante
+        brilho_face = int(120 + 60 * math.sin(self.time * 0.12))
+        face_direita = [
+            (cx, cy - cristal_h // 2),
+            (cx + cristal_w // 2, cy),
+            (cx, cy + cristal_h // 2)
+        ]
+        pygame.draw.polygon(self.image, (0, brilho_face, 220, 150), face_direita)
+
+        # Borda ciano brilhante
+        pygame.draw.polygon(self.image, (0, 255, 255, 220), pontos_losango, width=2)
+
+        # Linha vertical central (rachadura de energia)
+        pygame.draw.line(self.image, (255, 255, 255, 200),
+                         (cx, cy - cristal_h // 2 + 4),
+                         (cx, cy + cristal_h // 2 - 4), 1)
+        # Linha horizontal central (rachadura de energia) — FIX: adicionadas tuplas corretas
+        pygame.draw.line(self.image, (255, 255, 255, 200),
+                         (cx - cristal_w // 2 + 3, cy),
+                         (cx + cristal_w // 2 - 3, cy), 1)
+        # Linha diagonal (energia roxa)
+        pygame.draw.line(self.image, (180, 100, 255, 240),
+                         (cx - 4, cy - 6),
+                         (cx + 4, cy + 6), 1)
+        # Linha diagonal cruzada
+        pygame.draw.line(self.image, (100, 180, 255, 200),
+                         (cx + 3, cy - 5),
+                         (cx - 3, cy + 5), 1)
+
+        # === BRILHO SHIMMER NO TOPO DO CRISTAL ===
+        shimmer_alpha = max(0, min(255, int(80 + 120 * math.sin(self.time * 0.15))))
+        shimmer_y = cy - cristal_h // 2 + 6
+        pygame.draw.line(self.image, (255, 255, 255, shimmer_alpha),
+                         (cx - 3, shimmer_y), (cx + 3, shimmer_y + 2), 2)
+
+    def draw(self, surface):
+        """Desenha o fragmento na superfície do jogo."""
+        if self.coletado:
+            return
+        rect_desenho = self.image.get_rect(center=self.rect.center)
+        surface.blit(self.image, rect_desenho.topleft)
+
+
 def executar_jogo(game_manager=None):
     global dt
-    global Chance_Sorte, Dano_Boss_Habilit, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss1, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, Velocidade_Inimigos_1, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apertou_q, atributos, bonus_pontuacao, boss_envenenado, cartas_compradas, chance_critico, cooldown_dash, dano, dano_boss, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_atual_petro, disparos, dispositivo_ativo, distancia_dash, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_ataque_especial, escudo_devota_ativo, espacamento, f, fonte, frame_atual_chefe, frame_porcentagem, hitboxes, i, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, jogador_posicoes, lado, largura_disparo, largura_personagem, linha, mensagem, mensagem_ativa, mensagem_mostrada, mensagens_exibidas, moedas_coletadas, moedas_soltadas, moedas_totais, musica_boss1, ondas, petro_evolucao, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe, pos_x_personagem, pos_x_petro, pos_y_chefe, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, r_press, rect_boss, relogio, roubo_de_vida, running, teleportado, teleporte_duration, teleporte_index, teleporte_timer, tempo_anterior_petro, tempo_ataque_especial, tempo_atual, tempo_cooldown_dash, tempo_fase_completa, tempo_fim_mensagem, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_mostrando_mensagem, tempo_passado_animacao_chefe, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_mudanca_direcao_boss, tempo_ultima_regeneracao, tempo_ultimo_ataque, tempo_ultimo_dano_ataque, tempo_ultimo_dash, tempo_ultimo_uso_habilidade, texto, texto_dano, tipo_buff_impulsiva, toque, trembo, tutorial_dash_count, tutorial_fase, tutorial_lado_inicial, tutorial_parede_ativa, tutorial_parede_rect, tutorial_wasd, ultima_direcao_animacao, ultima_direcao_boss, ultima_tecla_movimento, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_boss2, vida_boss3, vida_boss4, vida_maxima, vida_maxima_boss1, vida_maxima_boss2, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, x, xp_petro, tutorial_inimigo_ativo, tutorial_inimigo, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
+    global joystick, ondas_choque, Chance_Sorte, Dano_Boss_Habilit, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss1, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, Velocidade_Inimigos_1, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apertou_q, atributos, bonus_pontuacao, boss_envenenado, cartas_compradas, chance_critico, cooldown_dash, dano, dano_boss, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_atual_petro, disparos, dispositivo_ativo, distancia_dash, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_ataque_especial, escudo_devota_ativo, espacamento, f, fonte, frame_atual_chefe, frame_porcentagem, hitboxes, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, jogador_posicoes, lado, largura_disparo, largura_personagem, linha, mensagem, mensagem_ativa, mensagem_mostrada, mensagens_exibidas, moedas_coletadas, moedas_soltadas, moedas_totais, musica_boss1, ondas, petro_evolucao, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe, pos_x_personagem, pos_x_petro, pos_y_chefe, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, r_press, rect_boss, relogio, roubo_de_vida, running, sprite_moeda, teleportado, teleporte_duration, teleporte_index, teleporte_timer, tempo_anterior_petro, tempo_ataque_especial, tempo_atual, tempo_cooldown_dash, tempo_fase_completa, tempo_fim_mensagem, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_mostrando_mensagem, tempo_passado_animacao_chefe, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_mudanca_direcao_boss, tempo_ultima_regeneracao, tempo_ultimo_ataque, tempo_ultimo_dano_ataque, tempo_ultimo_dash, tempo_ultimo_uso_habilidade, texto, texto_dano, tipo_buff_impulsiva, toque, trembo, tutorial_dash_count, tutorial_fase, tutorial_lado_inicial, tutorial_parede_ativa, tutorial_parede_rect, tutorial_wasd, ultima_direcao_animacao, ultima_direcao_boss, ultima_tecla_movimento, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_boss2, vida_boss3, vida_boss4, vida_maxima, vida_maxima_boss1, vida_maxima_boss2, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, x, xp_petro, tutorial_inimigo_ativo, tutorial_inimigo, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -337,11 +490,11 @@ def executar_jogo(game_manager=None):
             dx, dy = 0, 0
 
             # ---- TECLADO ----
-            if keys[config_teclas["Mover para direita"]]: dx, ultima_tecla_movimento = 1, 'right'
-            elif keys[config_teclas["Mover para esquerda"]]: dx, ultima_tecla_movimento = -1, 'left'
+            if Variaveis.verificar_input("Mover para direita"): dx, ultima_tecla_movimento = 1, 'right'
+            elif Variaveis.verificar_input("Mover para esquerda"): dx, ultima_tecla_movimento = -1, 'left'
 
-            if keys[config_teclas["Mover para cima"]]: dy, ultima_tecla_movimento = -1, 'up'
-            elif keys[config_teclas["Mover para baixo"]]: dy, ultima_tecla_movimento = 1, 'down'
+            if Variaveis.verificar_input("Mover para cima"): dy, ultima_tecla_movimento = -1, 'up'
+            elif Variaveis.verificar_input("Mover para baixo"): dy, ultima_tecla_movimento = 1, 'down'
 
             # ---- JOYSTICK ----
             if joystick:
@@ -406,7 +559,7 @@ def executar_jogo(game_manager=None):
                         pos_x_personagem = tutorial_parede_rect.right
 
             # ---- DASH/TELEPORTE ----
-            dash_teclado = keys[config_teclas["Teleporte"]]
+            dash_teclado = Variaveis.verificar_input("Teleporte")
             dash_joystick = joystick and joystick.get_button(4) if joystick else False
 
             if (dash_teclado or dash_joystick) and cooldown_dash == False:
@@ -498,8 +651,8 @@ def executar_jogo(game_manager=None):
                                 vida_boss4 += 30 + nivel_ameaca * 18
                                 vida_maxima_boss4 = vida_boss4
 
-                # Dano ao Boss
-                if boss_vivo1:
+                # Dano ao Boss (só se vivo e morte não processada)
+                if boss_vivo1 and not boss_morte_processada:
                     bx = pos_x_chefe + chefe_largura // 2
                     by = pos_y_chefe + chefe_altura // 2
                     dist_boss = math.hypot(bx - cx_t, by - cy_t)
@@ -702,120 +855,7 @@ def executar_jogo(game_manager=None):
                 })
 
 
-        def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
-            if not os.path.exists("saves/aureas_upgrade.json"):
-                dados_iniciais = {
-                    "Racional": 0,
-                    "Impulsiva": 0,
-                    "Devota": 0,
-                    "Vanguarda": 0
-                }
-                with open("saves/aureas_upgrade.json", "w") as f:
-                    json.dump(dados_iniciais, f, indent=4)
 
-            with open("saves/aureas_upgrade.json", "r") as f:
-                upgrades = json.load(f)
-            aureas = [
-                {"nome": "Racional", "imagem": "Sprites/aurea_cientista.png", "ativa": True},
-                {"nome": "Impulsiva", "imagem": "Sprites/aurea_impulsiva.png", "ativa": True},
-                {"nome": "Devota", "imagem": "Sprites/aurea_devota.png", "ativa": True},
-                {"nome": "Vanguarda", "imagem": "Sprites/aurea_vanguarda.png", "ativa": True},
-                {"nome": "?", "imagem": "Sprites/aurea_misteriosa.png", "ativa": False}
-            ]
-            for nome in ["Racional", "Impulsiva", "Devota", "Vanguarda"]:
-                if nome not in upgrades:
-                    upgrades[nome] = 0
-
-            upgrades = carregar_upgrade_aureas("saves/aureas_upgrade.json")
-
-            selecionado = 0
-            clock = pygame.time.Clock()
-            largura, altura = tela.get_size()
-
-            largura_quadro = 120
-            altura_quadro = 140
-            espacamento = 50
-            colunas = 3
-
-            while True:
-                tela.fill((15, 15, 15))
-
-                for evento in pygame.event.get():
-                    if evento.type == pygame.QUIT:
-                        pygame.quit()
-                        exit()
-                    elif evento.type == pygame.KEYDOWN:
-                        if evento.key in [pygame.K_RIGHT, pygame.K_d]:
-                            selecionado = (selecionado + 1) % len(aureas)
-                            while not aureas[selecionado]["ativa"]:
-                                selecionado = (selecionado + 1) % len(aureas)
-                        elif evento.key in [pygame.K_LEFT, pygame.K_a]:
-                            selecionado = (selecionado - 1) % len(aureas)
-                            while not aureas[selecionado]["ativa"]:
-                                selecionado = (selecionado - 1) % len(aureas)
-                        elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
-                            nome = aureas[selecionado]["nome"]
-                            if aureas[selecionado]["ativa"] and nome != "?":
-                                if moedas_disponiveis > 0:
-                                    upgrades[nome] += 1
-                                    moedas_disponiveis -= 1
-                                    salvar_upgrade_aureas("saves/aureas_upgrade.json", upgrades)
-
-
-                                    # 🪙 salva o novo total no arquivo de atributos
-                                    with open("saves/atributos.json", "r") as f:
-                                        atributos = json.load(f)
-                                    atributos["moedas_totais"] = moedas_disponiveis
-                                    with open("saves/atributos.json", "w") as f:
-                                        json.dump(atributos, f)
-
-                        elif evento.key == pygame.K_ESCAPE:
-                            return
-
-                for i, aurea in enumerate(aureas):
-                    linha = i // colunas
-                    coluna = i % colunas
-
-                    x = largura // 2 - ((colunas * largura_quadro + (colunas - 1) * espacamento) // 2) + coluna * (largura_quadro + espacamento)
-                    y = altura // 4 + linha * (altura_quadro + 30)
-
-                    cor_borda = (255, 255, 255) if i == selecionado else (80, 80, 80)
-                    pygame.draw.rect(tela, cor_borda, (x, y, largura_quadro, altura_quadro), 3)
-
-                    # Texto com nome
-                    cor_texto = cor_borda
-                    nome_display = aurea["nome"]
-                    if nome_display != "?" and upgrades.get(nome_display, 0) > 0:
-                        nome_display += f" (Nv. {upgrades[nome_display]})"
-
-                    texto = fonte.render(nome_display, True, cor_texto)
-                    tela.blit(texto, (x + largura_quadro // 2 - texto.get_width() // 2, y - 25))
-
-
-
-                    # Texto com nível
-                    if aurea["ativa"] and aurea["nome"] != "?":
-                        nivel = upgrades.get(aurea["nome"], 0)
-                        texto_nivel = fonte.render(f"Nível {nivel}", True, (200, 200, 100))
-                        tela.blit(texto_nivel, (x + largura_quadro // 2 - texto_nivel.get_width() // 2, y + altura_quadro + 5))
-
-                    # Imagem
-                    try:
-                        imagem = pygame.image.load(aurea["imagem"]).convert_alpha()
-                        imagem = pygame.transform.scale(imagem, (largura_quadro, altura_quadro))
-                        tela.blit(imagem, (x, y))
-                    except:
-                        pass
-
-                # Mostrar moedas
-                texto_moedas = fonte.render(f"Moedas: {moedas_disponiveis}", True, (255, 255, 100))
-                tela.blit(texto_moedas, (50, 40))
-
-                instrucoes = fonte.render("← → para navegar | ENTER para melhorar | ESC para sair", True, (150, 150, 150))
-                tela.blit(instrucoes, (largura // 2 - instrucoes.get_width() // 2, altura - 60))
-
-                pygame.display.flip()
-                clock.tick(60)
 
 
 
@@ -852,6 +892,9 @@ def executar_jogo(game_manager=None):
         sprite_moeda = pygame.image.load("Sprites/moeda.png").convert_alpha()
         moedas_soltadas = []
         fragmentos_morte = []
+        global boss_morte_processada, grupo_fragmentos
+        boss_morte_processada = False
+        grupo_fragmentos = pygame.sprite.Group()
 
         def gerar_fragmentos_morte(inimigo, fase):
             if not (config_graficos.get("particulas_ativas", True) and config_graficos.get("efeitos_visuais", True)):
@@ -1042,6 +1085,14 @@ def executar_jogo(game_manager=None):
 
         ###################################################################################################PRINCIPAL#################################################################################################################
         #LOOP PRINCIPAL
+        # Cache do joystick (evita re-init a cada frame)
+        joystick_count = pygame.joystick.get_count()
+        if joystick_count > 0:
+            joystick = pygame.joystick.Joystick(0)
+            joystick.init()
+        else:
+            joystick = None
+
         running = True
         while running:
             tempo_atual = pygame.time.get_ticks()
@@ -1070,6 +1121,7 @@ def executar_jogo(game_manager=None):
             mouse_x = max(0, min(pos_mouse[0], largura_mapa - cursor_tamanho[0]))
             mouse_y = max(0, min(pos_mouse[1], altura_mapa - cursor_tamanho[1]))
             for event in pygame.event.get():
+                Variaveis.atualizar_estado_mouse(event)
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.KEYDOWN:
@@ -1108,7 +1160,7 @@ def executar_jogo(game_manager=None):
                     }
                     disparos.append(novo_disparo)
                     tempo_ultimo_disparo = tempo_atual  # Atualizar o tempo do último disparo
-                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3 and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade:  # Botão direito do mouse
+                elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade:
                     pos_mouse = pygame.mouse.get_pos()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
@@ -1138,7 +1190,15 @@ def executar_jogo(game_manager=None):
                     joy.init()
                 
                 from Tela_Pause import exibir_tela_pause
-                exibir_tela_pause(tela, cartas_compradas, joy)
+                ret_pause = exibir_tela_pause(tela, cartas_compradas, joy)
+                if ret_pause == "sair":
+                    if game_manager:
+                        from game_manager import EstadoJogo
+                        game_manager.mudar_estado(EstadoJogo.MENU_PRINCIPAL)
+                        raise CleanExit()
+                    else:
+                        running = False
+                        break
                 
                 retomar_cronometro()
                 pygame.event.set_grab(True)
@@ -1148,11 +1208,12 @@ def executar_jogo(game_manager=None):
 
             keys = pygame.key.get_pressed()
 
-            # Verificar eventos de joystick
+            # Verificar eventos de joystick de forma dinâmica e eficiente
             joystick_count = pygame.joystick.get_count()
             if joystick_count > 0:
-                joystick = pygame.joystick.Joystick(0)
-                joystick.init()
+                if joystick is None:
+                    joystick = pygame.joystick.Joystick(0)
+                    joystick.init()
             else:
                 joystick = None
 
@@ -1273,20 +1334,17 @@ def executar_jogo(game_manager=None):
 
 
             boss_info = {
-                "vivo": boss_vivo1,
-                "rect": pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura) if boss_vivo1 else None,
+                "vivo": boss_vivo1 and not boss_morte_processada,
+                "rect": pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura) if (boss_vivo1 and not boss_morte_processada) else None,
                 "atingido_por_onda": boss_atingido_por_onda,
                 "hit_flag": False
             }
             inimigos_mortos_neste_frame = processar_habilidade_onda(
                 ondas, correntes_eletricas, inimigos_comum, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda
             )
-            if boss_info.get("hit_flag"):
+            if boss_info.get("hit_flag") and not boss_morte_processada:
                 vida_boss -= dano_person_hit * 5
                 boss_atingido_por_onda = boss_info["atingido_por_onda"]
-                if vida_boss <= 0:
-                    boss_vivo1 = False
-                    vida_maxima_boss1 = 0
 
             # Atualizar e desenhar correntes elétricas
             inimigos_mortos_correntes = atualizar_e_desenhar_correntes(tela, correntes_eletricas, inimigos_comum, tempo_atual, dano_person_hit)
@@ -1455,7 +1513,7 @@ def executar_jogo(game_manager=None):
 
             tempo_atual = pygame.time.get_ticks()
 
-            if boss_vivo1:
+            if boss_vivo1 and not boss_morte_processada:
                 if not em_ataque_especial and pygame.time.get_ticks() - tempo_ultimo_ataque >= 5000:  # Intervalo entre ataques
                     # Inicia o ataque especial
                     em_ataque_especial = True
@@ -1680,7 +1738,7 @@ def executar_jogo(game_manager=None):
 
 
 
-                if boss_vivo1:
+                if boss_vivo1 and not boss_morte_processada:
                     # Define a direção de Petro em relação ao boss
                     dx = pos_x_chefe - pos_x_petro
                     dy = pos_y_chefe - pos_y_petro
@@ -1788,12 +1846,25 @@ def executar_jogo(game_manager=None):
 
 
 
-                if not boss_vivo1:
-                    rect_boss = pygame.Rect(pos_x_chefe, pos_y_chefe, 64, 64)
-                    rect_personagem = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+                # === PROCESSAR MORTE DO BOSS (uma única vez) ===
+                if (vida_boss <= 0 or (Ultimo_Estalo and vida_boss <= Executa_inimigo * vida_maxima_boss1)) and not boss_morte_processada:
+                    # Guardar posição antes de desativar
+                    posicao_morte_boss = (pos_x_chefe + chefe_largura // 2, pos_y_chefe + chefe_altura // 2)
+                    boss_vivo1 = False
+                    boss_morte_processada = True
+                    boss_envenenado = False
+                    em_ataque_especial = False
+                    # Criar o FragmentoTemporal na posição do boss
+                    fragmento = FragmentoTemporal(posicao_morte_boss)
+                    grupo_fragmentos.add(fragmento)
 
-                    if rect_boss.colliderect(rect_personagem):
-                        if toque == 0:
+                # === COLETA DO FRAGMENTO TEMPORAL ===
+                if boss_morte_processada and len(grupo_fragmentos) > 0:
+                    rect_personagem = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+                    for frag in grupo_fragmentos:
+                        if not frag.coletado and rect_personagem.colliderect(frag.rect):
+                            frag.coletado = True
+                            frag.kill()
                             Musica_tema_Boss1.stop()
                             salvar_atributos()
                             pausar_cronometro()
@@ -1806,61 +1877,54 @@ def executar_jogo(game_manager=None):
                                 GAME2.executar_jogo()
                                 raise CleanExit()
 
-
-                            toque+=1
-
-                # Dentro do loop principal
-                if vida_boss > 0:
+                # Barra de vida do boss (só se vivo e morte não processada)
+                if vida_boss > 0 and not boss_morte_processada:
                     pygame.draw.rect(tela, vermelho, (pos_x_barra_boss, pos_y_barra_boss, largura_barra_boss, altura_barra_boss))
                     pygame.draw.rect(tela, (143,33,252), (pos_x_barra_boss, pos_y_barra_boss, largura_barra_boss, (vida_boss / vida_maxima_boss1) * altura_barra_boss))
                     pygame.draw.rect(tela, (255, 255, 255), (pos_x_barra_boss, pos_y_barra_boss, largura_barra_boss, altura_barra_boss), 2)
-                if Ultimo_Estalo and vida_boss <= Executa_inimigo * vida_maxima_boss1:
-                    boss_vivo1=False
-
-                if vida_boss <= 0:
-                    frame_porcentagem=frames_chefe1_4
-                    boss_vivo1=False
 
 
 
 
-                for disparo in disparos:
-                    pos_x_disparo=disparo["rect"].x 
-                    pos_y_disparo=disparo["rect"].y 
-                    rect_disparo = pygame.Rect(pos_x_disparo, pos_y_disparo, largura_disparo, altura_disparo)
-                    rect_boss = pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)
+                # Disparos contra o boss (só se não morreu)
+                if not boss_morte_processada:
+                    for disparo in disparos:
+                        pos_x_disparo=disparo["rect"].x 
+                        pos_y_disparo=disparo["rect"].y 
+                        rect_disparo = pygame.Rect(pos_x_disparo, pos_y_disparo, largura_disparo, altura_disparo)
+                        rect_boss = pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)
 
-                    if rect_disparo.colliderect(rect_boss):
-                        if vida_boss > 0:  # Verifica se o chefe está vivo antes de aplicar dano
-                            if random.random() <= chance_critico:  # 10% de chance de dano crítico
-                                dano = dano_person_hit * 3  # Valor do dano crítico é 3 vezes o dano normal
-                                cor = (255, 255, 0)  # Amarelo (RGB)
-                                fonte_dano = fonte_dano_critico
-                            else:
-                                dano = dano_person_hit
-                                cor = (255, 0, 0)  # Vermelho (RGB)
-                                fonte_dano = fonte_dano_normal
+                        if rect_disparo.colliderect(rect_boss):
+                            if vida_boss > 0:  # Verifica se o chefe está vivo antes de aplicar dano
+                                if random.random() <= chance_critico:  # 10% de chance de dano crítico
+                                    dano = dano_person_hit * 3  # Valor do dano crítico é 3 vezes o dano normal
+                                    cor = (255, 255, 0)  # Amarelo (RGB)
+                                    fonte_dano = fonte_dano_critico
+                                else:
+                                    dano = dano_person_hit
+                                    cor = (255, 0, 0)  # Vermelho (RGB)
+                                    fonte_dano = fonte_dano_normal
 
-                        # Ativar veneno no Boss com 50% de chance, se ainda não estiver envenenado
-                        if not boss_envenenado and Poison_Active:
-                            boss_envenenado = True
-                            dano_por_tick_veneno_boss = vida_boss * (Dano_Veneno_Acumulado / 100)  # Exemplo: 0.05% da vida máxima
-                            tempo_inicio_veneno_boss = pygame.time.get_ticks()
-                            ultimo_tick_veneno_boss = pygame.time.get_ticks()
+                            # Ativar veneno no Boss com 50% de chance, se ainda não estiver envenenado
+                            if not boss_envenenado and Poison_Active:
+                                boss_envenenado = True
+                                dano_por_tick_veneno_boss = vida_boss * (Dano_Veneno_Acumulado / 100)
+                                tempo_inicio_veneno_boss = pygame.time.get_ticks()
+                                ultimo_tick_veneno_boss = pygame.time.get_ticks()
 
-                        # Renderizar texto do dano
-                        texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
-                        pos_texto = (pos_x_chefe + chefe_largura // 2 - texto_dano.get_width() // 2, pos_y_chefe - 20)
-                        tempo_texto_dano = pygame.time.get_ticks()
-                        vida_boss -= dano
-                        disparos.remove(disparo)
+                            # Renderizar texto do dano
+                            texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
+                            pos_texto = (pos_x_chefe + chefe_largura // 2 - texto_dano.get_width() // 2, pos_y_chefe - 20)
+                            tempo_texto_dano = pygame.time.get_ticks()
+                            vida_boss -= dano
+                            disparos.remove(disparo)
 
-                        # Roubo de vida
-                        if random.random() < roubo_de_vida:
-                            vida += (vida_maxima - vida) * quantidade_roubo_vida
+                            # Roubo de vida
+                            if random.random() < roubo_de_vida:
+                                vida += (vida_maxima - vida) * quantidade_roubo_vida
 
-                # Aplicar dano de veneno no Boss se ele estiver envenenado
-                if boss_envenenado:
+                # Aplicar dano de veneno no Boss se ele estiver envenenado (só se não morreu)
+                if boss_envenenado and not boss_morte_processada:
                     tempo_atual = pygame.time.get_ticks()
 
                     # Aplicar dano a cada 500 ms
@@ -1883,7 +1947,8 @@ def executar_jogo(game_manager=None):
                     # Desativar o veneno após o tempo de duração
                     if tempo_atual - tempo_inicio_veneno_boss >= duracao_veneno_boss:
                         boss_envenenado = False
-                if boss_vivo1:
+                # Colisão e renderização do boss (só se vivo e morte não processada)
+                if boss_vivo1 and not boss_morte_processada:
                     rect_boss = pygame.Rect(pos_x_chefe, pos_y_chefe, 200, 100)
 
                     rect_personagem = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
@@ -1891,7 +1956,7 @@ def executar_jogo(game_manager=None):
                     if rect_boss.colliderect(rect_personagem):
                         # Verifique se tempo suficiente passou desde o último ataque
                         tempo_atual = pygame.time.get_ticks()
-                        if tempo_atual - tempo_ultimo_ataque >= 2500:  # Tempo em milissegundos (2 segundos = 2000 milissegundos)
+                        if tempo_atual - tempo_ultimo_ataque >= 2500:
                             dano_boss_total=int((vida_maxima*0.10)+150+dano_boss)
                             if escudo_devota_ativo:
                                 escudo_devota_ativo= False
@@ -1907,20 +1972,16 @@ def executar_jogo(game_manager=None):
 
                     porcentagem_vida_boss = (vida_boss / vida_maxima_boss1) * 100
 
-                if porcentagem_vida_boss >=90 :
-                    frame_porcentagem=frames_chefe1_1
+                    if porcentagem_vida_boss >=90 :
+                        frame_porcentagem=frames_chefe1_1
+                    elif porcentagem_vida_boss <= 60 and porcentagem_vida_boss >=40:
+                        frame_porcentagem=frames_chefe1_2
+                    elif porcentagem_vida_boss <= 40 and porcentagem_vida_boss>0 :
+                        frame_porcentagem=frames_chefe1_3
+                        intervalo_mudanca_direcao_boss-=500
 
-
-                elif porcentagem_vida_boss <= 60 and porcentagem_vida_boss >=40:
-                    frame_porcentagem=frames_chefe1_2
-
-                elif porcentagem_vida_boss <= 40 and porcentagem_vida_boss>0 :
-
-                    frame_porcentagem=frames_chefe1_3
-                    intervalo_mudanca_direcao_boss-=500
-
-
-                tela.blit(frame_porcentagem[frame_atual_chefe], (pos_x_chefe, pos_y_chefe))
+                    # Renderizar sprite do boss SOMENTE se vivo
+                    tela.blit(frame_porcentagem[frame_atual_chefe], (pos_x_chefe, pos_y_chefe))
 
             for inimigo in inimigos_comum:
                 inimigo_rect = inimigo["rect"]
@@ -2109,7 +2170,7 @@ def executar_jogo(game_manager=None):
             total_cartas_compradas = sum(cartas_compradas.values())
             custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
             # Verifica se a pontuação atingiu o custo e se o jogador pressionou o botão da loja
-            if (pontuacao_exib >= custo_carta_atual) and (keys[config_teclas["Comprar na loja"]] or (joystick and joystick.get_button(3))):
+            if (pontuacao_exib >= custo_carta_atual) and (Variaveis.verificar_input("Comprar na loja") or (joystick and joystick.get_button(3))):
                 # Calcula quantas cartas o jogador pode comprar com o custo progressivo
                 max_cartas = 0
                 total_custo = 0
@@ -2263,10 +2324,10 @@ def executar_jogo(game_manager=None):
                 texto_dano = None
 
             cooldowns = {
-                "disparo": max(0, tempo_atual - tempo_ultimo_disparo >= intervalo_disparo),
-                "teleporte": max(0, pygame.time.get_ticks() - tempo_ultimo_dash > tempo_cooldown_dash),
-                "onda": max(0, tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade),
-                "loja": 1 if pontuacao_exib >= custo_carta_atual else 0, 
+                "disparo": max(0.0, (intervalo_disparo - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
+                "teleporte": max(0.0, (tempo_cooldown_dash - (pygame.time.get_ticks() - tempo_ultimo_dash)) / 1000.0),
+                "onda": max(0.0, (cooldown_habilidade - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
+                "loja": 1 if pontuacao_exib >= custo_carta_atual else 0,
             }
             if not area_icones.colliderect(
             (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
@@ -2613,6 +2674,11 @@ def executar_jogo(game_manager=None):
                         inimigos_em_chamas.pop(i_id, None)
             atualizar_e_desenhar_fragmentos(tela)
             atualizar_e_desenhar_particulas_pontos(tela)
+
+            # Atualizar e desenhar FragmentoTemporal (coletável do boss)
+            grupo_fragmentos.update()
+            for frag in grupo_fragmentos:
+                frag.draw(tela)
 
             # Atualizar e desenhar ondas de choque do teleporte
             ondas_ativas = []
