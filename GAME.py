@@ -14,6 +14,25 @@ import Variaveis
 from utils import *
 from audio_manager import carregar_config_audio, aplicar_volume_som
 from Tela_Upgrade_Aureas import tela_upgrade_aureas
+from Boss1_Ataques import gerenciador_ataques_boss1
+def desenhar_onda_arco(tela, x, y, raio, angulo_centro, tamanho_abertura, cor, largura):
+    ang_inicio = angulo_centro + tamanho_abertura / 2
+    ang_fim = angulo_centro + 2 * math.pi - tamanho_abertura / 2
+    passos = 60
+    pontos = []
+    for i in range(passos + 1):
+        ang = ang_inicio + (ang_fim - ang_inicio) * (i / passos)
+        px = x + math.cos(ang) * raio
+        py = y + math.sin(ang) * raio
+        pontos.append((px, py))
+    if len(pontos) > 1:
+        pygame.draw.lines(tela, cor, False, pontos, largura)
+
+boss_estagio_60_ativado = False
+boss_estagio_40_ativado = False
+tempo_boss_estagio_ataque_fim = 0
+boss_transicao_ondas = []
+ondas_lancadas_transicao = 0
 dt = 1.0
 
 # Forward declarations (atribuídos no loop principal)
@@ -25,6 +44,11 @@ duracao_incendio_vanguarda = 5000
 intervalo_escudo = 30000
 boss_morte_processada = False
 grupo_fragmentos = None
+tempo_stun_jogador_fim = 0
+knockback_x = 0.0
+knockback_y = 0.0
+tempo_boss_entrada_fim = 0
+boss_empurrou_jogador = False
 
 pygame.init()
 
@@ -364,6 +388,10 @@ class FragmentoTemporal(pygame.sprite.Sprite):
 
 def executar_jogo(game_manager=None):
     global dt
+    global tempo_boss_entrada_fim
+    global tempo_stun_jogador_fim, knockback_x, knockback_y, boss_empurrou_jogador
+    global boss_estagio_60_ativado, boss_estagio_40_ativado, tempo_boss_estagio_ataque_fim
+    global boss_transicao_ondas, ondas_lancadas_transicao
     global joystick, ondas_choque, Chance_Sorte, Dano_Boss_Habilit, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss1, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, Velocidade_Inimigos_1, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apertou_q, atributos, bonus_pontuacao, boss_envenenado, cartas_compradas, chance_critico, cooldown_dash, dano, dano_boss, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_atual_petro, disparos, dispositivo_ativo, distancia_dash, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_ataque_especial, escudo_devota_ativo, espacamento, f, fonte, frame_atual_chefe, frame_porcentagem, hitboxes, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, jogador_posicoes, lado, largura_disparo, largura_personagem, linha, mensagem, mensagem_ativa, mensagem_mostrada, mensagens_exibidas, moedas_coletadas, moedas_soltadas, moedas_totais, musica_boss1, ondas, petro_evolucao, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe, pos_x_personagem, pos_x_petro, pos_y_chefe, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, r_press, rect_boss, relogio, roubo_de_vida, running, sprite_moeda, teleportado, teleporte_duration, teleporte_index, teleporte_timer, tempo_anterior_petro, tempo_ataque_especial, tempo_atual, tempo_cooldown_dash, tempo_fase_completa, tempo_fim_mensagem, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_mostrando_mensagem, tempo_passado_animacao_chefe, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_mudanca_direcao_boss, tempo_ultima_regeneracao, tempo_ultimo_ataque, tempo_ultimo_dano_ataque, tempo_ultimo_dash, tempo_ultimo_uso_habilidade, texto, texto_dano, tipo_buff_impulsiva, toque, trembo, tutorial_dash_count, tutorial_fase, tutorial_lado_inicial, tutorial_parede_ativa, tutorial_parede_rect, tutorial_wasd, ultima_direcao_animacao, ultima_direcao_boss, ultima_tecla_movimento, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_boss2, vida_boss3, vida_boss4, vida_maxima, vida_maxima_boss1, vida_maxima_boss2, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, x, xp_petro, tutorial_inimigo_ativo, tutorial_inimigo, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
     class CleanExit(BaseException):
         pass
@@ -406,6 +434,7 @@ def executar_jogo(game_manager=None):
         boss_vivo1=False
         relogio = pygame.time.Clock()
         ultimo_tempo_reducao = time.time()
+        fator_lentidao_boss = 1.0
         alerta_boss_ativo = False
         tempo_inicio_alerta_boss = 0
         alerta_boss_mostrado_para = 0
@@ -484,7 +513,30 @@ def executar_jogo(game_manager=None):
             global dano_boss, Dano_Boss_Habilit, Velocidade_Inimigos_1, inimigos_eliminados, pontuacao
             global eliminacoes_consecutivas_impulsiva, eliminacoes_consecutivas, pontuacao_exib, bonus_pontuacao, vida_boss
             global vida_maxima_boss1, vida_boss2, vida_maxima_boss2, vida_boss3, vida_maxima_boss3, vida_boss4, vida_maxima_boss4
-            nonlocal vida_inimigo_maxima
+            global tempo_stun_jogador_fim, knockback_x, knockback_y
+            nonlocal vida_inimigo_maxima, fator_lentidao_boss
+
+            tempo_atual = pygame.time.get_ticks()
+            if tempo_atual < tempo_stun_jogador_fim:
+                # Jogador atordoado (stun) - não aceita comandos, mas sofre knockback
+                if knockback_x != 0 or knockback_y != 0:
+                    pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem + knockback_x * dt))
+                    pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem + knockback_y * dt))
+                    knockback_x *= 0.85
+                    knockback_y *= 0.85
+                    if abs(knockback_x) < 0.5: knockback_x = 0
+                    if abs(knockback_y) < 0.5: knockback_y = 0
+                direcao_atual = 'stop'
+                return 'stop'
+
+            # Aplica knockback mesmo sem estar atordoado
+            if knockback_x != 0 or knockback_y != 0:
+                pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem + knockback_x * dt))
+                pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem + knockback_y * dt))
+                knockback_x *= 0.85
+                knockback_y *= 0.85
+                if abs(knockback_x) < 0.5: knockback_x = 0
+                if abs(knockback_y) < 0.5: knockback_y = 0
 
             direcao_atual = 'stop'  # Por padrão, definimos a direção como 'stop'
             dx, dy = 0, 0
@@ -531,15 +583,15 @@ def executar_jogo(game_manager=None):
 
                     fator_normalizacao = 0.7071
                     pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
-                                                 pos_x_personagem + dx * velocidade_personagem * fator_normalizacao * dt))
+                                                 pos_x_personagem + dx * (velocidade_personagem * fator_lentidao_boss) * fator_normalizacao * dt))
                     pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
-                                                 pos_y_personagem + dy * velocidade_personagem * fator_normalizacao * dt))
+                                                 pos_y_personagem + dy * (velocidade_personagem * fator_lentidao_boss) * fator_normalizacao * dt))
                 else:
                     angulo_inclinacao_personagem = 0
                     pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
-                                                 pos_x_personagem + dx * velocidade_personagem * dt))
+                                                 pos_x_personagem + dx * (velocidade_personagem * fator_lentidao_boss) * dt))
                     pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
-                                                 pos_y_personagem + dy * velocidade_personagem * dt))
+                                                 pos_y_personagem + dy * (velocidade_personagem * fator_lentidao_boss) * dt))
             else:
                 angulo_inclinacao_personagem = 0
                 if botao_mouse[0]:
@@ -1096,6 +1148,7 @@ def executar_jogo(game_manager=None):
         running = True
         while running:
             tempo_atual = pygame.time.get_ticks()
+            fator_lentidao_boss = 1.0
             if impulsiva_ativa:
                 disparo_paths = ["Sprites/Fogo_impulso1.png", "Sprites/Fogo_impulso2.png"]
             else:
@@ -1147,7 +1200,7 @@ def executar_jogo(game_manager=None):
                                     json.dump({"mostrar_tutorial": False}, f)
                             except:
                                 pass
-                elif botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo:  # Botão esquerdo do mouse
+                elif botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo and tempo_atual >= tempo_stun_jogador_fim:  # Botão esquerdo do mouse
                     pos_mouse = pygame.mouse.get_pos()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
@@ -1160,7 +1213,7 @@ def executar_jogo(game_manager=None):
                     }
                     disparos.append(novo_disparo)
                     tempo_ultimo_disparo = tempo_atual  # Atualizar o tempo do último disparo
-                elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade:
+                elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade and tempo_atual >= tempo_stun_jogador_fim:
                     pos_mouse = pygame.mouse.get_pos()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
@@ -1303,6 +1356,7 @@ def executar_jogo(game_manager=None):
                     frame_atual = (frame_atual + 1) % len(frames_animacao[direcao_atual])
 
 
+            shake_x, shake_y = 0, 0
             tela.fill((255, 255, 255))
             tela.blit(mapa, (0, 0))
 
@@ -1514,40 +1568,129 @@ def executar_jogo(game_manager=None):
             tempo_atual = pygame.time.get_ticks()
 
             if boss_vivo1 and not boss_morte_processada:
-                if not em_ataque_especial and pygame.time.get_ticks() - tempo_ultimo_ataque >= 5000:  # Intervalo entre ataques
-                    # Inicia o ataque especial
-                    em_ataque_especial = True
-                    jogador_posicoes = []  # Reiniciar lista de posições
-                    tempo_ataque_especial = pygame.time.get_ticks()
+                if tempo_atual < tempo_boss_entrada_fim:
+                    progresso = (tempo_atual - (tempo_boss_entrada_fim - 2500)) / 2500.0
+                    target_y_chefe = altura_mapa // 2 - chefe_altura // 2
+                    pos_x_chefe = largura_mapa // 2 - chefe_largura // 2
+                    if progresso < 0.8:
+                        pos_y_chefe = -chefe_altura - 200 + (target_y_chefe + chefe_altura + 200) * (progresso / 0.8)
+                    else:
+                        pos_y_chefe = target_y_chefe
+                        # Tremor de tela do impacto
+                        boss_impacto_shake = 1.0 - (progresso - 0.8) / 0.2
+                        shake_intensity = int(15 * boss_impacto_shake)
+                        shake_x = random.randint(-shake_intensity, shake_intensity) if shake_intensity > 0 else 0
+                        shake_y = random.randint(-shake_intensity, shake_intensity) if shake_intensity > 0 else 0
+                        
+                        # Empurra o jogador radialmente se ele estiver embaixo do boss usando knockback suave
+                        if not boss_empurrou_jogador:
+                            boss_empurrou_jogador = True
+                            dx = (pos_x_personagem + largura_personagem // 2) - (largura_mapa // 2)
+                            dy = (pos_y_personagem + altura_personagem // 2) - (altura_mapa // 2)
+                            dist = math.sqrt(dx ** 2 + dy ** 2)
+                            if dist < 350:
+                                if dist == 0:
+                                    dx = 1
+                                    dist = 1.0
+                                kb_magnitude = max(15.0, 60.0 * (1.0 - dist / 350.0))
+                                knockback_x = (dx / dist) * kb_magnitude
+                                knockback_y = (dy / dist) * kb_magnitude
+                elif tempo_atual < tempo_boss_estagio_ataque_fim:
+                    pos_x_chefe = largura_mapa // 2 - chefe_largura // 2
+                    pos_y_chefe = altura_mapa // 2 - chefe_altura // 2
+                    
+                    tempo_decorrido = 6000 - (tempo_boss_estagio_ataque_fim - tempo_atual)
+                    if tempo_decorrido < 4800:
+                        ciclo = tempo_decorrido % 1200
+                        offset_y = -abs(math.sin(math.pi * ciclo / 1200) * 120)
+                    else:
+                        offset_y = 0
 
-                if em_ataque_especial:
-                    tempo_atual = pygame.time.get_ticks()
-                    indice_imagem = (tempo_atual - tempo_ataque_especial) // intervalo_troca
+                    # Spawn de ondas no final de cada pulo (ao bater no chão)
+                    onda_alvo = int(tempo_decorrido // 1200)
+                    if onda_alvo > ondas_lancadas_transicao and onda_alvo <= 4:
+                        ondas_lancadas_transicao = onda_alvo
+                        tipo_onda = "incompleta" if random.random() > 0.4 else "completa"
+                        nova_onda = {
+                            "x": pos_x_chefe + chefe_largura // 2,
+                            "y": pos_y_chefe + chefe_altura // 2,
+                            "raio": 0.0,
+                            "largura_linha": 12,
+                            "tipo": tipo_onda,
+                            "angulo_abertura_centro": random.uniform(0, 2 * math.pi),
+                            "tamanho_abertura": random.uniform(math.pi / 4, math.pi / 2), # 45 a 90 graus
+                            "velocidade": 350.0,
+                            "dano": int(vida_maxima * 0.15),
+                            "atingiu_player": False
+                        }
+                        boss_transicao_ondas.append(nova_onda)
+                else:
+                    pos_x_personagem, pos_y_personagem, vida, escudo_devota_ativo, slow_f, pos_chefe_nova, stun_req, kb_x_boss, kb_y_boss = gerenciador_ataques_boss1.update(
+                        dt, [pos_x_personagem, pos_y_personagem], largura_personagem, altura_personagem,
+                        vida, vida_maxima, escudo_devota_ativo, Dano_Boss_Habilit,
+                        [pos_x_chefe, pos_y_chefe], chefe_largura, chefe_altura, vida_boss, vida_maxima_boss1,
+                        largura_mapa, altura_mapa, tempo_atual
+                    )
+                    pos_x_chefe, pos_y_chefe = pos_chefe_nova
+                    fator_lentidao_boss = min(fator_lentidao_boss, slow_f)
+                    if stun_req > 0:
+                        tempo_stun_jogador_fim = tempo_atual + stun_req
+                        knockback_x = kb_x_boss
+                        knockback_y = kb_y_boss
+                        Dano_person.play()
+                        piscando_vida = True
+                        tempo_ultimo_hit_inimigo = tempo_atual
+                
+                gerenciador_ataques_boss1.draw(tela)
 
-                    # Atualizar a posição somente no início de cada intervalo, exceto no quinto frame
-                    if len(jogador_posicoes) <= indice_imagem < len(imagens_ataque) - 2:
-                        jogador_posicoes.append((pos_x_personagem, pos_y_personagem))
-
-                    ataque_concluido = ataque_especial_boss(jogador_posicoes, imagens_ataque, tempo_ataque_especial, intervalo_troca, tela)
-                    if ataque_concluido:
-                        em_ataque_especial = False
-                        tempo_ultimo_ataque = pygame.time.get_ticks()
-
-            # Verificar colisões com as bolhas e aplicar dano no loop principal
-            if em_ataque_especial:
-                personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-                for i, posicao in enumerate(jogador_posicoes[-1:]):
-                    if i < len(imagens_ataque):
-                        bolha_rect = pygame.Rect(posicao[0], posicao[1], 100, 100)  # Ajuste o tamanho da bolha aqui
-                        hitboxes[i] = bolha_rect
-                        # Verificar colisão com o personagem
-                        if len(jogador_posicoes) == indice_imagem  and personagem_rect.colliderect(bolha_rect):
+                # Atualizar e desenhar ondas de transição
+                novas_ondas_transicao = []
+                for wave in boss_transicao_ondas:
+                    wave["raio"] += wave["velocidade"] * (dt_ms / 1000.0)
+                    
+                    cor_borda = (150, 0, 255)
+                    cor_centro = (0, 255, 255)
+                    if wave["tipo"] == "completa":
+                        pygame.draw.circle(tela, cor_borda, (int(wave["x"]), int(wave["y"])), int(wave["raio"]), wave["largura_linha"] + 4)
+                        pygame.draw.circle(tela, cor_centro, (int(wave["x"]), int(wave["y"])), int(wave["raio"]), wave["largura_linha"] - 4)
+                    else:
+                        desenhar_onda_arco(tela, wave["x"], wave["y"], wave["raio"], wave["angulo_abertura_centro"], wave["tamanho_abertura"], cor_borda, wave["largura_linha"] + 4)
+                        desenhar_onda_arco(tela, wave["x"], wave["y"], wave["raio"], wave["angulo_abertura_centro"], wave["tamanho_abertura"], cor_centro, wave["largura_linha"] - 4)
+                    
+                    # Colisão
+                    dist = math.sqrt((pos_x_personagem + largura_personagem // 2 - wave["x"]) ** 2 + (pos_y_personagem + altura_personagem // 2 - wave["y"]) ** 2)
+                    if abs(dist - wave["raio"]) <= wave["largura_linha"] / 2 + max(largura_personagem, altura_personagem) / 2:
+                        safe = False
+                        if wave["tipo"] == "incompleta":
+                            player_ang = math.atan2(pos_y_personagem + altura_personagem // 2 - wave["y"], pos_x_personagem + largura_personagem // 2 - wave["x"])
+                            player_ang = player_ang % (2 * math.pi)
+                            ang_inicio = (wave["angulo_abertura_centro"] - wave["tamanho_abertura"] / 2) % (2 * math.pi)
+                            ang_fim = (wave["angulo_abertura_centro"] + wave["tamanho_abertura"] / 2) % (2 * math.pi)
+                            
+                            if ang_inicio < ang_fim:
+                                if ang_inicio <= player_ang <= ang_fim:
+                                    safe = True
+                            else:
+                                if player_ang >= ang_inicio or player_ang <= ang_fim:
+                                    safe = True
+                        
+                        if not safe and not wave["atingiu_player"]:
+                            wave["atingiu_player"] = True
+                            dano_onda = wave["dano"]
                             if escudo_devota_ativo:
-                                escudo_devota_ativo= False
-                                pass
-                            elif pygame.time.get_ticks() - tempo_ultimo_dano_ataque >= 5000:  # Dano a cada 4 segundos
-                                vida -= (vida_maxima * 0.10) + Dano_Boss_Habilit
-                                tempo_ultimo_dano_ataque= pygame.time.get_ticks()
+                                escudo_devota_ativo = False
+                            elif Resistencia < dano_onda:
+                                vida -= int(dano_onda - Resistencia)
+                            
+                            shake_x = random.randint(-12, 12)
+                            shake_y = random.randint(-12, 12)
+                            Dano_person.play()
+                            piscando_vida = True
+                            tempo_ultimo_hit_inimigo = tempo_atual
+
+                    if wave["raio"] < 1200:
+                        novas_ondas_transicao.append(wave)
+                boss_transicao_ondas = novas_ondas_transicao
 
 
             ###############################################   DESENHA O PERSONAGEM NA TELA ################################
@@ -1792,10 +1935,11 @@ def executar_jogo(game_manager=None):
                     # Defina o volume da música (opcional)
                     Musica_tema_Boss1.play(loops=-1)
                     musica_boss1+=1
-
-
-
-
+                    tempo_boss_entrada_fim = tempo_atual + 2500
+                    tempo_stun_jogador_fim = tempo_boss_entrada_fim
+                    boss_empurrou_jogador = False
+                    pos_x_chefe = largura_mapa // 2 - chefe_largura // 2
+                    pos_y_chefe = -chefe_altura - 200  # Começa no céu
                 # Lógica para animar o chefe
                 tempo_passado_animacao_chefe += relogio.get_rawtime()
                 if tempo_passado_animacao_chefe >= tempo_animacao_chefe:
@@ -1808,27 +1952,33 @@ def executar_jogo(game_manager=None):
                 if tempo_atual - tempo_ultima_mudanca_direcao_boss >= intervalo_mudanca_direcao_boss:
 
                     direcoes_possiveis = ['up', 'down', 'left', 'right']
-                    direcoes_possiveis.remove(ultima_direcao_boss)  # Remova a direção anterior
+                    if ultima_direcao_boss in direcoes_possiveis:
+                        direcoes_possiveis.remove(ultima_direcao_boss)  # Remova a direção anterior
                     ultima_direcao_boss = random.choice(direcoes_possiveis)
                     tempo_ultima_mudanca_direcao_boss = tempo_atual  # Atualize o tempo da última mudança de direção
-
 
                 if boss_vivo1:
                     inimigos_comum = []  # Limpe a lista de inimigos comuns
                     # Movimentação do boss
 
+                    if tempo_atual < tempo_boss_entrada_fim or tempo_atual < tempo_boss_estagio_ataque_fim:
+                        pass
+                    elif gerenciador_ataques_boss1.boss_movendo_por_ataque():
+                        pass
+                    else:
+                        # Carapaça quebrando e boss mais raivoso/leve -> mais rápido
+                        velocidade_chefe_calculada = Velocidade_boss * (1.0 + (1.0 - (vida_boss / max(1.0, vida_maxima_boss1))) * 1.5)
+                        if ultima_direcao_boss == 'up':
+                            pos_y_chefe = max(0, pos_y_chefe - velocidade_chefe_calculada * dt)  # Garanta que o boss não ultrapasse o topo
+                        elif ultima_direcao_boss == 'down':
+                            pos_y_chefe = min(altura_mapa - chefe_altura, pos_y_chefe + velocidade_chefe_calculada * dt)  # Garanta que o boss não ultrapasse a base
+                        elif ultima_direcao_boss == 'left':
+                            pos_x_chefe = max(0, pos_x_chefe - velocidade_chefe_calculada * dt)  # Garanta que o boss não ultrapasse a borda esquerda
+                        elif ultima_direcao_boss == 'right':
+                            pos_x_chefe = min(largura_mapa - chefe_largura, pos_x_chefe + velocidade_chefe_calculada * dt)  # Garanta que o boss não ultrapasse a borda direita
 
-                    if ultima_direcao_boss == 'up':
-                        pos_y_chefe = max(0, pos_y_chefe - Velocidade_boss * dt)  # Garanta que o boss não ultrapasse o topo
-                    elif ultima_direcao_boss == 'down':
-                        pos_y_chefe = min(altura_mapa - chefe_altura, pos_y_chefe + Velocidade_boss * dt)  # Garanta que o boss não ultrapasse a base
-                    elif ultima_direcao_boss == 'left':
-                        pos_x_chefe = max(0, pos_x_chefe - Velocidade_boss * dt)  # Garanta que o boss não ultrapasse a borda esquerda
-                    elif ultima_direcao_boss == 'right':
-                        pos_x_chefe = min(largura_mapa - chefe_largura, pos_x_chefe + Velocidade_boss * dt)  # Garanta que o boss não ultrapasse a borda direita
-
-                    # Verifica se o boss chegou à borda da tela
-                    if pos_x_chefe <= 0 or pos_x_chefe >= largura_mapa - chefe_largura or pos_y_chefe <= 0 or pos_y_chefe >= altura_mapa - chefe_altura:
+                    # Verifica se o boss chegou à borda da tela (apenas se não estiver movendo por ataque)
+                    if not gerenciador_ataques_boss1.boss_movendo_por_ataque() and (pos_x_chefe <= 0 or pos_x_chefe >= largura_mapa - chefe_largura or pos_y_chefe <= 0 or pos_y_chefe >= altura_mapa - chefe_altura):
                         # Se sim, mude para a direção oposta (você pode definir as direções conforme necessário)
                         if ultima_direcao_boss == 'up':
                             ultima_direcao_boss = 'down'
@@ -1854,6 +2004,7 @@ def executar_jogo(game_manager=None):
                     boss_morte_processada = True
                     boss_envenenado = False
                     em_ataque_especial = False
+                    gerenciador_ataques_boss1.ataques_ativos.clear()
                     # Criar o FragmentoTemporal na posição do boss
                     fragmento = FragmentoTemporal(posicao_morte_boss)
                     grupo_fragmentos.add(fragmento)
@@ -1972,16 +2123,97 @@ def executar_jogo(game_manager=None):
 
                     porcentagem_vida_boss = (vida_boss / vida_maxima_boss1) * 100
 
-                    if porcentagem_vida_boss >=90 :
-                        frame_porcentagem=frames_chefe1_1
-                    elif porcentagem_vida_boss <= 60 and porcentagem_vida_boss >=40:
-                        frame_porcentagem=frames_chefe1_2
-                    elif porcentagem_vida_boss <= 40 and porcentagem_vida_boss>0 :
-                        frame_porcentagem=frames_chefe1_3
-                        intervalo_mudanca_direcao_boss-=500
+                    # Gatilho de mudança de estágio/fase (menos de 60% e menos de 40%)
+                    if porcentagem_vida_boss < 60 and not boss_estagio_60_ativado:
+                        boss_estagio_60_ativado = True
+                        tempo_boss_estagio_ataque_fim = tempo_atual + 6000
+                        ondas_lancadas_transicao = 0
+                        boss_transicao_ondas = []
+                    elif porcentagem_vida_boss < 40 and not boss_estagio_40_ativado:
+                        boss_estagio_40_ativado = True
+                        tempo_boss_estagio_ataque_fim = tempo_atual + 6000
+                        ondas_lancadas_transicao = 0
+                        boss_transicao_ondas = []
+
+                    if porcentagem_vida_boss >= 60:
+                        frame_porcentagem = frames_chefe1_1
+                    elif 40 <= porcentagem_vida_boss < 60:
+                        frame_porcentagem = frames_chefe1_2
+                    else:
+                        frame_porcentagem = frames_chefe1_3
+                        intervalo_mudanca_direcao_boss -= 500
+
+                    # Efeitos visuais de entrada do boss (portal e sombra)
+                    if tempo_atual < tempo_boss_entrada_fim:
+                        progresso = (tempo_atual - (tempo_boss_entrada_fim - 2500)) / 2500.0
+                        target_y = altura_mapa // 2 - chefe_altura // 2
+                        
+                        # Desenha portal cósmico no chão
+                        portal_radius = int(chefe_largura * 0.7 * (1.0 + 0.1 * math.sin(tempo_atual * 0.01)))
+                        portal_surf = pygame.Surface((portal_radius * 2, portal_radius * 2), pygame.SRCALPHA)
+                        pygame.draw.circle(portal_surf, (20, 0, 40, 120), (portal_radius, portal_radius), portal_radius)
+                        pygame.draw.circle(portal_surf, (150, 0, 255, 180), (portal_radius, portal_radius), int(portal_radius * 0.8), 5)
+                        pygame.draw.circle(portal_surf, (0, 200, 255, 220), (portal_radius, portal_radius), int(portal_radius * 0.5), 3)
+                        # Linhas do portal girando
+                        for angle_deg in range(0, 360, 45):
+                            rad = math.radians(angle_deg + tempo_atual * 0.05)
+                            sx = portal_radius + math.cos(rad) * portal_radius * 0.3
+                            sy = portal_radius + math.sin(rad) * portal_radius * 0.3
+                            ex = portal_radius + math.cos(rad) * portal_radius * 0.9
+                            ey = portal_radius + math.sin(rad) * portal_radius * 0.9
+                            pygame.draw.line(portal_surf, (255, 100, 255, 200), (sx, sy), (ex, ey), 4)
+                        tela.blit(portal_surf, (largura_mapa // 2 - portal_radius, target_y + chefe_altura // 2 - portal_radius))
+                        
+                        # Desenha sombra do boss se caindo
+                        if progresso < 0.8:
+                            shadow_surf = pygame.Surface((int(chefe_largura), int(chefe_altura // 2)), pygame.SRCALPHA)
+                            pygame.draw.ellipse(shadow_surf, (0, 0, 0, int(150 * (progresso / 0.8))), (0, 0, shadow_surf.get_width(), shadow_surf.get_height()))
+                            tela.blit(shadow_surf, (largura_mapa // 2 - shadow_surf.get_width() // 2, target_y + chefe_altura // 2 - shadow_surf.get_height() // 2))
+                    
+                    # Desenhar sombra sob o boss pulando na transição
+                    elif tempo_atual < tempo_boss_estagio_ataque_fim:
+                        tempo_decorrido = 6000 - (tempo_boss_estagio_ataque_fim - tempo_atual)
+                        if tempo_decorrido < 4800:
+                            ciclo = tempo_decorrido % 1200
+                            altura_pulo = abs(math.sin(math.pi * ciclo / 1200))
+                            sombra_fator = 1.0 - (altura_pulo * 0.5)
+                            shadow_w = int(chefe_largura * sombra_fator)
+                            shadow_h = int((chefe_altura // 2) * sombra_fator)
+                            shadow_surf = pygame.Surface((shadow_w, shadow_h), pygame.SRCALPHA)
+                            pygame.draw.ellipse(shadow_surf, (0, 0, 0, int(150 * sombra_fator)), (0, 0, shadow_w, shadow_h))
+                            tela.blit(shadow_surf, (pos_x_chefe + chefe_largura // 2 - shadow_w // 2, pos_y_chefe + chefe_altura // 2 - shadow_h // 2))
+
+                    # Determinar Y com offsets
+                    desenho_y = pos_y_chefe
+                    if tempo_atual < tempo_boss_estagio_ataque_fim and tempo_atual >= tempo_boss_entrada_fim:
+                        tempo_decorrido = 6000 - (tempo_boss_estagio_ataque_fim - tempo_atual)
+                        if tempo_decorrido < 4800:
+                            ciclo = tempo_decorrido % 1200
+                            desenho_y += -abs(math.sin(math.pi * ciclo / 1200) * 120)
 
                     # Renderizar sprite do boss SOMENTE se vivo
-                    tela.blit(frame_porcentagem[frame_atual_chefe], (pos_x_chefe, pos_y_chefe))
+                    tela.blit(frame_porcentagem[frame_atual_chefe], (pos_x_chefe, desenho_y))
+
+                    # Efeitos de entrada pós-impacto (ondas de choque e título)
+                    if tempo_atual < tempo_boss_entrada_fim:
+                        progresso = (tempo_atual - (tempo_boss_entrada_fim - 2500)) / 2500.0
+                        target_y = altura_mapa // 2 - chefe_altura // 2
+                        
+                        if progresso >= 0.8:
+                            fator_impacto = (progresso - 0.8) / 0.2
+                            shock_r = int(chefe_largura * 0.6 + fator_impacto * 600)
+                            pygame.draw.circle(tela, (255, 255, 255, int(255 * (1.0 - fator_impacto))), (int(largura_mapa // 2), int(target_y + chefe_altura // 2)), shock_r, 6)
+                            pygame.draw.circle(tela, (0, 191, 255, int(180 * (1.0 - fator_impacto))), (int(largura_mapa // 2), int(target_y + chefe_altura // 2)), int(shock_r * 0.8), 4)
+                        
+                        # Nome do Boss em destaque
+                        font_boss = pygame.font.Font(None, 64)
+                        text_glow = font_boss.render("CARANGUEJO CÓSMICO GIGANTE", True, (150, 0, 255))
+                        text_main = font_boss.render("CARANGUEJO CÓSMICO GIGANTE", True, (255, 255, 255))
+                        tx = largura_tela // 2 - text_main.get_width() // 2
+                        ty = altura_tela // 4
+                        for ox, oy in [(-2, -2), (2, -2), (-2, 2), (2, 2)]:
+                            tela.blit(text_glow, (tx + ox, ty + oy))
+                        tela.blit(text_main, (tx, ty))
 
             for inimigo in inimigos_comum:
                 inimigo_rect = inimigo["rect"]
@@ -2736,6 +2968,13 @@ def executar_jogo(game_manager=None):
 
             tela.blit(cursor_imagem, (mouse_x, mouse_y))
             exibir_cronometro(tela)
+
+            # Aplica tremor de tela se necessário
+            if shake_x != 0 or shake_y != 0:
+                shake_temp = tela.copy()
+                tela.fill((10, 5, 20))  # Cor cósmica escura de fundo
+                tela.blit(shake_temp, (shake_x, shake_y))
+
             pygame.display.flip()
             dt_ms = FPS.tick(config_graficos.get("fps_limite", 60))  # Limita a taxa de quadros conforme configuração
             dt = max(0.05, min(3.0, dt_ms / 16.666667))

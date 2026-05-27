@@ -16,6 +16,7 @@ from Variaveis import largura_tela, altura_tela, python
 from rede import descobrir_host_udp, conectar_ao_host
 from audio_manager import carregar_config_audio, aplicar_volume_musica, aplicar_volume_som
 from utils import configurar_tela, tocar_trailer_se_necessario, redimensionar_cover, carregar_upgrade_aureas
+from sons_procedurais import tocar_hover, tocar_selecionar
 
 
 # --- Declaração de Variáveis Globais (Inicialização Adiada para Evitar Telas Pretas por Dupla Importação) ---
@@ -196,67 +197,354 @@ def tela_inserir_nome(tela):
                         nome += evento.unicode
         clock.tick(60)
 
+def mostrar_erro_lan(tela, font_titulo, font_desc):
+    largura, altura = tela.get_size()
+    duracao = 3000
+    inicio = pygame.time.get_ticks()
+    
+    while pygame.time.get_ticks() - inicio < duracao:
+        tela.fill((15, 12, 20))
+        
+        # Grade cibernética sutil
+        for gx in range(40, largura, 80):
+            for gy in range(40, altura, 80):
+                pygame.draw.circle(tela, (255, 80, 80, 12), (gx, gy), 1)
+                
+        # Mensagem de erro centralizada
+        txt_err = font_titulo.render("SEM CONEXAO ENCONTRADA", True, (255, 80, 80))
+        txt_desc = font_desc.render("Nao foi possivel encontrar nenhuma partida LAN ativa na rede local.", True, (200, 200, 200))
+        txt_desc2 = font_desc.render("Certifique-se de que o host iniciou a partida e tente novamente.", True, (140, 140, 150))
+        
+        tela.blit(txt_err, (largura // 2 - txt_err.get_width() // 2, altura // 2 - 50))
+        tela.blit(txt_desc, (largura // 2 - txt_desc.get_width() // 2, altura // 2 + 10))
+        tela.blit(txt_desc2, (largura // 2 - txt_desc2.get_width() // 2, altura // 2 + 40))
+        
+        pygame.display.flip()
+        pygame.time.Clock().tick(60)
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type in [pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN]:
+                return # Pula o aviso com qualquer entrada
+
 def tela_escolha_modo():
-    import socket, pyperclip
+    import socket, pyperclip, random
     from rede import descobrir_host_udp
     pygame.init()
     largura, altura = largura_tela, altura_tela
     tela = pygame.display.get_surface() or pygame.display.set_mode((largura, altura))
     pygame.display.set_caption("Escolher Modo de Jogo")
-    fonte = pygame.font.Font("Texto/World.otf", 36)
+    
+    # Carregar fontes com fallback seguro
+    try:
+        font_titulo = pygame.font.Font("Texto/Top_Menu.otf", 44)
+    except:
+        font_titulo = pygame.font.Font(None, 44)
+        
+    try:
+        font_card_title = pygame.font.Font("Texto/World.otf", 26)
+    except:
+        font_card_title = pygame.font.Font(None, 26)
+        
+    try:
+        font_card_desc = pygame.font.Font("Texto/rainyhearts.ttf", 20)
+    except:
+        font_card_desc = pygame.font.Font(None, 20)
+        
+    try:
+        font_btn = pygame.font.Font("Texto/World.otf", 24)
+    except:
+        font_btn = pygame.font.Font(None, 24)
+        
     clock = pygame.time.Clock()
-
-    opcoes = ["Host Game", "Join Game", "Offline"]
-    selecionado = 0
+    
+    # Fase: "principal" (Solo ou Coop) ou "coop_sub" (Criar ou Entrar)
+    fase_tela = "principal"
+    selecionado_principal = 0  # 0: Jogar Solo, 1: Cooperativo
+    selecionado_sub = 0        # 0: Criar, 1: Entrar, 2: Voltar
+    
+    # Partículas sutis ao fundo
+    particulas = []
+    for _ in range(25):
+        particulas.append({
+            "x": random.uniform(0, largura),
+            "y": random.uniform(0, altura),
+            "vy": random.uniform(-0.6, -0.2),
+            "alpha": random.randint(30, 95),
+            "size": random.uniform(1.2, 2.5)
+        })
+        
+    btn_back_rect = pygame.Rect(40, 40, 120, 36)
     
     while True:
-        tela.fill((15, 15, 15))
-        titulo = fonte.render("Selecione o modo de jogo", True, (255, 255, 255))
-        tela.blit(titulo, (largura // 2 - titulo.get_width() // 2, altura // 6))
-
-        for i, texto in enumerate(opcoes):
-            cor = (255, 255, 255) if i == selecionado else (120, 120, 120)
-            render = fonte.render(texto, True, cor)
-            tela.blit(render, (largura // 2 - render.get_width() // 2, altura // 3 + i * 70))
-
-        pygame.display.flip()
-        clock.tick(60)
-
+        agora = pygame.time.get_ticks()
+        
+        # Desenhar Fundo Escuro Sci-Fi
+        tela.fill((10, 8, 16))
+        
+        # Desenhar Grade Tecnológica de Pontos
+        for gx in range(40, largura, 80):
+            for gy in range(40, altura, 80):
+                pygame.draw.circle(tela, (0, 255, 204, 10), (gx, gy), 1)
+                
+        # Atualizar e Desenhar Partículas
+        for p in particulas:
+            p["y"] += p["vy"]
+            if p["y"] < 0:
+                p["y"] = altura
+                p["x"] = random.uniform(0, largura)
+                
+            p_surf = pygame.Surface((int(p["size"]*2), int(p["size"]*2)), pygame.SRCALPHA)
+            pygame.draw.circle(p_surf, (0, 255, 204, p["alpha"]), (int(p["size"]), int(p["size"])), int(p["size"]))
+            tela.blit(p_surf, (int(p["x"]), int(p["y"])))
+            
+        # Título
+        txt_titulo = font_titulo.render("MODO DE JOGO", True, (255, 255, 255))
+        tela.blit(txt_titulo, (largura // 2 - txt_titulo.get_width() // 2, 70))
+        
+        mx, my = pygame.mouse.get_pos()
+        clicado = False
+        
+        # Botão Voltar no Canto Superior Esquerdo
+        is_hover_back = btn_back_rect.collidepoint(mx, my)
+        color_back = (180, 100, 255) if is_hover_back else (100, 100, 110)
+        bg_back = (25, 20, 38, 200) if is_hover_back else (12, 10, 18, 120)
+        
+        surf_back = pygame.Surface((120, 36), pygame.SRCALPHA)
+        pygame.draw.rect(surf_back, bg_back, (0, 0, 120, 36), border_radius=8)
+        pygame.draw.rect(surf_back, color_back, (0, 0, 120, 36), width=1, border_radius=8)
+        
+        txt_back = font_card_desc.render("< VOLTAR", True, color_back)
+        surf_back.blit(txt_back, (60 - txt_back.get_width() // 2, 18 - txt_back.get_height() // 2))
+        tela.blit(surf_back, (40, 40))
+        
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 return None, None
-            elif evento.type == pygame.KEYDOWN:
-                if evento.key in [pygame.K_UP, pygame.K_w]:
-                    selecionado = (selecionado - 1) % len(opcoes)
-                elif evento.key in [pygame.K_DOWN, pygame.K_s]:
-                    selecionado = (selecionado + 1) % len(opcoes)
-                elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
-                    escolha = opcoes[selecionado]
-                    # -----------------------------
-                    # MODO HOST
-                    # -----------------------------
-                    if escolha == "Host Game":
-                        return "host", None
-
-                    # -----------------------------
-                    # MODO JOIN
-                    # -----------------------------
-                    elif escolha == "Join Game":
-                        ip_encontrado = descobrir_host_udp(timeout=5)
-                        if ip_encontrado:
-                            return "join", ip_encontrado
+            elif evento.type == pygame.MOUSEBUTTONDOWN:
+                if evento.button == 1:
+                    clicado = True
+                    if btn_back_rect.collidepoint(evento.pos):
+                        tocar_selecionar()
+                        if fase_tela == "coop_sub":
+                            fase_tela = "principal"
+                            selecionado_sub = 0
                         else:
-                            tela.fill((15, 15, 15))
-                            msg = fonte.render("Nenhum host LAN encontrado.", True, (255, 80, 80))
-                            tela.blit(msg, (largura // 2 - msg.get_width() // 2, altura // 2))
-                            pygame.display.flip()
-                            pygame.time.delay(3000)
-
-                    # -----------------------------
-                    # MODO OFFLINE
-                    # -----------------------------
-                    elif escolha == "Offline":
-                        return "offline", None
+                            return None, None
+            elif evento.type == pygame.KEYDOWN:
+                if evento.key == pygame.K_ESCAPE:
+                    tocar_selecionar()
+                    if fase_tela == "coop_sub":
+                        fase_tela = "principal"
+                        selecionado_sub = 0
+                    else:
+                        return None, None
+                elif evento.key in [pygame.K_LEFT, pygame.K_a, pygame.K_UP, pygame.K_w]:
+                    tocar_hover()
+                    if fase_tela == "principal":
+                        selecionado_principal = (selecionado_principal - 1) % 2
+                    elif fase_tela == "coop_sub":
+                        selecionado_sub = (selecionado_sub - 1) % 3
+                elif evento.key in [pygame.K_RIGHT, pygame.K_d, pygame.K_DOWN, pygame.K_s]:
+                    tocar_hover()
+                    if fase_tela == "principal":
+                        selecionado_principal = (selecionado_principal + 1) % 2
+                    elif fase_tela == "coop_sub":
+                        selecionado_sub = (selecionado_sub + 1) % 3
+                elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    tocar_selecionar()
+                    if fase_tela == "principal":
+                        if selecionado_principal == 0:
+                            return "offline", None
+                        else:
+                            fase_tela = "coop_sub"
+                            selecionado_sub = 0
+                    elif fase_tela == "coop_sub":
+                        if selecionado_sub == 0:
+                            return "host", None
+                        elif selecionado_sub == 1:
+                            ip_encontrado = descobrir_host_udp(timeout=4)
+                            if ip_encontrado:
+                                return "join", ip_encontrado
+                            else:
+                                mostrar_erro_lan(tela, font_card_title, font_card_desc)
+                        elif selecionado_sub == 2:
+                            fase_tela = "principal"
+                            selecionado_sub = 0
+            
+            # Suporte a Controle / Gamepad
+            elif evento.type == pygame.JOYBUTTONDOWN and controle is not None:
+                if evento.button == 0:  # Botão A
+                    tocar_selecionar()
+                    if fase_tela == "principal":
+                        if selecionado_principal == 0:
+                            return "offline", None
+                        else:
+                            fase_tela = "coop_sub"
+                            selecionado_sub = 0
+                    elif fase_tela == "coop_sub":
+                        if selecionado_sub == 0:
+                            return "host", None
+                        elif selecionado_sub == 1:
+                            ip_encontrado = descobrir_host_udp(timeout=4)
+                            if ip_encontrado:
+                                return "join", ip_encontrado
+                            else:
+                                mostrar_erro_lan(tela, font_card_title, font_card_desc)
+                        elif selecionado_sub == 2:
+                            fase_tela = "principal"
+                            selecionado_sub = 0
+                elif evento.button == 1:  # Botão B
+                    tocar_selecionar()
+                    if fase_tela == "coop_sub":
+                        fase_tela = "principal"
+                        selecionado_sub = 0
+                    else:
+                        return None, None
+                            
+        # Renderizar Fase Principal: Cards lado a lado
+        if fase_tela == "principal":
+            card_y = altura // 2 - 90
+            card_w = 265
+            card_h = 245
+            
+            # --- CARD ESQUERDO: JOGAR SOLO ---
+            card_l_x = largura // 2 - 295
+            rect_solo = pygame.Rect(card_l_x, card_y, card_w, card_h)
+            is_hover_solo = rect_solo.collidepoint(mx, my)
+            if is_hover_solo:
+                if selecionado_principal != 0:
+                    selecionado_principal = 0
+                    tocar_hover()
+                if clicado:
+                    tocar_selecionar()
+                    return "offline", None
+                    
+            is_sel_solo = (selecionado_principal == 0)
+            bg_color_solo = (20, 16, 32, 205) if is_sel_solo else (12, 10, 18, 140)
+            border_color_solo = (0, 255, 204) if is_sel_solo else (70, 70, 85)
+            border_w_solo = 2 if is_sel_solo else 1
+            
+            solo_surf = pygame.Surface((card_w, card_h), pygame.SRCALPHA)
+            pygame.draw.rect(solo_surf, bg_color_solo, (0, 0, card_w, card_h), border_radius=12)
+            pygame.draw.rect(solo_surf, border_color_solo, (0, 0, card_w, card_h), width=border_w_solo, border_radius=12)
+            
+            if is_sel_solo:
+                # Efeito glow interno ciano
+                pygame.draw.rect(solo_surf, (0, 255, 204, 25), (5, 5, card_w - 10, card_h - 10), border_radius=8)
+                
+            tela.blit(solo_surf, (card_l_x, card_y))
+            
+            title_solo = font_card_title.render("JOGAR SOLO", True, (255, 255, 255) if is_sel_solo else (170, 170, 180))
+            tela.blit(title_solo, (card_l_x + card_w // 2 - title_solo.get_width() // 2, card_y + 35))
+            
+            lines_solo = [
+                "Jogue no modo offline.",
+                "Enfronte desafios e",
+                "domine o espaco-tempo",
+                "em uma jornada solitaria."
+            ]
+            for li, l_txt in enumerate(lines_solo):
+                txt_line = font_card_desc.render(l_txt, True, (215, 220, 230) if is_sel_solo else (130, 130, 140))
+                tela.blit(txt_line, (card_l_x + card_w // 2 - txt_line.get_width() // 2, card_y + 95 + li * 24))
+                
+            # --- CARD DIREITO: COOPERATIVO ---
+            card_r_x = largura // 2 + 30
+            rect_coop = pygame.Rect(card_r_x, card_y, card_w, card_h)
+            is_hover_coop = rect_coop.collidepoint(mx, my)
+            if is_hover_coop:
+                if selecionado_principal != 1:
+                    selecionado_principal = 1
+                    tocar_hover()
+                if clicado:
+                    tocar_selecionar()
+                    fase_tela = "coop_sub"
+                    selecionado_sub = 0
+                    
+            is_sel_coop = (selecionado_principal == 1)
+            bg_color_coop = (24, 16, 36, 205) if is_sel_coop else (12, 10, 18, 140)
+            border_color_coop = (180, 100, 255) if is_sel_coop else (70, 70, 85)
+            border_w_coop = 2 if is_sel_coop else 1
+            
+            coop_surf = pygame.Surface((card_w, card_h), pygame.SRCALPHA)
+            pygame.draw.rect(coop_surf, bg_color_coop, (0, 0, card_w, card_h), border_radius=12)
+            pygame.draw.rect(coop_surf, border_color_coop, (0, 0, card_w, card_h), width=border_w_coop, border_radius=12)
+            
+            if is_sel_coop:
+                # Efeito glow interno roxo
+                pygame.draw.rect(coop_surf, (180, 100, 255, 25), (5, 5, card_w - 10, card_h - 10), border_radius=8)
+                
+            tela.blit(coop_surf, (card_r_x, card_y))
+            
+            title_coop = font_card_title.render("MULTIPLAYER", True, (255, 255, 255) if is_sel_coop else (170, 170, 180))
+            tela.blit(title_coop, (card_r_x + card_w // 2 - title_coop.get_width() // 2, card_y + 35))
+            
+            lines_coop = [
+                "Jogue em Rede Local (LAN).",
+                "Conecte-se com outro",
+                "jogador para explorar",
+                "a fenda cooperativamente."
+            ]
+            for li, l_txt in enumerate(lines_coop):
+                txt_line = font_card_desc.render(l_txt, True, (215, 220, 230) if is_sel_coop else (130, 130, 140))
+                tela.blit(txt_line, (card_r_x + card_w // 2 - txt_line.get_width() // 2, card_y + 95 + li * 24))
+                
+        # Renderizar Subfase: Opções Multiplayer LAN
+        elif fase_tela == "coop_sub":
+            sub_y = altura // 2 - 50
+            btn_w = 340
+            btn_h = 52
+            
+            opcoes_sub = [
+                ("Criar Sala (Host)", "host"),
+                ("Entrar em Sala (Join)", "join"),
+                ("Voltar", "voltar")
+            ]
+            
+            txt_subtitle = font_card_desc.render("CONEXÃO DE MULTIJOGADOR EM REDE LOCAL", True, (180, 100, 255))
+            tela.blit(txt_subtitle, (largura // 2 - txt_subtitle.get_width() // 2, 125))
+            
+            for idx, (label, mode) in enumerate(opcoes_sub):
+                btn_x = largura // 2 - btn_w // 2
+                item_y = sub_y + idx * 70
+                rect_btn = pygame.Rect(btn_x, item_y, btn_w, btn_h)
+                
+                is_hover = rect_btn.collidepoint(mx, my)
+                if is_hover:
+                    if selecionado_sub != idx:
+                        selecionado_sub = idx
+                        tocar_hover()
+                    if clicado:
+                        tocar_selecionar()
+                        if mode == "host":
+                            return "host", None
+                        elif mode == "join":
+                            ip_encontrado = descobrir_host_udp(timeout=4)
+                            if ip_encontrado:
+                                return "join", ip_encontrado
+                            else:
+                                mostrar_erro_lan(tela, font_card_title, font_card_desc)
+                        elif mode == "voltar":
+                            fase_tela = "principal"
+                            selecionado_sub = 0
+                            
+                is_sel = (selecionado_sub == idx)
+                bg_color = (25, 20, 42, 210) if is_sel else (12, 10, 18, 140)
+                border_color = (180, 100, 255) if is_sel else (65, 55, 80)
+                border_w = 2 if is_sel else 1
+                
+                btn_surf = pygame.Surface((btn_w, btn_h), pygame.SRCALPHA)
+                pygame.draw.rect(btn_surf, bg_color, (0, 0, btn_w, btn_h), border_radius=8)
+                pygame.draw.rect(btn_surf, border_color, (0, 0, btn_w, btn_h), width=border_w, border_radius=8)
+                tela.blit(btn_surf, (btn_x, item_y))
+                
+                txt_lbl = font_btn.render(label, True, (255, 255, 255) if is_sel else (175, 175, 185))
+                tela.blit(txt_lbl, (btn_x + btn_w // 2 - txt_lbl.get_width() // 2, item_y + btn_h // 2 - txt_lbl.get_height() // 2))
+                
+        pygame.display.flip()
+        clock.tick(60)
 
 
 
@@ -396,18 +684,30 @@ def tela_selecao_aurea(tela, fonte):
 
     # Controle de repetição do analógico
     analogo_movido = False
+    btn_back_rect = pygame.Rect(40, 40, 120, 36)
     
     while True:
         agora = pygame.time.get_ticks()
+        mx, my = pygame.mouse.get_pos()
+        clicado = False
         
         # 1. Processamento de Eventos
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 exit()
+            elif evento.type == pygame.MOUSEBUTTONDOWN:
+                if evento.button == 1:
+                    clicado = True
+                    if btn_back_rect.collidepoint(evento.pos):
+                        tocar_selecionar()
+                        return "voltar"
             elif evento.type == pygame.KEYDOWN:
                 anterior = selecionado
-                if evento.key in [pygame.K_RIGHT, pygame.K_d]:
+                if evento.key == pygame.K_ESCAPE:
+                    tocar_selecionar()
+                    return "voltar"
+                elif evento.key in [pygame.K_RIGHT, pygame.K_d]:
                     selecionado = (selecionado + 1) % len(aureas)
                     while not aureas[selecionado]["ativa"]:
                         selecionado = (selecionado + 1) % len(aureas)
@@ -417,6 +717,7 @@ def tela_selecao_aurea(tela, fonte):
                         selecionado = (selecionado - 1) % len(aureas)
                 elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
                     if aureas[selecionado]["ativa"]:
+                        tocar_selecionar()
                         nome_aurea = aureas[selecionado]["nome"]
                         if nome_aurea == "Aleatória":
                             nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda"])
@@ -425,12 +726,10 @@ def tela_selecao_aurea(tela, fonte):
                         os.makedirs("saves", exist_ok=True)
                         with open("saves/aurea_selecionada.json", "w") as file:
                             json.dump({"aurea": nome_aurea}, file)
-                        if som_tick:
-                            som_tick.play()
-                        return
+                        return "confirmar"
                 
-                if selecionado != anterior and som_tick:
-                    som_tick.play()
+                if selecionado != anterior:
+                    tocar_hover()
             
             # Suporte a Controle / Gamepad
             elif evento.type == pygame.JOYAXISMOTION and controle is not None:
@@ -441,15 +740,13 @@ def tela_selecao_aurea(tela, fonte):
                         while not aureas[selecionado]["ativa"]:
                             selecionado = (selecionado + 1) % len(aureas)
                         analogo_movido = True
-                        if som_tick:
-                            som_tick.play()
+                        tocar_hover()
                     elif evento.value < -0.5 and not analogo_movido:
                         selecionado = (selecionado - 1) % len(aureas)
                         while not aureas[selecionado]["ativa"]:
                             selecionado = (selecionado - 1) % len(aureas)
                         analogo_movido = True
-                        if som_tick:
-                            som_tick.play()
+                        tocar_hover()
                     elif abs(evento.value) < 0.3:
                         analogo_movido = False
             
@@ -461,27 +758,27 @@ def tela_selecao_aurea(tela, fonte):
                     selecionado = (selecionado + 1) % len(aureas)
                     while not aureas[selecionado]["ativa"]:
                         selecionado = (selecionado + 1) % len(aureas)
-                    if som_tick:
-                        som_tick.play()
+                    tocar_hover()
                 elif dx < 0:
                     selecionado = (selecionado - 1) % len(aureas)
                     while not aureas[selecionado]["ativa"]:
                         selecionado = (selecionado - 1) % len(aureas)
-                    if som_tick:
-                        som_tick.play()
+                    tocar_hover()
             
             elif evento.type == pygame.JOYBUTTONDOWN and controle is not None:
                 if evento.button == 0:  # Botão A do controle para confirmar
                     if aureas[selecionado]["ativa"]:
+                        tocar_selecionar()
                         nome_aurea = aureas[selecionado]["nome"]
                         if nome_aurea == "Aleatória":
                             nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda"])
                         os.makedirs("saves", exist_ok=True)
                         with open("saves/aurea_selecionada.json", "w") as file:
                             json.dump({"aurea": nome_aurea}, file)
-                        if som_tick:
-                            som_tick.play()
-                        return
+                        return "confirmar"
+                elif evento.button == 1:  # Botão B do controle para voltar
+                    tocar_selecionar()
+                    return "voltar"
 
         # 2. Interpolação de Fundo
         bg_alvo = aureas[selecionado]["bg_tema"]
@@ -672,7 +969,7 @@ def tela_selecao_aurea(tela, fonte):
         tela.blit(surf_painel, (x_painel, y_painel))
 
         # 8. Barra de instrução no rodapé
-        texto_instr = "A / D ou SETAS para navegar | ESPAÇO ou ENTER para selecionar"
+        texto_instr = "A / D ou SETAS: Navegar | ESPAÇO/ENTER: Selecionar | ESC: Voltar"
         render_instr_text = fonte_instrucao.render(texto_instr, True, (0, 255, 230))
         largura_instr = render_instr_text.get_width() + 40
         altura_instr = 32
@@ -683,6 +980,19 @@ def tela_selecao_aurea(tela, fonte):
         surf_instr.blit(render_instr_text, (20, (altura_instr - render_instr_text.get_height()) // 2))
         
         tela.blit(surf_instr, (largura // 2 - largura_instr // 2, altura - 42))
+
+        # 9. Botão Voltar no Canto Superior Esquerdo (Desenhado dinamicamente com a cor do tema da Áurea)
+        is_hover_back = btn_back_rect.collidepoint(mx, my)
+        color_back = cor_accent if is_hover_back else (140, 140, 150)
+        bg_back = (int(cor_accent[0]*0.15), int(cor_accent[1]*0.15), int(cor_accent[2]*0.15), 200) if is_hover_back else (15, 15, 20, 120)
+        
+        surf_back = pygame.Surface((120, 36), pygame.SRCALPHA)
+        pygame.draw.rect(surf_back, bg_back, (0, 0, 120, 36), border_radius=8)
+        pygame.draw.rect(surf_back, color_back, (0, 0, 120, 36), width=1, border_radius=8)
+        
+        txt_back = fonte_desc.render("< VOLTAR", True, color_back)
+        surf_back.blit(txt_back, (60 - txt_back.get_width() // 2, 18 - txt_back.get_height() // 2))
+        tela.blit(surf_back, (btn_back_rect.x, btn_back_rect.y))
 
         pygame.display.flip()
         clock.tick(60)
@@ -1157,12 +1467,15 @@ def executar_menu_principal(game_manager=None):
                     if event.key == pygame.K_w and agora - ultima_mudanca_de_opcao >= DELAY_ENTRE_OPCOES:
                         indice_selecionado = (indice_selecionado - 1) % len(opcoes)
                         ultima_mudanca_de_opcao = agora
+                        tocar_hover()
                     elif event.key == pygame.K_s and agora - ultima_mudanca_de_opcao >= DELAY_ENTRE_OPCOES:
                         indice_selecionado = (indice_selecionado + 1) % len(opcoes)
                         ultima_mudanca_de_opcao = agora
+                        tocar_hover()
                     elif event.key in [pygame.K_SPACE, pygame.K_RETURN]:
                         opcao_confirmada = indice_selecionado
                         tempo_confirmacao = agora
+                        tocar_selecionar()
                         
                         particulas_eclosao = []
                         x_centro = 60 + 320 // 2
@@ -1181,6 +1494,7 @@ def executar_menu_principal(game_manager=None):
                     elif event.key == pygame.K_ESCAPE:
                         opcao_confirmada = 2  # Sair
                         tempo_confirmacao = agora
+                        tocar_selecionar()
                         
                         particulas_eclosao = []
                         x_centro = 60 + 320 // 2
@@ -1203,9 +1517,11 @@ def executar_menu_principal(game_manager=None):
                             if event.value > 0.5:
                                 indice_selecionado = (indice_selecionado + 1) % len(opcoes)
                                 analogo_movido = True
+                                tocar_hover()
                             elif event.value < -0.5:
                                 indice_selecionado = (indice_selecionado - 1) % len(opcoes)
                                 analogo_movido = True
+                                tocar_hover()
                     elif event.axis == 1 and abs(event.value) < 0.5:
                         analogo_movido = False
                         
@@ -1213,6 +1529,7 @@ def executar_menu_principal(game_manager=None):
                     if event.button == 0:  # Botão A
                         opcao_confirmada = indice_selecionado
                         tempo_confirmacao = agora
+                        tocar_selecionar()
                         
                         particulas_eclosao = []
                         x_centro = 60 + 320 // 2
@@ -1395,10 +1712,26 @@ def executar_menu_principal(game_manager=None):
                     with open("saves/tutorial_config.json", "r") as f:
                         mostrar_tutorial = json.load(f)["mostrar_tutorial"]
 
-                tela_selecao_aurea(tela, fonte)
-                modo, ip = tela_escolha_modo()
+                estado_jornada = "aurea"
+                retornar_ao_menu = False
+                modo, ip = None, None
                 
-                if modo is None:
+                while True:
+                    if estado_jornada == "aurea":
+                        res_aurea = tela_selecao_aurea(tela, fonte)
+                        if res_aurea == "voltar":
+                            retornar_ao_menu = True
+                            break
+                        else:
+                            estado_jornada = "modo"
+                    elif estado_jornada == "modo":
+                        modo, ip = tela_escolha_modo()
+                        if modo is None:
+                            estado_jornada = "aurea"
+                        else:
+                            break
+                
+                if retornar_ao_menu:
                     continue
 
                 pygame.mixer.music.stop()

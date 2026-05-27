@@ -2788,32 +2788,47 @@ def executar_jogo(game_manager=None):
                     if vortice:
                         tempo_vortice = agora - vortice['tempo_inicio']
                         if tempo_vortice < vortice['duracao']:
-                            # Cálculos de atração vetorial e punição física
-                            dx_v = vortice['x'] - pos_x_personagem
-                            dy_v = vortice['y'] - pos_y_personagem
-                            dist_v = math.hypot(dx_v, dy_v)
+                            # Telegraph / Warning phase: primeiros 1500ms
+                            if tempo_vortice < 1500:
+                                # Aviso visual no chão (não aplica atração nem dano)
+                                raio_aviso = 150
+                                progresso = tempo_vortice / 1500.0
+                                s_aviso = pygame.Surface((raio_aviso * 2, raio_aviso * 2), pygame.SRCALPHA)
+                                alpha_aviso = int(50 + math.sin(agora * 0.01) * 30)
+                                pygame.draw.circle(s_aviso, (138, 43, 226, alpha_aviso), (raio_aviso, raio_aviso), raio_aviso)
+                                pygame.draw.circle(s_aviso, (255, 0, 128, 200), (raio_aviso, raio_aviso), raio_aviso, 3)
+                                # Anel de contração
+                                raio_contraido = int(raio_aviso * (1.0 - progresso))
+                                if raio_contraido > 0:
+                                    pygame.draw.circle(s_aviso, (255, 255, 255, 220), (raio_aviso, raio_aviso), raio_contraido, 2)
+                                tela.blit(s_aviso, (vortice['x'] - raio_aviso, vortice['y'] - raio_aviso))
+                            else:
+                                # Lógica ativa de atração vetorial e punição física
+                                dx_v = vortice['x'] - pos_x_personagem
+                                dy_v = vortice['y'] - pos_y_personagem
+                                dist_v = math.hypot(dx_v, dy_v)
 
-                            if dist_v > 5:
-                                fator_succao = vortice['forca'] * (1 - min(1, dist_v / 900))
-                                pos_x_personagem += (dx_v / dist_v) * fator_succao
-                                pos_y_personagem += (dy_v / dist_v) * fator_succao
+                                if dist_v > 5:
+                                    fator_succao = vortice['forca'] * (1 - min(1, dist_v / 900))
+                                    pos_x_personagem += (dx_v / dist_v) * fator_succao
+                                    pos_y_personagem += (dy_v / dist_v) * fator_succao
 
-                                # --- PUNIÇÃO APOLO: Sendo sugado para o centro ---
-                                if dist_v < 150 and agora % 200 < 30:
-                                    apolo.receber_dano_punitivo(1, 2.0)
+                                    # --- PUNIÇÃO APOLO: Sendo sugado para o centro ---
+                                    if dist_v < 150 and agora % 200 < 30:
+                                        apolo.receber_dano_punitivo(1, 2.0)
 
-                                # Trava de colisão com os limites do mapa
-                                pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem))
-                                pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem))
+                                    # Trava de colisão com os limites do mapa
+                                    pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem))
+                                    pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem))
 
-                            # Renderizacao animada da Singularidade — frames pre-escalados
-                            if not hasattr(desenhar_sombra, '_frames_v_scaled') or \
-                                    len(desenhar_sombra._frames_v_scaled) != len(frames_vortex):
-                                desenhar_sombra._frames_v_scaled = [
-                                    pygame.transform.scale(f, (160, 160)) for f in frames_vortex
-                                ]
-                            frame_v = desenhar_sombra._frames_v_scaled[(agora // 150) % len(frames_vortex)]
-                            tela.blit(frame_v, (vortice['x'] - 80, vortice['y'] - 80))
+                                # Renderizacao animada da Singularidade — frames pre-escalados
+                                if not hasattr(desenhar_sombra, '_frames_v_scaled') or \
+                                        len(desenhar_sombra._frames_v_scaled) != len(frames_vortex):
+                                    desenhar_sombra._frames_v_scaled = [
+                                        pygame.transform.scale(f, (160, 160)) for f in frames_vortex
+                                    ]
+                                frame_v = desenhar_sombra._frames_v_scaled[(agora // 150) % len(frames_vortex)]
+                                tela.blit(frame_v, (vortice['x'] - 80, vortice['y'] - 80))
                         else:
                             estado_atual_ia['vortice_ativo'] = None
 
@@ -2822,85 +2837,111 @@ def executar_jogo(game_manager=None):
                     if prisao:
                         tempo_prisao = agora - prisao['tempo_inicio']
                         if tempo_prisao < prisao['duracao']:
-                            # 1. Dinamica de Pulsacao e Crescimento da Zona
-                            raio_hitbox_base = 45
-                            aumento_pulso = int(abs(math.sin(agora * 0.001)) * 180)
-                            raio_hitbox_atual = raio_hitbox_base + aumento_pulso
-
-                            tamanho_vortice = (raio_hitbox_atual * 2) + 40
-                            centro_v_x, centro_v_y = tamanho_vortice // 2, tamanho_vortice // 2
-
-                            # Cache da Surface: quantiza raio a cada 8px para reutilizar surface
-                            raio_q = (raio_hitbox_atual // 8) * 8
-                            if raio_q not in _VORTICE_SURF_CACHE:
-                                _sv = pygame.Surface((tamanho_vortice, tamanho_vortice), pygame.SRCALPHA)
-                                _VORTICE_SURF_CACHE.clear()           # nao acumular dezenas de sizes
-                                _VORTICE_SURF_CACHE[raio_q] = _sv
-                            superficie_vortice = _VORTICE_SURF_CACHE[raio_q]
-                            superficie_vortice.fill((0, 0, 0, 0))    # limpa para redesenhar
-
-                            # 2. Nucleo Energetico Pulsante
-                            raio_nucleo = (raio_hitbox_atual * 0.6) + int(math.sin(agora * 0.008) * 8)
-                            alfa_nucleo = 110 + int(math.sin(agora * 0.008) * 40)
-                            cores_nucleo = [
-                                ((0, 80, 255, alfa_nucleo), raio_nucleo),
-                                ((0, 160, 255, alfa_nucleo + 20), raio_nucleo * 0.7),
-                                ((150, 240, 255, alfa_nucleo + 40), raio_nucleo * 0.3)
-                            ]
-                            for cor, raio in cores_nucleo:
-                                pygame.draw.circle(superficie_vortice, cor, (centro_v_x, centro_v_y), max(1, int(raio)))
-
-                            # 3. Anel Externo Congelante — 20 segmentos (era 40, mesmo visual a 60fps)
-                            num_segmentos = 20
-                            angulo_base = agora * 0.002
-                            step_ang = math.pi * 2 / num_segmentos
-                            for i in range(num_segmentos):
-                                ang = angulo_base + i * step_ang
-                                r_ext = raio_hitbox_atual + random.uniform(-4, 4)
-                                px_s = centro_v_x + r_ext * math.cos(ang)
-                                py_s = centro_v_y + r_ext * math.sin(ang)
-                                pygame.draw.circle(superficie_vortice, (200, 250, 255, 180), (int(px_s), int(py_s)), 3)
-
-                            # 4. Tempestade de Flocos e Cristais — 35 particulas (era 70)
-                            random.seed(prisao['tempo_inicio'])
-                            num_particulas = 35
-                            velocidade_tempestade = -(agora * 0.005)
-                            for i in range(num_particulas):
-                                raio_orbita = random.uniform(15, raio_hitbox_atual)
-                                angulo_offset = random.uniform(0, math.pi * 2)
-                                usa_floco = random.randint(0, 2) == 0   # 1/3 floco, 2/3 cristal
-                                ang_final = velocidade_tempestade + angulo_offset
-                                px_s = centro_v_x + raio_orbita * math.cos(ang_final)
-                                py_s = centro_v_y + raio_orbita * math.sin(ang_final)
-                                if usa_floco:
-                                    superficie_vortice.blit(_FLOCO_SURF, (int(px_s) - 2, int(py_s) - 2))
-                                else:
-                                    superficie_vortice.blit(_CRISTAL_SURF, (int(px_s) - 3, int(py_s) - 3))
-                            random.seed()
-
-                            # 5. Aplicacao Visceral no Ecra
-                            tela.blit(superficie_vortice, (prisao['x'] - centro_v_x, prisao['y'] - centro_v_y))
-
-
-                            # 6. Detecção de Punição Física (Hitbox Dinâmica)
-                            dist_p = math.hypot(prisao['x'] - personagem_rect.centerx, prisao['y'] - personagem_rect.centery)
-                            if dist_p < raio_hitbox_atual: 
-                                velocidade_personagem = 0.3 
-
-                                # --- PUNIÇÃO APOLO: Ficar preso no gelo (lentidão) ---
-                                if agora % 100 < 20: 
-                                    apolo.receber_dano_punitivo(1, 2.0)
-
-                                if agora % 1000 < 50:
-                                    efeitos_texto.append({
-                                        "texto": "ZERO ABSOLUTO!",
-                                        "x": pos_x_personagem,
-                                        "y": pos_y_personagem - 30,
-                                        "tempo_inicio": agora,
-                                        "cor": (0, 255, 255)
-                                    })
-                            else:
+                            # Telegraph / Warning phase: primeiros 1500ms
+                            if tempo_prisao < 1500:
+                                # Aviso visual no chão (sem lentidão nem dano)
+                                raio_aviso = 180
+                                progresso = tempo_prisao / 1500.0
+                                s_aviso = pygame.Surface((raio_aviso * 2, raio_aviso * 2), pygame.SRCALPHA)
+                                alpha_aviso = int(60 + math.sin(agora * 0.015) * 40)
+                                pygame.draw.circle(s_aviso, (0, 120, 255, alpha_aviso), (raio_aviso, raio_aviso), raio_aviso)
+                                pygame.draw.circle(s_aviso, (0, 255, 255, 220), (raio_aviso, raio_aviso), raio_aviso, 3)
+                                # Anel de contração
+                                raio_contraido = int(raio_aviso * (1.0 - progresso))
+                                if raio_contraido > 0:
+                                    pygame.draw.circle(s_aviso, (255, 255, 255, 240), (raio_aviso, raio_aviso), raio_contraido, 2)
+                                
+                                # Flocos de neve flutuantes suaves na área de aviso
+                                random.seed(prisao['tempo_inicio'])
+                                for i in range(12):
+                                    r_o = random.uniform(10, raio_aviso - 10)
+                                    a_o = random.uniform(0, math.pi * 2)
+                                    px_s = raio_aviso + r_o * math.cos(a_o)
+                                    py_s = raio_aviso + r_o * math.sin(a_o)
+                                    s_aviso.blit(_CRISTAL_SURF, (int(px_s) - 3, int(py_s) - 3))
+                                random.seed()
+                                
+                                tela.blit(s_aviso, (prisao['x'] - raio_aviso, prisao['y'] - raio_aviso))
                                 velocidade_personagem = velocidade_personagem_base
+                            else:
+                                # 1. Dinamica de Pulsacao e Crescimento da Zona
+                                raio_hitbox_base = 45
+                                aumento_pulso = int(abs(math.sin(agora * 0.001)) * 180)
+                                raio_hitbox_atual = raio_hitbox_base + aumento_pulso
+
+                                tamanho_vortice = (raio_hitbox_atual * 2) + 40
+                                centro_v_x, centro_v_y = tamanho_vortice // 2, tamanho_vortice // 2
+
+                                # Cache da Surface: quantiza raio a cada 8px para reutilizar surface
+                                raio_q = (raio_hitbox_atual // 8) * 8
+                                if raio_q not in _VORTICE_SURF_CACHE:
+                                    _sv = pygame.Surface((tamanho_vortice, tamanho_vortice), pygame.SRCALPHA)
+                                    _VORTICE_SURF_CACHE.clear()           # nao acumular dezenas de sizes
+                                    _VORTICE_SURF_CACHE[raio_q] = _sv
+                                superficie_vortice = _VORTICE_SURF_CACHE[raio_q]
+                                superficie_vortice.fill((0, 0, 0, 0))    # limpa para redesenhar
+
+                                # 2. Nucleo Energetico Pulsante
+                                raio_nucleo = (raio_hitbox_atual * 0.6) + int(math.sin(agora * 0.008) * 8)
+                                alfa_nucleo = 110 + int(math.sin(agora * 0.008) * 40)
+                                cores_nucleo = [
+                                    ((0, 80, 255, alfa_nucleo), raio_nucleo),
+                                    ((0, 160, 255, alfa_nucleo + 20), raio_nucleo * 0.7),
+                                    ((150, 240, 255, alfa_nucleo + 40), raio_nucleo * 0.3)
+                                ]
+                                for cor, raio in cores_nucleo:
+                                    pygame.draw.circle(superficie_vortice, cor, (centro_v_x, centro_v_y), max(1, int(raio)))
+
+                                # 3. Anel Externo Congelante — 20 segmentos (era 40, mesmo visual a 60fps)
+                                num_segmentos = 20
+                                angulo_base = agora * 0.002
+                                step_ang = math.pi * 2 / num_segmentos
+                                for i in range(num_segmentos):
+                                    ang = angulo_base + i * step_ang
+                                    r_ext = raio_hitbox_atual + random.uniform(-4, 4)
+                                    px_s = centro_v_x + r_ext * math.cos(ang)
+                                    py_s = centro_v_y + r_ext * math.sin(ang)
+                                    pygame.draw.circle(superficie_vortice, (200, 250, 255, 180), (int(px_s), int(py_s)), 3)
+
+                                # 4. Tempestade de Flocos e Cristais — 35 particulas (era 70)
+                                random.seed(prisao['tempo_inicio'])
+                                num_particulas = 35
+                                velocidade_tempestade = -(agora * 0.005)
+                                for i in range(num_particulas):
+                                    raio_orbita = random.uniform(15, raio_hitbox_atual)
+                                    angulo_offset = random.uniform(0, math.pi * 2)
+                                    usa_floco = random.randint(0, 2) == 0   # 1/3 floco, 2/3 cristal
+                                    ang_final = velocidade_tempestade + angulo_offset
+                                    px_s = centro_v_x + raio_orbita * math.cos(ang_final)
+                                    py_s = centro_v_y + raio_orbita * math.sin(ang_final)
+                                    if usa_floco:
+                                        superficie_vortice.blit(_FLOCO_SURF, (int(px_s) - 2, int(py_s) - 2))
+                                    else:
+                                        superficie_vortice.blit(_CRISTAL_SURF, (int(px_s) - 3, int(py_s) - 3))
+                                random.seed()
+
+                                # 5. Aplicacao Visceral no Ecra
+                                tela.blit(superficie_vortice, (prisao['x'] - centro_v_x, prisao['y'] - centro_v_y))
+
+                                # 6. Detecção de Punição Física (Hitbox Dinâmica)
+                                dist_p = math.hypot(prisao['x'] - personagem_rect.centerx, prisao['y'] - personagem_rect.centery)
+                                if dist_p < raio_hitbox_atual: 
+                                    velocidade_personagem = 0.3 
+
+                                    # --- PUNIÇÃO APOLO: Ficar preso no gelo (lentidão) ---
+                                    if agora % 100 < 20: 
+                                        apolo.receber_dano_punitivo(1, 2.0)
+
+                                    if agora % 1000 < 50:
+                                        efeitos_texto.append({
+                                            "texto": "ZERO ABSOLUTO!",
+                                            "x": pos_x_personagem,
+                                            "y": pos_y_personagem - 30,
+                                            "tempo_inicio": agora,
+                                            "cor": (0, 255, 255)
+                                        })
+                                else:
+                                    velocidade_personagem = velocidade_personagem_base
                         else:
                             estado_atual_ia['prisao_ativa'] = None
                             velocidade_personagem = velocidade_personagem_base

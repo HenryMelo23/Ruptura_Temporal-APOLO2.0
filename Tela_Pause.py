@@ -3,6 +3,7 @@ import sys
 import math
 import os
 import json
+from sons_procedurais import tocar_hover, tocar_selecionar
 
 # Atributos e descrições para todas as cartas
 atributos_todas_cartas = {
@@ -560,11 +561,15 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                 if estado_pause == "menu":
                     if evento.key in [pygame.K_w, pygame.K_UP]:
                         selecionado = (selecionado - 1) % len(opcoes_pause)
+                        tocar_hover()
                     elif evento.key in [pygame.K_s, pygame.K_DOWN]:
                         selecionado = (selecionado + 1) % len(opcoes_pause)
+                        tocar_hover()
                     elif evento.key == pygame.K_ESCAPE:
+                        tocar_selecionar()
                         return "continuar"
                     elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                        tocar_selecionar()
                         opcao_sel = opcoes_pause[selecionado]
                         if opcao_sel == "Continuar":
                             return "continuar"
@@ -582,12 +587,15 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                             return "sair"
                 else: # "anomalias"
                     if evento.key == pygame.K_ESCAPE:
+                        tocar_selecionar()
                         estado_pause = "menu"
                     elif len(cartas_adquiridas) > 0:
                         if evento.key in [pygame.K_d, pygame.K_RIGHT]:
                             selecionado_card_idx = (selecionado_card_idx + 1) % len(cartas_adquiridas)
+                            tocar_hover()
                         elif evento.key in [pygame.K_a, pygame.K_LEFT]:
                             selecionado_card_idx = (selecionado_card_idx - 1) % len(cartas_adquiridas)
+                            tocar_hover()
 
             elif evento.type == pygame.MOUSEBUTTONDOWN:
                 mx, my = evento.pos
@@ -597,6 +605,7 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                         rect_opcao = pygame.Rect(CARD_X + 15, y_pos - 6, CARD_W - 30, 42)
                         if rect_opcao.collidepoint(mx, my):
                             if i == selecionado:
+                                tocar_selecionar()
                                 opcao_sel = opcoes_pause[selecionado]
                                 if opcao_sel == "Continuar":
                                     return "continuar"
@@ -614,15 +623,18 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                                     return "sair"
                             else:
                                 selecionado = i
+                                tocar_hover()
                 else: # "anomalias"
                     # Back to Menu button check
                     back_rect = pygame.Rect(largura_tela // 2 - 100, altura_tela - 65, 200, 36)
                     if back_rect.collidepoint(mx, my):
+                        tocar_selecionar()
                         estado_pause = "menu"
             
             elif evento.type == pygame.JOYBUTTONDOWN:
                 if estado_pause == "menu":
                     if evento.button == 0: # A button
+                        tocar_selecionar()
                         opcao_sel = opcoes_pause[selecionado]
                         if opcao_sel == "Continuar":
                             return "continuar"
@@ -639,10 +651,14 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                         elif opcao_sel == "Sair ao Menu":
                             return "sair"
                     elif evento.button in [1, 7]: # B or Start
+                        tocar_selecionar()
                         return "continuar"
                 else: # "anomalias"
                     if evento.button in [1, 7]: # B or Start
+                        tocar_selecionar()
                         estado_pause = "menu"
+        
+
 
         # Joystick axes motion check (for D-Pad or Left Stick)
         if joystick and agora - last_joy_move > 180:
@@ -653,21 +669,25 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                 if dy > 0.5:
                     if estado_pause == "menu":
                         selecionado = (selecionado - 1) % len(opcoes_pause)
+                        tocar_hover()
                     last_joy_move = agora
                     hat_moved = True
                 elif dy < -0.5:
                     if estado_pause == "menu":
                         selecionado = (selecionado + 1) % len(opcoes_pause)
+                        tocar_hover()
                     last_joy_move = agora
                     hat_moved = True
                 elif dx > 0.5:
                     if estado_pause == "anomalias" and len(cartas_adquiridas) > 0:
                         selecionado_card_idx = (selecionado_card_idx + 1) % len(cartas_adquiridas)
+                        tocar_hover()
                     last_joy_move = agora
                     hat_moved = True
                 elif dx < -0.5:
                     if estado_pause == "anomalias" and len(cartas_adquiridas) > 0:
                         selecionado_card_idx = (selecionado_card_idx - 1) % len(cartas_adquiridas)
+                        tocar_hover()
                     last_joy_move = agora
                     hat_moved = True
                     
@@ -677,18 +697,22 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                 if eixo_y < -0.5:
                     if estado_pause == "menu":
                         selecionado = (selecionado - 1) % len(opcoes_pause)
+                        tocar_hover()
                     last_joy_move = agora
                 elif eixo_y > 0.5:
                     if estado_pause == "menu":
                         selecionado = (selecionado + 1) % len(opcoes_pause)
+                        tocar_hover()
                     last_joy_move = agora
                 elif eixo_x > 0.5:
                     if estado_pause == "anomalias" and len(cartas_adquiridas) > 0:
                         selecionado_card_idx = (selecionado_card_idx + 1) % len(cartas_adquiridas)
+                        tocar_hover()
                     last_joy_move = agora
                 elif eixo_x < -0.5:
                     if estado_pause == "anomalias" and len(cartas_adquiridas) > 0:
                         selecionado_card_idx = (selecionado_card_idx - 1) % len(cartas_adquiridas)
+                        tocar_hover()
                     last_joy_move = agora
 
         # Blit original gameplay background copy

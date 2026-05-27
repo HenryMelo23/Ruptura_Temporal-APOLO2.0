@@ -94,6 +94,9 @@ class GameManager:
             
         # Aplica transição de estado se houver
         if self.proximo_estado:
+            if self.proximo_estado == EstadoJogo.GAME_OVER:
+                if self.estado_atual not in [EstadoJogo.GAME_OVER, EstadoJogo.MENU_PRINCIPAL, EstadoJogo.SAIR, EstadoJogo.CONFIGURACOES]:
+                    self.dados_compartilhados['fase_antes_do_game_over'] = self.estado_atual
             self.estado_atual = self.proximo_estado
             self.proximo_estado = None
             

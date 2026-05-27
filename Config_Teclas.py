@@ -55,7 +55,48 @@ def formatar_nome_tecla(tecla):
         return traducoes.get(nome.lower(), nome.upper())
     return str(tecla)
 
+def criar_particulas(largura, altura, qtd=35):
+    import random
+    particulas = []
+    for _ in range(qtd):
+        particulas.append({
+            "x": random.randint(0, largura),
+            "y": random.randint(0, altura),
+            "speed_x": random.uniform(-0.4, 0.4),
+            "speed_y": random.uniform(-0.7, -0.2),
+            "size": random.randint(2, 4),
+            "alpha": random.randint(60, 160),
+            "color": random.choice([(0, 255, 204), (180, 100, 255), (0, 255, 230)])
+        })
+    return particulas
+
+def atualizar_e_desenhar_particulas(tela, particulas, largura, altura, dt=1.0):
+    import random
+    for p in particulas:
+        p["x"] += p["speed_x"] * dt
+        p["y"] += p["speed_y"] * dt
+        if p["y"] < 0:
+            p["y"] = altura
+            p["x"] = random.randint(0, largura)
+        if p["x"] < 0:
+            p["x"] = largura
+        elif p["x"] > largura:
+            p["x"] = 0
+            
+        p_surf = pygame.Surface((p["size"]*2, p["size"]*2), pygame.SRCALPHA)
+        pygame.draw.circle(p_surf, p["color"] + (p["alpha"],), (p["size"], p["size"]), p["size"])
+        tela.blit(p_surf, (int(p["x"]) - p["size"], int(p["y"]) - p["size"]))
+
+def desenhar_scanlines_animadas(tela, largura, altura, cor=(0, 255, 204, 12), espacamento=8):
+    scanline_offset = (pygame.time.get_ticks() * 0.02) % espacamento
+    overlay = pygame.Surface((largura, altura), pygame.SRCALPHA)
+    for y in range(int(-scanline_offset), altura, espacamento):
+        if 0 <= y < altura:
+            pygame.draw.line(overlay, cor, (0, y), (largura, y))
+    tela.blit(overlay, (0, 0))
+
 def tela_de_controles(tela, config_teclas, largura_tela, altura_tela, fundo_pausa=None):
+    import random
     pygame.mouse.set_visible(True)
     
     padrao_config_teclas = {
@@ -101,11 +142,11 @@ def tela_de_controles(tela, config_teclas, largura_tela, altura_tela, fundo_paus
         fonte_header = pygame.font.Font(None, 20)
 
     COR_BG         = (10, 8, 20)
-    COR_BORDA      = (0, 255, 204)  # Cyan neon
-    COR_BORDA_SEC  = (180, 100, 255) # Purple neon
+    COR_BORDA      = (0, 255, 204)
+    COR_BORDA_SEC  = (180, 100, 255)
     COR_NORMAL     = (180, 180, 200)
     COR_SELECIONADO = (0, 255, 230)
-    COR_AGUARDANDO = (255, 235, 60) # Amarelo vibrante
+    COR_AGUARDANDO = (255, 235, 60)
     COR_ERRO       = (255, 80, 80)
     COR_TITULO     = (0, 255, 204)
     COR_HINT       = (140, 130, 160)
@@ -135,46 +176,54 @@ def tela_de_controles(tela, config_teclas, largura_tela, altura_tela, fundo_paus
     btn_voltar_y = CARD_Y + CARD_H - btn_voltar_h - 20
     rect_voltar = pygame.Rect(btn_voltar_x, btn_voltar_y, btn_voltar_w, btn_voltar_h)
 
+    # Animação e Partículas
+    particulas = criar_particulas(largura_tela, altura_tela)
+    entrada_progresso = 0.0
+    start_y = CARD_Y + 60
+    selecionado_y = start_y + indice_selecionado * LINHA_H - 3
+
     rodando = True
     while rodando:
         dt = relogio.tick(60)
         animacao += dt * 0.001
         mx, my = pygame.mouse.get_pos()
 
+        # Progresso da transição de entrada
+        if entrada_progresso < 1.0:
+            entrada_progresso += 0.08
+            if entrada_progresso > 1.0:
+                entrada_progresso = 1.0
+        y_slide = int((1.0 - entrada_progresso) * 40)
+
+        # LERP para o seletor deslizante
+        selecionado_y_target = start_y + indice_selecionado * LINHA_H - 3
+        selecionado_y += (selecionado_y_target - selecionado_y) * 0.22
+
         if fundo:
             tela.blit(fundo, (0, 0))
         else:
             tela.fill(COR_BG)
 
-        # Black semi-transparent overlay for readability
+        # Overlay escuro
         overlay = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 190))
+        overlay.fill((0, 0, 0, int(190 * entrada_progresso)))
         tela.blit(overlay, (0, 0))
 
-        # Dynamic digital scanlines / grid effect
-        grad = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
-        for y in range(0, altura_tela, 6):
-            alpha = int(25 + 15 * math.sin(y * 0.02 + animacao * 2))
-            pygame.draw.line(grad, (0, 255, 230, alpha), (0, y), (largura_tela, y))
-        tela.blit(grad, (0, 0))
+        # Partículas e Scanlines
+        atualizar_e_desenhar_particulas(tela, particulas, largura_tela, altura_tela)
+        desenhar_scanlines_animadas(tela, largura_tela, altura_tela)
 
-        # Glowing Neon Border Panel
+        # Painel central shifted by y_slide
         painel = pygame.Surface((CARD_W, CARD_H), pygame.SRCALPHA)
-        painel.fill((10, 8, 20, 220)) # Glassmorphic dark base
-        
-        # Pulse borders
+        painel.fill((10, 8, 20, 220))
         pulse_alpha = int(120 + 50 * math.sin(animacao * 4))
         pygame.draw.rect(painel, (0, 255, 204, pulse_alpha), (0, 0, CARD_W, CARD_H), width=2, border_radius=12)
-        
-        # Inner thin shadow border
         pygame.draw.rect(painel, (180, 100, 255, 80), (1, 1, CARD_W - 2, CARD_H - 2), width=1, border_radius=12)
-        
-        tela.blit(painel, (CARD_X, CARD_Y))
+        tela.blit(painel, (CARD_X, CARD_Y + y_slide))
 
-        # Title
+        # Título
         titulo = render_glitch_text_with_fallback("CONFIGURACOES DE CONTROLES", fonte_titulo, fonte_fallback_titulo, COR_TITULO)
-        ret_tit = titulo.get_rect(center=(largura_tela // 2, CARD_Y - 45))
-        # Sombra
+        ret_tit = titulo.get_rect(center=(largura_tela // 2, CARD_Y - 45 + y_slide))
         titulo_sombra = render_glitch_text_with_fallback("CONFIGURACOES DE CONTROLES", fonte_titulo, fonte_fallback_titulo, (10, 5, 20))
         tela.blit(titulo_sombra, (ret_tit.x + 3, ret_tit.y + 3))
         tela.blit(titulo, ret_tit)
@@ -182,32 +231,25 @@ def tela_de_controles(tela, config_teclas, largura_tela, altura_tela, fundo_paus
         # Headers
         txt_header_acao = fonte_header.render("ACAO", True, COR_BORDA_SEC)
         txt_header_atalho = fonte_header.render("ATALHO ATUAL", True, COR_BORDA_SEC)
-        tela.blit(txt_header_acao, (CARD_X + 30, CARD_Y + 20))
-        tela.blit(txt_header_atalho, (CARD_X + CARD_W - txt_header_atalho.get_width() - 30, CARD_Y + 20))
+        tela.blit(txt_header_acao, (CARD_X + 30, CARD_Y + 20 + y_slide))
+        tela.blit(txt_header_atalho, (CARD_X + CARD_W - txt_header_atalho.get_width() - 30, CARD_Y + 20 + y_slide))
 
         # Divider under headers
-        pygame.draw.line(tela, (0, 255, 204, 100), (CARD_X + 20, CARD_Y + 45), (CARD_X + CARD_W - 20, CARD_Y + 45), 2)
+        pygame.draw.line(tela, (0, 255, 204, 100), (CARD_X + 20, CARD_Y + 45 + y_slide), (CARD_X + CARD_W - 20, CARD_Y + 45 + y_slide), 2)
+
+        # Desenha a caixa de seleção animada por LERP
+        rect_row = pygame.Rect(CARD_X + 12, selecionado_y + y_slide, CARD_W - 24, LINHA_H - 6)
+        row_surf = pygame.Surface((rect_row.width, rect_row.height), pygame.SRCALPHA)
+        hl_color = (0, 255, 230, 45) if not redefinindo_tecla else (255, 210, 60, 55)
+        row_surf.fill(hl_color)
+        pygame.draw.rect(row_surf, COR_SELECIONADO if not redefinindo_tecla else COR_AGUARDANDO, (0, 0, rect_row.width, rect_row.height), width=1, border_radius=6)
+        tela.blit(row_surf, rect_row)
 
         # List of bindings
-        start_y = CARD_Y + 60
         for i, funcao in enumerate(funcoes):
-            y_item = start_y + i * LINHA_H
+            y_item = start_y + i * LINHA_H + y_slide
             is_sel = (i == indice_selecionado)
 
-            # Row hover / selection effect
-            if is_sel:
-                rect_row = pygame.Rect(CARD_X + 12, y_item - 3, CARD_W - 24, LINHA_H - 6)
-                row_surf = pygame.Surface((rect_row.width, rect_row.height), pygame.SRCALPHA)
-                
-                # Dynamic golden or cyan highlight
-                hl_color = (0, 255, 230, 45) if not redefinindo_tecla else (255, 210, 60, 55)
-                row_surf.fill(hl_color)
-                
-                # Accent corner tick lines or border
-                pygame.draw.rect(row_surf, COR_SELECIONADO if not redefinindo_tecla else COR_AGUARDANDO, (0, 0, rect_row.width, rect_row.height), width=1, border_radius=6)
-                tela.blit(row_surf, rect_row)
-
-            # Colors based on state
             cor_label = COR_SELECIONADO if is_sel else COR_NORMAL
             if is_sel and redefinindo_tecla:
                 cor_label = COR_AGUARDANDO
@@ -225,7 +267,7 @@ def tela_de_controles(tela, config_teclas, largura_tela, altura_tela, fundo_paus
             txt_tecla = fonte_valores.render(f"[ {nome_tecla} ]", True, cor_label)
             tela.blit(txt_tecla, (CARD_X + CARD_W - txt_tecla.get_width() - 30, y_item + 6))
 
-            # Sutil row separator
+            # Row separator
             if i < len(funcoes) - 1:
                 pygame.draw.line(tela, (60, 40, 90, 100), (CARD_X + 24, y_item + LINHA_H - 3), (CARD_X + CARD_W - 24, y_item + LINHA_H - 3), 1)
 
@@ -238,18 +280,19 @@ def tela_de_controles(tela, config_teclas, largura_tela, altura_tela, fundo_paus
             hint_color = COR_HINT
             
         surf_hint = fonte_hint.render(hint_txt, True, hint_color)
-        tela.blit(surf_hint, (largura_tela // 2 - surf_hint.get_width() // 2, btn_voltar_y - 28))
+        tela.blit(surf_hint, (largura_tela // 2 - surf_hint.get_width() // 2, btn_voltar_y - 28 + y_slide))
 
         # Back Button (VOLTAR) with hover
-        is_hover_voltar = rect_voltar.collidepoint(mx, my)
+        rect_voltar_shifted = pygame.Rect(btn_voltar_x, btn_voltar_y + y_slide, btn_voltar_w, btn_voltar_h)
+        is_hover_voltar = rect_voltar_shifted.collidepoint(mx, my)
         btn_bg_color = (0, 180, 200, 75) if is_hover_voltar else (15, 12, 35, 230)
         btn_border_color = COR_SELECIONADO if is_hover_voltar else COR_BORDA_SEC
         
-        pygame.draw.rect(tela, btn_bg_color, rect_voltar, border_radius=6)
-        pygame.draw.rect(tela, btn_border_color, rect_voltar, width=2, border_radius=6)
+        pygame.draw.rect(tela, btn_bg_color, rect_voltar_shifted, border_radius=6)
+        pygame.draw.rect(tela, btn_border_color, rect_voltar_shifted, width=2, border_radius=6)
         
         txt_voltar = fonte_valores.render("VOLTAR", True, (255, 255, 255) if is_hover_voltar else COR_NORMAL)
-        txt_voltar_rect = txt_voltar.get_rect(center=rect_voltar.center)
+        txt_voltar_rect = txt_voltar.get_rect(center=rect_voltar_shifted.center)
         tela.blit(txt_voltar, txt_voltar_rect)
 
         # Message Banner
@@ -259,11 +302,10 @@ def tela_de_controles(tela, config_teclas, largura_tela, altura_tela, fundo_paus
             surf_msg = fonte_valores.render(mensagem, True, cor_mensagem)
             surf_msg.set_alpha(alpha_msg)
             
-            # Draw a capsule backdrop for the message
-            msg_rect = pygame.Rect(largura_tela // 2 - surf_msg.get_width() // 2 - 15, CARD_Y + CARD_H + 10, surf_msg.get_width() + 30, 36)
+            msg_rect = pygame.Rect(largura_tela // 2 - surf_msg.get_width() // 2 - 15, CARD_Y + CARD_H + 10 + y_slide, surf_msg.get_width() + 30, 36)
             pygame.draw.rect(tela, (15, 10, 25, alpha_msg // 2), msg_rect, border_radius=6)
             pygame.draw.rect(tela, cor_mensagem, msg_rect, width=1, border_radius=6)
-            tela.blit(surf_msg, (largura_tela // 2 - surf_msg.get_width() // 2, CARD_Y + CARD_H + 16))
+            tela.blit(surf_msg, (largura_tela // 2 - surf_msg.get_width() // 2, CARD_Y + CARD_H + 16 + y_slide))
         elif agora_msg - timer_mensagem >= 2500:
             mensagem = ""
 
@@ -301,7 +343,6 @@ def tela_de_controles(tela, config_teclas, largura_tela, altura_tela, fundo_paus
                         cor_mensagem = COR_HINT
                         timer_mensagem = pygame.time.get_ticks()
                     elif nova_tecla in config_teclas.values():
-                        # Find conflict
                         acao_conflito = ""
                         for acao, val in config_teclas.items():
                             if val == nova_tecla:
@@ -335,18 +376,17 @@ def tela_de_controles(tela, config_teclas, largura_tela, altura_tela, fundo_paus
                 mx, my = evento.pos
                 
                 # Check Voltar click first
-                if rect_voltar.collidepoint(mx, my):
+                rect_voltar_shifted = pygame.Rect(btn_voltar_x, btn_voltar_y + y_slide, btn_voltar_w, btn_voltar_h)
+                if rect_voltar_shifted.collidepoint(mx, my):
                     if not redefinindo_tecla:
                         rodando = False
                         break
                         
                 if redefinindo_tecla:
-                    # Bind this mouse button!
                     nova_tecla = f"MOUSE_{evento.button}"
                     funcao_atual = funcoes[indice_selecionado]
                     
                     if nova_tecla in config_teclas.values():
-                        # Find conflict
                         acao_conflito = ""
                         for acao, val in config_teclas.items():
                             if val == nova_tecla:
@@ -368,9 +408,8 @@ def tela_de_controles(tela, config_teclas, largura_tela, altura_tela, fundo_paus
                         cor_mensagem = COR_AGUARDANDO
                         timer_mensagem = pygame.time.get_ticks()
                 else:
-                    # Select action or start redefinition
                     for i in range(len(funcoes)):
-                        y_item = start_y + i * LINHA_H
+                        y_item = start_y + i * LINHA_H + y_slide
                         rect_item = pygame.Rect(CARD_X + 12, y_item - 3, CARD_W - 24, LINHA_H - 6)
                         if rect_item.collidepoint(mx, my):
                             if i == indice_selecionado:

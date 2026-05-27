@@ -50,7 +50,7 @@ texto_dano = None
 tempo_texto_dano = 0
 
 velocidade_inimigo2=1.70
-velocidade_disparo_inimigo = 5  
+velocidade_disparo_inimigo = 3  
 
 estalos = aplicar_volume_som(pygame.mixer.Sound("Sounds/Estalo.mp3"), config_audio)
 
@@ -240,6 +240,7 @@ def atualizar_posicao_personagem(keys, joystick):
     global angulo_inclinacao_personagem
     global vida_inimigo_maxima, Resistencia_petro, dano_inimigo_perto, vida_maxima_petro, dano_petro, dano_boss2, dano_inimigo_longe
     global inimigos_eliminados, pontuacao, pontuacao_exib, eliminacoes_consecutivas, bonus_pontuacao, vida_boss2, Valor_Bonus
+    global jogador_desacelerado, blizzard_ativo
 
     # Se o personagem estiver imóvel, não atualize a posição
     if personagem_imovel:
@@ -269,6 +270,13 @@ def atualizar_posicao_personagem(keys, joystick):
         movimento_pressionado = True
         direcao_atual = ultima_tecla_movimento
         
+        # Calculate active movement speed considering slows
+        vel_atual = velocidade_personagem
+        if jogador_desacelerado:
+            vel_atual *= 0.65
+        if blizzard_ativo:
+            vel_atual *= 0.75
+
         # Normalização de movimento diagonal
         if dx != 0 and dy != 0:
             inclinacao = angulo_diagonal_personagem
@@ -280,15 +288,15 @@ def atualizar_posicao_personagem(keys, joystick):
                 
             fator_normalizacao = 0.7071
             pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
-                                         pos_x_personagem + dx * velocidade_personagem * fator_normalizacao * dt))
+                                         pos_x_personagem + dx * vel_atual * fator_normalizacao * dt))
             pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
-                                         pos_y_personagem + dy * velocidade_personagem * fator_normalizacao * dt))
+                                         pos_y_personagem + dy * vel_atual * fator_normalizacao * dt))
         else:
             angulo_inclinacao_personagem = 0
             pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
-                                         pos_x_personagem + dx * velocidade_personagem * dt))
+                                         pos_x_personagem + dx * vel_atual * dt))
             pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
-                                         pos_y_personagem + dy * velocidade_personagem * dt))
+                                         pos_y_personagem + dy * vel_atual * dt))
     else:
         angulo_inclinacao_personagem = 0
         if botao_mouse[0]:
@@ -377,7 +385,7 @@ def atualizar_posicao_personagem(keys, joystick):
                     pontuacao_exib += ganho
 
         # Dano ao Boss 2
-        if boss_vivo2:
+        if r_press and not boss_entrada_ativa and boss_vivo2:
             bx = pos_x_chefe2 + chefe_largura2 // 2
             by = pos_y_chefe2 + chefe_altura2 // 2
             dist_boss = math.hypot(bx - cx_t, by - cy_t)
@@ -404,20 +412,76 @@ inimigos_comum = []
 tempo_ultima_criacao_gelo = pygame.time.get_ticks()
 intervalo_criacao_gelo = 2000  # 10 segundos
 
+# State variables for new Phase 2 features
+jogador_desacelerado = False
+blizzard_ativo = False
+zonas_lentidao = []
+velocidade_disparo_inimigo = 3.0 # Fallback global value
+tempo_ultimo_blizzard = 0
+tempo_inicio_blizzard = 0
+intervalo_blizzard = 40000
+duracao_blizzard = 10000
+tempo_inicio_aviso_vertical = 0
+tempo_inicio_aviso_horizontal = 0
+duracao_aviso = 1000
+ataque_vertical_aviso = False
+ataque_horizontal_aviso = False
+boss_entrada_ativa = False
+boss_entrada_tempo_inicio = 0
+boss_impacto_feito = False
+screen_shake = 0
+ice_shards = []
+ataque_avalanche_aviso = False
+ataque_avalanche_ativo = False
+tempo_inicio_aviso_avalanche = 0
+avalanche_posicoes = []
+avalanche_projeteis = []
+tempo_inicio_ataque = 0
+boss_sopro_aviso = False
+boss_sopro_ativo = False
+tempo_inicio_sopro = 0
+sopro_dir = (0, 0)
+sopro_particulas = []
+tempo_ultimo_sopro_disparo = 0
+boss_escudo_ativo = False
+tempo_inicio_escudo = 0
+escudo_cristais_angulo = 0.0
+tempo_ultimo_disparo_escudo = 0
+avalanche_particulas_vento = []
+ondas_nevasca = []
+ondas_nevasca_preparadas = []
 
-def criar_disparo_inimigo(pos_inimigo, pos_personagem):
+
+def criar_disparo_inimigo(pos_inimigo, pos_personagem, is_elite=False):
     dx = pos_personagem[0] - pos_inimigo[0]
     dy = pos_personagem[1] - pos_inimigo[1]
     dist = max(1, math.sqrt(dx ** 2 + dy ** 2))
     
-    direcao_disparo_inimigo = (dx / dist * velocidade_disparo_inimigo, dy / dist * velocidade_disparo_inimigo)
+    vel = velocidade_disparo_inimigo
+    if is_elite:
+        vel = velocidade_disparo_inimigo * 1.3
+    
+    direcao_disparo_inimigo = (dx / dist * vel, dy / dist * vel)
 
-    return {"rect": pygame.Rect(pos_inimigo[0], pos_inimigo[1], largura_disparo*0.5,altura_disparo*0.5), "velocidade": direcao_disparo_inimigo}
+    w = largura_disparo * 0.5
+    h = altura_disparo * 0.5
+    if is_elite:
+        w = int(largura_disparo * 0.7)
+        h = int(altura_disparo * 0.7)
+
+    return {"rect": pygame.Rect(pos_inimigo[0], pos_inimigo[1], w, h), "velocidade": direcao_disparo_inimigo, "elite": is_elite}
 
 
-def criar_inimigo(x, y):
+def criar_inimigo(x, y, is_elite=False):
     image = frames_inimigo[0]
-    return {"rect": pygame.Rect(x, y, largura_inimigo, altura_inimigo), "image": image, "vida": vida_inimigo_maxima, "vida_maxima": vida_inimigo_maxima}
+    w = largura_inimigo
+    h = altura_inimigo
+    vida_max = vida_inimigo_maxima
+    if is_elite:
+        w = int(largura_inimigo * 1.35)
+        h = int(altura_inimigo * 1.35)
+        vida_max = vida_inimigo_maxima * 3.0
+    return {"rect": pygame.Rect(x, y, w, h), "image": image, "vida": vida_max, "vida_maxima": vida_max, "elite": is_elite}
 
 def desenhar_sombra(tela, x, y, largura, altura, offset_y=5):
     """Desenha uma sombra elíptica embaixo de um ser com três níveis de qualidade"""
@@ -460,14 +524,17 @@ def desenhar_sombra(tela, x, y, largura, altura, offset_y=5):
         tela.blit(sombra_surface, (pos_x, pos_y))
 
 def gerar_inimigo():
-    global inimigos_comum
+    global inimigos_comum, r_press
+    if r_press:
+        return
 
     if len(inimigos_comum) < max_inimigos2:
+        is_elite = random.random() <= 0.20
         # Adicione uma chance de 40% de gerar o inimigo na borda esquerda
         if random.random() <= 0.4:
-            novo_inimigo = criar_inimigo(0, random.randint(10, altura_mapa))
+            novo_inimigo = criar_inimigo(0, random.randint(10, altura_mapa), is_elite)
         else:
-            novo_inimigo = criar_inimigo(largura_mapa, random.randint(10, altura_mapa))
+            novo_inimigo = criar_inimigo(largura_mapa, random.randint(10, altura_mapa), is_elite)
 
         # Verifique se o novo inimigo está muito próximo de algum inimigo existente
         distancia_minima_alcancada = any(
@@ -478,9 +545,9 @@ def gerar_inimigo():
         
         while distancia_minima_alcancada:
             if random.random() <= 0.4:
-                novo_inimigo = criar_inimigo(0, random.randint(10, altura_mapa))
+                novo_inimigo = criar_inimigo(0, random.randint(10, altura_mapa), is_elite)
             else:
-                novo_inimigo = criar_inimigo(largura_mapa, random.randint(10, altura_mapa))
+                novo_inimigo = criar_inimigo(largura_mapa, random.randint(10, altura_mapa), is_elite)
             distancia_minima_alcancada = any(
                 math.sqrt((novo_inimigo["rect"].x - inimigo["rect"].x) ** 2 + (novo_inimigo["rect"].y - inimigo["rect"].y) ** 2) < distancia_minima_inimigos
                 for inimigo in inimigos_comum
@@ -567,6 +634,7 @@ y = 0
 def executar_jogo(game_manager=None):
     global dt
     global joystick, ondas_choque, gerar_fragmentos_morte, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss2, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, ataque_horizontal_ativo, ataque_vertical_ativo, bonus_pontuacao, boss_envenenado, carregar_atributos_na_fase, cartas_compradas, cartas_visiveis, chance_critico, dano, dano_boss2, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, disparos, disparos_inimigos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, escudo_devota_ativo, fonte, frame_atual, frame_atual_chefe, frame_atual_disparo, frame_porcentagem, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, largura_disparo, max_inimigos2, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, musica_boss2, nivel_ameaca, ondas, personagem_imovel, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_personagem, pos_x_petro, pos_y_personagem, pos_y_petro, posicao_ataque_horizontal, posicao_ataque_vertical, quantidade_roubo_vida, r_press, rect_boss, roubo_de_vida, running, sprite_moeda, teleportado, tempo_anterior_petro, tempo_atual, tempo_cooldown_dash, tempo_inicio_ataque_horizontal, tempo_inicio_buff_impulsiva, tempo_inicio_dano_horizontal, tempo_inicio_veneno_boss, tempo_passado, tempo_passado_animacao_chefe2, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_regeneracao, tempo_ultimo_atingido, tempo_ultimo_dano_horizontal, tempo_ultimo_dano_vertical, tempo_ultimo_disparo_inimigo, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, texto_dano, tipo_buff_impulsiva, toque, trembo, ultima_direcao_animacao, ultimo_tick_veneno_boss, upgrades, velocidade_ataque_horizontal, velocidade_ataque_vertical, velocidade_inimigo2, velocidade_personagem, vida, vida_boss, vida_boss2, vida_boss3, vida_boss4, vida_inimigo_maxima, vida_maxima, vida_maxima_boss2, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, x, xp_petro, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
+    global jogador_desacelerado, blizzard_ativo, zonas_lentidao, velocidade_disparo_inimigo, ataque_vertical_aviso, ataque_horizontal_aviso, tempo_inicio_aviso_vertical, tempo_inicio_aviso_horizontal, vida_inimigo, tempo_ultimo_blizzard, tempo_inicio_blizzard, intervalo_blizzard, duracao_blizzard, duracao_aviso, boss_entrada_ativa, boss_entrada_tempo_inicio, boss_impacto_feito, screen_shake, ice_shards, ataque_avalanche_aviso, ataque_avalanche_ativo, tempo_inicio_aviso_avalanche, avalanche_posicoes, avalanche_projeteis, tempo_inicio_ataque, boss_sopro_aviso, boss_sopro_ativo, tempo_inicio_sopro, sopro_dir, sopro_particulas, tempo_ultimo_sopro_disparo, boss_escudo_ativo, tempo_inicio_escudo, escudo_cristais_angulo, tempo_ultimo_disparo_escudo, avalanche_particulas_vento, pos_x_chefe2, pos_y_chefe2, ondas_nevasca, ondas_nevasca_preparadas
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -824,8 +892,25 @@ def executar_jogo(game_manager=None):
         while running:
             tempo_atual = pygame.time.get_ticks()
             if carregar_atributos_na_fase:
-                carregar_atributos()
+                try:
+                    carregar_atributos()
+                except Exception as e:
+                    print(f"Aviso: Nao foi possivel carregar atributos ({e}). Usando padrao.")
                 carregar_atributos_na_fase=False
+                
+                # Dynamic enemy stat scaling based on loaded player stats
+                vida_inimigo_maxima = max(35, int(dano_person_hit * 2.5))
+                vida_inimigo = vida_inimigo_maxima
+                
+                dano_inimigo_perto = max(dano_inimigo_perto, Resistencia + 15)
+                dano_inimigo_longe = max(dano_inimigo_longe, Resistencia // 2 + 10)
+                
+                velocidade_inimigo2 = max(1.70, velocidade_personagem * 0.55)
+                velocidade_disparo_inimigo = max(3.0, velocidade_personagem * 0.9)
+                
+                # Boss 2 scaling
+                vida_boss2 = max(8000, int(dano_person_hit * 120))
+                vida_maxima_boss2 = vida_boss2
 
             if impulsiva_ativa:
                 disparo_paths = ["Sprites/Fogo_impulso1.png", "Sprites/Fogo_impulso2.png"]
@@ -958,7 +1043,7 @@ def executar_jogo(game_manager=None):
 
                 for disparo in disparos:
 
-                    if verificar_colisao_disparo_inimigo(disparo, (inimigo["rect"].x, inimigo["rect"].y), largura_disparo, altura_disparo, largura_inimigo, altura_inimigo, inimigos_eliminados):
+                    if verificar_colisao_disparo_inimigo(disparo, (inimigo["rect"].x, inimigo["rect"].y), largura_disparo, altura_disparo, inimigo["rect"].width, inimigo["rect"].height, inimigos_eliminados):
                         if random.random() <= chance_critico:  # 10% de chance de dano crítico
                             dano = dano_person_hit * 3  # Valor do dano crítico é 3 vezes o dano normal
                             cor = (255, 255, 0)  # Amarelo (RGB)
@@ -974,7 +1059,7 @@ def executar_jogo(game_manager=None):
                         texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
 
                         # Desenhe o texto na tela perto do chefe
-                        pos_texto = (inimigo["rect"].x + largura_inimigo // 2 - texto_dano.get_width() // 2,  inimigo["rect"].y - 20)
+                        pos_texto = (inimigo["rect"].x + inimigo["rect"].width // 2 - texto_dano.get_width() // 2,  inimigo["rect"].y - 20)
 
                         # Rastreie o tempo de exibição do texto
                         tempo_texto_dano = pygame.time.get_ticks()
@@ -997,9 +1082,19 @@ def executar_jogo(game_manager=None):
                         if Ultimo_Estalo and inimigo["vida"] <= Executa_inimigo * inimigo["vida_maxima"]:
                             if inimigo in inimigos_comum:
                                 gerar_fragmentos_morte(inimigo, 2)
+                                if inimigo.get("elite", False):
+                                    # Frost Nova!
+                                    zonas_lentidao.append({
+                                        "pos": inimigo["rect"].center,
+                                        "raio": 95,
+                                        "duracao": 5000,
+                                        "tempo_inicio": pygame.time.get_ticks()
+                                    })
                                 inimigos_comum.remove(inimigo)
                             posicao_inimigo = inimigo["rect"].center
                             soltar_moeda(posicao_inimigo)
+                            if inimigo.get("elite", False):
+                                soltar_moeda(posicao_inimigo) # double coins!
                             inimigos_eliminados += 1
                             ganho_pontos = int(150 * (1 + math.log10(inimigos_eliminados + 1)))
                             # Execução oferece um prêmio de escala superior (15%)
@@ -1043,6 +1138,15 @@ def executar_jogo(game_manager=None):
                         elif inimigo["vida"] <= 0:
                             posicao_inimigo = inimigo["rect"].center
                             soltar_moeda(posicao_inimigo)
+                            if inimigo.get("elite", False):
+                                soltar_moeda(posicao_inimigo) # double coins!
+                                # Frost Nova!
+                                zonas_lentidao.append({
+                                    "pos": inimigo["rect"].center,
+                                    "raio": 95,
+                                    "duracao": 5000,
+                                    "tempo_inicio": pygame.time.get_ticks()
+                                })
                             gerar_fragmentos_morte(inimigo, 2)
                             inimigos_comum.remove(inimigo)
                             inimigos_eliminados += 1
@@ -1197,24 +1301,81 @@ def executar_jogo(game_manager=None):
                     tempo_passado = 0
                     frame_atual = (frame_atual + 1) % len(frames_animacao[direcao_atual])
 
+            # Screen shake update
+            if screen_shake > 0:
+                screen_shake = max(0, screen_shake - 1)
+                shake_x = random.randint(-screen_shake, screen_shake)
+                shake_y = random.randint(-screen_shake, screen_shake)
+            else:
+                shake_x = 0
+                shake_y = 0
+
             tela.fill((255, 255, 255))
-            tela.blit(mapa, (0, 0))
+            tela.blit(mapa, (shake_x, shake_y))
+
+            # Update and Draw Ice Shards from Boss Entrance Impact
+            novos_shards = []
+            for shard in ice_shards:
+                shard["x"] += shard["vx"] * dt
+                shard["y"] += shard["vy"] * dt
+                shard["vy"] += 0.25 * dt # gravity!
+                shard["vida"] -= 6 * dt
+                if shard["vida"] > 0:
+                    novos_shards.append(shard)
+                    # Draw a translucent ice polygon
+                    rx = int(shard["x"]) + shake_x
+                    ry = int(shard["y"]) + shake_y
+                    sz = int(shard["size"])
+                    # Create surface with transparency for color alpha
+                    surf_shard = pygame.Surface((sz * 2, sz * 2), pygame.SRCALPHA)
+                    pygame.draw.polygon(surf_shard, (135, 206, 250, min(255, int(shard["vida"]))), [
+                        (sz, 0),
+                        (sz * 2, sz),
+                        (sz, sz * 2),
+                        (0, sz)
+                    ])
+                    tela.blit(surf_shard, (rx - sz, ry - sz))
+            ice_shards = novos_shards
+
+            # Update and Draw Frost Slow Zones
+            tempo_atual = pygame.time.get_ticks()
+            novas_zonas = []
+            jogador_desacelerado = False # Reset every frame, we will check if player is in any active zone
+            for zona in zonas_lentidao:
+                if tempo_atual - zona["tempo_inicio"] < zona["duracao"]:
+                    novas_zonas.append(zona)
+                    
+                    # Draw translucent ice patch on ground
+                    surf_zona = pygame.Surface((zona["raio"] * 2, zona["raio"] * 2), pygame.SRCALPHA)
+                    pygame.draw.circle(surf_zona, (0, 191, 255, 45), (zona["raio"], zona["raio"]), zona["raio"])
+                    pygame.draw.circle(surf_zona, (173, 216, 230, 75), (zona["raio"], zona["raio"]), int(zona["raio"] * 0.7))
+                    pygame.draw.circle(surf_zona, (240, 248, 255, 120), (zona["raio"], zona["raio"]), zona["raio"], 2)
+                    
+                    tela.blit(surf_zona, (zona["pos"][0] - zona["raio"] + shake_x, zona["pos"][1] - zona["raio"] + shake_y))
+                    
+                    # Check collision with player center
+                    px = pos_x_personagem + largura_personagem // 2
+                    py = pos_y_personagem + altura_personagem // 2
+                    dist_to_player = math.sqrt((px - zona["pos"][0]) ** 2 + (py - zona["pos"][1]) ** 2)
+                    if dist_to_player <= zona["raio"]:
+                        jogador_desacelerado = True
+            zonas_lentidao = novas_zonas
 
 
             # Desenha a personagem
             # Desenhar sombra do personagem
-            desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+            desenhar_sombra(tela, pos_x_personagem + shake_x, pos_y_personagem + shake_y, largura_personagem, altura_personagem)
             if not personagem_imovel:
                 frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
                 if angulo_inclinacao_personagem != 0:
                     # Rotaciona o frame pelo centro para manter o eixo
                     frame_rotacionado = pygame.transform.rotate(frame_para_desenhar, angulo_inclinacao_personagem)
-                    novo_rect = frame_rotacionado.get_rect(center=(pos_x_personagem + largura_personagem//2, pos_y_personagem + altura_personagem//2))
+                    novo_rect = frame_rotacionado.get_rect(center=(pos_x_personagem + largura_personagem//2 + shake_x, pos_y_personagem + altura_personagem//2 + shake_y))
                     tela.blit(frame_rotacionado, novo_rect.topleft)
                 else:
-                    tela.blit(frame_para_desenhar, (pos_x_personagem, pos_y_personagem))
+                    tela.blit(frame_para_desenhar, (pos_x_personagem + shake_x, pos_y_personagem + shake_y))
             else:
-                tela.blit(imagem_personagem_congelada, (pos_x_personagem, pos_y_personagem))
+                tela.blit(imagem_personagem_congelada, (pos_x_personagem + shake_x, pos_y_personagem + shake_y))
 
             for moeda in moedas_soltadas[:]:
                 if personagem_rect.colliderect(moeda["rect"]):
@@ -1454,13 +1615,13 @@ def executar_jogo(game_manager=None):
 
             # Renderizar os disparos
             for disparo in disparos:
-                tela.blit(frames_disparo[frame_atual_disparo], disparo["rect"].topleft)
+                tela.blit(frames_disparo[frame_atual_disparo], (disparo["rect"].x + shake_x, disparo["rect"].y + shake_y))
 
             frame_atual_disparo = (frame_atual_disparo + 1) % len(frames_disparo)
 
             boss_info = {
                 "vivo": boss_vivo2,
-                "rect": pygame.Rect(pos_x_chefe2, pos_y_chefe2, chefe_largura2, chefe_altura2) if boss_vivo2 else None,
+                "rect": pygame.Rect(pos_x_chefe2, pos_y_chefe2, chefe_largura2, chefe_altura2) if (boss_vivo2 and r_press and not boss_entrada_ativa) else None,
                 "atingido_por_onda": boss_atingido_por_onda,
                 "hit_flag": False
             }
@@ -1468,7 +1629,10 @@ def executar_jogo(game_manager=None):
                 ondas, correntes_eletricas, inimigos_comum, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda
             )
             if boss_info.get("hit_flag"):
-                vida_boss -= dano_person_hit * 2
+                dano_onda = dano_person_hit * 2
+                if boss_escudo_ativo:
+                    dano_onda = max(1, int(dano_onda * 0.1))
+                vida_boss2 -= dano_onda
                 boss_atingido_por_onda = boss_info["atingido_por_onda"]
                 if vida_boss2 <= 0:
                     frame_porcentagem = frames_chefe2_4
@@ -1496,6 +1660,17 @@ def executar_jogo(game_manager=None):
             inimigos_mortos = inimigos_mortos_neste_frame + inimigos_mortos_correntes
             for morto in inimigos_mortos:
                 if morto in inimigos_comum:
+                    posicao_inimigo = morto["rect"].center
+                    soltar_moeda(posicao_inimigo)
+                    if morto.get("elite", False):
+                        soltar_moeda(posicao_inimigo) # double coins!
+                        # Frost Nova!
+                        zonas_lentidao.append({
+                            "pos": posicao_inimigo,
+                            "raio": 95,
+                            "duracao": 5000,
+                            "tempo_inicio": pygame.time.get_ticks()
+                        })
                     gerar_fragmentos_morte(morto, 2)
                     inimigos_comum.remove(morto)
                     nivel_ameaca = min(inimigos_eliminados // 10, 100)
@@ -1527,31 +1702,79 @@ def executar_jogo(game_manager=None):
             #MODIFICA O TEMPO QUE OS INIMIGOS DISPARAM REFERENTE O BOSS ESTÁ VIVO OU NÃO                
             if not boss_vivo2:
                 intervalo_disparo_inimigo = 3500
-            else :
+            else:
                 intervalo_disparo_inimigo = random.randint(1800, 4000) 
             for inimigo in inimigos_comum:
                 dx = pos_x_personagem - inimigo["rect"].x
                 dy = pos_y_personagem - inimigo["rect"].y
                 dist = max(40, abs(dx) + abs(dy))
-                inimigo["rect"].x += (dx / dist) * velocidade_inimigo2
-                inimigo["rect"].y += (dy / dist) * velocidade_inimigo2
+                
+                if "pos_x" not in inimigo:
+                    inimigo["pos_x"] = float(inimigo["rect"].x)
+                if "pos_y" not in inimigo:
+                    inimigo["pos_y"] = float(inimigo["rect"].y)
+
+                # Check speed multiplier based on elite status or blizzard
+                vel = velocidade_inimigo2
+                if inimigo.get("elite", False):
+                    vel = velocidade_inimigo2 * 0.90
+                if blizzard_ativo:
+                    vel *= 1.30 # enemies thrive in snowstorm!
+                
+                if r_press:
+                    # Flee from player: move in the opposite direction
+                    inimigo["pos_x"] -= (dx / dist) * vel * 2.5 * dt
+                    inimigo["pos_y"] -= (dy / dist) * vel * 2.5 * dt
+                else:
+                    inimigo["pos_x"] += (dx / dist) * vel * dt
+                    inimigo["pos_y"] += (dy / dist) * vel * dt
+                inimigo["rect"].x = int(inimigo["pos_x"])
+                inimigo["rect"].y = int(inimigo["pos_y"])
 
 
                 if dx > 0:  # Mova para a direita
-                    inimigo["image"] = frames_inimigo_direita2[frame_atual % len(frames_inimigo_direita2)]
+                    img_base = frames_inimigo_direita2[frame_atual % len(frames_inimigo_direita2)]
                 else:  # Mova para a esquerda
-                    inimigo["image"] = frames_inimigo_esquerda2[frame_atual % len(frames_inimigo_esquerda2)]
+                    img_base = frames_inimigo_esquerda2[frame_atual % len(frames_inimigo_esquerda2)]
 
-                # Desenhar sombra do inimigo
-                desenhar_sombra(tela, inimigo["rect"].x, inimigo["rect"].y, largura_inimigo, altura_inimigo)
-                tela.blit(inimigo["image"], inimigo["rect"])
-                desenhar_barra_de_vida(tela, inimigo["rect"].x, inimigo["rect"].y - 10, largura_inimigo, 5, inimigo["vida"], inimigo["vida_maxima"], inimigo.get("eletrocutado", False))
+                # Scale the image if it's elite
+                if inimigo.get("elite", False):
+                    inimigo_image = pygame.transform.scale(img_base, (inimigo["rect"].width, inimigo["rect"].height))
+                else:
+                    inimigo_image = img_base
+                inimigo["image"] = inimigo_image
+
+                # Desenhar sombra do inimigo using its actual width and height
+                desenhar_sombra(tela, inimigo["rect"].x + shake_x, inimigo["rect"].y + shake_y, inimigo["rect"].width, inimigo["rect"].height)
+                
+                # Draw Elite Aura
+                if inimigo.get("elite", False):
+                    glow_surf = pygame.Surface((inimigo["rect"].width + 16, inimigo["rect"].height + 16), pygame.SRCALPHA)
+                    pygame.draw.ellipse(glow_surf, (0, 191, 255, 60), (0, 0, inimigo["rect"].width + 16, inimigo["rect"].height + 16))
+                    tela.blit(glow_surf, (inimigo["rect"].x - 8 + shake_x, inimigo["rect"].y - 8 + shake_y))
+
+                tela.blit(inimigo["image"], (inimigo["rect"].x + shake_x, inimigo["rect"].y + shake_y))
+                desenhar_barra_de_vida(tela, inimigo["rect"].x + shake_x, inimigo["rect"].y - 10 + shake_y, inimigo["rect"].width, 5, inimigo["vida"], inimigo["vida_maxima"], inimigo.get("eletrocutado", False))
 
                 tempo_atual = pygame.time.get_ticks()
-                if tempo_atual - tempo_ultimo_disparo_inimigo >= intervalo_disparo_inimigo and random.random() <= 0.25:  #frequencia do disparo do sinimigos
-                    disparos_inimigos.append(criar_disparo_inimigo((inimigo["rect"].x, inimigo["rect"].y), (pos_x_personagem, pos_y_personagem)))
+                # If Blizzard is active, enemies spawn projectiles faster too!
+                shoot_interval = intervalo_disparo_inimigo
+                if inimigo.get("elite", False):
+                    shoot_interval = int(intervalo_disparo_inimigo * 0.70)
+                if blizzard_ativo:
+                    shoot_interval = int(shoot_interval * 0.60)
+
+                # Enemies do not fire if boss has been summoned
+                if not r_press and tempo_atual - tempo_ultimo_disparo_inimigo >= shoot_interval and random.random() <= 0.25:  #frequencia do disparo do sinimigos
+                    disparos_inimigos.append(criar_disparo_inimigo((inimigo["rect"].x, inimigo["rect"].y), (pos_x_personagem, pos_y_personagem), inimigo.get("elite", False)))
                     tempo_ultimo_disparo_inimigo = tempo_atual  # Atualize o tempo do último disparo
 
+            if r_press:
+                # Remove enemies that run off-screen
+                inimigos_comum[:] = [im for im in inimigos_comum if not (
+                    im["pos_x"] < -100 or im["pos_x"] > largura_tela + 100 or
+                    im["pos_y"] < -100 or im["pos_y"] > altura_tela + 100
+                )]
 
             personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
             inimigos_rects = [inimigo["rect"] for inimigo in inimigos_comum]
@@ -1594,44 +1817,80 @@ def executar_jogo(game_manager=None):
 
             novos_disparos_inimigos = []
             for disparo_inimigo in disparos_inimigos:
+                if "pos_x" not in disparo_inimigo:
+                    disparo_inimigo["pos_x"] = float(disparo_inimigo["rect"].x)
+                if "pos_y" not in disparo_inimigo:
+                    disparo_inimigo["pos_y"] = float(disparo_inimigo["rect"].y)
+
                 pos_x_disparo_inimigo, pos_y_disparo_inimigo = disparo_inimigo["rect"].x, disparo_inimigo["rect"].y
-                tela.blit(frames_disparo[frame_atual_disparo], (pos_x_disparo_inimigo, pos_y_disparo_inimigo))
+                if disparo_inimigo.get("frost_shard", False):
+                    # Draw sharp ice shard rotated in its movement direction
+                    vx, vy = disparo_inimigo["velocidade"]
+                    angle = math.atan2(vy, vx)
+                    px, py = pos_x_disparo_inimigo + shake_x, pos_y_disparo_inimigo + shake_y
+                    pts = [
+                        (px + 12 * math.cos(angle), py + 12 * math.sin(angle)),
+                        (px + 6 * math.cos(angle + math.pi/2), py + 6 * math.sin(angle + math.pi/2)),
+                        (px - 12 * math.cos(angle), py - 12 * math.sin(angle)),
+                        (px + 6 * math.cos(angle - math.pi/2), py + 6 * math.sin(angle - math.pi/2))
+                    ]
+                    pygame.draw.polygon(tela, (0, 191, 255), pts)
+                    pygame.draw.polygon(tela, (240, 248, 255), pts, 1)
+                elif disparo_inimigo.get("elite", False):
+                    # Scale and tint elite projectile to icy blue
+                    scaled_frame = pygame.transform.scale(frames_disparo[frame_atual_disparo], (disparo_inimigo["rect"].width, disparo_inimigo["rect"].height))
+                    tint_surf = pygame.Surface(scaled_frame.get_size(), pygame.SRCALPHA)
+                    tint_surf.fill((100, 200, 255, 255))
+                    scaled_frame.blit(tint_surf, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+                    tela.blit(scaled_frame, (pos_x_disparo_inimigo + shake_x, pos_y_disparo_inimigo + shake_y))
+                else:
+                    tela.blit(frames_disparo[frame_atual_disparo], (pos_x_disparo_inimigo + shake_x, pos_y_disparo_inimigo + shake_y))
 
                 # Atualize a posição do disparo do inimigo
-                disparo_inimigo["rect"].x += disparo_inimigo["velocidade"][0]
-                disparo_inimigo["rect"].y += disparo_inimigo["velocidade"][1]
-                #pygame.draw.rect(tela, (0, 0, 0), disparo_inimigo["rect"], 2)
+                disparo_inimigo["pos_x"] += disparo_inimigo["velocidade"][0] * dt
+                disparo_inimigo["pos_y"] += disparo_inimigo["velocidade"][1] * dt
+                disparo_inimigo["rect"].x = int(disparo_inimigo["pos_x"])
+                disparo_inimigo["rect"].y = int(disparo_inimigo["pos_y"])
+                
+                # Check collision with player
+                colidiu = False
                 if (
                     pos_x_personagem < pos_x_disparo_inimigo < pos_x_personagem + largura_personagem and
                     pos_y_personagem < pos_y_disparo_inimigo < pos_y_personagem + altura_personagem
                 ):
                     # O disparo do inimigo atingiu o personagem
+                    colidiu = True
                     if not personagem_imovel:
-                        Dano_pos_resistencia_person_longe=int((vida_maxima*0.25+dano_inimigo_longe)-Resistencia)
+                        if disparo_inimigo.get("frost_shard", False):
+                            Dano_pos_resistencia_person_longe = int((vida_maxima * 0.05 + 15) - Resistencia)
+                        else:
+                            dmg_base = dano_inimigo_longe
+                            if disparo_inimigo.get("elite", False):
+                                dmg_base = dano_inimigo_longe * 1.5
+                            Dano_pos_resistencia_person_longe = int((vida_maxima * 0.25 + dmg_base) - Resistencia)
+                        
+                        if Dano_pos_resistencia_person_longe < 10:
+                            Dano_pos_resistencia_person_longe = 10
                         if aurea == "Impulsiva":
                             eliminacoes_consecutivas_impulsiva = 0  # Perde streak se levar dano        
-                        if Dano_pos_resistencia_person_longe < 0:
-                            pass
                         if escudo_devota_ativo:
-                            escudo_devota_ativo= False
-                            pass
+                            escudo_devota_ativo = False
                         else:  
-                            vida -=Dano_pos_resistencia_person_longe
+                            vida -= Dano_pos_resistencia_person_longe
                             eliminacoes_consecutivas = 0
                             bonus_pontuacao = 0
                         tempo_ultimo_hit_inimigo = tempo_atual  # Atualize o tempo do último hit do inimigo
-                        piscando_vida=True
+                        piscando_vida = True
 
                         tempo_ultimo_atingido = pygame.time.get_ticks()
                         personagem_imovel = True  # O personagem está imóvel após ser atingido
-                        disparos_inimigos.remove(disparo_inimigo)
-                    continue
-                    # Lógica para controle da imobilização
+
+                # Lógica para controle da imobilização
                 tempo_atual = pygame.time.get_ticks()
                 if personagem_imovel and tempo_atual - tempo_ultimo_atingido >= tempo_imobilizacao:
                     personagem_imovel = False  # A personagem volta a poder se mexer
 
-                if (
+                if not colidiu and (
                     0 <= pos_x_disparo_inimigo < largura_mapa and
                     0 <= pos_y_disparo_inimigo < altura_mapa
                 ):
@@ -1687,18 +1946,87 @@ def executar_jogo(game_manager=None):
             tempo_atual = pygame.time.get_ticks()
 
             if (keys[pygame.K_r]) or r_press:
+                if not r_press:
+                    boss_entrada_ativa = True
+                    boss_entrada_tempo_inicio = tempo_atual
+                    boss_impacto_feito = False
+                    ice_shards = []
+                    ondas_nevasca = []
+                    ondas_nevasca_preparadas = []
                 r_press=True
 
                 max_inimigos2=4
                 intervalo_disparo_inimigo =3000
                 velocidade_inimigo2=1.50
                 if musica_boss2 == 1:
-                    # Defina o volume da música (opcional)
-                    ataque_vertical_ativo = True
                     Musica_tema_Boss2.play(loops=-1)
                     musica_boss2+=1
 
+            if r_press and boss_entrada_ativa:
+                tempo_decorrido = tempo_atual - boss_entrada_tempo_inicio
+                progress = min(1.0, tempo_decorrido / 2500)
+                
+                # Falling crystal stage
+                if progress < 0.8:
+                    # Draw falling ice block/crystal
+                    cy = -300 + (pos_y_chefe2 + 300) * (progress / 0.8)
+                    cx = pos_x_chefe2 + chefe_largura2 // 2
+                    
+                    crystal_surf = pygame.Surface((120, 200), pygame.SRCALPHA)
+                    # Outer glow (cyan)
+                    pygame.draw.polygon(crystal_surf, (0, 191, 255, 75), [(60, 0), (120, 50), (100, 150), (60, 200), (20, 150), (0, 50)])
+                    # Inner core (light blue)
+                    pygame.draw.polygon(crystal_surf, (173, 216, 230, 200), [(60, 10), (110, 55), (90, 145), (60, 190), (30, 145), (10, 55)])
+                    # Highlights (ice white)
+                    pygame.draw.polygon(crystal_surf, (240, 248, 255, 255), [(60, 20), (100, 60), (80, 140), (60, 180), (40, 140), (20, 60)], 2)
+                    tela.blit(crystal_surf, (cx - 60 + shake_x, cy - 100 + shake_y))
+                else:
+                    # Impact stage!
+                    if not boss_impacto_feito:
+                        boss_impacto_feito = True
+                        screen_shake = 18
+                        # Spawn 35 ice shards blasting out!
+                        for _ in range(35):
+                            angle = random.uniform(0, 2 * math.pi)
+                            speed = random.uniform(3, 10)
+                            ice_shards.append({
+                                "x": pos_x_chefe2 + chefe_largura2 // 2,
+                                "y": pos_y_chefe2 + chefe_altura2 // 2,
+                                "vx": speed * math.cos(angle),
+                                "vy": speed * math.sin(angle) - random.uniform(2, 6), # upward blast bias
+                                "size": random.randint(5, 12),
+                                "vida": random.uniform(150, 255)
+                            })
+                    
+                    # Draw expanding freezing shockwave rings!
+                    cx = pos_x_chefe2 + chefe_largura2 // 2
+                    cy = pos_y_chefe2 + chefe_altura2 // 2
+                    for i in range(3):
+                        wave_r = int(250 * ((tempo_decorrido % 500) / 500.0)) + i * 20
+                        alpha = max(0, 255 - int(255 * ((tempo_decorrido % 500) / 500.0)))
+                        surf_ring = pygame.Surface((wave_r * 2, wave_r * 2), pygame.SRCALPHA)
+                        pygame.draw.circle(surf_ring, (173, 216, 230, alpha // 3), (wave_r, wave_r), wave_r, 4)
+                        tela.blit(surf_ring, (cx - wave_r + shake_x, cy - wave_r + shake_y))
 
+                # Banner announcing the boss entrance!
+                if (tempo_atual // 150) % 2 == 0:
+                    fonte_aviso = pygame.font.Font(None, 48)
+                    txt_boss = fonte_aviso.render("A nevasca emite um grito", True, (0, 191, 255))
+                    rect_boss_txt = txt_boss.get_rect(center=(largura_tela // 2, altura_tela // 2 - 100))
+                    # Draw dark transparent banner background for high contrast/readability
+                    bg_surf = pygame.Surface((rect_boss_txt.width + 40, rect_boss_txt.height + 20), pygame.SRCALPHA)
+                    bg_surf.fill((0, 0, 0, 180))
+                    tela.blit(bg_surf, (rect_boss_txt.x - 20, rect_boss_txt.y - 10))
+                    tela.blit(txt_boss, rect_boss_txt)
+
+                if tempo_decorrido >= 2500:
+                    boss_entrada_ativa = False
+                    # Start the boss attacks after entrance finishes
+                    ataque_vertical_aviso = True
+                    tempo_inicio_aviso_vertical = tempo_atual
+
+
+            if r_press:
                 # Lógica para animar o chefe
                 tempo_passado_animacao_chefe2 += relogio.get_rawtime()
                 if tempo_passado_animacao_chefe2 >= tempo_animacao_chefe2:
@@ -1740,11 +2068,10 @@ def executar_jogo(game_manager=None):
 
                     Musica_tema_fases.stop()
                     # Dentro do loop principal
-                    pygame.draw.rect(tela, vermelho, (pos_x_barra_boss2, pos_y_barra_boss2, largura_barra_boss2, altura_barra_boss2))
-                    pygame.draw.rect(tela, (143,255,255), (pos_x_barra_boss2, pos_y_barra_boss2, largura_barra_boss2, (vida_boss2 / vida_maxima_boss2) * altura_barra_boss2))
-                    pygame.draw.rect(tela, (255, 255, 255), (pos_x_barra_boss2, pos_y_barra_boss2, largura_barra_boss2, altura_barra_boss2), 2)    
-
-
+                    if not boss_entrada_ativa:
+                        pygame.draw.rect(tela, vermelho, (pos_x_barra_boss2, pos_y_barra_boss2, largura_barra_boss2, altura_barra_boss2))
+                        pygame.draw.rect(tela, (143,255,255), (pos_x_barra_boss2, pos_y_barra_boss2, largura_barra_boss2, (vida_boss2 / vida_maxima_boss2) * altura_barra_boss2))
+                        pygame.draw.rect(tela, (255, 255, 255), (pos_x_barra_boss2, pos_y_barra_boss2, largura_barra_boss2, altura_barra_boss2), 2)    
 
                     porcentagem_vida_boss = (vida_boss2 / vida_maxima_boss2) * 100
 
@@ -1763,85 +2090,560 @@ def executar_jogo(game_manager=None):
                         velocidade_ataque_vertical=3
 
 
-                    tela.blit(frame_porcentagem[frame_atual_chefe], (pos_x_chefe2, pos_y_chefe2))
+                    if not boss_entrada_ativa:
+                        # Draw freezing breath wind effect (particles and cone)
+                        if boss_sopro_ativo:
+                            cx = pos_x_chefe2 + chefe_largura2 // 2
+                            cy = pos_y_chefe2 + chefe_altura2 // 2
+                            px = pos_x_personagem + largura_personagem // 2
+                            py = pos_y_personagem + altura_personagem // 2
+                            dx = px - cx
+                            dy = py - cy
+                            dist = max(1.0, math.hypot(dx, dy))
+                            udir = (dx / dist, dy / dist)
+                            perp = (-udir[1], udir[0])
+                            
+                            # Draw wind particles
+                            for _ in range(2):
+                                sopro_particulas.append({
+                                    "x": cx + udir[0] * 30 + random.uniform(-10, 10),
+                                    "y": cy + udir[1] * 30 + random.uniform(-10, 10),
+                                    "vx": udir[0] * random.uniform(6.0, 9.0) + random.uniform(-1.0, 1.0),
+                                    "vy": udir[1] * random.uniform(6.0, 9.0) + random.uniform(-1.0, 1.0),
+                                    "size": random.randint(10, 22),
+                                    "alpha": random.randint(100, 200)
+                                })
+                                
+                            alpha = int(40 + 20 * math.sin(pygame.time.get_ticks() * 0.02))
+                            cone_len = min(dist, 400.0)
+                            p1 = (cx + udir[0] * 30, cy + udir[1] * 30)
+                            p2 = (cx + udir[0] * cone_len + perp[0] * 90, cy + udir[1] * cone_len + perp[1] * 90)
+                            p3 = (cx + udir[0] * cone_len - perp[0] * 90, cy + udir[1] * cone_len - perp[1] * 90)
+                            
+                            surf_cone = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
+                            pygame.draw.polygon(surf_cone, (173, 216, 230, alpha), [p1, p2, p3])
+                            tela.blit(surf_cone, (0, 0))
+
+                        # Shake boss during warning charge
+                        bx_offset = random.randint(-4, 4) if boss_sopro_aviso else 0
+                        by_offset = random.randint(-4, 4) if boss_sopro_aviso else 0
+                        
+                        tela.blit(frame_porcentagem[frame_atual_chefe], (pos_x_chefe2 + shake_x + bx_offset, pos_y_chefe2 + shake_y + by_offset))
+                        
+                        # Draw crystal shield around boss
+                        if boss_escudo_ativo:
+                            cx = pos_x_chefe2 + chefe_largura2 // 2
+                            cy = pos_y_chefe2 + chefe_altura2 // 2
+                            
+                            # Draw overlapping translucent shields
+                            for r_shield, opacity in [(70, 70), (80, 40)]:
+                                shield_surf = pygame.Surface((r_shield * 2, r_shield * 2), pygame.SRCALPHA)
+                                pygame.draw.circle(shield_surf, (173, 216, 230, opacity), (r_shield, r_shield), r_shield)
+                                pygame.draw.circle(shield_surf, (240, 248, 255, opacity + 40), (r_shield, r_shield), r_shield, 3)
+                                tela.blit(shield_surf, (cx - r_shield + shake_x, cy - r_shield + shake_y))
+                            
+                            # Draw orbiting crystals
+                            raio_orbita = 85
+                            for i in range(3):
+                                angle = escudo_cristais_angulo + i * (2 * math.pi / 3)
+                                ox = cx + raio_orbita * math.cos(angle)
+                                oy = cy + raio_orbita * math.sin(angle)
+                                
+                                # Draw diamond shape
+                                pygame.draw.polygon(tela, (0, 191, 255), [
+                                    (ox + shake_x, oy - 14 + shake_y),
+                                    (ox + 10 + shake_x, oy + shake_y),
+                                    (ox + shake_x, oy + 14 + shake_y),
+                                    (ox - 10 + shake_x, oy + shake_y)
+                                ])
+                                pygame.draw.polygon(tela, (240, 248, 255), [
+                                    (ox + shake_x, oy - 9 + shake_y),
+                                    (ox + 6 + shake_x, oy + shake_y),
+                                    (ox + shake_x, oy + 9 + shake_y),
+                                    (ox - 6 + shake_x, oy + shake_y)
+                                ])
+                    else:
+                        # Draw crack marks on the floor during the latter part of entrance
+                        tempo_decorrido = tempo_atual - boss_entrada_tempo_inicio
+                        progress = min(1.0, tempo_decorrido / 2500)
+                        if progress >= 0.8:
+                            # Show boss fading in/shaking out of the shattered ice!
+                            alpha = min(255, int(255 * ((progress - 0.8) / 0.2)))
+                            temp_surf = frame_porcentagem[frame_atual_chefe].copy()
+                            # Pygame surface transparency
+                            temp_surf.set_alpha(alpha)
+                            tela.blit(temp_surf, (pos_x_chefe2 + shake_x, pos_y_chefe2 + shake_y))
 
 
 
-                    #  desenha o ataque vertical se estiver ativo
-                    if ataque_vertical_ativo:
+                    # Warning telegraph updates and drawing
+                    if ataque_vertical_aviso:
+                        if pygame.time.get_ticks() - tempo_inicio_aviso_vertical >= duracao_aviso:
+                            ataque_vertical_aviso = False
+                            ataque_vertical_ativo = True
+                            ondas_nevasca = list(ondas_nevasca_preparadas)
+                            ondas_nevasca_preparadas = []
+                        else:
+                            alpha = int(90 + 50 * math.sin(pygame.time.get_ticks() * 0.015))
+                            surf_warn_lane = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
+                            for wave in ondas_nevasca_preparadas:
+                                if wave["direction"] in ["left", "right"]:
+                                    x_pos = wave["x"] if wave["direction"] == "left" else 0
+                                    pygame.draw.rect(surf_warn_lane, (0, 220, 255, alpha), (x_pos - 40, 0, 80, altura_tela))
+                                    pygame.draw.rect(surf_warn_lane, (255, 255, 255, alpha + 30), (x_pos - 40, 0, 80, altura_tela), 2)
+                                    for _ in range(2):
+                                        rx = x_pos + random.uniform(-35, 35)
+                                        ry = random.uniform(0, altura_tela)
+                                        pygame.draw.circle(surf_warn_lane, (240, 248, 255, alpha + 60), (rx, ry), random.randint(2, 5))
+                            tela.blit(surf_warn_lane, (0, 0))
+                            
+                            if (pygame.time.get_ticks() // 150) % 2 == 0:
+                                warn_font = pygame.font.Font(None, 32)
+                                warn_txt = warn_font.render("<- ALERTA: NEVASCA VERTICAL IMINENTE <-", True, (0, 220, 255))
+                                shadow_txt = warn_font.render("<- ALERTA: NEVASCA VERTICAL IMINENTE <-", True, (0, 0, 0))
+                                tela.blit(shadow_txt, (largura_tela - warn_txt.get_width() - 22, 22))
+                                tela.blit(warn_txt, (largura_tela - warn_txt.get_width() - 20, 20))
+                                
+                    if ataque_horizontal_aviso:
+                        if pygame.time.get_ticks() - tempo_inicio_aviso_horizontal >= duracao_aviso:
+                            ataque_horizontal_aviso = False
+                            ataque_horizontal_ativo = True
+                            ondas_nevasca = list(ondas_nevasca_preparadas)
+                            ondas_nevasca_preparadas = []
+                        else:
+                            alpha = int(90 + 50 * math.sin(pygame.time.get_ticks() * 0.015))
+                            surf_warn_lane = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
+                            for wave in ondas_nevasca_preparadas:
+                                if wave["direction"] in ["down", "up"]:
+                                    y_pos = wave["y"] if wave["direction"] == "down" else altura_tela
+                                    pygame.draw.rect(surf_warn_lane, (0, 220, 255, alpha), (0, y_pos - 40, largura_tela, 80))
+                                    pygame.draw.rect(surf_warn_lane, (255, 255, 255, alpha + 30), (0, y_pos - 40, largura_tela, 80), 2)
+                                    for _ in range(2):
+                                        rx = random.uniform(0, largura_tela)
+                                        ry = y_pos + random.uniform(-35, 35)
+                                        pygame.draw.circle(surf_warn_lane, (240, 248, 255, alpha + 60), (rx, ry), random.randint(2, 5))
+                            tela.blit(surf_warn_lane, (0, 0))
+                            
+                            if (pygame.time.get_ticks() // 150) % 2 == 0:
+                                warn_font = pygame.font.Font(None, 32)
+                                warn_txt = warn_font.render("v ALERTA: NEVASCA HORIZONTAL IMINENTE v", True, (0, 220, 255))
+                                shadow_txt = warn_font.render("v ALERTA: NEVASCA HORIZONTAL IMINENTE v", True, (0, 0, 0))
+                                tela.blit(shadow_txt, (largura_tela // 2 - warn_txt.get_width() // 2 + 2, 22))
+                                tela.blit(warn_txt, (largura_tela // 2 - warn_txt.get_width() // 2, 20))
+
+                    if ataque_avalanche_aviso:
+                        if pygame.time.get_ticks() - tempo_inicio_aviso_avalanche >= duracao_aviso:
+                            ataque_avalanche_aviso = False
+                            ataque_avalanche_ativo = True
+                            avalanche_projeteis = []
+                            for pos in avalanche_posicoes:
+                                avalanche_projeteis.append({
+                                    "tx": pos[0],
+                                    "ty": pos[1],
+                                    "x": pos[0],
+                                    "y": -100.0,
+                                    "vel": random.uniform(6.0, 9.0)
+                                })
+                        else:
+                            # Draw blinking red warning circles on the ground
+                            alpha = int(120 + 80 * math.sin(pygame.time.get_ticks() * 0.01))
+                            for pos in avalanche_posicoes:
+                                surf_circulo = pygame.Surface((100, 100), pygame.SRCALPHA)
+                                pygame.draw.circle(surf_circulo, (255, 0, 0, alpha), (50, 50), 40, 3)
+                                pygame.draw.circle(surf_circulo, (255, 0, 0, alpha // 4), (50, 50), 40)
+                                tela.blit(surf_circulo, (pos[0] - 50 + shake_x, pos[1] - 50 + shake_y))
+                                warn_font = pygame.font.Font(None, 24)
+                                txt = warn_font.render("!", True, (255, 0, 0))
+                                tela.blit(txt, (pos[0] - txt.get_width() // 2 + shake_x, pos[1] - 65 + shake_y))
+
+                    # Freezing Breath Warning
+                    if boss_sopro_aviso:
+                        tempo_decorrido = pygame.time.get_ticks() - tempo_inicio_sopro
+                        if tempo_decorrido >= duracao_aviso:
+                            boss_sopro_aviso = False
+                            boss_sopro_ativo = True
+                            # Lock breath direction towards current player position
+                            cx = pos_x_chefe2 + chefe_largura2 // 2
+                            cy = pos_y_chefe2 + chefe_altura2 // 2
+                            px = pos_x_personagem + largura_personagem // 2
+                            py = pos_y_personagem + altura_personagem // 2
+                            dx = px - cx
+                            dy = py - cy
+                            dist = max(1.0, math.hypot(dx, dy))
+                            sopro_dir = (dx / dist, dy / dist)
+                        else:
+                            # Draw flashing warning cone guide
+                            alpha = int(120 + 80 * math.sin(tempo_decorrido * 0.02))
+                            cx = pos_x_chefe2 + chefe_largura2 // 2
+                            cy = pos_y_chefe2 + chefe_altura2 // 2
+                            px = pos_x_personagem + largura_personagem // 2
+                            py = pos_y_personagem + altura_personagem // 2
+                            dx = px - cx
+                            dy = py - cy
+                            dist = max(1.0, math.hypot(dx, dy))
+                            udir = (dx / dist, dy / dist)
+                            perp = (-udir[1], udir[0])
+                            
+                            # Warning cone geometry
+                            cone_len = min(dist, 400.0)
+                            p1 = (cx + udir[0] * 30, cy + udir[1] * 30)
+                            p2 = (cx + udir[0] * cone_len + perp[0] * 90, cy + udir[1] * cone_len + perp[1] * 90)
+                            p3 = (cx + udir[0] * cone_len - perp[0] * 90, cy + udir[1] * cone_len - perp[1] * 90)
+                            
+                            surf_warn = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
+                            pygame.draw.polygon(surf_warn, (0, 191, 255, alpha // 3), [p1, p2, p3])
+                            pygame.draw.polygon(surf_warn, (0, 191, 255, alpha), [p1, p2, p3], 2)
+                            tela.blit(surf_warn, (0, 0))
+                            
+                            # Emit frosty charge sparks
+                            if random.random() < 0.4:
+                                bx = pos_x_chefe2 + chefe_largura2 // 2
+                                by = pos_y_chefe2 + chefe_altura2 // 2
+                                sopro_particulas.append({
+                                    "x": bx + random.uniform(-25, 25),
+                                    "y": by + random.uniform(-25, 25),
+                                    "vx": random.uniform(-2, 2) - udir[0] * 2,
+                                    "vy": random.uniform(-2, 2) - udir[1] * 2,
+                                    "size": random.randint(3, 6),
+                                    "vida": 200
+                                })
+
+                    # Update and draw active Blizzard Waves (horizontal & vertical)
+                    if ataque_vertical_ativo or ataque_horizontal_ativo:
                         tempo_inicio_ataque = pygame.time.get_ticks()
-                        for y in range(posicao_ataque_vertical[1], altura_tela, linha.get_height()):
-                            tela.blit(linha, (posicao_ataque_vertical[0], y))
-                        # Move o ataque vertical para a esquerda
-                        posicao_ataque_vertical = (posicao_ataque_vertical[0] - velocidade_ataque_vertical, posicao_ataque_vertical[1])
-
-                    # Verifica se atingiu a ponta esquerda da tela
-                        if posicao_ataque_vertical[0] <= 0:
+                        tempo_inicio_ataque_horizontal = tempo_inicio_dano_horizontal = pygame.time.get_ticks()
+                        
+                        novas_ondas = []
+                        for wave in ondas_nevasca:
+                            # Update wave positions
+                            wave["x"] += wave["vx"] * dt
+                            wave["y"] += wave["vy"] * dt
+                            
+                            # Sinusoidal oscillation logic
+                            if wave.get("type") == "sinusoidal":
+                                wave["fase_seno"] += 0.08 * dt
+                                displacement = math.sin(wave["fase_seno"]) * 4.5
+                                if wave["direction"] in ["left", "right"]:
+                                    wave["y"] += displacement
+                                else:
+                                    wave["x"] += displacement
+                                    
+                            # Direction-changing pivoting logic
+                            if wave.get("type") == "pivoting" and not wave.get("pivoted"):
+                                if wave["direction"] == "left" and wave["x"] <= wave["pivot_coord"]:
+                                    wave["vx"], wave["vy"] = wave["pivot_new_vel"]
+                                    wave["pivoted"] = True
+                                    wave["direction"] = "down" if wave["pivot_new_vel"][1] > 0 else "up"
+                                    screen_shake = 5
+                                elif wave["direction"] == "down" and wave["y"] >= wave["pivot_coord"]:
+                                    wave["vx"], wave["vy"] = wave["pivot_new_vel"]
+                                    wave["pivoted"] = True
+                                    wave["direction"] = "left" if wave["pivot_new_vel"][0] < 0 else "right"
+                                    screen_shake = 5
+                                    
+                            # Render the blizzard wave
+                            x_c = int(wave["x"])
+                            y_c = int(wave["y"])
+                            w_half = wave["largura"] // 2
+                            
+                            if wave["direction"] in ["left", "right", "left_pivot"]:
+                                # Vertical wave drawing (moving horizontally)
+                                surf_wave = pygame.Surface((wave["largura"], altura_tela), pygame.SRCALPHA)
+                                for rx in range(wave["largura"]):
+                                    dist_center = abs(rx - w_half)
+                                    alpha_val = int(max(0, 110 - (dist_center * (110 / w_half))))
+                                    pygame.draw.line(surf_wave, (173, 216, 230, alpha_val), (rx, 0), (rx, altura_tela))
+                                pygame.draw.line(surf_wave, (255, 255, 255, 200), (w_half, 0), (w_half, altura_tela), 2)
+                                tela.blit(surf_wave, (x_c - w_half, 0))
+                                
+                                # Frost streaks and snow wind lines
+                                for _ in range(4):
+                                    wy = random.randint(0, altura_tela)
+                                    wlen = random.randint(20, 50)
+                                    pygame.draw.line(tela, (255, 255, 255, 210), (x_c - wlen//2, wy), (x_c + wlen//2, wy + random.randint(-4, 4)), 2)
+                            else:
+                                # Horizontal wave drawing (moving vertically)
+                                surf_wave = pygame.Surface((largura_tela, wave["largura"]), pygame.SRCALPHA)
+                                for ry in range(wave["largura"]):
+                                    dist_center = abs(ry - w_half)
+                                    alpha_val = int(max(0, 110 - (dist_center * (110 / w_half))))
+                                    pygame.draw.line(surf_wave, (173, 216, 230, alpha_val), (0, ry), (largura_tela, ry))
+                                pygame.draw.line(surf_wave, (255, 255, 255, 200), (0, w_half), (largura_tela, w_half), 2)
+                                tela.blit(surf_wave, (0, y_c - w_half))
+                                
+                                for _ in range(4):
+                                    wx = random.randint(0, largura_tela)
+                                    wlen = random.randint(20, 50)
+                                    pygame.draw.line(tela, (255, 255, 255, 210), (wx, y_c - wlen//2), (wx + random.randint(-4, 4), y_c + wlen//2), 2)
+                                    
+                            # Check boundaries to keep on screen
+                            on_screen = True
+                            if wave["direction"] == "left" and wave["x"] < -100:
+                                on_screen = False
+                            elif wave["direction"] == "right" and wave["x"] > largura_tela + 100:
+                                on_screen = False
+                            elif wave["direction"] == "down" and wave["y"] > altura_tela + 100:
+                                on_screen = False
+                            elif wave["direction"] == "up" and wave["y"] < -100:
+                                on_screen = False
+                                
+                            if on_screen:
+                                novas_ondas.append(wave)
+                                
+                        ondas_nevasca = novas_ondas
+                        if len(ondas_nevasca) == 0:
                             ataque_vertical_ativo = False
-
-
-                    if ataque_horizontal_ativo:
-                        tempo_inicio_ataque_horizontal = pygame.time.get_ticks()
-                        for x in range(posicao_ataque_horizontal[0], largura_tela, linha.get_width()):
-                            tela.blit(linha, (x, posicao_ataque_horizontal[1]))
-                        # Move o ataque horizontal para baixo
-                        posicao_ataque_horizontal = (posicao_ataque_horizontal[0], posicao_ataque_horizontal[1] + velocidade_ataque_horizontal)
-
-                        # Verifica se atingiu a parte inferior da tela
-                        if posicao_ataque_horizontal[1] >= altura_tela:
                             ataque_horizontal_ativo = False
 
+                    if ataque_avalanche_ativo:
+                        tempo_inicio_ataque = pygame.time.get_ticks()
+                        
+                        # Draw passing avalanche backdrop (dynamic wind snow circles)
+                        if len(avalanche_particulas_vento) < 60:
+                            avalanche_particulas_vento.append({
+                                "x": random.uniform(-150, largura_tela - 100),
+                                "y": random.uniform(-150, -50),
+                                "vx": random.uniform(7.0, 11.0),
+                                "vy": random.uniform(8.0, 13.0),
+                                "size": random.randint(15, 30),
+                                "alpha": random.randint(30, 80)
+                            })
+                        
+                        novas_ventos = []
+                        for p_vento in avalanche_particulas_vento:
+                            p_vento["x"] += p_vento["vx"] * dt
+                            p_vento["y"] += p_vento["vy"] * dt
+                            if p_vento["x"] < largura_tela + 100 and p_vento["y"] < altura_tela + 100:
+                                novas_ventos.append(p_vento)
+                                surf_p = pygame.Surface((p_vento["size"] * 2, p_vento["size"] * 2), pygame.SRCALPHA)
+                                pygame.draw.circle(surf_p, (240, 248, 255, p_vento["alpha"]), (p_vento["size"], p_vento["size"]), p_vento["size"])
+                                tela.blit(surf_p, (p_vento["x"] - p_vento["size"], p_vento["y"] - p_vento["size"]))
+                        avalanche_particulas_vento = novas_ventos
+                        
+                        novos_projeteis = []
+                        for p in avalanche_projeteis:
+                            p["y"] += p["vel"] * dt
+                            if p["y"] < p["ty"]:
+                                novos_projeteis.append(p)
+                                # Draw glowing avalanche streak
+                                px = int(p["x"]) + shake_x
+                                py = int(p["y"]) + shake_y
+                                pygame.draw.line(tela, (173, 216, 230), (px, py - 45), (px, py), 4)
+                                pygame.draw.circle(tela, (255, 255, 255), (px, py), 7)
+                                for j in range(3):
+                                    pygame.draw.circle(tela, (240, 248, 255), (px, py - 15 - j * 10), 5 - j)
+                            else:
+                                # Explode!
+                                screen_shake = 7
+                                for _ in range(6):
+                                    angle = random.uniform(0, 2 * math.pi)
+                                    speed = random.uniform(2, 5)
+                                    ice_shards.append({
+                                        "x": p["tx"],
+                                        "y": p["ty"],
+                                        "vx": speed * math.cos(angle),
+                                        "vy": speed * math.sin(angle) - 2.0,
+                                        "size": random.randint(3, 7),
+                                        "vida": random.uniform(100, 180)
+                                    })
+                                # Check collision with player
+                                dist_to_player = math.hypot(pos_x_personagem + largura_personagem // 2 - p["tx"], pos_y_personagem + altura_personagem // 2 - p["ty"])
+                                if dist_to_player <= 50:
+                                    if escudo_devota_ativo:
+                                        escudo_devota_ativo = False
+                                    elif pygame.time.get_ticks() - tempo_ultimo_atingido >= 1000:
+                                        vida -= int(vida_maxima - vida) * 0.10 + 20 + dano_boss2
+                                        tempo_ultimo_atingido = pygame.time.get_ticks()
+                                        personagem_imovel = True
+                                        piscando_vida = True
+                                
+                                # Leave a slow zone
+                                zonas_lentidao.append({
+                                    "pos": (p["tx"], p["ty"]),
+                                    "raio": 60,
+                                    "tempo_inicio": pygame.time.get_ticks(),
+                                    "duracao": 4000
+                                })
+                        avalanche_projeteis = novos_projeteis
+                        if len(avalanche_projeteis) == 0:
+                            ataque_avalanche_ativo = False
+
+                    # Active Freezing Breath loop
+                    if boss_sopro_ativo:
+                        tempo_inicio_ataque = pygame.time.get_ticks()
+                        tempo_atual = pygame.time.get_ticks()
+                        if tempo_atual - tempo_ultimo_sopro_disparo >= 100:
+                            tempo_ultimo_sopro_disparo = tempo_atual
+                            cx = pos_x_chefe2 + chefe_largura2 // 2
+                            cy = pos_y_chefe2 + chefe_altura2 // 2
+                            base_angle = math.atan2(sopro_dir[1], sopro_dir[0])
+                            for offset_angle in [-0.25, 0.0, 0.25]:
+                                angle = base_angle + offset_angle
+                                vx = math.cos(angle) * 7.5
+                                vy = math.sin(angle) * 7.5
+                                disparos_inimigos.append({
+                                    "rect": pygame.Rect(cx + sopro_dir[0] * 40 - 6, cy + sopro_dir[1] * 40 - 6, 12, 12),
+                                    "velocidade": (vx, vy),
+                                    "elite": False,
+                                    "frost_shard": True
+                                })
+                        
+                        if pygame.time.get_ticks() - tempo_inicio_sopro >= 3500:
+                            boss_sopro_ativo = False
+
+                    # Active Crystal Shield loop
+                    if boss_escudo_ativo:
+                        tempo_inicio_ataque = pygame.time.get_ticks()
+                        escudo_cristais_angulo += 0.05 * dt
+                        
+                        tempo_atual = pygame.time.get_ticks()
+                        if tempo_atual - tempo_ultimo_disparo_escudo >= 1000:
+                            tempo_ultimo_disparo_escudo = tempo_atual
+                            cx = pos_x_chefe2 + chefe_largura2 // 2
+                            cy = pos_y_chefe2 + chefe_altura2 // 2
+                            raio_orbita = 85
+                            for i in range(3):
+                                angle = escudo_cristais_angulo + i * (2 * math.pi / 3)
+                                ox = cx + raio_orbita * math.cos(angle)
+                                oy = cy + raio_orbita * math.sin(angle)
+                                pdx = (pos_x_personagem + largura_personagem // 2) - ox
+                                pdy = (pos_y_personagem + altura_personagem // 2) - oy
+                                pdist = max(1.0, math.hypot(pdx, pdy))
+                                disparos_inimigos.append({
+                                    "rect": pygame.Rect(ox - 6, oy - 6, 12, 12),
+                                    "velocidade": ((pdx / pdist) * 6.5, (pdy / pdist) * 6.5),
+                                    "elite": False,
+                                    "frost_shard": True
+                                })
+                        
+                        if pygame.time.get_ticks() - tempo_inicio_escudo >= 4000:
+                            boss_escudo_ativo = False
+
+                    # Update and draw breath wind/frost particles
+                    novas_particulas = []
+                    for pt in sopro_particulas:
+                        pt["x"] += pt["vx"] * dt
+                        pt["y"] += pt["vy"] * dt
+                        if "vida" in pt:
+                            pt["vida"] -= 10
+                            vida_val = pt["vida"]
+                        else:
+                            pt["alpha"] -= 8
+                            vida_val = pt["alpha"]
+                            
+                        if vida_val > 0:
+                            novas_particulas.append(pt)
+                            alpha = max(0, min(255, vida_val))
+                            p_surf = pygame.Surface((pt["size"]*2, pt["size"]*2), pygame.SRCALPHA)
+                            pygame.draw.circle(p_surf, (173, 216, 230, alpha // 2), (pt["size"], pt["size"]), pt["size"])
+                            pygame.draw.circle(p_surf, (240, 248, 255, alpha), (pt["size"], pt["size"]), pt["size"] // 2)
+                            tela.blit(p_surf, (pt["x"] - pt["size"] + shake_x, pt["y"] - pt["size"] + shake_y))
+                    sopro_particulas = novas_particulas
 
                     # Verifica o tempo decorrido desde o início do ataque
-
                     tempo_decorrido_ataque = pygame.time.get_ticks() - tempo_inicio_ataque
                     if tempo_decorrido_ataque >= tempo_espera_ataque:
-                    # Verifica se nenhum dos ataques está ativo
-                        if not ataque_horizontal_ativo and not ataque_vertical_ativo:
-                            # Escolhe aleatoriamente entre ataque horizontal e vertical
-                            if random.random() < 0.7:
-                            # Ativa o ataque horizontal
-                                ataque_horizontal_ativo = True
-                                posicao_ataque_horizontal = (0, 0)  # Reinicia na parte superior da tela
+                    # Verifica se nenhum dos ataques ou avisos está ativo
+                        if (not ataque_horizontal_ativo and not ataque_vertical_ativo and not ataque_avalanche_ativo and 
+                            not ataque_horizontal_aviso and not ataque_vertical_aviso and not ataque_avalanche_aviso and
+                            not boss_sopro_aviso and not boss_sopro_ativo and not boss_escudo_ativo):
+                            # Escolhe aleatoriamente entre as 5 habilidades com pesos iguais
+                            rnd = random.random()
+                            if rnd < 0.20:
+                                # Ativa o aviso do ataque horizontal
+                                ataque_horizontal_aviso = True
+                                tempo_inicio_aviso_horizontal = pygame.time.get_ticks()
                                 tempo_decorrido_horizontal = 0
-                            else:
-                                # Ativa o ataque vertical
-                                ataque_vertical_ativo = True
-                                velocidade_inimigo2+=0.010
-                                posicao_ataque_vertical = (largura_mapa // 0.8, 0)  # Reinicia na ponta superior da tela
+                                pattern = random.choice([1, 2, 3, 4])
+                                if pattern == 1:
+                                    ondas_nevasca_preparadas = [
+                                        {"x": 0, "y": -30, "vx": 0, "vy": 4.0, "largura": 70, "direction": "down", "type": "standard"},
+                                        {"x": 0, "y": -280, "vx": 0, "vy": 4.0, "largura": 70, "direction": "down", "type": "standard"}
+                                    ]
+                                elif pattern == 2:
+                                    ondas_nevasca_preparadas = [
+                                        {"x": 0, "y": -30, "vx": 0, "vy": 4.2, "largura": 80, "direction": "down", "type": "pivoting", "pivoted": False, "pivot_coord": 300, "pivot_new_vel": (-5.0, 0)}
+                                    ]
+                                elif pattern == 3:
+                                    ondas_nevasca_preparadas = [
+                                        {"x": 0, "y": -30, "vx": 0, "vy": 3.6, "largura": 70, "direction": "down", "type": "standard"},
+                                        {"x": largura_tela + 30, "y": 0, "vx": -3.6, "vy": 0, "largura": 70, "direction": "left", "type": "standard"}
+                                    ]
+                                else:
+                                    ondas_nevasca_preparadas = [
+                                        {"x": 0, "y": -30, "vx": 0, "vy": 4.2, "largura": 60, "direction": "down", "type": "standard"},
+                                        {"x": 0, "y": -230, "vx": 0, "vy": 4.2, "largura": 60, "direction": "down", "type": "standard"},
+                                        {"x": 0, "y": -430, "vx": 0, "vy": 4.2, "largura": 60, "direction": "down", "type": "standard"}
+                                    ]
+                            elif rnd < 0.40:
+                                # Ativa o aviso do ataque vertical
+                                ataque_vertical_aviso = True
+                                tempo_inicio_aviso_vertical = pygame.time.get_ticks()
+                                velocidade_inimigo2 += 0.010
                                 tempo_decorrido_vertical = 0
+                                pattern = random.choice([1, 2, 3, 4])
+                                if pattern == 1:
+                                    ondas_nevasca_preparadas = [
+                                        {"x": largura_tela + 30, "y": 0, "vx": -4.2, "vy": 0, "largura": 70, "direction": "left", "type": "standard"},
+                                        {"x": largura_tela + 310, "y": 0, "vx": -4.2, "vy": 0, "largura": 70, "direction": "left", "type": "standard"}
+                                    ]
+                                elif pattern == 2:
+                                    ondas_nevasca_preparadas = [
+                                        {"x": largura_tela + 30, "y": 0, "vx": -4.0, "vy": 0, "largura": 80, "direction": "left", "type": "sinusoidal", "fase_seno": 0.0}
+                                    ]
+                                elif pattern == 3:
+                                    ondas_nevasca_preparadas = [
+                                        {"x": largura_tela + 30, "y": 0, "vx": -4.5, "vy": 0, "largura": 80, "direction": "left", "type": "pivoting", "pivoted": False, "pivot_coord": 450, "pivot_new_vel": (0, 4.5)}
+                                    ]
+                                else:
+                                    ondas_nevasca_preparadas = [
+                                        {"x": largura_tela + 30, "y": 0, "vx": -4.5, "vy": 0, "largura": 60, "direction": "left", "type": "standard"},
+                                        {"x": largura_tela + 250, "y": 0, "vx": -4.5, "vy": 0, "largura": 60, "direction": "left", "type": "standard"},
+                                        {"x": largura_tela + 470, "y": 0, "vx": -4.5, "vy": 0, "largura": 60, "direction": "left", "type": "standard"}
+                                    ]
+                            elif rnd < 0.60:
+                                # Ativa o aviso da avalanche
+                                ataque_avalanche_aviso = True
+                                tempo_inicio_aviso_avalanche = pygame.time.get_ticks()
+                                avalanche_posicoes = []
+                                px = pos_x_personagem + largura_personagem // 2
+                                py = pos_y_personagem + altura_personagem // 2
+                                avalanche_posicoes.append((px, py))
+                                for _ in range(5):
+                                    rx = random.randint(50, largura_tela - 50)
+                                    ry = random.randint(50, altura_tela - 50)
+                                    avalanche_posicoes.append((rx, ry))
+                            elif rnd < 0.80:
+                                # Ativa o aviso do sopro congelante
+                                boss_sopro_aviso = True
+                                tempo_inicio_sopro = pygame.time.get_ticks()
+                                tempo_ultimo_sopro_disparo = 0
+                                sopro_particulas = []
+                            else:
+                                # Ativa a barreira de cristais
+                                boss_escudo_ativo = True
+                                tempo_inicio_escudo = pygame.time.get_ticks()
+                                tempo_ultimo_disparo_escudo = pygame.time.get_ticks()
+                                escudo_cristais_angulo = 0.0
 
-
-
-                    if ataque_vertical_ativo:
-                        tempo_inicio_dano= pygame.time.get_ticks()
-                        rect_ataque_vertical = pygame.Rect(posicao_ataque_vertical[0], posicao_ataque_vertical[1], largura_ataque_vertical, altura_tela)
-                        # Verifica colisão do ataque vertical com o personagem
-                        if rect_ataque_vertical.colliderect(personagem_rect):
-                            # O ataque vertical atingiu o jogador
-                            if escudo_devota_ativo:
-                                escudo_devota_ativo= False
-                                pass
-                            elif pygame.time.get_ticks() - tempo_ultimo_dano_vertical >= tempo_cooldown_dano_vertical:
-                                vida -= int(vida_maxima-vida)*0.15+30+dano_boss2  # Causa dano ao personagem
-                                tempo_ultimo_atingido = pygame.time.get_ticks()
-                                personagem_imovel = True  # O personagem fica imóvel após ser atingido
-                                tempo_ultimo_dano_vertical = pygame.time.get_ticks()  # Atualiza o tempo do último dano
-
-
-                    if ataque_horizontal_ativo:
-                        tempo_inicio_dano_horizontal = pygame.time.get_ticks()
-                        rect_ataque_horizontal = pygame.Rect(posicao_ataque_horizontal[0], posicao_ataque_horizontal[1], largura_tela, altura_ataque_horizontal)
-                        # Verifica colisão do ataque horizontal com o personagem
-                        if rect_ataque_horizontal.colliderect(personagem_rect):
-                            if escudo_devota_ativo:
-                                escudo_devota_ativo= False
-                                pass
-                            elif pygame.time.get_ticks() - tempo_ultimo_dano_horizontal >= tempo_cooldown_dano_horizontal:
-                                vida -= int(vida_maxima)*0.05+30+dano_boss2  # Causa dano ao personagem
-                                tempo_ultimo_atingido = pygame.time.get_ticks()
-                                personagem_imovel = True  # O personagem fica imóvel após ser atingido
-                                tempo_ultimo_dano_horizontal = pygame.time.get_ticks()  # Atualiza o tempo do último dano
+                    # Check player collision with active Blizzard Waves
+                    if ataque_vertical_ativo or ataque_horizontal_ativo:
+                        for wave in ondas_nevasca:
+                            if wave["direction"] in ["left", "right"]:
+                                w_half = wave["largura"] // 2
+                                rect_wave = pygame.Rect(wave["x"] - w_half, 0, wave["largura"], altura_tela)
+                            else:
+                                w_half = wave["largura"] // 2
+                                rect_wave = pygame.Rect(0, wave["y"] - w_half, largura_tela, wave["largura"])
+                                
+                            if rect_wave.colliderect(personagem_rect):
+                                if escudo_devota_ativo:
+                                    escudo_devota_ativo = False
+                                elif pygame.time.get_ticks() - tempo_ultimo_atingido >= 800:
+                                    vida -= int(vida_maxima * 0.08) + 20 + dano_boss2
+                                    tempo_ultimo_atingido = pygame.time.get_ticks()
+                                    personagem_imovel = True
+                                    piscando_vida = True
 
                     tempo_decorrido_horizontal = pygame.time.get_ticks() - tempo_inicio_dano_horizontal
                     if tempo_atual - tempo_ultimo_atingido >= 3000:
@@ -1862,7 +2664,7 @@ def executar_jogo(game_manager=None):
                     rect_disparo = pygame.Rect(pos_x_disparo, pos_y_disparo, largura_disparo, altura_disparo)
                     rect_boss = pygame.Rect(pos_x_chefe2, pos_y_chefe2, chefe_largura2, chefe_altura2)
 
-                    if rect_disparo.colliderect(rect_boss):
+                    if r_press and not boss_entrada_ativa and rect_disparo.colliderect(rect_boss):
                         if vida_boss2 > 0:  # Verifica se o chefe está vivo antes de aplicar dano
                             if random.random() <= chance_critico:  # 10% de chance de dano crítico
                                 dano = dano_person_hit * 3  # Valor do dano crítico é 3 vezes o dano normal
@@ -1872,6 +2674,9 @@ def executar_jogo(game_manager=None):
                                 dano = dano_person_hit
                                 cor = (255, 0, 0)  # Vermelho (RGB)
                                 fonte_dano = fonte_dano_normal
+                            
+                            if boss_escudo_ativo:
+                                dano = max(1, int(dano * 0.1))
 
                         # Ativar veneno no Boss com 50% de chance, se ainda não estiver envenenado
                         if random.random() < 0.5 and not boss_envenenado and Poison_Active:
@@ -2132,6 +2937,42 @@ def executar_jogo(game_manager=None):
             for moeda in moedas_soltadas:
                 tela.blit(moeda["image"], moeda["rect"])
 
+
+            # Blizzard Event System: Update & Draw Overlay and effects
+            tempo_atual = pygame.time.get_ticks()
+            if not blizzard_ativo:
+                if tempo_atual - tempo_ultimo_blizzard >= intervalo_blizzard:
+                    blizzard_ativo = True
+                    tempo_inicio_blizzard = tempo_atual
+            else:
+                if tempo_atual - tempo_inicio_blizzard >= duracao_blizzard:
+                    blizzard_ativo = False
+                    tempo_ultimo_blizzard = tempo_atual
+
+            # Draw Blizzard Overlay and Effects
+            if blizzard_ativo:
+                # 1. Fog/Snow overlay
+                blizzard_surf = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
+                blizzard_surf.fill((240, 248, 255, 60)) # AliceBlue with alpha 60
+                
+                # Draw wind particles (fast horizontal white lines)
+                for _ in range(7):
+                    wx = random.randint(0, largura_tela)
+                    wy = random.randint(0, altura_tela)
+                    wlen = random.randint(60, 160)
+                    pygame.draw.line(blizzard_surf, (255, 255, 255, 170), (wx, wy), (wx + wlen, wy - random.randint(2, 5)), 2)
+                tela.blit(blizzard_surf, (0, 0))
+                
+                # 2. Text Announcement (warning)
+                if (tempo_atual // 250) % 2 == 0:
+                    fonte_blizzard = pygame.font.Font(None, 40)
+                    txt_warn = fonte_blizzard.render("TEMPESTADE DE NEVE (LENTIDÃO)!", True, (0, 220, 255))
+                    rect_warn = txt_warn.get_rect(center=(largura_tela // 2, 70))
+                    # Draw a dark background shadow for readability
+                    shadow_surf = pygame.Surface((rect_warn.width + 20, rect_warn.height + 10), pygame.SRCALPHA)
+                    shadow_surf.fill((0, 0, 0, 160))
+                    tela.blit(shadow_surf, (rect_warn.x - 10, rect_warn.y - 5))
+                    tela.blit(txt_warn, rect_warn)
 
             tela.blit(cursor_imagem, (mouse_x, mouse_y))
             exibir_cronometro(tela)

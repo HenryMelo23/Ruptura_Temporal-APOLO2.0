@@ -32,8 +32,19 @@ def build():
     old_exe = os.path.join(dist_dir, "Ruptura_Temporal_APOLO2.0.exe")
     new_exe = os.path.join(dist_dir, "Ruptura_Temporal.exe")
     if os.path.exists(old_exe):
-        os.rename(old_exe, new_exe)
-        print("Renamed executable to Ruptura_Temporal.exe")
+        import time
+        for i in range(10):
+            try:
+                if os.path.exists(new_exe):
+                    os.remove(new_exe)
+                os.rename(old_exe, new_exe)
+                print("Renamed executable to Ruptura_Temporal.exe")
+                break
+            except PermissionError:
+                print(f"Waiting for file lock to release (attempt {i+1}/10)...")
+                time.sleep(2)
+        else:
+            raise PermissionError(f"Could not rename {old_exe} to {new_exe} due to persistent lock.")
         
     # 3. Build GAME5_PLAYER.py in a temp directory to reuse _internal
     print("\n--- Building GAME5_PLAYER.exe ---")
