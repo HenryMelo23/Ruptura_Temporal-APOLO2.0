@@ -332,20 +332,38 @@ def atualizar_posicao_personagem(keys, joystick):
             direcao_atual = 'stop'
 
     # ---- DASH/TELEPORTE ----
-    dash_teclado = Variaveis.verificar_input("Teleporte")
-    dash_joystick = joystick and joystick.get_button(4) if joystick else False
+    executar_teleporte_mouse_flag = False
+    if Variaveis.obter_modo_teleporte() == "mouse":
+        dash_teclado = False
+        dash_joystick = False
+        Variaveis.atualizar_estado_teleporte()
+        if Variaveis.executar_teleporte_pendente and not cooldown_dash:
+            executar_teleporte_mouse_flag = True
+            Variaveis.executar_teleporte_pendente = False
+    else:
+        dash_teclado = Variaveis.verificar_input("Teleporte")
+        dash_joystick = joystick and joystick.get_button(4) if joystick else False
 
-    if (dash_teclado or dash_joystick) and cooldown_dash == False:
+    if (dash_teclado or dash_joystick or executar_teleporte_mouse_flag) and cooldown_dash == False:
         Som_portal.play()
 
-        # Animação de teletransporte (plasma procedural)
-        animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
-        tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
-
-        if ultima_tecla_movimento == 'up': pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
-        elif ultima_tecla_movimento == 'down': pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
-        elif ultima_tecla_movimento == 'left': pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
-        elif ultima_tecla_movimento == 'right': pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
+        if executar_teleporte_mouse_flag:
+            px_c = pos_x_personagem + largura_personagem // 2
+            py_c = pos_y_personagem + altura_personagem // 2
+            dest_x, dest_y = Variaveis.calcular_destino_teleporte(px_c, py_c, distancia_dash)
+            dest_px = max(0, min(largura_mapa - largura_personagem, dest_x - largura_personagem // 2))
+            dest_py = max(0, min(altura_mapa - altura_personagem, dest_y - altura_personagem // 2))
+            
+            animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa, dest_x=dest_px, dest_y=dest_py)
+            tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
+            pos_x_personagem, pos_y_personagem = dest_px, dest_py
+        else:
+            animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
+            tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
+            if ultima_tecla_movimento == 'up': pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
+            elif ultima_tecla_movimento == 'down': pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
+            elif ultima_tecla_movimento == 'left': pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
+            elif ultima_tecla_movimento == 'right': pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
 
         cooldown_dash = True
         tempo_ultimo_dash = pygame.time.get_ticks()
@@ -896,6 +914,7 @@ def executar_jogo(game_manager=None):
 
             for event in pygame.event.get():
                 Variaveis.atualizar_estado_mouse(event)
+                Variaveis.processar_eventos_teleporte(event, cooldown_dash)
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
@@ -1229,6 +1248,9 @@ def executar_jogo(game_manager=None):
                     tela.blit(frame_para_desenhar, (pos_x_personagem, pos_y_personagem))
             else:
                 tela.blit(imagem_personagem_congelada, (pos_x_personagem, pos_y_personagem))
+
+            # Desenhar zona de teleporte (se estiver mirando no modo mouse)
+            Variaveis.desenhar_zona_teleporte(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, distancia_dash)
             for moeda in moedas_soltadas[:]:
                 if personagem_rect.colliderect(moeda["rect"]):
                     moedas_coletadas += 1
@@ -1304,10 +1326,9 @@ def executar_jogo(game_manager=None):
                     direcao_trembo = direcao_atual
                 desenhar_sombra(tela, pos_x_segundo_personagem, pos_y_segundo_personagem, int(largura_trembo), int(altura_trembo), offset_y=2)
                 tela.blit(frames_animacao_trembo[direcao_trembo][frame_atual % len(frames_animacao_trembo[direcao_trembo])], (pos_x_segundo_personagem, pos_y_segundo_personagem))
-            if trembo and tempo_atual- tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima :
-                if vida_maxima < vida:
-                    vida=vida_maxima
-                vida+= (vida_maxima*porcentagem_cura)
+            if trembo and tempo_atual - tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima:
+                cura_trembo = vida_maxima * porcentagem_cura
+                vida = min(vida_maxima, vida + cura_trembo)
                 tempo_ultima_regeneracao = tempo_atual
 
 
@@ -1645,7 +1666,7 @@ def executar_jogo(game_manager=None):
                     pygame.time.delay(2000)
                     Musica_tema_fases.stop()
                     Som_tema_fases.stop()
-                    tela_upgrade_aureas(tela, fonte, moedas_totais)
+                    moedas_totais = tela_upgrade_aureas(tela, fonte, moedas_totais)
 
                     limpar_salvamento()
                     if game_manager:

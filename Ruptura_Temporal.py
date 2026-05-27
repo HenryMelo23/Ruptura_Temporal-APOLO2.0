@@ -1772,8 +1772,15 @@ def executar_menu_principal(game_manager=None):
                     except:
                         mostrar_tut = True
                     
+                    try:
+                        with open("saves/config_teleporte.json", "r") as f:
+                            modo_teleporte = json.load(f).get("modo", "fixo")
+                    except:
+                        modo_teleporte = "fixo"
+                    
                     status_tut = "ATIVADO" if mostrar_tut else "DESATIVADO"
-                    opcoes_config = ["Controles", "Gráficos", "Áudio", f"Tutorial: {status_tut}", "Voltar"]
+                    status_telep = "FIXO" if modo_teleporte == "fixo" else "MOUSE"
+                    opcoes_config = ["Controles", "Gráficos", "Áudio", f"Tutorial: {status_tut}", f"Teleporte: {status_telep}", "Voltar"]
                     
                     # Atualiza e desenha o fundo dinâmico do menu
                     if exibindo_fundo1:
@@ -1830,7 +1837,7 @@ def executar_menu_principal(game_manager=None):
                                     
                                     particulas_conf_eclosao = []
                                     x_centro = largura_tela // 2
-                                    y_centro = (altura_tela // 3 + opcao_conf_confirmada * 80) + 50 // 2
+                                    y_centro = int(altura_tela // 4.5 + opcao_conf_confirmada * 65) + 50 // 2
                                     import random
                                     for _ in range(40):
                                         particulas_conf_eclosao.append({
@@ -1852,7 +1859,7 @@ def executar_menu_principal(game_manager=None):
                     # Desenhar botões premium glassy no submenu
                     for i, opcao in enumerate(opcoes_config):
                         x_botao = largura_tela // 2 - 160
-                        y_botao = altura_tela // 3 + i * 80
+                        y_botao = int(altura_tela // 4.5 + i * 65)
                         largura_b = 320
                         altura_b = 50
                         
@@ -1963,7 +1970,11 @@ def executar_menu_principal(game_manager=None):
                             mostrar_tut = not mostrar_tut
                             with open("saves/tutorial_config.json", "w") as f:
                                 json.dump({"mostrar_tutorial": mostrar_tut}, f)
-                        elif escolha_config == 4:  # Voltar
+                        elif escolha_config == 4:  # Teleporte: Alternar status
+                            modo_teleporte = "mouse" if modo_teleporte == "fixo" else "fixo"
+                            with open("saves/config_teleporte.json", "w") as f:
+                                json.dump({"modo": modo_teleporte}, f)
+                        elif escolha_config == 5:  # Voltar
                             config_rodando = False
 
             elif escolha == 2:  # Sair

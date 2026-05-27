@@ -30,7 +30,7 @@ class Rato:
         tamanho (int): Tamanho do quadrado
     """
     
-    def __init__(self, x, y, tempo_atual, velocidade=2.1, tempo_vida=5000):
+    def __init__(self, x, y, tempo_atual, velocidade=0.84, tempo_vida=5000):
         """
         Inicializa um rato.
         
@@ -235,10 +235,10 @@ class GerenciadorRatos:
                 offset_x = (i % 2) * 20 - 10
                 offset_y = (i // 2) * 20 - 10
 
-                # Velocidade base: 2.1 (40% menor que 3.5 original)
-                # Escala com buff mas com teto em 3.5 (velocidade original)
-                vel_escalonada = 2.1 + (ratos_extras_aplicados * 0.12)
-                vel_final = min(vel_escalonada, 3.5)  # Nunca ultrapassa 3.5
+                # Velocidade base: 0.84 (60% menor que 2.1)
+                # Escala com buff mas com teto em 1.4 (60% menor que 3.5)
+                vel_escalonada = 0.84 + (ratos_extras_aplicados * 0.048)
+                vel_final = min(vel_escalonada, 1.4)  # Nunca ultrapassa 1.4
                 
                 rato = Rato(
                     canto_x + offset_x,

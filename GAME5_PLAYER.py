@@ -45,7 +45,7 @@ teleporte_timer = 0
 
 def executar_jogo(game_manager=None):
     global dt
-    global Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, _VORTICE_SURF_CACHE, _fonte_bonus_cached, _fonte_combo_cached, altura_boss, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apolo, bonus_cura_sifon, bonus_pontuacao, boss_envenenado, cartas_compradas_apolo_global, chance_critico, cooldown_dash, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_boss, disparos, distancia_dash, duracao_frame_onda, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_transicao_mapa, erros_player_contagem, escudo_devota_ativo, esferas_energia_umbra, espacamento, estado_atual_ia, frame_boss, gerenciador_ratos, hitbox_boss5, impulsiva_ativa, inicio_transicao_mapa, inimigos_eliminados, intervalo_disparo, largura_boss, largura_disparo, largura_personagem, linha, mapa_antigo, mapa_novo, modo_ia_treino, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, multiplicador_chamas, multiplicador_dano_umbra, ondas, particulas_fogo_player, petro_evolucao, player_em_chamas, pontuacao, pontuacao_exib, porcentagem_cura, pos_x_personagem, pos_x_petro, pos_x_umbra, pos_y_personagem, pos_y_petro, pos_y_umbra, projeteis_boss, quantidade_roubo_vida, reducao_cooldown_umbra, relogio, resistencia_umbra, roubo_de_vida, running, surf, teleporte_duration, teleporte_index, teleporte_timer, tempo_atual, tempo_cooldown_dash, tempo_fim_chamas, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado_boss, tempo_ultima_esfera_umbra, tempo_ultima_regeneracao, tempo_ultimo_dash, tempo_ultimo_disparo, tempo_ultimo_uso_habilidade, tipo_buff_impulsiva, trauma_umbra_acumulado, trembo, ultima_direcao_animacao, ultima_tecla_movimento, ultimo_tick_chamas, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_maxima, vida_maxima_petro, vida_maxima_umbra, vida_petro, vida_umbra, xp_petro, duracao_incendio_vanguarda, intervalo_escudo
+    global carregar_atributos_na_fase, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, _VORTICE_SURF_CACHE, _fonte_bonus_cached, _fonte_combo_cached, altura_boss, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apolo, bonus_cura_sifon, bonus_pontuacao, boss_envenenado, cartas_compradas_apolo_global, chance_critico, cooldown_dash, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_boss, disparos, distancia_dash, duracao_frame_onda, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_transicao_mapa, erros_player_contagem, escudo_devota_ativo, esferas_energia_umbra, espacamento, estado_atual_ia, frame_boss, gerenciador_ratos, hitbox_boss5, impulsiva_ativa, inicio_transicao_mapa, inimigos_eliminados, intervalo_disparo, largura_boss, largura_disparo, largura_personagem, linha, mapa_antigo, mapa_novo, modo_ia_treino, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, multiplicador_chamas, multiplicador_dano_umbra, ondas, particulas_fogo_player, petro_evolucao, player_em_chamas, pontuacao, pontuacao_exib, porcentagem_cura, pos_x_personagem, pos_x_petro, pos_x_umbra, pos_y_personagem, pos_y_petro, pos_y_umbra, projeteis_boss, quantidade_roubo_vida, reducao_cooldown_umbra, relogio, resistencia_umbra, roubo_de_vida, running, surf, teleporte_duration, teleporte_index, teleporte_timer, tempo_atual, tempo_cooldown_dash, tempo_fim_chamas, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado_boss, tempo_ultima_esfera_umbra, tempo_ultima_regeneracao, tempo_ultimo_dash, tempo_ultimo_disparo, tempo_ultimo_uso_habilidade, tipo_buff_impulsiva, trauma_umbra_acumulado, trembo, ultima_direcao_animacao, ultima_tecla_movimento, ultimo_tick_chamas, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_maxima, vida_maxima_petro, vida_maxima_umbra, vida_petro, vida_umbra, xp_petro, duracao_incendio_vanguarda, intervalo_escudo
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -503,21 +503,40 @@ def executar_jogo(game_manager=None):
                                                  pos_y_personagem + dy * velocidade_personagem * dt))
 
             # ---- DASH/TELEPORTE ----
-            dash_teclado = keys[config_teclas["Teleporte"]]
-            dash_joystick = joystick and joystick.get_button(4) if joystick else False
+            executar_teleporte_mouse_flag = False
+            if Variaveis.obter_modo_teleporte() == "mouse":
+                dash_teclado = False
+                dash_joystick = False
+                Variaveis.atualizar_estado_teleporte()
+                if Variaveis.executar_teleporte_pendente and not cooldown_dash:
+                    executar_teleporte_mouse_flag = True
+                    Variaveis.executar_teleporte_pendente = False
+            else:
+                dash_teclado = keys[config_teclas["Teleporte"]]
+                dash_joystick = joystick and joystick.get_button(4) if joystick else False
             
-            if (dash_teclado or dash_joystick) and cooldown_dash == False and atordoado == False:
+            if (dash_teclado or dash_joystick or executar_teleporte_mouse_flag) and cooldown_dash == False and atordoado == False:
                 Som_portal.play()
                 
-                # Animação de teletransporte (plasma procedural)
-                animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
-                tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
+                if executar_teleporte_mouse_flag:
+                    px_c = pos_x_personagem + largura_personagem // 2
+                    py_c = pos_y_personagem + altura_personagem // 2
+                    dest_x, dest_y = Variaveis.calcular_destino_teleporte(px_c, py_c, distancia_dash)
+                    dest_px = max(0, min(largura_mapa - largura_personagem, dest_x - largura_personagem // 2))
+                    dest_py = max(0, min(altura_mapa - altura_personagem, dest_y - altura_personagem // 2))
+                    
+                    animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa, dest_x=dest_px, dest_y=dest_py)
+                    tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
+                    pos_x_personagem, pos_y_personagem = dest_px, dest_py
+                else:
+                    # Animação de teletransporte (plasma procedural)
+                    animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
+                    tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
 
-
-                if ultima_tecla_movimento == 'up': pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
-                elif ultima_tecla_movimento == 'down': pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
-                elif ultima_tecla_movimento == 'left': pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
-                elif ultima_tecla_movimento == 'right': pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
+                    if ultima_tecla_movimento == 'up': pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
+                    elif ultima_tecla_movimento == 'down': pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
+                    elif ultima_tecla_movimento == 'left': pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
+                    elif ultima_tecla_movimento == 'right': pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
             
                 cooldown_dash = True
                 tempo_ultimo_dash = pygame.time.get_ticks()
@@ -819,7 +838,7 @@ def executar_jogo(game_manager=None):
             # Cap no dps para o boss não ficar imortal com muito dano
             dps_escalonamento = min(dps_teorico_apolo, 1200) 
 
-            vida_maxima_umbra = int((25000 + (dps_escalonamento * 24) + (inimigos_eliminados * 25)) * 1.5)
+            vida_maxima_umbra = int((20000 + (dps_escalonamento * 18) + (inimigos_eliminados * 20)) * 1.2)
 
             # --- O ESPELHO CORROMPIDO (CARTAS DA UMBRA) ---
             qtd_cartas_umbra = qtd_cartas_jogador // 3
@@ -888,6 +907,12 @@ def executar_jogo(game_manager=None):
         running = True
         while running:
             tempo_atual = pygame.time.get_ticks()
+            if carregar_atributos_na_fase:
+                try:
+                    carregar_atributos()
+                except Exception as e:
+                    print(f"Aviso: Nao foi possivel carregar atributos ({e}). Usando padrao.")
+                carregar_atributos_na_fase = False
             agora = pygame.time.get_ticks()
 
             # Seleção instantânea sem alocação
@@ -914,6 +939,7 @@ def executar_jogo(game_manager=None):
 
             for event in pygame.event.get():
                 Variaveis.atualizar_estado_mouse(event)
+                Variaveis.processar_eventos_teleporte(event, cooldown_dash)
                 if event.type == pygame.QUIT:
                     running = False
                     pass
@@ -1365,8 +1391,8 @@ def executar_jogo(game_manager=None):
                     # --- 3. HIERARQUIA DE MOVIMENTAÇÃO ---
                     if estado_atual_ia.get('parede_ativa'):
                         if agora - estado_atual_ia.get('ultimo_tick_cura', 0) >= 600:
-                            # Buffado: Aumentado em 40% em relação ao 0.035 original
-                            valor_cura = (vida_maxima_umbra-vida_umbra) * 0.049
+                            # Balanceado: reduzido de 0.049 para 0.015
+                            valor_cura = (vida_maxima_umbra-vida_umbra) * 0.015
                             memoria_umbra.treinar(1.5)
                             # A cura não pode ultrapassar o limite máximo
                             vida_umbra = min(vida_maxima_umbra, vida_umbra + valor_cura)
@@ -2297,6 +2323,9 @@ def executar_jogo(game_manager=None):
                     tela.blit(frame_rotacionado, novo_rect.topleft)
                 else:
                     tela.blit(frame_para_desenhar, (pos_x_personagem, pos_y_personagem))
+
+            # Desenhar zona de teleporte (se estiver mirando no modo mouse)
+            Variaveis.desenhar_zona_teleporte(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, distancia_dash)
 
             # Se a IA ainda não foi processada neste frame, garantimos que o estado exista
             if 'estado_atual_ia' not in locals() and 'estado_atual_ia' not in globals():

@@ -604,30 +604,47 @@ def atualizar_posicao_personagem(keys, joystick):
 
     direcao_atual = 'stop'  # Por padrão, definimos a direção como 'stop'
 
-    if  Variaveis.verificar_input("Teleporte") and not cooldown_dash:
-        # Animação de teletransporte
+    executar_teleporte_mouse_flag = False
+    if Variaveis.obter_modo_teleporte() == "mouse":
+        dash_teclado = False
+        dash_joystick = False
+        Variaveis.atualizar_estado_teleporte()
+        if Variaveis.executar_teleporte_pendente and not cooldown_dash:
+            executar_teleporte_mouse_flag = True
+            Variaveis.executar_teleporte_pendente = False
+    else:
+        dash_teclado = Variaveis.verificar_input("Teleporte")
+        dash_joystick = joystick and joystick.get_button(2) if joystick else False
+
+    if (dash_teclado or dash_joystick or executar_teleporte_mouse_flag) and not cooldown_dash:
         Som_portal.play()
 
-        # Desenhe a sprite de teletransporte
-        # Animação de teletransporte (plasma procedural)
-        animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
-        tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
+        if executar_teleporte_mouse_flag:
+            px_c = pos_x_personagem + largura_personagem // 2
+            py_c = pos_y_personagem + altura_personagem // 2
+            dest_x, dest_y = Variaveis.calcular_destino_teleporte(px_c, py_c, distancia_dash)
+            dest_px = max(0, min(largura_mapa - largura_personagem, dest_x - largura_personagem // 2))
+            dest_py = max(0, min(altura_mapa - altura_personagem, dest_y - altura_personagem // 2))
+            
+            animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa, dest_x=dest_px, dest_y=dest_py)
+            tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
+            pos_x_personagem, pos_y_personagem = dest_px, dest_py
+        else:
+            animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
+            tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
 
+            if pygame.time.get_ticks() - tempo_ultimo_dash >= teleporte_duration // 2:
+                tempo_ultimo_dash = pygame.time.get_ticks()
 
-        if pygame.time.get_ticks() - tempo_ultimo_dash >= teleporte_duration // 2:
-            tempo_ultimo_dash = pygame.time.get_ticks()
+            if ultima_tecla_movimento == 'up':
+                pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
+            elif ultima_tecla_movimento == 'down':
+                pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
+            elif ultima_tecla_movimento == 'left':
+                pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
+            elif ultima_tecla_movimento == 'right':
+                pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
 
-        # Continue com o código do dash como antes
-        if ultima_tecla_movimento == 'up':
-            pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
-        elif ultima_tecla_movimento == 'down':
-            pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
-        elif ultima_tecla_movimento == 'left':
-            pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
-        elif ultima_tecla_movimento == 'right':
-            pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
-
-        # Inicie o cooldown do dash
         cooldown_dash = True
         tempo_ultimo_dash = pygame.time.get_ticks()
         aplicar_shockwave_teleporte()
@@ -699,35 +716,8 @@ def atualizar_posicao_personagem(keys, joystick):
                 ultima_tecla_movimento = 'right'
                 movimento_pressionado = True
 
-    # Verificar botões do joystick para teletransporte
-    if joystick and joystick.get_button(2) and not cooldown_dash:
-        # Animação de teletransporte
-        Som_portal.play()
-
-        # Desenhar a sprite de teletransporte
-        # Animação de teletransporte (plasma procedural)
-        animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
-        tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
-
-
-        # Atualizar a tela
-        if pygame.time.get_ticks() - tempo_ultimo_dash >= teleporte_duration // 2:
-            tempo_ultimo_dash = pygame.time.get_ticks()
-
-        # Continuar com o código do dash como antes
-        if ultima_tecla_movimento == 'up':
-            pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
-        elif ultima_tecla_movimento == 'down':
-            pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
-        elif ultima_tecla_movimento == 'left':
-            pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
-        elif ultima_tecla_movimento == 'right':
-            pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
-
-        # Iniciar o cooldown do dash
-        cooldown_dash = True
-        tempo_ultimo_dash = pygame.time.get_ticks()
-        aplicar_shockwave_teleporte()
+    # Verificar botões do joystick para teletransporte (Já tratado no bloco principal acima)
+    pass
 
     # Atualizar o cooldown do dash
     if cooldown_dash and pygame.time.get_ticks() - tempo_ultimo_dash > tempo_cooldown_dash:
@@ -987,7 +977,7 @@ def soltar_moeda(posicao):
 
 
 def executar_jogo(game_manager=None):
-    global joystick, botao_mouse, ondas_choque, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss1, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Safe, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, alvo_x, alvo_y, apertou_q, bonus_pontuacao, boss, boss_envenenado, boss_vivo1, cartas_compradas, chance_critico, cliente_ativo, conn, convite_boss_ativo, convite_boss_recebido, convite_boss_tempo, dados, dano, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_alvo, direcao_atual, direcao_atual_p2, direcao_atual_petro, direcao_player2, direcao_x, direcao_y, disparos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_ataque_especial, escudo_devota_ativo, estado, estado_jogo, fila_envio, fila_recebimento, fonte, fonte_mensagem, frame_atual, frame_atual_chefe, frame_porcentagem, hitboxes, impulsiva_ativa, imune_tempo_restante, iniciar_boss, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, jogador_morto, jogador_posicoes, jogador_remoto_morto, largura_disparo, loja_aberta, mensagem, mensagem_ativa, mensagem_mostrada, mensagens_exibidas, moedas_coletadas, moedas_soltadas, mostrar_tutorial, movimento_pressionado, ondas, outro_jogador_morto, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe, pos_x_personagem, pos_x_petro, pos_x_player2, pos_y_chefe, pos_y_personagem, pos_y_petro, pos_y_player2, quantidade_roubo_vida, r_press, roubo_de_vida, running, sprite_moeda, tela, teleportado, tempo_anterior_petro, tempo_ataque_especial, tempo_atual, tempo_cooldown_dash, tempo_envio_ping, tempo_fim_mensagem, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_morte, tempo_mostrando_mensagem, tempo_passado, tempo_passado_animacao_chefe, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_mudanca_direcao_boss, tempo_ultima_regeneracao, tempo_ultima_troca_alvo, tempo_ultimo_ataque, tempo_ultimo_dano_ataque, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, tipo_buff_impulsiva, trembo, ultima_direcao_boss, ultima_vida_enviada, ultimo_tick_veneno_boss, upgrades, velocidade_personagem, vida, vida_boss, vida_inimigo_maxima, vida_maxima, vida_maxima_boss1, vida_maxima_petro, vida_petro, xp_petro, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
+    global joystick, botao_mouse, ondas_choque, carregar_atributos_na_fase, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss1, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Safe, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, alvo_x, alvo_y, apertou_q, bonus_pontuacao, boss, boss_envenenado, boss_vivo1, cartas_compradas, chance_critico, cliente_ativo, conn, convite_boss_ativo, convite_boss_recebido, convite_boss_tempo, dados, dano, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_alvo, direcao_atual, direcao_atual_p2, direcao_atual_petro, direcao_player2, direcao_x, direcao_y, disparos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_ataque_especial, escudo_devota_ativo, estado, estado_jogo, fila_envio, fila_recebimento, fonte, fonte_mensagem, frame_atual, frame_atual_chefe, frame_porcentagem, hitboxes, impulsiva_ativa, imune_tempo_restante, iniciar_boss, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, jogador_morto, jogador_posicoes, jogador_remoto_morto, largura_disparo, loja_aberta, mensagem, mensagem_ativa, mensagem_mostrada, mensagens_exibidas, moedas_coletadas, moedas_soltadas, mostrar_tutorial, movimento_pressionado, ondas, outro_jogador_morto, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe, pos_x_personagem, pos_x_petro, pos_x_player2, pos_y_chefe, pos_y_personagem, pos_y_petro, pos_y_player2, quantidade_roubo_vida, r_press, roubo_de_vida, running, sprite_moeda, tela, teleportado, tempo_anterior_petro, tempo_ataque_especial, tempo_atual, tempo_cooldown_dash, tempo_envio_ping, tempo_fim_mensagem, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_morte, tempo_mostrando_mensagem, tempo_passado, tempo_passado_animacao_chefe, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_mudanca_direcao_boss, tempo_ultima_regeneracao, tempo_ultima_troca_alvo, tempo_ultimo_ataque, tempo_ultimo_dano_ataque, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, tipo_buff_impulsiva, trembo, ultima_direcao_boss, ultima_vida_enviada, ultimo_tick_veneno_boss, upgrades, velocidade_personagem, vida, vida_boss, vida_inimigo_maxima, vida_maxima, vida_maxima_boss1, vida_maxima_petro, vida_petro, xp_petro, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -1057,10 +1047,17 @@ def executar_jogo(game_manager=None):
         running = True
         while running:
             tempo_atual = pygame.time.get_ticks()
+            if carregar_atributos_na_fase:
+                try:
+                    carregar_atributos()
+                except Exception as e:
+                    print(f"Aviso: Nao foi possivel carregar atributos ({e}). Usando padrao.")
+                carregar_atributos_na_fase = False
 
             # --- Tratamento de Eventos e Pumping ---
             for event in pygame.event.get():
                 Variaveis.atualizar_estado_mouse(event)
+                Variaveis.processar_eventos_teleporte(event, cooldown_dash)
                 if event.type == pygame.QUIT:
                     running = False
 
@@ -1630,7 +1627,7 @@ def executar_jogo(game_manager=None):
                         pygame.time.delay(2000)
                         Musica_tema_fases.stop()
                         Som_tema_fases.stop()
-                        tela_upgrade_aureas(tela, fonte, moedas_coletadas)
+                        moedas_coletadas = tela_upgrade_aureas(tela, fonte, moedas_coletadas)
                         limpar_salvamento()
                         if game_manager:
                             from game_manager import EstadoJogo
@@ -1661,7 +1658,7 @@ def executar_jogo(game_manager=None):
                         pygame.time.delay(2000)
                         Musica_tema_fases.stop()
                         Som_tema_fases.stop()
-                        tela_upgrade_aureas(tela, fonte, moedas_coletadas)
+                        moedas_coletadas = tela_upgrade_aureas(tela, fonte, moedas_coletadas)
                         limpar_salvamento()
                         if game_manager:
                             from game_manager import EstadoJogo
@@ -1780,6 +1777,9 @@ def executar_jogo(game_manager=None):
 
 
 
+            # Desenhar zona de teleporte (se estiver mirando no modo mouse)
+            Variaveis.desenhar_zona_teleporte(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, distancia_dash)
+
             for moeda in moedas_soltadas[:]:  # cópia da lista para evitar erro ao remover
                 if personagem_rect.colliderect(moeda["rect"]):
                     moedas_coletadas+=1
@@ -1852,10 +1852,9 @@ def executar_jogo(game_manager=None):
                     direcao_trembo = direcao_atual
                 
                 tela.blit(frames_animacao_trembo[direcao_trembo][frame_atual % len(frames_animacao_trembo[direcao_trembo])], (pos_x_segundo_personagem, pos_y_segundo_personagem))
-            if trembo and tempo_atual- tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima :
-                if vida_maxima < vida:
-                    vida=vida_maxima
-                vida+= (vida_maxima*porcentagem_cura)
+            if trembo and tempo_atual - tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima:
+                cura_trembo = vida_maxima * porcentagem_cura
+                vida = min(vida_maxima, vida + cura_trembo)
                 tempo_ultima_regeneracao = tempo_atual
 
 

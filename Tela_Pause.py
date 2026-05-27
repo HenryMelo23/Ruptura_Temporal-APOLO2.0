@@ -59,7 +59,7 @@ atributos_todas_cartas = {
     },
     "Sorte": {
         "Nick": "Anomalia Favorável",
-        "descricao": "Aumente suas chances de obter cartas raras com 2% de sorte adicional.",
+        "descricao": "Aumente suas chances de obter cartas raras com 0.6% de sorte adicional.",
         "imagem_path": "Sprites/Deck/carta_sorte1.png"
     },
     "Poison": {

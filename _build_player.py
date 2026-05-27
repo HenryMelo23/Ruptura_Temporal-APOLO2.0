@@ -164,21 +164,40 @@ from habilidades_personagem import desenhar_onda, criar_particulas_explosao_onda
                                                  pos_y_personagem + dy * velocidade_personagem * dt))
 
             # ---- DASH/TELEPORTE ----
-            dash_teclado = keys[config_teclas["Teleporte"]]
-            dash_joystick = joystick and joystick.get_button(4) if joystick else False
+            executar_teleporte_mouse_flag = False
+            if Variaveis.obter_modo_teleporte() == "mouse":
+                dash_teclado = False
+                dash_joystick = False
+                Variaveis.atualizar_estado_teleporte()
+                if Variaveis.executar_teleporte_pendente and not cooldown_dash:
+                    executar_teleporte_mouse_flag = True
+                    Variaveis.executar_teleporte_pendente = False
+            else:
+                dash_teclado = keys[config_teclas["Teleporte"]]
+                dash_joystick = joystick and joystick.get_button(4) if joystick else False
             
-            if (dash_teclado or dash_joystick) and cooldown_dash == False and atordoado == False:
+            if (dash_teclado or dash_joystick or executar_teleporte_mouse_flag) and cooldown_dash == False and atordoado == False:
                 Som_portal.play()
                 
-                # Animação de teletransporte (plasma procedural)
-                animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
-                tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
+                if executar_teleporte_mouse_flag:
+                    px_c = pos_x_personagem + largura_personagem // 2
+                    py_c = pos_y_personagem + altura_personagem // 2
+                    dest_x, dest_y = Variaveis.calcular_destino_teleporte(px_c, py_c, distancia_dash)
+                    dest_px = max(0, min(largura_mapa - largura_personagem, dest_x - largura_personagem // 2))
+                    dest_py = max(0, min(altura_mapa - altura_personagem, dest_y - altura_personagem // 2))
+                    
+                    animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa, dest_x=dest_px, dest_y=dest_py)
+                    tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
+                    pos_x_personagem, pos_y_personagem = dest_px, dest_py
+                else:
+                    # Animação de teletransporte (plasma procedural)
+                    animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
+                    tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
 
-
-                if ultima_tecla_movimento == 'up': pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
-                elif ultima_tecla_movimento == 'down': pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
-                elif ultima_tecla_movimento == 'left': pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
-                elif ultima_tecla_movimento == 'right': pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
+                    if ultima_tecla_movimento == 'up': pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
+                    elif ultima_tecla_movimento == 'down': pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
+                    elif ultima_tecla_movimento == 'left': pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
+                    elif ultima_tecla_movimento == 'right': pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
             
                 cooldown_dash = True
                 tempo_ultimo_dash = pygame.time.get_ticks()

@@ -90,7 +90,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
          "descricao": "Aumente sua resistencia em +5 e mitigue os danos dos inimigos. Uma defesa imbatível para cada desafio."},
 
         {"nome": "Sorte", "Nick": "Anomalia Favorável", 
-         "descricao": "Aumente suas chances de obter cartas raras com 2% de sorte adicional. A sorte agora esta ao seu favor!"},
+         "descricao": "Aumente suas chances de obter cartas raras com 0.6% de sorte adicional. A sorte agora esta ao seu favor!"},
          
         {"nome": "Poison", "Nick": "Toxina Temporal", 
          "descricao": "Infunde seus ataques com veneno, causando dano continuo ao longo do tempo aos inimigos atingidos."},
@@ -303,7 +303,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
                 Resistencia = 50
             cartas_compradas["Defesa"] += 1
         elif nome == "Sorte":
-            Chance_Sorte += 0.03
+            Chance_Sorte += 0.006
             cartas_compradas["Sorte"] += 1
         elif nome == "Poison":
             Poison_Active = True

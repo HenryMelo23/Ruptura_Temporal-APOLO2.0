@@ -284,7 +284,7 @@ Ultimo_Estalo=False
 imagem_vida=pygame.image.load("Sprites/vida.png").convert_alpha()
 imagem_vida = pygame.transform.scale(imagem_vida, (largura_tela* 0.25, altura_tela*0.20))
 posicao_vida = (13, -40)  
-Chance_Sorte=0.02
+Chance_Sorte=0.01
 Poison_Active=False
 boss_envenenado = False
 dano_por_tick_veneno_boss = 0
@@ -1336,3 +1336,106 @@ tempo_ultimo_disparo = 0
 tempo_ultimo_escudo = 0
 sprite_moeda = None
 ondas_choque = []
+
+# Variables for Mouse Teleport Mode
+teleport_pressionado = False
+tempo_teleport_press = 0
+mostrar_zona_teleporte = False
+executar_teleporte_pendente = False
+
+def obter_modo_teleporte():
+    try:
+        import os
+        import json
+        if os.path.exists("saves/config_teleporte.json"):
+            with open("saves/config_teleporte.json", "r") as f:
+                return json.load(f).get("modo", "fixo")
+    except:
+        pass
+    return "fixo"
+
+def verificar_evento_release(evento, acao):
+    if acao not in config_teclas:
+        return False
+    tecla = config_teclas[acao]
+    if isinstance(tecla, str) and tecla.startswith("MOUSE_"):
+        try:
+            btn_idx = int(tecla.split("_")[1])
+            return evento.type == pygame.MOUSEBUTTONUP and evento.button == btn_idx
+        except:
+            return False
+    else:
+        return evento.type == pygame.KEYUP and evento.key == tecla
+
+def processar_eventos_teleporte(evento, cooldown_dash):
+    global teleport_pressionado, tempo_teleport_press, mostrar_zona_teleporte, executar_teleporte_pendente
+    
+    if obter_modo_teleporte() != "mouse":
+        return None
+        
+    if verificar_evento_input(evento, "Teleporte"):
+        if not cooldown_dash:
+            teleport_pressionado = True
+            tempo_teleport_press = pygame.time.get_ticks()
+            mostrar_zona_teleporte = False
+            executar_teleporte_pendente = False
+            
+    elif verificar_evento_release(evento, "Teleporte"):
+        if teleport_pressionado:
+            teleport_pressionado = False
+            mostrar_zona_teleporte = False
+            executar_teleporte_pendente = True
+            return "executar"
+            
+    return None
+
+def atualizar_estado_teleporte():
+    global teleport_pressionado, tempo_teleport_press, mostrar_zona_teleporte, executar_teleporte_pendente
+    if obter_modo_teleporte() == "mouse" and teleport_pressionado:
+        # Safety net: check if the key is still physically pressed
+        if not verificar_input("Teleporte"):
+            teleport_pressionado = False
+            mostrar_zona_teleporte = False
+            executar_teleporte_pendente = True
+            return "executar"
+        
+        if pygame.time.get_ticks() - tempo_teleport_press > 150:
+            mostrar_zona_teleporte = True
+    return None
+
+def calcular_destino_teleporte(px_centro, py_centro, max_dist):
+    mx, my = pygame.mouse.get_pos()
+    dx = mx - px_centro
+    dy = my - py_centro
+    dist = math.sqrt(dx**2 + dy**2)
+    
+    if dist <= max_dist:
+        return mx, my
+    else:
+        if dist == 0:
+            return px_centro, py_centro
+        ux = dx / dist
+        uy = dy / dist
+        return px_centro + ux * max_dist, py_centro + uy * max_dist
+
+def desenhar_zona_teleporte(tela, player_x, player_y, player_w, player_h, max_dist):
+    if not (obter_modo_teleporte() == "mouse" and mostrar_zona_teleporte):
+        return
+        
+    px = player_x + player_w // 2
+    py = player_y + player_h // 2
+    
+    dest_x, dest_y = calcular_destino_teleporte(px, py, max_dist)
+    
+    # Draw soft translucent circle with radius max_dist
+    surface_circulo = pygame.Surface((max_dist * 2, max_dist * 2), pygame.SRCALPHA)
+    pygame.draw.circle(surface_circulo, (0, 255, 230, 25), (max_dist, max_dist), max_dist)
+    pygame.draw.circle(surface_circulo, (0, 255, 230, 120), (max_dist, max_dist), max_dist, 2)
+    tela.blit(surface_circulo, (px - max_dist, py - max_dist))
+    
+    # Draw line from player center to destination
+    pygame.draw.line(tela, (0, 255, 230, 180), (px, py), (dest_x, dest_y), 3)
+    
+    # Draw target crosshair at destination
+    pygame.draw.circle(tela, (255, 255, 255, 220), (int(dest_x), int(dest_y)), 10, 2)
+    pygame.draw.circle(tela, (0, 255, 230, 220), (int(dest_x), int(dest_y)), 4)

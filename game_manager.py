@@ -5,6 +5,7 @@ Substitui subprocess por transições fluidas entre telas
 
 import pygame
 import sys
+import importlib
 from enum import Enum
 
 class EstadoJogo(Enum):
@@ -62,25 +63,37 @@ class GameManager:
             modo = self.dados_compartilhados.get('modo_jogo', 'offline')
             
             if modo == 'offline':
+                if 'GAME' in sys.modules:
+                    importlib.reload(sys.modules['GAME'])
                 import GAME
                 resultado = GAME.executar_jogo(self)
             else:
+                if 'GAMERE' in sys.modules:
+                    importlib.reload(sys.modules['GAMERE'])
                 import GAMERE
                 resultado = GAMERE.executar_jogo(self)
                 
         elif self.estado_atual == EstadoJogo.JOGO_FASE_2:
+            if 'GAME2' in sys.modules:
+                importlib.reload(sys.modules['GAME2'])
             import GAME2
             resultado = GAME2.executar_jogo(self)
             
         elif self.estado_atual == EstadoJogo.JOGO_FASE_3:
+            if 'GAME3' in sys.modules:
+                importlib.reload(sys.modules['GAME3'])
             import GAME3
             resultado = GAME3.executar_jogo(self)
             
         elif self.estado_atual == EstadoJogo.JOGO_FASE_4:
+            if 'GAME4' in sys.modules:
+                importlib.reload(sys.modules['GAME4'])
             import GAME4
             resultado = GAME4.executar_jogo(self)
             
         elif self.estado_atual == EstadoJogo.JOGO_FASE_5:
+            if 'GAME5' in sys.modules:
+                importlib.reload(sys.modules['GAME5'])
             import GAME5
             resultado = GAME5.executar_jogo(self)
                 

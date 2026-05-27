@@ -162,8 +162,7 @@ def executar_game_over(game_manager=None):
                     elif escolha == "Tentar Novamente":
                         if game_manager:
                             from game_manager import EstadoJogo
-                            fase_anterior = game_manager.dados_compartilhados.get('fase_antes_do_game_over', EstadoJogo.JOGO_FASE_1)
-                            game_manager.mudar_estado(fase_anterior)
+                            game_manager.mudar_estado(EstadoJogo.JOGO_FASE_1)
                             return
                         else:
                             import json
@@ -221,8 +220,7 @@ def executar_game_over(game_manager=None):
                     elif escolha == "Tentar Novamente":
                         if game_manager:
                             from game_manager import EstadoJogo
-                            fase_anterior = game_manager.dados_compartilhados.get('fase_antes_do_game_over', EstadoJogo.JOGO_FASE_1)
-                            game_manager.mudar_estado(fase_anterior)
+                            game_manager.mudar_estado(EstadoJogo.JOGO_FASE_1)
                             return
                         else:
                             import GAMERE
@@ -328,8 +326,7 @@ def executar_game_over(game_manager=None):
                     elif text == "Tentar Novamente":
                         if game_manager:
                             from game_manager import EstadoJogo
-                            fase_anterior = game_manager.dados_compartilhados.get('fase_antes_do_game_over', EstadoJogo.JOGO_FASE_1)
-                            game_manager.mudar_estado(fase_anterior)
+                            game_manager.mudar_estado(EstadoJogo.JOGO_FASE_1)
                             return
                         else:
                             import GAME

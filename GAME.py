@@ -33,6 +33,8 @@ boss_estagio_40_ativado = False
 tempo_boss_estagio_ataque_fim = 0
 boss_transicao_ondas = []
 ondas_lancadas_transicao = 0
+ultima_onda_tipo = ""
+tempo_slow_onda_fim = 0
 dt = 1.0
 
 # Forward declarations (atribuídos no loop principal)
@@ -391,8 +393,8 @@ def executar_jogo(game_manager=None):
     global tempo_boss_entrada_fim
     global tempo_stun_jogador_fim, knockback_x, knockback_y, boss_empurrou_jogador
     global boss_estagio_60_ativado, boss_estagio_40_ativado, tempo_boss_estagio_ataque_fim
-    global boss_transicao_ondas, ondas_lancadas_transicao
-    global joystick, ondas_choque, Chance_Sorte, Dano_Boss_Habilit, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss1, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, Velocidade_Inimigos_1, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apertou_q, atributos, bonus_pontuacao, boss_envenenado, cartas_compradas, chance_critico, cooldown_dash, dano, dano_boss, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_atual_petro, disparos, dispositivo_ativo, distancia_dash, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_ataque_especial, escudo_devota_ativo, espacamento, f, fonte, frame_atual_chefe, frame_porcentagem, hitboxes, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, jogador_posicoes, lado, largura_disparo, largura_personagem, linha, mensagem, mensagem_ativa, mensagem_mostrada, mensagens_exibidas, moedas_coletadas, moedas_soltadas, moedas_totais, musica_boss1, ondas, petro_evolucao, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe, pos_x_personagem, pos_x_petro, pos_y_chefe, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, r_press, rect_boss, relogio, roubo_de_vida, running, sprite_moeda, teleportado, teleporte_duration, teleporte_index, teleporte_timer, tempo_anterior_petro, tempo_ataque_especial, tempo_atual, tempo_cooldown_dash, tempo_fase_completa, tempo_fim_mensagem, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_mostrando_mensagem, tempo_passado_animacao_chefe, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_mudanca_direcao_boss, tempo_ultima_regeneracao, tempo_ultimo_ataque, tempo_ultimo_dano_ataque, tempo_ultimo_dash, tempo_ultimo_uso_habilidade, texto, texto_dano, tipo_buff_impulsiva, toque, trembo, tutorial_dash_count, tutorial_fase, tutorial_lado_inicial, tutorial_parede_ativa, tutorial_parede_rect, tutorial_wasd, ultima_direcao_animacao, ultima_direcao_boss, ultima_tecla_movimento, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_boss2, vida_boss3, vida_boss4, vida_maxima, vida_maxima_boss1, vida_maxima_boss2, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, x, xp_petro, tutorial_inimigo_ativo, tutorial_inimigo, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
+    global boss_transicao_ondas, ondas_lancadas_transicao, ultima_onda_tipo, tempo_slow_onda_fim
+    global joystick, ondas_choque, carregar_atributos_na_fase, Chance_Sorte, Dano_Boss_Habilit, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss1, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, Velocidade_Inimigos_1, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apertou_q, atributos, bonus_pontuacao, boss_envenenado, cartas_compradas, chance_critico, cooldown_dash, dano, dano_boss, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_atual_petro, disparos, dispositivo_ativo, distancia_dash, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_ataque_especial, escudo_devota_ativo, espacamento, f, fonte, frame_atual_chefe, frame_porcentagem, hitboxes, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, jogador_posicoes, lado, largura_disparo, largura_personagem, linha, mensagem, mensagem_ativa, mensagem_mostrada, mensagens_exibidas, moedas_coletadas, moedas_soltadas, moedas_totais, musica_boss1, ondas, petro_evolucao, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe, pos_x_personagem, pos_x_petro, pos_y_chefe, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, r_press, rect_boss, relogio, roubo_de_vida, running, sprite_moeda, teleportado, teleporte_duration, teleporte_index, teleporte_timer, tempo_anterior_petro, tempo_ataque_especial, tempo_atual, tempo_cooldown_dash, tempo_fase_completa, tempo_fim_mensagem, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_mostrando_mensagem, tempo_passado_animacao_chefe, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_mudanca_direcao_boss, tempo_ultima_regeneracao, tempo_ultimo_ataque, tempo_ultimo_dano_ataque, tempo_ultimo_dash, tempo_ultimo_uso_habilidade, texto, texto_dano, tipo_buff_impulsiva, toque, trembo, tutorial_dash_count, tutorial_fase, tutorial_lado_inicial, tutorial_parede_ativa, tutorial_parede_rect, tutorial_wasd, ultima_direcao_animacao, ultima_direcao_boss, ultima_tecla_movimento, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_boss2, vida_boss3, vida_boss4, vida_maxima, vida_maxima_boss1, vida_maxima_boss2, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, x, xp_petro, tutorial_inimigo_ativo, tutorial_inimigo, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -611,20 +613,38 @@ def executar_jogo(game_manager=None):
                         pos_x_personagem = tutorial_parede_rect.right
 
             # ---- DASH/TELEPORTE ----
-            dash_teclado = Variaveis.verificar_input("Teleporte")
-            dash_joystick = joystick and joystick.get_button(4) if joystick else False
+            executar_teleporte_mouse_flag = False
+            if Variaveis.obter_modo_teleporte() == "mouse":
+                dash_teclado = False
+                dash_joystick = False
+                Variaveis.atualizar_estado_teleporte()
+                if Variaveis.executar_teleporte_pendente and not cooldown_dash:
+                    executar_teleporte_mouse_flag = True
+                    Variaveis.executar_teleporte_pendente = False
+            else:
+                dash_teclado = Variaveis.verificar_input("Teleporte")
+                dash_joystick = joystick and joystick.get_button(4) if joystick else False
 
-            if (dash_teclado or dash_joystick) and cooldown_dash == False:
+            if (dash_teclado or dash_joystick or executar_teleporte_mouse_flag) and cooldown_dash == False:
                 Som_portal.play()
 
-                # Animação de teletransporte (plasma procedural)
-                animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
-                tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
-
-                if ultima_tecla_movimento == 'up': pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
-                elif ultima_tecla_movimento == 'down': pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
-                elif ultima_tecla_movimento == 'left': pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
-                elif ultima_tecla_movimento == 'right': pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
+                if executar_teleporte_mouse_flag:
+                    px_c = pos_x_personagem + largura_personagem // 2
+                    py_c = pos_y_personagem + altura_personagem // 2
+                    dest_x, dest_y = Variaveis.calcular_destino_teleporte(px_c, py_c, distancia_dash)
+                    dest_px = max(0, min(largura_mapa - largura_personagem, dest_x - largura_personagem // 2))
+                    dest_py = max(0, min(altura_mapa - altura_personagem, dest_y - altura_personagem // 2))
+                    
+                    animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa, dest_x=dest_px, dest_y=dest_py)
+                    tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
+                    pos_x_personagem, pos_y_personagem = dest_px, dest_py
+                else:
+                    animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa)
+                    tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
+                    if ultima_tecla_movimento == 'up': pos_y_personagem = max(0, pos_y_personagem - distancia_dash)
+                    elif ultima_tecla_movimento == 'down': pos_y_personagem = min(altura_mapa - altura_personagem, pos_y_personagem + distancia_dash)
+                    elif ultima_tecla_movimento == 'left': pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
+                    elif ultima_tecla_movimento == 'right': pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
 
                 cooldown_dash = True
                 tempo_ultimo_dash = pygame.time.get_ticks()
@@ -1148,7 +1168,15 @@ def executar_jogo(game_manager=None):
         running = True
         while running:
             tempo_atual = pygame.time.get_ticks()
+            if carregar_atributos_na_fase:
+                try:
+                    carregar_atributos()
+                except Exception as e:
+                    print(f"Aviso: Nao foi possivel carregar atributos ({e}). Usando padrao.")
+                carregar_atributos_na_fase = False
             fator_lentidao_boss = 1.0
+            if tempo_atual < tempo_slow_onda_fim:
+                fator_lentidao_boss = min(fator_lentidao_boss, 0.4)
             if impulsiva_ativa:
                 disparo_paths = ["Sprites/Fogo_impulso1.png", "Sprites/Fogo_impulso2.png"]
             else:
@@ -1175,6 +1203,7 @@ def executar_jogo(game_manager=None):
             mouse_y = max(0, min(pos_mouse[1], altura_mapa - cursor_tamanho[1]))
             for event in pygame.event.get():
                 Variaveis.atualizar_estado_mouse(event)
+                Variaveis.processar_eventos_teleporte(event, cooldown_dash)
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.KEYDOWN:
@@ -1539,7 +1568,7 @@ def executar_jogo(game_manager=None):
                     pygame.time.delay(2000)
                     Musica_tema_fases.stop()
                     Som_tema_fases.stop()
-                    tela_upgrade_aureas(tela, fonte, moedas_totais)
+                    moedas_totais = tela_upgrade_aureas(tela, fonte, moedas_totais)
 
 
                     limpar_salvamento()
@@ -1610,7 +1639,11 @@ def executar_jogo(game_manager=None):
                     onda_alvo = int(tempo_decorrido // 1200)
                     if onda_alvo > ondas_lancadas_transicao and onda_alvo <= 4:
                         ondas_lancadas_transicao = onda_alvo
-                        tipo_onda = "incompleta" if random.random() > 0.4 else "completa"
+                        if ultima_onda_tipo == "completa":
+                            tipo_onda = "incompleta"
+                        else:
+                            tipo_onda = "incompleta" if random.random() > 0.4 else "completa"
+                        ultima_onda_tipo = tipo_onda
                         nova_onda = {
                             "x": pos_x_chefe + chefe_largura // 2,
                             "y": pos_y_chefe + chefe_altura // 2,
@@ -1620,7 +1653,7 @@ def executar_jogo(game_manager=None):
                             "angulo_abertura_centro": random.uniform(0, 2 * math.pi),
                             "tamanho_abertura": random.uniform(math.pi / 4, math.pi / 2), # 45 a 90 graus
                             "velocidade": 350.0,
-                            "dano": int(vida_maxima * 0.15),
+                            "dano": int(vida_maxima * 0.04),
                             "atingiu_player": False
                         }
                         boss_transicao_ondas.append(nova_onda)
@@ -1682,6 +1715,9 @@ def executar_jogo(game_manager=None):
                             elif Resistencia < dano_onda:
                                 vida -= int(dano_onda - Resistencia)
                             
+                            # Aplica 60% de slow por 2 segundos
+                            tempo_slow_onda_fim = tempo_atual + 2000
+                            
                             shake_x = random.randint(-12, 12)
                             shake_y = random.randint(-12, 12)
                             Dano_person.play()
@@ -1705,6 +1741,9 @@ def executar_jogo(game_manager=None):
                 tela.blit(frame_rotacionado, novo_rect.topleft)
             else:
                 tela.blit(frame_para_desenhar, (pos_x_personagem, pos_y_personagem))
+
+            # Desenhar zona de teleporte (se estiver mirando no modo mouse)
+            Variaveis.desenhar_zona_teleporte(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, distancia_dash)
 
             for moeda in moedas_soltadas[:]:
                 if personagem_rect.colliderect(moeda["rect"]):
@@ -1782,10 +1821,9 @@ def executar_jogo(game_manager=None):
                     direcao_trembo = direcao_atual
                 desenhar_sombra(tela, pos_x_segundo_personagem, pos_y_segundo_personagem, int(largura_trembo), int(altura_trembo), offset_y=2)
                 tela.blit(frames_animacao_trembo[direcao_trembo][frame_atual % len(frames_animacao_trembo[direcao_trembo])], (pos_x_segundo_personagem, pos_y_segundo_personagem))
-            if trembo and tempo_atual- tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima :
-                if vida_maxima < vida:
-                    vida=vida_maxima
-                vida+= (vida_maxima*porcentagem_cura)
+            if trembo and tempo_atual - tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima:
+                cura_trembo = vida_maxima * porcentagem_cura
+                vida = min(vida_maxima, vida + cura_trembo)
                 tempo_ultima_regeneracao = tempo_atual
 
 
@@ -2128,11 +2166,15 @@ def executar_jogo(game_manager=None):
                         boss_estagio_60_ativado = True
                         tempo_boss_estagio_ataque_fim = tempo_atual + 6000
                         ondas_lancadas_transicao = 0
+                        ultima_onda_tipo = ""
+                        tempo_slow_onda_fim = 0
                         boss_transicao_ondas = []
                     elif porcentagem_vida_boss < 40 and not boss_estagio_40_ativado:
                         boss_estagio_40_ativado = True
                         tempo_boss_estagio_ataque_fim = tempo_atual + 6000
                         ondas_lancadas_transicao = 0
+                        ultima_onda_tipo = ""
+                        tempo_slow_onda_fim = 0
                         boss_transicao_ondas = []
 
                     if porcentagem_vida_boss >= 60:

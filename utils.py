@@ -60,7 +60,7 @@ def carregar_qualidade_grafica():
     except:
         return "alta"
 
-def animar_teleporte_plasma(tela, mapa, pos_x, pos_y, largura, altura, duracao, direcao, distancia_dash, largura_mapa, altura_mapa):
+def animar_teleporte_plasma(tela, mapa, pos_x, pos_y, largura, altura, duracao, direcao, distancia_dash, largura_mapa, altura_mapa, dest_x=None, dest_y=None):
     """
     Bloqueia o jogo pela duração para renderizar um efeito de plasma/eletricidade azul
     simulando a fragmentação do personagem ao teleportar.
@@ -87,15 +87,16 @@ def animar_teleporte_plasma(tela, mapa, pos_x, pos_y, largura, altura, duracao, 
     centro_y = pos_y + altura // 2
     
     # Calcular destino
-    dest_x, dest_y = pos_x, pos_y
-    if direcao == 'up':
-        dest_y = max(0, pos_y - distancia_dash)
-    elif direcao == 'down':
-        dest_y = min(altura_mapa - altura, pos_y + distancia_dash)
-    elif direcao == 'left':
-        dest_x = max(0, pos_x - distancia_dash)
-    elif direcao == 'right':
-        dest_x = min(largura_mapa - largura, pos_x + distancia_dash)
+    if dest_x is None or dest_y is None:
+        dest_x, dest_y = pos_x, pos_y
+        if direcao == 'up':
+            dest_y = max(0, pos_y - distancia_dash)
+        elif direcao == 'down':
+            dest_y = min(altura_mapa - altura, pos_y + distancia_dash)
+        elif direcao == 'left':
+            dest_x = max(0, pos_x - distancia_dash)
+        elif direcao == 'right':
+            dest_x = min(largura_mapa - largura, pos_x + distancia_dash)
         
     centro_dest_x = dest_x + largura // 2
     centro_dest_y = dest_y + altura // 2
