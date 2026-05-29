@@ -22,13 +22,13 @@ CARTAS_DATA = [
      "descricao":"+100 de dano por carta.",
      "sprites":("Sprites/Deck/carta_odio1.png","Sprites/Deck/carta_odio2.png")},
     {"nome":"Trembo",            "nick":"Reversão Temporal",    "cor":(200,100,255),
-     "descricao":"Segunda vida! Regen mais rápida. Máx 1 cópia.",
+     "descricao":"Segunda vida! Regen mais rápida. Máx 2 cópias.",
      "sprites":("Sprites/Deck/carta_trem1.png","Sprites/Deck/carta_trem2.png")},
     {"nome":"Tempestade",        "nick":"Tempestade Crescente", "cor":(255,220,50),
      "descricao":"+32.5 dano e +3% chance crítica por carta.",
      "sprites":("Sprites/Deck/Carta_tempestade_crescente1.png","Sprites/Deck/Carta_tempestade_crescente2.png")},
     {"nome":"Cura",              "nick":"Mordida Sombria",      "cor":(255,80,150),
-     "descricao":"Roubo de vida +0.25 e qtd +0.30 por carta.",
+     "descricao":"Toda bala recupera +0.80% da vida perdida por carta.",
      "sprites":("Sprites/Deck/Carta_roubo_vida1.png","Sprites/Deck/Carta_roubo_vida2.png")},
     {"nome":"Speed Atack",       "nick":"Fluidez Letal",        "cor":(255,160,50),
      "descricao":"Vel. ataque x0.95 por carta (mín 70ms).",
@@ -63,7 +63,7 @@ def _ol(surf,f,txt,fg,ol,x,y,d=2):
 
 def _add(deck,nome,cnt):
     if len(deck)>=MAX_CARTAS: return False
-    if nome=="Trembo" and cnt.get("Trembo",0)>=1: return False
+    if nome=="Trembo" and cnt.get("Trembo",0)>=2: return False
     deck.append(nome); return True
 
 def _rm(deck,nome):
@@ -91,7 +91,7 @@ def _build_apolo(qtd=100):
     C=math.sqrt(2)
     for _ in range(qtd):
         validas=[o for o in opcoes if o in [cd["nome"] for cd in CARTAS_DATA]]
-        if escolhas.count("Trembo")>=1 and "Trembo" in validas: validas.remove("Trembo")
+        if escolhas.count("Trembo")>=2 and "Trembo" in validas: validas.remove("Trembo")
         if not validas: break
         best,bv=None,-float('inf')
         for op in validas:
@@ -348,8 +348,8 @@ def tela_loja_endgame():
         draw_btn(btn_start,"▶ INICIAR","[ENTER]",(40,160,70) if total>0 else(50,50,50),(100,255,120),total>0)
 
         # aviso Trembo
-        if nome_sel=="Trembo" and cnt.get("Trembo",0)>=1:
-            av=fI.render("⚠ Trembo: máximo 1 cópia",True,(255,100,80))
+        if nome_sel=="Trembo" and cnt.get("Trembo",0)>=2:
+            av=fI.render("⚠ Trembo: máximo 2 cópias",True,(255,100,80))
             tela.blit(av,(W//2-av.get_width()//2,BOT_Y+BH+6))
 
         # hints
@@ -377,12 +377,19 @@ def aplicar_deck_endgame(deck, v):
             if v["vida_petro"]>v["vida_maxima_petro"]: v["vida_maxima_petro"]=v["vida_petro"]
         elif carta=="Disparo crescente": v["dano_person_hit"]+=10+(IE//50)*1.5
         elif carta=="Trembo":
-            v["trembo"]=True; v["Tempo_cura"]=max(500,int(v["Tempo_cura"]*0.85))
-            v["porcentagem_cura"]+=0.005+(IE//400)*0.001
+            v["trembo"]=True
+            cc = v.setdefault("cartas_compradas", {})
+            cc["Trembo"] = cc.get("Trembo", 0) + 1
+            if cc["Trembo"] >= 2:
+                v["Tempo_cura"] = max(500, int(v["Tempo_cura"] * 0.75))
+                v["porcentagem_cura"] += 0.010 + (IE // 400) * 0.002
+            else:
+                v["Tempo_cura"] = max(500, int(v["Tempo_cura"] * 0.85))
+                v["porcentagem_cura"] += 0.005 + (IE // 400) * 0.001
         elif carta=="Tempestade":
             v["dano_person_hit"]+=2.5+(IE//100)*1; v["chance_critico"]+=0.01+(IE//300)*0.002
         elif carta=="Cura":
-            v["roubo_de_vida"]+=0.25+(IE//500)*0.001; v["quantidade_roubo_vida"]+=0.30+(IE//500)*0.001
+            v["roubo_de_vida"]=1.0; v["quantidade_roubo_vida"]+=0.008+(IE//500)*0.0005
         elif carta=="Speed Atack": v["intervalo_disparo"]=max(70,int(v["intervalo_disparo"]*0.95))
         elif carta=="Teleporte":
             r=0.95-min(0.15,(IE//1000)*0.02); v["tempo_cooldown_dash"]=max(0.4,v["tempo_cooldown_dash"]*r)

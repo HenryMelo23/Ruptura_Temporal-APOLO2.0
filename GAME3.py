@@ -1,4 +1,5 @@
 
+import Caminhos
 import pygame
 import sys
 import random
@@ -103,6 +104,7 @@ chefe_largura3,chefe_altura3= largura_tela * 0.2, altura_tela * 0.3
 disparos_boss3=[]
 tempo_espera_ataque_boss3=5000
 carregar_atributos_na_fase=True
+tempo_boss_entrada_fim = 0
 
 
 # Carregar os frames do boss
@@ -240,13 +242,15 @@ def salvar_atributos():
         "porcentagem_cura": porcentagem_cura,
         # 🪙 novo campo
         "moedas_totais": moedas_totais,
+        "Chance_Sorte": Chance_Sorte,
+        "cartas_compradas": cartas_compradas,
     }
 
     with open('saves/atributos.json', 'w') as file:
         json.dump(atributos, file)
 
 def carregar_atributos():
-    global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, moedas_totais
+    global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, moedas_totais, Chance_Sorte, cartas_compradas
     with open('saves/atributos.json', 'r') as file:
         atributos = json.load(file)
         velocidade_personagem = atributos["velocidade_personagem"]
@@ -278,6 +282,9 @@ def carregar_atributos():
         Tempo_cura= atributos["Tempo_cura"]
         porcentagem_cura= atributos["porcentagem_cura"]
         moedas_totais = atributos["moedas_totais"]
+        Chance_Sorte = atributos.get("Chance_Sorte", 0.01)
+        if "cartas_compradas" in atributos:
+            cartas_compradas.update(atributos["cartas_compradas"])
 
 
 with open("saves/aurea_selecionada.json", "r") as file:
@@ -440,6 +447,7 @@ def atualizar_posicao_personagem(keys, joystick):
             if inimigo["vida"] <= 0:
                 posicao_inimigo = inimigo["rect"].center
                 soltar_moeda(posicao_inimigo)
+                Variaveis.tentar_soltar_carta(posicao_inimigo, tempo_atual, Chance_Sorte, inimigos_eliminados)
                 gerar_fragmentos_morte(inimigo, 3)
                 if inimigo in inimigos_comum:
                     inimigos_comum.remove(inimigo)
@@ -672,7 +680,7 @@ y = 0
 
 def executar_jogo(game_manager=None):
     global dt
-    global Boss_vivo3, gerar_fragmentos_morte, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss3, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, bonus_pontuacao, boss_envenenado, boss_frame_andando, boss_frame_atual, boss_frame_peca, carregar_atributos_na_fase, cartas_compradas, chance_critico, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, disparos, disparos_boss3, disparos_inimigos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, escudo_devota_ativo, fonte, frame_atual, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, largura_disparo, max_inimigos2, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, musica_boss3, nivel_ameaca, ondas, personagem_doente, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe3, pos_x_personagem, pos_x_petro, pos_y_chefe3, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, queijo_geracao, queijo_spawn, r_press, rect_boss, roubo_de_vida, running, spawn_inimigo, sprite_moeda, teleportado, tempo_anterior_petro, tempo_atual, tempo_cooldown_dash, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_regeneracao, tempo_ultimo_atingido, tempo_ultimo_disparo_inimigo, tempo_ultimo_frame_boss, tempo_ultimo_grupo_disparo_boss3, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, texto_dano, tipo_buff_impulsiva, toque, trembo, ultima_direcao_animacao, ultimo_tick_veneno_boss, upgrades, velocidade_personagem, vida, vida_boss3, vida_boss4, vida_inimigo_maxima, vida_maxima, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, vida_queijo, x, xp_petro, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
+    global Boss_vivo3, gerar_fragmentos_morte, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss3, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, bonus_pontuacao, boss_envenenado, boss_frame_andando, boss_frame_atual, boss_frame_peca, carregar_atributos_na_fase, cartas_compradas, chance_critico, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, disparos, disparos_boss3, disparos_inimigos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, escudo_devota_ativo, fonte, frame_atual, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, largura_disparo, max_inimigos2, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, musica_boss3, nivel_ameaca, ondas, personagem_doente, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe3, pos_x_personagem, pos_x_petro, pos_y_chefe3, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, queijo_geracao, queijo_spawn, r_press, rect_boss, roubo_de_vida, running, spawn_inimigo, sprite_moeda, teleportado, tempo_anterior_petro, tempo_atual, tempo_boss_entrada_fim, tempo_cooldown_dash, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_regeneracao, tempo_ultimo_atingido, tempo_ultimo_disparo_inimigo, tempo_ultimo_frame_boss, tempo_ultimo_grupo_disparo_boss3, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, texto_dano, tipo_buff_impulsiva, toque, trembo, ultima_direcao_animacao, ultimo_tick_veneno_boss, upgrades, velocidade_personagem, vida, vida_boss3, vida_boss4, vida_inimigo_maxima, vida_maxima, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, vida_queijo, x, xp_petro, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -916,8 +924,77 @@ def executar_jogo(game_manager=None):
         running = True
         while running:
             tempo_atual = pygame.time.get_ticks()
+
+            # Registrar snapshot para o sistema de rewind
+            if vida > 0:
+                snapshot_attrs = {
+                    "velocidade_personagem": velocidade_personagem,
+                    "intervalo_disparo": intervalo_disparo,
+                    "dano_person_hit": dano_person_hit,
+                    "chance_critico": chance_critico,
+                    "roubo_de_vida": roubo_de_vida,
+                    "quantidade_roubo_vida": quantidade_roubo_vida,
+                    "vida_petro": vida_petro,
+                    "vida_maxima_personagem": vida_maxima,
+                    "vida_maxima_petro": vida_maxima_petro,
+                    "nivel_Petro": xp_petro,
+                    "existencia_petro": Petro_active,
+                    "existencia_trembo": trembo,
+                    "dano_petro": dano_petro,
+                    "resistencia_personagem": Resistencia,
+                    "resistencia_petro": Resistencia_petro,
+                    "dano_inimigo_longe": dano_inimigo_longe,
+                    "dano_inimigo_perto": dano_inimigo_perto,
+                    "Poison_Active": Poison_Active,
+                    "Ultimo_Estalo": Ultimo_Estalo,
+                    "Executa_inimigo": Executa_inimigo,
+                    "Mercenaria_Active": Mercenaria_Active,
+                    "Valor_Bonus": Valor_Bonus,
+                    "tempo_cooldown_dash": tempo_cooldown_dash,
+                    "petro_evolucao": petro_evolucao,
+                    "Dano_Veneno_Acumulado": Dano_Veneno_Acumulado,
+                    "Tempo_cura": Tempo_cura,
+                    "porcentagem_cura": porcentagem_cura,
+                    "moedas_totais": moedas_totais,
+                    "Chance_Sorte": Chance_Sorte,
+                    "cartas_compradas": cartas_compradas,
+                }
+                snapshot_data = {
+                    "atributos": snapshot_attrs,
+                    "pos_x": pos_x_personagem,
+                    "pos_y": pos_y_personagem,
+                    "vida_boss": vida_chefe if 'vida_chefe' in locals() or 'vida_chefe' in globals() else (
+                                 vida_boss if 'vida_boss' in locals() or 'vida_boss' in globals() else (
+                                 vida_boss2 if 'vida_boss2' in locals() or 'vida_boss2' in globals() else (
+                                 vida_boss3 if 'vida_boss3' in locals() or 'vida_boss3' in globals() else (
+                                 vida_boss4 if 'vida_boss4' in locals() or 'vida_boss4' in globals() else None))))
+                }
+                Variaveis.registrar_snapshot(snapshot_data, tempo_atual)
+
             if carregar_atributos_na_fase:
-                carregar_atributos()
+                try:
+                    carregar_atributos()
+                    if Variaveis.snapshot_para_carregar is not None:
+                        snap = Variaveis.snapshot_para_carregar
+                        pos_x_personagem = snap.get("pos_x", pos_x_personagem)
+                        pos_y_personagem = snap.get("pos_y", pos_y_personagem)
+                        vida = snap.get("vida_fracao", 0.20) * vida_maxima
+                        pontuacao = 0
+                        pontuacao_exib = 0
+                        if "vida_boss" in snap and snap["vida_boss"] is not None:
+                            if 'vida_chefe' in locals() or 'vida_chefe' in globals():
+                                vida_chefe = snap["vida_boss"]
+                            elif 'vida_boss' in locals() or 'vida_boss' in globals():
+                                vida_boss = snap["vida_boss"]
+                            elif 'vida_boss2' in locals() or 'vida_boss2' in globals():
+                                vida_boss2 = snap["vida_boss"]
+                            elif 'vida_boss3' in locals() or 'vida_boss3' in globals():
+                                vida_boss3 = snap["vida_boss"]
+                            elif 'vida_boss4' in locals() or 'vida_boss4' in globals():
+                                vida_boss4 = snap["vida_boss"]
+                        Variaveis.snapshot_para_carregar = None
+                except Exception as e:
+                    print(f"Aviso: Nao foi possivel carregar atributos ({e}). Usando padrao.")
                 carregar_atributos_na_fase=False
 
             if impulsiva_ativa:
@@ -1002,6 +1079,10 @@ def executar_jogo(game_manager=None):
                 if joy:
                     joy.init()
                 
+                try:
+                    salvar_atributos()
+                except Exception as e:
+                    print(f"Erro ao salvar atributos para pausa: {e}")
                 from Tela_Pause import exibir_tela_pause
                 ret_pause = exibir_tela_pause(tela, cartas_compradas, joy)
                 if ret_pause == "sair":
@@ -1041,9 +1122,10 @@ def executar_jogo(game_manager=None):
             novos_disparos = []
             inimig_atin=[]
 
+            # --- PARTÍCULAS DE VENENO PINGANDO ---
+            Variaveis.atualizar_e_desenhar_particulas_veneno(tela, inimigos_comum, config_graficos)
+
             for inimigo in inimigos_comum:
-                inimigo_rect = inimigo["rect"]
-                inimigo_image = inimigo["image"]
 
                 inimigo_atingido = False
 
@@ -1083,7 +1165,7 @@ def executar_jogo(game_manager=None):
                                 }
 
 
-                        if random.random() < roubo_de_vida:
+                        if quantidade_roubo_vida > 0:
                             vida += (vida_maxima-vida)*quantidade_roubo_vida
                         if Ultimo_Estalo and inimigo["vida"] <= Executa_inimigo * inimigo["vida_maxima"]:
                             if inimigo in inimigos_comum:
@@ -1091,6 +1173,7 @@ def executar_jogo(game_manager=None):
                                 inimigos_comum.remove(inimigo)
                             posicao_inimigo = inimigo["rect"].center
                             soltar_moeda(posicao_inimigo)
+                            Variaveis.tentar_soltar_carta(posicao_inimigo, tempo_atual, Chance_Sorte, inimigos_eliminados)
                             inimigos_eliminados += 1
 
                             # Multiplicador de Execução Superior (20%)
@@ -1126,6 +1209,7 @@ def executar_jogo(game_manager=None):
                         elif inimigo["vida"] <= 0:
                             posicao_inimigo = inimigo["rect"].center
                             soltar_moeda(posicao_inimigo)
+                            Variaveis.tentar_soltar_carta(posicao_inimigo, tempo_atual, Chance_Sorte, inimigos_eliminados)
                             gerar_fragmentos_morte(inimigo, 3)
                             inimigos_comum.remove(inimigo)
                             inimigos_eliminados += 1
@@ -1491,7 +1575,7 @@ def executar_jogo(game_manager=None):
                         if tempo_atual_petro - tempo_anterior_petro >= intervalo_dano_petro:
                             # Aplica dano ao "boss"
                             vida_petro -= int(dano_inimigo_perto)
-                            vida_petro+= int(vida_maxima_petro)*quantidade_roubo_vida
+                            vida_petro += int(vida_maxima_petro - vida_petro) * quantidade_roubo_vida
                             vida_boss3-= int(dano_person_hit*0.25)+300
                             # Aqui você pode adicionar outras ações relacionadas ao dano ao "boss"
                             tempo_anterior_petro = tempo_atual_petro
@@ -1610,8 +1694,23 @@ def executar_jogo(game_manager=None):
                 dx = pos_x_personagem - inimigo["rect"].x
                 dy = pos_y_personagem - inimigo["rect"].y
                 dist = max(40, abs(dx) + abs(dy))
-                inimigo["rect"].x += (dx / dist) * 1.70
-                inimigo["rect"].y += (dy / dist) * 1.50 
+                
+                if "pos_x" not in inimigo:
+                    inimigo["pos_x"] = float(inimigo["rect"].x)
+                if "pos_y" not in inimigo:
+                    inimigo["pos_y"] = float(inimigo["rect"].y)
+                    
+                inimigo["pos_x"] += (dx / dist) * 1.70
+                inimigo["pos_y"] += (dy / dist) * 1.50
+                inimigo["rect"].x = int(inimigo["pos_x"])
+                inimigo["rect"].y = int(inimigo["pos_y"])
+
+            # Resolve colisões e separações entre inimigos e jogador
+            Variaveis.resolver_colisoes_e_separacao(inimigos_comum, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+
+            for inimigo in inimigos_comum:
+                dx = pos_x_personagem - inimigo["rect"].x
+                dy = pos_y_personagem - inimigo["rect"].y
 
                 # Atualize os frames do inimigo com base na direção
                 if dx > 0:  # Mova para a direita
@@ -1732,8 +1831,8 @@ def executar_jogo(game_manager=None):
                     trembo = False  # Consome o "trembo"
                     imune_tempo_restante = 10000
                     teleportado = True  # Ativa o teleporte aleatório
-                    porcentagem_cura= 0.02
-                    Tempo_cura=2500
+                    porcentagem_cura = max(0.02, porcentagem_cura * 0.5)
+                    Tempo_cura = min(2500, int(Tempo_cura * 1.5))
                     pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem)
                 else:
 
@@ -1777,6 +1876,8 @@ def executar_jogo(game_manager=None):
             if Boss_vivo3:
 
                 if (keys[pygame.K_r]) or r_press:
+                    if not r_press:
+                        tempo_boss_entrada_fim = tempo_atual + 2500
                     r_press=True
                     Musica_tema_fases.stop()
                     max_inimigos2=9
@@ -1838,7 +1939,7 @@ def executar_jogo(game_manager=None):
                             disparos.remove(disparo)
 
                             # Roubo de vida
-                            if random.random() < roubo_de_vida:
+                            if quantidade_roubo_vida > 0:
                                 vida += (vida_maxima - vida) * quantidade_roubo_vida
 
                     # Aplicar dano de veneno no Boss se ele estiver envenenado
@@ -2271,7 +2372,7 @@ def executar_jogo(game_manager=None):
             total_cartas_compradas = sum(cartas_compradas.values())
             custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
             # Verifica se a pontuação atingiu o custo e se o jogador pressionou o botão da loja
-            if (pontuacao_exib >= custo_carta_atual) and (Variaveis.verificar_input("Comprar na loja") or (joystick and joystick.get_button(3))):
+            if Variaveis.obter_modo_cartas() != "drops" and (pontuacao_exib >= custo_carta_atual) and (Variaveis.verificar_input("Comprar na loja") or (joystick and joystick.get_button(3))):
                 # Calcula quantas cartas o jogador pode comprar com o custo progressivo
                 max_cartas = 0
                 total_custo = 0
@@ -2333,20 +2434,17 @@ def executar_jogo(game_manager=None):
 
             posicao_barra_vida = (80, altura_mapa - (altura_mapa - 34))
             fonte = pygame.font.Font(None, int(altura_barra_vida*1))
-            texto_pontuacao = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (250, 255,255))
             fonte_vida = pygame.font.Font(None, int(altura_barra_vida*0.9))
             texto_vida = fonte_vida.render(f'{int(vida)}/{int(vida_maxima)}', True, (255, 255, 255))
 
-            # Renderiza o texto de pontuação com uma borda
-            texto_pontuacao_borda = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (0, 0, 0))  # Cor preta para a borda
-            # Desenha o texto da borda um pouco deslocado para criar o efeito de contorno
-            tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 - 1))
-            tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 + 1, altura_mapa*0.118 - 1))
-            tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 + 1))
-            tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 + 1, altura_mapa*0.118 + 1))
-
-            # Desenha o texto da pontuação por cima da borda
-            tela.blit(texto_pontuacao, (largura_mapa*0.075, altura_mapa*0.118))
+            if Variaveis.obter_modo_cartas() != "drops":
+                texto_pontuacao = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (250, 255,255))
+                texto_pontuacao_borda = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (0, 0, 0))
+                tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 - 1))
+                tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 + 1, altura_mapa*0.118 - 1))
+                tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 + 1))
+                tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 + 1, altura_mapa*0.118 + 1))
+                tela.blit(texto_pontuacao, (largura_mapa*0.075, altura_mapa*0.118))
 
 
 
@@ -2476,6 +2574,46 @@ def executar_jogo(game_manager=None):
             ondas_choque = ondas_ativas
             for moeda in moedas_soltadas:
                 tela.blit(moeda["image"], moeda["rect"])
+
+            # --- SISTEMA DE CARTAS DROP ---
+            if Variaveis.obter_modo_cartas() == "drops":
+                Variaveis.atualizar_e_desenhar_cartas_no_chao(tela, tempo_atual)
+                stats_jogador = {
+                    "velocidade_personagem": velocidade_personagem, "intervalo_disparo": intervalo_disparo,
+                    "vida": vida, "vida_maxima": vida_maxima, "dano_person_hit": dano_person_hit,
+                    "chance_critico": chance_critico, "roubo_de_vida": roubo_de_vida,
+                    "quantidade_roubo_vida": quantidade_roubo_vida, "tempo_cooldown_dash": tempo_cooldown_dash,
+                    "Petro_active": Petro_active, "Resistencia": Resistencia,
+                    "vida_petro": vida_petro, "vida_maxima_petro": vida_maxima_petro,
+                    "dano_petro": dano_petro, "xp_petro": xp_petro, "petro_evolucao": petro_evolucao,
+                    "Resistencia_petro": Resistencia_petro, "Chance_Sorte": Chance_Sorte,
+                    "Poison_Active": Poison_Active, "Dano_Veneno_Acumulado": Dano_Veneno_Acumulado,
+                    "Executa_inimigo": Executa_inimigo, "Ultimo_Estalo": Ultimo_Estalo,
+                    "Mercenaria_Active": Mercenaria_Active, "Valor_Bonus": Valor_Bonus,
+                    "Tempo_cura": Tempo_cura, "porcentagem_cura": porcentagem_cura,
+                    "trembo": trembo, "cartas_compradas": cartas_compradas,
+                    "inimigos_eliminados": inimigos_eliminados
+                }
+                coletadas = Variaveis.coletar_cartas_no_chao(personagem_rect, stats_jogador, efeitos_texto)
+                if coletadas:
+                    velocidade_personagem = stats_jogador["velocidade_personagem"]
+                    intervalo_disparo = stats_jogador["intervalo_disparo"]
+                    vida = stats_jogador["vida"]; vida_maxima = stats_jogador["vida_maxima"]
+                    dano_person_hit = stats_jogador["dano_person_hit"]
+                    chance_critico = stats_jogador["chance_critico"]
+                    roubo_de_vida = stats_jogador["roubo_de_vida"]
+                    quantidade_roubo_vida = stats_jogador["quantidade_roubo_vida"]
+                    tempo_cooldown_dash = stats_jogador["tempo_cooldown_dash"]
+                    Petro_active = stats_jogador["Petro_active"]; Resistencia = stats_jogador["Resistencia"]
+                    vida_petro = stats_jogador["vida_petro"]; vida_maxima_petro = stats_jogador["vida_maxima_petro"]
+                    dano_petro = stats_jogador["dano_petro"]; xp_petro = stats_jogador["xp_petro"]
+                    petro_evolucao = stats_jogador["petro_evolucao"]; Resistencia_petro = stats_jogador["Resistencia_petro"]
+                    Chance_Sorte = stats_jogador["Chance_Sorte"]; Poison_Active = stats_jogador["Poison_Active"]
+                    Dano_Veneno_Acumulado = stats_jogador["Dano_Veneno_Acumulado"]
+                    Executa_inimigo = stats_jogador["Executa_inimigo"]; Ultimo_Estalo = stats_jogador["Ultimo_Estalo"]
+                    Mercenaria_Active = stats_jogador["Mercenaria_Active"]; Valor_Bonus = stats_jogador["Valor_Bonus"]
+                    Tempo_cura = stats_jogador["Tempo_cura"]; porcentagem_cura = stats_jogador["porcentagem_cura"]
+                    trembo = stats_jogador["trembo"]; cartas_compradas = stats_jogador["cartas_compradas"]
 
 
             tela.blit(cursor_imagem, (mouse_x, mouse_y))    

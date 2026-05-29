@@ -1,3 +1,4 @@
+import Caminhos
 import pygame
 import math
 import random
@@ -216,6 +217,9 @@ def atualizar_e_desenhar_correntes(tela, correntes_eletricas, inimigos_comum, te
                 # Verifica qual o 'nível' do inimigo na corrente para ver se ele já tomou o choque
                 nivel_inimigo = c["profundidades"].get(id(inimigo), 0)
                 if nivel_inimigo <= nivel_atual_atingido:
+                    # Aplica stun de 0.5s ao inimigo atingido pela corrente (não bosses)
+                    if not inimigo.get("is_boss", False):
+                        inimigo["stun_fim"] = max(inimigo.get("stun_fim", 0), tempo_atual + 500)
                     total_inimigos = len(c["inimigos"])
                     if total_inimigos < 1:
                         total_inimigos = 1
@@ -321,6 +325,11 @@ def processar_habilidade_onda(ondas, correntes_eletricas, inimigos_comum, boss_i
                     profundidades = {id(inimigo): 0}
                     for u, v, d in links_com_profundidade:
                         profundidades[id(v)] = d
+
+                    # Aplica stun de 0.5s a todos os inimigos atingidos (não bosses)
+                    for viz in vizinhos:
+                        if not viz.get("is_boss", False):
+                            viz["stun_fim"] = tempo_atual + 500
 
                     correntes_eletricas.append({
                         "inimigos": vizinhos,

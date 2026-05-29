@@ -1,3 +1,4 @@
+import Caminhos
 import pygame
 import json
 import sys
@@ -109,6 +110,13 @@ def tela_de_controles(tela, config_teclas, largura_tela, altura_tela, fundo_paus
         "Habilidade Onda": "MOUSE_3"
     }
 
+    # Limpar chaves obsoletas do dicionário ativo
+    chaves_obsoletas = [k for k in config_teclas if k not in padrao_config_teclas]
+    if chaves_obsoletas:
+        for k in chaves_obsoletas:
+            del config_teclas[k]
+        salvar_config_teclas(config_teclas)
+
     for chave, valor in padrao_config_teclas.items():
         if chave not in config_teclas:
             config_teclas[chave] = valor
@@ -151,7 +159,7 @@ def tela_de_controles(tela, config_teclas, largura_tela, altura_tela, fundo_paus
     COR_TITULO     = (0, 255, 204)
     COR_HINT       = (140, 130, 160)
 
-    funcoes = list(config_teclas.keys())
+    funcoes = [f for f in padrao_config_teclas.keys() if f in config_teclas]
     indice_selecionado = 0
     redefinindo_tecla = False
     mensagem = ""
@@ -187,6 +195,20 @@ def tela_de_controles(tela, config_teclas, largura_tela, altura_tela, fundo_paus
         dt = relogio.tick(60)
         animacao += dt * 0.001
         mx, my = pygame.mouse.get_pos()
+
+        # Seleção de linha por hover (quando não redefinindo)
+        if not redefinindo_tecla and entrada_progresso >= 1.0:
+            for i in range(len(funcoes)):
+                y_item = start_y + i * LINHA_H + y_slide
+                rect_item = pygame.Rect(CARD_X + 12, y_item - 3, CARD_W - 24, LINHA_H - 6)
+                if rect_item.collidepoint(mx, my):
+                    if indice_selecionado != i:
+                        indice_selecionado = i
+                        try:
+                            from sons_procedurais import tocar_hover
+                            tocar_hover()
+                        except:
+                            pass
 
         # Progresso da transição de entrada
         if entrada_progresso < 1.0:
@@ -404,6 +426,11 @@ def tela_de_controles(tela, config_teclas, largura_tela, altura_tela, fundo_paus
                             Variaveis.recarregar_teclas()
                         except:
                             pass
+                        try:
+                            from sons_procedurais import tocar_selecionar
+                            tocar_selecionar()
+                        except:
+                            pass
                         mensagem = f"'{funcao_atual}' → [ {formatar_nome_tecla(nova_tecla)} ]  ✔"
                         cor_mensagem = COR_AGUARDANDO
                         timer_mensagem = pygame.time.get_ticks()
@@ -414,8 +441,18 @@ def tela_de_controles(tela, config_teclas, largura_tela, altura_tela, fundo_paus
                         if rect_item.collidepoint(mx, my):
                             if i == indice_selecionado:
                                 redefinindo_tecla = True
+                                try:
+                                    from sons_procedurais import tocar_selecionar
+                                    tocar_selecionar()
+                                except:
+                                    pass
                             else:
                                 indice_selecionado = i
+                                try:
+                                    from sons_procedurais import tocar_hover
+                                    tocar_hover()
+                                except:
+                                    pass
 
         tempo_piscar += dt
         if tempo_piscar > 450:
@@ -441,9 +478,16 @@ def carregar_config_teclas():
     try:
         with open("saves/config_teclas.json", "r") as arquivo:
             config = json.load(arquivo)
+            # Remove a chave "Onda" obsoleta
+            if "Onda" in config:
+                del config["Onda"]
             for k, v in default_keys.items():
                 if k not in config:
                     config[k] = v
+            # Remover quaisquer outras chaves extras não padrão
+            chaves_extras = [k for k in config if k not in default_keys]
+            for k in chaves_extras:
+                del config[k]
             return config
     except FileNotFoundError:
         return default_keys

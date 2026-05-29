@@ -1,4 +1,5 @@
 
+import Caminhos
 import pygame
 import subprocess
 import sys
@@ -183,13 +184,15 @@ def salvar_atributos():
         "porcentagem_cura": porcentagem_cura,
         # 🪙 novo campo
         "moedas_totais": moedas_totais,
+        "Chance_Sorte": Chance_Sorte,
+        "cartas_compradas": cartas_compradas,
     }
 
     with open('saves/atributos.json', 'w') as file:
         json.dump(atributos, file)
 
 def carregar_atributos():
-    global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, moedas_totais
+    global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, moedas_totais, Chance_Sorte, cartas_compradas
     with open('saves/atributos.json', 'r') as file:
         atributos = json.load(file)
         velocidade_personagem = atributos["velocidade_personagem"]
@@ -221,6 +224,9 @@ def carregar_atributos():
         Tempo_cura= atributos["Tempo_cura"]
         porcentagem_cura= atributos["porcentagem_cura"]
         moedas_totais = atributos["moedas_totais"]
+        Chance_Sorte = atributos.get("Chance_Sorte", 0.01)
+        if "cartas_compradas" in atributos:
+            cartas_compradas.update(atributos["cartas_compradas"])
 
         
 movimento_pressionado = False
@@ -476,6 +482,102 @@ def executar_jogo(game_manager=None):
         tempo_passado = 0
         frame_atual = 0
         frame_atual_disparo = 0
+        
+        # VARIÁVEIS PARA VARIANTES DE INIMIGOS (AREIA CÓSMICA)
+        TESTAR_VARIANTES_RAPIDO = True  # Mude para False para tempo padrão (8-10min)
+        disparos_inimigos = []
+        tempo_ultimo_cheque_fusao = 0
+        
+        # Announcement Banner variables
+        aviso_evento_texto = ""
+        aviso_evento_cor = (0, 255, 255)
+        aviso_evento_inicio = 0
+        alerta_t1_mostrado = False
+        alerta_t2_mostrado = False
+        
+        # Helper functions
+        def obter_mitigacao_dano(inimigo):
+            if inimigo.get("tipo", 1) == 4: # Cristalizador doesn't shield itself
+                return 1.0
+            for c in inimigos_comum:
+                if c.get("tipo", 1) == 4 and c != inimigo:
+                    dist = math.hypot(inimigo["rect"].centerx - c["rect"].centerx, inimigo["rect"].centery - c["rect"].centery)
+                    if dist <= 120:
+                        return 0.5 # 50% damage reduction
+            return 1.0
+            
+        def processar_morte_inimigo(inimigo):
+            posicao_inimigo = inimigo["rect"].center
+            soltar_moeda(posicao_inimigo)
+            Variaveis.tentar_soltar_carta(posicao_inimigo, tempo_atual, Chance_Sorte, inimigos_eliminados)
+            gerar_fragmentos_morte(inimigo, 1)
+            
+            # Se for Aglomerador (tipo 2), explode em 2 mini-inimigos
+            if inimigo.get("tipo", 1) == 2:
+                for _ in range(2):
+                    offset_x = random.randint(-20, 20)
+                    offset_y = random.randint(-20, 20)
+                    mini = criar_inimigo(inimigo["rect"].x + offset_x, inimigo["rect"].y + offset_y, tipo=1)
+                    mini["vida"] = int(vida_inimigo_maxima * 0.3)
+                    mini["vida_maxima"] = int(vida_inimigo_maxima * 0.3)
+                    mini["velocidade"] = Velocidade_Inimigos_1 * 0.9
+                    inimigos_comum.append(mini)
+                    
+        def atualizar_espreitador(inimigo):
+            dx = pos_x_personagem - inimigo["rect"].x
+            dy = pos_y_personagem - inimigo["rect"].y
+            dist = math.hypot(dx, dy)
+            
+            # Stealth Alpha Oscillation
+            inimigo["alpha_oscilation"] = inimigo.get("alpha_oscilation", 120.0) + inimigo.get("alpha_dir", 1) * 6
+            if inimigo["alpha_oscilation"] >= 180:
+                inimigo["alpha_oscilation"] = 180
+                inimigo["alpha_dir"] = -1
+            elif inimigo["alpha_oscilation"] <= 40:
+                inimigo["alpha_oscilation"] = 40
+                inimigo["alpha_dir"] = 1
+                
+            if dist > 300:
+                inimigo["invisivel"] = True
+                inimigo["velocidade"] = Velocidade_Inimigos_1 * 0.8
+            else:
+                inimigo["invisivel"] = False
+                # Sprint burst trigger
+                tempo_sprint = pygame.time.get_ticks()
+                if not inimigo.get("sprint_ativo", False) and tempo_sprint - inimigo.get("sprint_timer", 0) > 6000:
+                    inimigo["sprint_ativo"] = True
+                    inimigo["sprint_timer"] = tempo_sprint
+                    
+                if inimigo.get("sprint_ativo", False):
+                    if pygame.time.get_ticks() - inimigo["sprint_timer"] < 1500:
+                        inimigo["velocidade"] = Velocidade_Inimigos_1 * 2.0
+                        inimigo["alpha_oscilation"] = 255 # Visible
+                    else:
+                        inimigo["sprint_ativo"] = False
+                        inimigo["sprint_timer"] = pygame.time.get_ticks() # Cooldown start
+                        inimigo["velocidade"] = Velocidade_Inimigos_1
+                        
+        def atualizar_projetador(inimigo):
+            # Projetador não age enquanto estiver stunado
+            if pygame.time.get_ticks() < inimigo.get("stun_fim", 0):
+                inimigo["parado"] = True
+                return
+            dx = pos_x_personagem - inimigo["rect"].centerx
+            dy = pos_y_personagem - inimigo["rect"].centery
+            dist = math.hypot(dx, dy)
+            
+            if dist <= 280:
+                inimigo["parado"] = True
+                if tempo_atual - inimigo.get("ultimo_disparo", 0) > 2500:
+                    inimigo["ultimo_disparo"] = tempo_atual
+                    angulo = math.atan2(dy, dx)
+                    disparos_inimigos.append({
+                        "rect": pygame.Rect(inimigo["rect"].centerx, inimigo["rect"].centery, 12, 12),
+                        "vx": math.cos(angulo) * 3.5,
+                        "vy": math.sin(angulo) * 3.5,
+                    })
+            else:
+                inimigo["parado"] = False
         # Atualizar a última direção da personagem
         ultima_tecla_movimento = None
         movimento_pressionado = False
@@ -672,18 +774,19 @@ def executar_jogo(game_manager=None):
                         inimigos_atingidos.append(inimigo)
 
                 for inimigo in inimigos_atingidos:
-                    inimigo["vida"] -= dano_choque
+                    mitigacao = obter_mitigacao_dano(inimigo)
+                    dano_final = dano_choque * mitigacao
+                    inimigo["vida"] -= dano_final
+                    cor_txt = (0, 191, 255) if mitigacao == 1.0 else (0, 255, 255)
                     efeitos_texto.append({
-                        "texto": f"-{int(dano_choque)}",
+                        "texto": f"-{int(dano_final)}",
                         "x": inimigo["rect"].x,
                         "y": inimigo["rect"].y - 20,
                         "tempo_inicio": pygame.time.get_ticks(),
-                        "cor": (0, 191, 255)
+                        "cor": cor_txt
                     })
                     if inimigo["vida"] <= 0:
-                        posicao_inimigo = inimigo["rect"].center
-                        soltar_moeda(posicao_inimigo)
-                        gerar_fragmentos_morte(inimigo, 1)
+                        processar_morte_inimigo(inimigo)
                         if inimigo in inimigos_comum:
                             inimigos_comum.remove(inimigo)
                         
@@ -764,17 +867,62 @@ def executar_jogo(game_manager=None):
 
 
         def criar_inimigo(x, y, tipo=1):
-            if tipo == 1:
-                image = frames_inimigo[0]
+            image = frames_inimigo[0]
+            
+            # Base stats
+            hp = vida_inimigo_maxima
+            vel = Velocidade_Inimigos_1
+            l_inimigo = largura_inimigo
+            a_inimigo = altura_inimigo
+            
+            if tipo == 2:  # Aglomerador
+                hp = vida_inimigo_maxima * 2.5
+                vel = Velocidade_Inimigos_1 * 0.7
+                l_inimigo = int(largura_inimigo * 1.5)
+                a_inimigo = int(altura_inimigo * 1.5)
+            elif tipo == 3:  # Espreitador
+                hp = vida_inimigo_maxima * 0.9
+                vel = Velocidade_Inimigos_1 * 1.0
+            elif tipo == 4:  # Cristalizador
+                hp = vida_inimigo_maxima * 2.0
+                vel = Velocidade_Inimigos_1 * 0.5
+            elif tipo == 5:  # Projetador
+                hp = vida_inimigo_maxima * 1.2
+                vel = Velocidade_Inimigos_1 * 0.8
+                
             # Ajustar a hitbox para ser menor que a imagem original
-            largura_hitbox = int(largura_inimigo * 0.8)  # Reduz a largura da hitbox
-            altura_hitbox = int(altura_inimigo * 0.5)    # Reduz a altura da hitbox
-            offset_x = (largura_inimigo - largura_hitbox) // 2  # Centraliza a hitbox horizontalmente
-            offset_y = (altura_inimigo - altura_hitbox) // 2    # Centraliza a hitbox verticalmente
+            largura_hitbox = int(l_inimigo * 0.8)  # Reduz a largura da hitbox
+            altura_hitbox = int(a_inimigo * 0.5)    # Reduz a altura da hitbox
+            offset_x = (l_inimigo - largura_hitbox) // 2  # Centraliza a hitbox horizontalmente
+            offset_y = (a_inimigo - altura_hitbox) // 2    # Centraliza a hitbox verticalmente
 
             rect = pygame.Rect(x + offset_x, y + offset_y, largura_hitbox, altura_hitbox)
 
-            return {"rect": rect, "image": image, "tipo": tipo, "vida": vida_inimigo_maxima, "vida_maxima": vida_inimigo_maxima}
+            enemy_dict = {
+                "rect": rect,
+                "image": image,
+                "tipo": tipo,
+                "vida": hp,
+                "vida_maxima": hp,
+                "velocidade": vel,
+                "largura_visual": l_inimigo,
+                "altura_visual": a_inimigo,
+                "offset_x": offset_x,
+                "offset_y": offset_y,
+            }
+            
+            # Custom fields
+            if tipo == 3: # Espreitador
+                enemy_dict["invisivel"] = False
+                enemy_dict["sprint_timer"] = 0
+                enemy_dict["sprint_ativo"] = False
+                enemy_dict["alpha_oscilation"] = 120.0
+                enemy_dict["alpha_dir"] = 1
+            elif tipo == 5: # Projetador
+                enemy_dict["ultimo_disparo"] = 0
+                enemy_dict["parado"] = False
+                
+            return enemy_dict
 
 
         def desenhar_sombra(tela, x, y, largura, altura, offset_y=5):
@@ -822,17 +970,38 @@ def executar_jogo(game_manager=None):
             global inimigos_comum
 
             if len(inimigos_comum) < max_inimigos:
-                # Escolhe aleatoriamente uma borda para gerar o inimigo
+                # Determina o tipo com base no tempo decorrido
+                tempo_decorrido = Variaveis.obter_tempo_decorrido()
+                threshold_t1 = 15 if TESTAR_VARIANTES_RAPIDO else 480
+                threshold_t2 = 30 if TESTAR_VARIANTES_RAPIDO else 600
+                
+                tipo_escolhido = 1
+                if tempo_decorrido >= threshold_t2:
+                    # Tier 2 active: Standard (60%), Espreitador (15%), Projetador (15%), Cristalizador (10%)
+                    choices = [1, 3, 5, 4]
+                    weights = [0.60, 0.15, 0.15, 0.10]
+                    tipo_escolhido = random.choices(choices, weights=weights)[0]
+                elif tempo_decorrido >= threshold_t1:
+                    # Tier 1 active: Standard (75%), Espreitador (25%)
+                    # (Aglomerador is created via fusion of standard enemies, not direct spawn!)
+                    choices = [1, 3]
+                    weights = [0.75, 0.25]
+                    tipo_escolhido = random.choices(choices, weights=weights)[0]
+                    
+                # Regra: Limite de 1 Cristalizador por vez
+                if tipo_escolhido == 4:
+                    if any(ini.get("tipo", 1) == 4 for ini in inimigos_comum):
+                        tipo_escolhido = 1
 
                 borda = random.choice(['esquerda', 'direita', 'superior', 'inferior'])
                 if borda == 'esquerda':
-                    novo_inimigo = criar_inimigo(0, random.randint(0, int(altura_mapa) - int(altura_inimigo)))
+                    novo_inimigo = criar_inimigo(0, random.randint(0, int(altura_mapa) - int(altura_inimigo)), tipo=tipo_escolhido)
                 elif borda == 'direita':
-                    novo_inimigo = criar_inimigo(int(largura_mapa) - int(largura_inimigo), random.randint(0, int(altura_mapa) - int(altura_inimigo)))
+                    novo_inimigo = criar_inimigo(int(largura_mapa) - int(largura_inimigo), random.randint(0, int(altura_mapa) - int(altura_inimigo)), tipo=tipo_escolhido)
                 elif borda == 'superior':
-                    novo_inimigo = criar_inimigo(random.randint(0, int(largura_mapa) - int(largura_inimigo)), 0)
+                    novo_inimigo = criar_inimigo(random.randint(0, int(largura_mapa) - int(largura_inimigo)), 0, tipo=tipo_escolhido)
                 elif borda == 'inferior':
-                    novo_inimigo = criar_inimigo(random.randint(0, int(largura_mapa) - int(largura_inimigo)), int(altura_mapa) - int(altura_inimigo))
+                    novo_inimigo = criar_inimigo(random.randint(0, int(largura_mapa) - int(largura_inimigo)), int(altura_mapa) - int(altura_inimigo), tipo=tipo_escolhido)
 
                 # Verifica se o novo inimigo está muito próximo de algum inimigo existente
                 distancia_minima_alcancada = any(
@@ -844,13 +1013,13 @@ def executar_jogo(game_manager=None):
                 while distancia_minima_alcancada:
                     borda = random.choice(['esquerda', 'direita', 'superior', 'inferior'])
                     if borda == 'esquerda':
-                        novo_inimigo = criar_inimigo(0, random.randint(0, int(altura_mapa) - int(altura_inimigo)))
+                        novo_inimigo = criar_inimigo(0, random.randint(0, int(altura_mapa) - int(altura_inimigo)), tipo=tipo_escolhido)
                     elif borda == 'direita':
-                        novo_inimigo = criar_inimigo(int(largura_mapa) - int(largura_inimigo), random.randint(0, int(altura_mapa) - int(altura_inimigo)))
+                        novo_inimigo = criar_inimigo(int(largura_mapa) - int(largura_inimigo), random.randint(0, int(altura_mapa) - int(altura_inimigo)), tipo=tipo_escolhido)
                     elif borda == 'superior':
-                        novo_inimigo = criar_inimigo(random.randint(0, int(largura_mapa) - int(largura_inimigo)), 0)
+                        novo_inimigo = criar_inimigo(random.randint(0, int(largura_mapa) - int(largura_inimigo)), 0, tipo=tipo_escolhido)
                     elif borda == 'inferior':
-                        novo_inimigo = criar_inimigo(random.randint(0, int(largura_mapa) - int(largura_inimigo)), int(altura_mapa) - int(altura_inimigo))
+                        novo_inimigo = criar_inimigo(random.randint(0, int(largura_mapa) - int(largura_inimigo)), int(altura_mapa) - int(altura_inimigo), tipo=tipo_escolhido)
 
                     distancia_minima_alcancada = any(
                         math.sqrt((novo_inimigo["rect"].x - inimigo["rect"].x) ** 2 + (novo_inimigo["rect"].y - inimigo["rect"].y) ** 2) < distancia_minima_inimigos
@@ -1168,9 +1337,65 @@ def executar_jogo(game_manager=None):
         running = True
         while running:
             tempo_atual = pygame.time.get_ticks()
+
+            # Registrar snapshot para o sistema de rewind
+            if vida > 0:
+                snapshot_attrs = {
+                    "velocidade_personagem": velocidade_personagem,
+                    "intervalo_disparo": intervalo_disparo,
+                    "dano_person_hit": dano_person_hit,
+                    "chance_critico": chance_critico,
+                    "roubo_de_vida": roubo_de_vida,
+                    "quantidade_roubo_vida": quantidade_roubo_vida,
+                    "vida_petro": vida_petro,
+                    "vida_maxima_personagem": vida_maxima,
+                    "vida_maxima_petro": vida_maxima_petro,
+                    "nivel_Petro": xp_petro,
+                    "existencia_petro": Petro_active,
+                    "existencia_trembo": trembo,
+                    "dano_petro": dano_petro,
+                    "resistencia_personagem": Resistencia,
+                    "resistencia_petro": Resistencia_petro,
+                    "dano_inimigo_longe": dano_inimigo_longe,
+                    "dano_inimigo_perto": dano_inimigo_perto,
+                    "Poison_Active": Poison_Active,
+                    "Ultimo_Estalo": Ultimo_Estalo,
+                    "Executa_inimigo": Executa_inimigo,
+                    "Mercenaria_Active": Mercenaria_Active,
+                    "Valor_Bonus": Valor_Bonus,
+                    "tempo_cooldown_dash": tempo_cooldown_dash,
+                    "petro_evolucao": petro_evolucao,
+                    "Dano_Veneno_Acumulado": Dano_Veneno_Acumulado,
+                    "Tempo_cura": Tempo_cura,
+                    "porcentagem_cura": porcentagem_cura,
+                    "moedas_totais": moedas_totais,
+                    "Chance_Sorte": Chance_Sorte,
+                    "cartas_compradas": cartas_compradas,
+                }
+                snapshot_data = {
+                    "atributos": snapshot_attrs,
+                    "pos_x": pos_x_personagem,
+                    "pos_y": pos_y_personagem,
+                    "vida_boss": vida_chefe if 'vida_chefe' in locals() or 'vida_chefe' in globals() else (vida_boss if 'vida_boss' in locals() or 'vida_boss' in globals() else None)
+                }
+                Variaveis.registrar_snapshot(snapshot_data, tempo_atual)
+
             if carregar_atributos_na_fase:
                 try:
                     carregar_atributos()
+                    if Variaveis.snapshot_para_carregar is not None:
+                        snap = Variaveis.snapshot_para_carregar
+                        pos_x_personagem = snap.get("pos_x", pos_x_personagem)
+                        pos_y_personagem = snap.get("pos_y", pos_y_personagem)
+                        vida = snap.get("vida_fracao", 0.20) * vida_maxima
+                        pontuacao = 0
+                        pontuacao_exib = 0
+                        if "vida_boss" in snap and snap["vida_boss"] is not None:
+                            if 'vida_chefe' in locals() or 'vida_chefe' in globals():
+                                vida_chefe = snap["vida_boss"]
+                            elif 'vida_boss' in locals() or 'vida_boss' in globals():
+                                vida_boss = snap["vida_boss"]
+                        Variaveis.snapshot_para_carregar = None
                 except Exception as e:
                     print(f"Aviso: Nao foi possivel carregar atributos ({e}). Usando padrao.")
                 carregar_atributos_na_fase = False
@@ -1271,6 +1496,10 @@ def executar_jogo(game_manager=None):
                 if joy:
                     joy.init()
                 
+                try:
+                    salvar_atributos()
+                except Exception as e:
+                    print(f"Erro ao salvar atributos para pausa: {e}")
                 from Tela_Pause import exibir_tela_pause
                 ret_pause = exibir_tela_pause(tela, cartas_compradas, joy)
                 if ret_pause == "sair":
@@ -1436,6 +1665,7 @@ def executar_jogo(game_manager=None):
             for morto in inimigos_mortos:
                 if morto in inimigos_comum:
                     gerar_fragmentos_morte(morto, 1)
+                    Variaveis.tentar_soltar_carta(morto["rect"].center, tempo_atual, Chance_Sorte, inimigos_eliminados)
                     inimigos_comum.remove(morto)
                     inimigos_eliminados += 1
                     
@@ -1490,21 +1720,151 @@ def executar_jogo(game_manager=None):
                     movendo = True
                     tempo_parado = random.randint(10, 3000)
 
+            # --- ATUALIZAR COMPORTAMENTOS DAS VARIANTES ---
+            for inimigo in inimigos_comum:
+                tipo = inimigo.get("tipo", 1)
+                if tipo == 3: # Espreitador
+                    atualizar_espreitador(inimigo)
+                elif tipo == 5: # Projetador
+                    atualizar_projetador(inimigo)
+                    
+            # --- CHEQUE DE FUSÃO DO AGLOMERADOR (A cada 1 segundo) ---
+            tempo_decorrido = Variaveis.obter_tempo_decorrido()
+            threshold_t1 = 15 if TESTAR_VARIANTES_RAPIDO else 480
+            threshold_t2 = 30 if TESTAR_VARIANTES_RAPIDO else 600
+            
+            if tempo_atual - tempo_ultimo_cheque_fusao >= 1000 and tempo_decorrido >= threshold_t1:
+                tempo_ultimo_cheque_fusao = tempo_atual
+                standard_enemies = [ini for ini in inimigos_comum if ini.get("tipo", 1) == 1]
+                clusters = []
+                usados = set()
+                
+                for i, e1 in enumerate(standard_enemies):
+                    if id(e1) in usados:
+                        continue
+                    cluster = [e1]
+                    for j, e2 in enumerate(standard_enemies):
+                        if i != j and id(e2) not in usados:
+                            dist = math.hypot(e1["rect"].centerx - e2["rect"].centerx, e1["rect"].centery - e2["rect"].centery)
+                            if dist <= 90:
+                                cluster.append(e2)
+                    if len(cluster) >= 3:
+                        clusters.append(cluster)
+                        for c_e in cluster:
+                            usados.add(id(c_e))
+                            
+                for cluster in clusters:
+                    cx = sum(e["rect"].centerx for e in cluster) // len(cluster)
+                    cy = sum(e["rect"].centery for e in cluster) // len(cluster)
+                    aglomerador = criar_inimigo(cx - largura_inimigo // 2, cy - altura_inimigo // 2, tipo=2)
+                    for c_e in cluster:
+                        if c_e in inimigos_comum:
+                            inimigos_comum.remove(c_e)
+                    efeitos_texto.append({
+                        "texto": "FUSAO!",
+                        "x": cx,
+                        "y": cy - 40,
+                        "tempo_inicio": tempo_atual,
+                        "cor": (255, 200, 0)
+                    })
+                    inimigos_comum.append(aglomerador)
+                    
+            # --- CONTROLE DOS AVISOS DOS EVENTOS ---
+            if tempo_decorrido >= threshold_t2 and not alerta_t2_mostrado:
+                alerta_t2_mostrado = True
+                aviso_evento_texto = "ANOMALIA DETECTADA: INIMIGOS CRISTALIZADOS!"
+                aviso_evento_cor = (255, 0, 128)
+                aviso_evento_inicio = tempo_atual
+            elif tempo_decorrido >= threshold_t1 and not alerta_t1_mostrado:
+                alerta_t1_mostrado = True
+                aviso_evento_texto = "ALERTA: A AREIA COSMICA SE ADAPTOU!"
+                aviso_evento_cor = (0, 255, 255)
+                aviso_evento_inicio = tempo_atual
 
-
-
+            # --- ATUALIZAR E DESENHAR DISPAROS INIMIGOS (PROJETADORES) ---
+            for disp in list(disparos_inimigos):
+                disp["rect"].x += int(disp["vx"])
+                disp["rect"].y += int(disp["vy"])
+                
+                # Desenhar projétil de areia: gray/dark particle swirl
+                pygame.draw.circle(tela, (140, 140, 150), disp["rect"].center, 6)
+                pygame.draw.circle(tela, (80, 80, 90), disp["rect"].center, 3)
+                
+                # Limpar projéteis fora do mapa
+                if (disp["rect"].x < 0 or disp["rect"].x > largura_mapa or 
+                    disp["rect"].y < 0 or disp["rect"].y > altura_mapa):
+                    if disp in disparos_inimigos:
+                        disparos_inimigos.remove(disp)
+                    continue
+                    
+                # Colisão com o jogador
+                player_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem * 0.5, altura_personagem * 0.8)
+                if disp["rect"].colliderect(player_rect):
+                    if imune_tempo_restante <= 0:
+                        Dano_pos_resistencia_person = int(((vida_maxima * 0.05) + dano_inimigo_longe) - Resistencia)
+                        if Dano_pos_resistencia_person > 0:
+                            vida -= Dano_pos_resistencia_person
+                            tempo_ultimo_hit_inimigo = tempo_atual
+                            imune_tempo_restante = 500
+                            try:
+                                pass
+                            except:
+                                pass
+                    if disp in disparos_inimigos:
+                        disparos_inimigos.remove(disp)
 
             # Desenhe os inimigos na tela
             for inimigo in inimigos_comum:
-                inimigo["image"] = frames_inimigo[frame_atual % len(frames_inimigo)]
-
-                # Desenhar sombra do inimigo
-                desenhar_sombra(tela, inimigo["rect"].x, inimigo["rect"].y, largura_inimigo, altura_inimigo)
-                tela.blit(inimigo["image"], inimigo["rect"])
-                desenhar_barra_de_vida(tela, inimigo["rect"].x, inimigo["rect"].y - 10, largura_inimigo, 5, inimigo["vida"], inimigo["vida_maxima"], inimigo.get("eletrocutado", False))
+                tipo = inimigo.get("tipo", 1)
+                l_vis = inimigo.get("largura_visual", largura_inimigo)
+                a_vis = inimigo.get("altura_visual", altura_inimigo)
+                off_x = inimigo.get("offset_x", (largura_inimigo - int(largura_inimigo * 0.8)) // 2)
+                off_y = inimigo.get("offset_y", (altura_inimigo - int(altura_inimigo * 0.5)) // 2)
+                
+                desenhar_x = inimigo["rect"].x - off_x
+                desenhar_y = inimigo["rect"].y - off_y
+                
+                current_frame = frames_inimigo[frame_atual % len(frames_inimigo)]
+                if l_vis != largura_inimigo or a_vis != altura_inimigo:
+                    img_render = pygame.transform.scale(current_frame, (l_vis, a_vis))
+                else:
+                    img_render = current_frame
+                
+                # Efeito Stealth do Espreitador
+                alpha = 255
+                if tipo == 3: # Espreitador
+                    alpha = int(inimigo.get("alpha_oscilation", 255))
+                    alpha_surf = pygame.Surface(img_render.get_size(), pygame.SRCALPHA)
+                    alpha_surf.blit(img_render, (0, 0))
+                    alpha_surf.fill((255, 255, 255, alpha), special_flags=pygame.BLEND_RGBA_MULT)
+                    img_render = alpha_surf
+                
+                desenhar_sombra(tela, desenhar_x, desenhar_y, l_vis, a_vis)
+                tela.blit(img_render, (desenhar_x, desenhar_y))
+                
+                # Efeitos visuais por tipo
+                if tipo == 2: # Aglomerador particles
+                    tempo_part = pygame.time.get_ticks()
+                    for p_i in range(8):
+                        ang_p = (tempo_part * 0.005 + p_i * (math.pi / 4))
+                        rx = desenhar_x + l_vis // 2 + int(math.cos(ang_p) * (l_vis // 1.6))
+                        ry = desenhar_y + a_vis // 2 + int(math.sin(ang_p) * (a_vis // 2.5))
+                        pygame.draw.circle(tela, (120, 120, 130), (rx, ry), random.randint(2, 4))
+                elif tipo == 4: # Cristalizador shield
+                    tempo_hex = pygame.time.get_ticks()
+                    pulsar_hex = int(10 * math.sin(tempo_hex * 0.004))
+                    cx, cy = inimigo["rect"].centerx, inimigo["rect"].centery
+                    pts_hex = []
+                    for h_i in range(6):
+                        ang_h = h_i * (math.pi / 3) + tempo_hex * 0.0005
+                        h_rad = int(35 + pulsar_hex)
+                        pts_hex.append((cx + int(math.cos(ang_h) * h_rad), cy + int(math.sin(ang_h) * h_rad)))
+                    pygame.draw.polygon(tela, (0, 191, 255), pts_hex, width=2)
+                    
+                desenhar_barra_de_vida(tela, desenhar_x, desenhar_y - 10, l_vis, 5, inimigo["vida"], inimigo["vida_maxima"], inimigo.get("eletrocutado", False))
 
             personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem*0.5, altura_personagem*0.8)
-            inimigos_rects = [inimigo["rect"] for inimigo in inimigos_comum]
+            inimigos_rects = [inimigo["rect"] for inimigo in inimigos_comum if not inimigo.get("invisivel", False)]
 
 
             if imune_tempo_restante > 0:
@@ -1554,8 +1914,8 @@ def executar_jogo(game_manager=None):
                     trembo = False  # Consome o "trembo"
                     imune_tempo_restante = 10000
                     teleportado = True  # Ativa o teleporte aleatório
-                    porcentagem_cura= 0.02
-                    Tempo_cura=2500
+                    porcentagem_cura = max(0.02, porcentagem_cura * 0.5)
+                    Tempo_cura = min(2500, int(Tempo_cura * 1.5))
                     pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem)
                 else:
                     mostrar_tutorial=False
@@ -1653,7 +2013,7 @@ def executar_jogo(game_manager=None):
                             "angulo_abertura_centro": random.uniform(0, 2 * math.pi),
                             "tamanho_abertura": random.uniform(math.pi / 4, math.pi / 2), # 45 a 90 graus
                             "velocidade": 350.0,
-                            "dano": int(vida_maxima * 0.04),
+                            "dano": int(vida_maxima * 0.08),
                             "atingiu_player": False
                         }
                         boss_transicao_ondas.append(nova_onda)
@@ -1889,6 +2249,7 @@ def executar_jogo(game_manager=None):
 
                                 if inimigo_mais_proximo in inimigos_comum:
                                     gerar_fragmentos_morte(inimigo_mais_proximo, 1)
+                                    Variaveis.tentar_soltar_carta(inimigo_mais_proximo["rect"].center, tempo_atual, Chance_Sorte, inimigos_eliminados)
                                     inimigos_comum.remove(inimigo_mais_proximo)
 
                             if not boss_vivo1:
@@ -2109,7 +2470,7 @@ def executar_jogo(game_manager=None):
                             disparos.remove(disparo)
 
                             # Roubo de vida
-                            if random.random() < roubo_de_vida:
+                            if quantidade_roubo_vida > 0:
                                 vida += (vida_maxima - vida) * quantidade_roubo_vida
 
                 # Aplicar dano de veneno no Boss se ele estiver envenenado (só se não morreu)
@@ -2142,7 +2503,7 @@ def executar_jogo(game_manager=None):
 
                     rect_personagem = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
 
-                    if rect_boss.colliderect(rect_personagem):
+                    if rect_boss.colliderect(rect_personagem) and tempo_atual >= tempo_boss_entrada_fim:
                         # Verifique se tempo suficiente passou desde o último ataque
                         tempo_atual = pygame.time.get_ticks()
                         if tempo_atual - tempo_ultimo_ataque >= 2500:
@@ -2257,6 +2618,9 @@ def executar_jogo(game_manager=None):
                             tela.blit(text_glow, (tx + ox, ty + oy))
                         tela.blit(text_main, (tx, ty))
 
+            # --- PARTÍCULAS DE VENENO PINGANDO ---
+            Variaveis.atualizar_e_desenhar_particulas_veneno(tela, inimigos_comum, config_graficos)
+
             for inimigo in inimigos_comum:
                 inimigo_rect = inimigo["rect"]
                 inimigo_image = inimigo["image"]
@@ -2264,6 +2628,8 @@ def executar_jogo(game_manager=None):
                 inimigo_atingido = False
 
                 for disparo in disparos:
+                    if inimigo.get("invisivel", False):
+                        continue
 
                     if verificar_colisao_disparo_inimigo(disparo, (inimigo["rect"].x, inimigo["rect"].y), largura_disparo, altura_disparo, largura_inimigo, altura_inimigo, inimigos_eliminados):
 
@@ -2278,19 +2644,25 @@ def executar_jogo(game_manager=None):
                         if Petro_active:
                             if vida_petro > vida_maxima_petro :
                                 vida_petro+= (vida_maxima_petro-vida_petro) *0.25
+                        
+                        mitigacao = obter_mitigacao_dano(inimigo)
+                        dano_final = dano * mitigacao
+                        if mitigacao < 1.0:
+                            cor = (0, 255, 255) # Cyan indicating shielded damage
+                            
                         # Renderize o texto do dano
-                        texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
+                        texto_dano = fonte_dano.render("-" + str(int(dano_final)), True, cor)
 
                         # Desenhe o texto na tela perto do chefe
                         pos_texto = (inimigo["rect"].x + largura_inimigo // 2 - texto_dano.get_width() // 2,  inimigo["rect"].y - 20)
 
                         # Rastreie o tempo de exibição do texto
                         tempo_texto_dano = pygame.time.get_ticks()
-                        inimigo["vida"] -= dano
+                        inimigo["vida"] -= dano_final
                         disparos.remove(disparo)  # Remover o disparo após colisão
                         # Adicionar uma chance de 50% de aumentar a vida em 20 pontos
 
-                        if random.random() < roubo_de_vida:
+                        if quantidade_roubo_vida > 0:
                             vida += (vida_maxima-vida)*quantidade_roubo_vida
 
                         if Poison_Active:
@@ -2308,10 +2680,8 @@ def executar_jogo(game_manager=None):
 
                         if Ultimo_Estalo and inimigo["vida"] <= Executa_inimigo * inimigo["vida_maxima"]:
                             estalos.play()
-                            posicao_inimigo = inimigo["rect"].center
-                            soltar_moeda(posicao_inimigo)
+                            processar_morte_inimigo(inimigo)
                             if inimigo in inimigos_comum:
-                                gerar_fragmentos_morte(inimigo, 1)
                                 inimigos_comum.remove(inimigo)
 
                             inimigos_eliminados += 1
@@ -2351,10 +2721,9 @@ def executar_jogo(game_manager=None):
                                 vida_maxima_boss4 = vida_boss4
 
                         elif inimigo["vida"] <= 0:
-                            posicao_inimigo = inimigo["rect"].center
-                            soltar_moeda(posicao_inimigo)
-                            gerar_fragmentos_morte(inimigo, 1)
-                            inimigos_comum.remove(inimigo)
+                            processar_morte_inimigo(inimigo)
+                            if inimigo in inimigos_comum:
+                                inimigos_comum.remove(inimigo)
 
                             # Crescimento proporcional por nível de ameaça
                             vida_inimigo_maxima += 1.2 + nivel_ameaca * 0.8
@@ -2444,7 +2813,7 @@ def executar_jogo(game_manager=None):
             total_cartas_compradas = sum(cartas_compradas.values())
             custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
             # Verifica se a pontuação atingiu o custo e se o jogador pressionou o botão da loja
-            if (pontuacao_exib >= custo_carta_atual) and (Variaveis.verificar_input("Comprar na loja") or (joystick and joystick.get_button(3))):
+            if Variaveis.obter_modo_cartas() != "drops" and (pontuacao_exib >= custo_carta_atual) and (Variaveis.verificar_input("Comprar na loja") or (joystick and joystick.get_button(3))):
                 # Calcula quantas cartas o jogador pode comprar com o custo progressivo
                 max_cartas = 0
                 total_custo = 0
@@ -2504,20 +2873,21 @@ def executar_jogo(game_manager=None):
 
             posicao_barra_vida = (80, altura_mapa - (altura_mapa - 34))
             fonte = pygame.font.Font(None, int(altura_barra_vida*1))
-            texto_pontuacao = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (250, 255,255))
             fonte_vida = pygame.font.Font(None, int(altura_barra_vida*0.9))
             texto_vida = fonte_vida.render(f'{int(vida)}/{int(vida_maxima)}', True, (255, 255, 255))
 
-            # Renderiza o texto de pontuação com uma borda
-            texto_pontuacao_borda = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (0, 0, 0))  # Cor preta para a borda
-            # Desenha o texto da borda um pouco deslocado para criar o efeito de contorno
-            tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 - 1))
-            tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 + 1, altura_mapa*0.118 - 1))
-            tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 + 1))
-            tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 + 1, altura_mapa*0.118 + 1))
+            if Variaveis.obter_modo_cartas() != "drops":
+                texto_pontuacao = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (250, 255,255))
+                # Renderiza o texto de pontuação com uma borda
+                texto_pontuacao_borda = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (0, 0, 0))  # Cor preta para a borda
+                # Desenha o texto da borda um pouco deslocado para criar o efeito de contorno
+                tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 - 1))
+                tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 + 1, altura_mapa*0.118 - 1))
+                tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 + 1))
+                tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 + 1, altura_mapa*0.118 + 1))
 
-            # Desenha o texto da pontuação por cima da borda
-            tela.blit(texto_pontuacao, (largura_mapa*0.075, altura_mapa*0.118))
+                # Desenha o texto da pontuação por cima da borda
+                tela.blit(texto_pontuacao, (largura_mapa*0.075, altura_mapa*0.118))
 
 
 
@@ -2979,6 +3349,57 @@ def executar_jogo(game_manager=None):
             for moeda in moedas_soltadas:
                 tela.blit(moeda["image"], moeda["rect"])
 
+            # --- SISTEMA DE CARTAS DROP ---
+            if Variaveis.obter_modo_cartas() == "drops":
+                Variaveis.atualizar_e_desenhar_cartas_no_chao(tela, tempo_atual)
+                # Coleta de cartas no chão
+                stats_jogador = {
+                    "velocidade_personagem": velocidade_personagem, "intervalo_disparo": intervalo_disparo,
+                    "vida": vida, "vida_maxima": vida_maxima, "dano_person_hit": dano_person_hit,
+                    "chance_critico": chance_critico, "roubo_de_vida": roubo_de_vida,
+                    "quantidade_roubo_vida": quantidade_roubo_vida, "tempo_cooldown_dash": tempo_cooldown_dash,
+                    "Petro_active": Petro_active, "Resistencia": Resistencia,
+                    "vida_petro": vida_petro, "vida_maxima_petro": vida_maxima_petro,
+                    "dano_petro": dano_petro, "xp_petro": xp_petro, "petro_evolucao": petro_evolucao,
+                    "Resistencia_petro": Resistencia_petro, "Chance_Sorte": Chance_Sorte,
+                    "Poison_Active": Poison_Active, "Dano_Veneno_Acumulado": Dano_Veneno_Acumulado,
+                    "Executa_inimigo": Executa_inimigo, "Ultimo_Estalo": Ultimo_Estalo,
+                    "Mercenaria_Active": Mercenaria_Active, "Valor_Bonus": Valor_Bonus,
+                    "Tempo_cura": Tempo_cura, "porcentagem_cura": porcentagem_cura,
+                    "trembo": trembo, "cartas_compradas": cartas_compradas,
+                    "inimigos_eliminados": inimigos_eliminados
+                }
+                coletadas = Variaveis.coletar_cartas_no_chao(personagem_rect, stats_jogador, efeitos_texto)
+                if coletadas:
+                    velocidade_personagem = stats_jogador["velocidade_personagem"]
+                    intervalo_disparo = stats_jogador["intervalo_disparo"]
+                    vida = stats_jogador["vida"]
+                    vida_maxima = stats_jogador["vida_maxima"]
+                    dano_person_hit = stats_jogador["dano_person_hit"]
+                    chance_critico = stats_jogador["chance_critico"]
+                    roubo_de_vida = stats_jogador["roubo_de_vida"]
+                    quantidade_roubo_vida = stats_jogador["quantidade_roubo_vida"]
+                    tempo_cooldown_dash = stats_jogador["tempo_cooldown_dash"]
+                    Petro_active = stats_jogador["Petro_active"]
+                    Resistencia = stats_jogador["Resistencia"]
+                    vida_petro = stats_jogador["vida_petro"]
+                    vida_maxima_petro = stats_jogador["vida_maxima_petro"]
+                    dano_petro = stats_jogador["dano_petro"]
+                    xp_petro = stats_jogador["xp_petro"]
+                    petro_evolucao = stats_jogador["petro_evolucao"]
+                    Resistencia_petro = stats_jogador["Resistencia_petro"]
+                    Chance_Sorte = stats_jogador["Chance_Sorte"]
+                    Poison_Active = stats_jogador["Poison_Active"]
+                    Dano_Veneno_Acumulado = stats_jogador["Dano_Veneno_Acumulado"]
+                    Executa_inimigo = stats_jogador["Executa_inimigo"]
+                    Ultimo_Estalo = stats_jogador["Ultimo_Estalo"]
+                    Mercenaria_Active = stats_jogador["Mercenaria_Active"]
+                    Valor_Bonus = stats_jogador["Valor_Bonus"]
+                    Tempo_cura = stats_jogador["Tempo_cura"]
+                    porcentagem_cura = stats_jogador["porcentagem_cura"]
+                    trembo = stats_jogador["trembo"]
+                    cartas_compradas = stats_jogador["cartas_compradas"]
+
 
 
             # A cada 1300 inimigos eliminados, avisa por 3s que R chama o Boss
@@ -3007,6 +3428,31 @@ def executar_jogo(game_manager=None):
                     
                     tela.blit(msg_line1, (cx_n - msg_line1.get_width() // 2, cy_n - 30))
                     tela.blit(msg_line2, (cx_n - msg_line2.get_width() // 2, cy_n + 5))
+
+            # --- DESENHAR BANNER DE EVENTO (VARIANTES) ---
+            if aviso_evento_texto and tempo_atual - aviso_evento_inicio <= 4000:
+                # Semi-transparent background stripe
+                banner_surf = pygame.Surface((largura_tela, 60), pygame.SRCALPHA)
+                banner_surf.fill((15, 10, 20, 200))
+                tela.blit(banner_surf, (0, altura_tela // 3))
+                
+                # Glowing borders
+                pygame.draw.line(tela, aviso_evento_cor, (0, altura_tela // 3), (largura_tela, altura_tela // 3), 2)
+                pygame.draw.line(tela, aviso_evento_cor, (0, altura_tela // 3 + 60), (largura_tela, altura_tela // 3 + 60), 2)
+                
+                # Render text
+                try:
+                    fonte_banner = pygame.font.Font(None, 40)
+                except:
+                    fonte_banner = pygame.font.SysFont("arial", 36)
+                txt_b = fonte_banner.render(aviso_evento_texto, True, (0, 0, 0))
+                txt_rend = fonte_banner.render(aviso_evento_texto, True, aviso_evento_cor)
+                
+                cx_b = largura_tela // 2
+                cy_b = altura_tela // 3 + 30
+                # Contorno para contraste
+                tela.blit(txt_b, (cx_b - txt_rend.get_width() // 2 + 1, cy_b - txt_rend.get_height() // 2 + 1))
+                tela.blit(txt_rend, (cx_b - txt_rend.get_width() // 2, cy_b - txt_rend.get_height() // 2))
 
             tela.blit(cursor_imagem, (mouse_x, mouse_y))
             exibir_cronometro(tela)

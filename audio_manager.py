@@ -1,3 +1,4 @@
+import Caminhos
 import json
 import pygame
 

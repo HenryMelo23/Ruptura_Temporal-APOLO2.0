@@ -1,3 +1,4 @@
+import Caminhos
 import pygame
 import subprocess
 import sys
@@ -101,6 +102,7 @@ toque=0
 comando_direção_petro=True
 musica_boss1= 1
 tempo_ultimo_ataque = 0 
+tempo_boss_entrada_fim = 0
 apertou_q=False
 
 # Variáveis para rastrear o texto de dano
@@ -433,12 +435,14 @@ def salvar_atributos():
         "Dano_Veneno_Acumulado":Dano_Veneno_Acumulado,
         "Tempo_cura":Tempo_cura,
         "porcentagem_cura":porcentagem_cura,
+        "Chance_Sorte": Chance_Sorte,
+        "cartas_compradas": cartas_compradas,
     }
     with open('saves/atributos.json', 'w') as file:
         json.dump(atributos, file)
 
 def carregar_atributos():
-    global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura
+    global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, Chance_Sorte, cartas_compradas
     with open('saves/atributos.json', 'r') as file:
         atributos = json.load(file)
         velocidade_personagem = atributos["velocidade_personagem"]
@@ -469,6 +473,9 @@ def carregar_atributos():
         Dano_Veneno_Acumulado= atributos["Dano_Veneno_Acumulado"]
         Tempo_cura= atributos["Tempo_cura"]
         porcentagem_cura= atributos["porcentagem_cura"]
+        Chance_Sorte = atributos.get("Chance_Sorte", 0.01)
+        if "cartas_compradas" in atributos:
+            cartas_compradas.update(atributos["cartas_compradas"])
         
 with open("saves/aurea_selecionada.json", "r") as file:
     aurea = json.load(file)["aurea"]
@@ -909,7 +916,7 @@ def aplicar_shockwave_teleporte():
                     vida_boss += 15 + nivel_ameaca * 10
                     vida_maxima_boss1 = vida_boss
 
-        if random.random() < roubo_de_vida:
+        if quantidade_roubo_vida > 0:
             vida += (vida_maxima - vida) * quantidade_roubo_vida
 
     # Dano ao Boss
@@ -977,7 +984,7 @@ def soltar_moeda(posicao):
 
 
 def executar_jogo(game_manager=None):
-    global joystick, botao_mouse, ondas_choque, carregar_atributos_na_fase, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss1, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Safe, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, alvo_x, alvo_y, apertou_q, bonus_pontuacao, boss, boss_envenenado, boss_vivo1, cartas_compradas, chance_critico, cliente_ativo, conn, convite_boss_ativo, convite_boss_recebido, convite_boss_tempo, dados, dano, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_alvo, direcao_atual, direcao_atual_p2, direcao_atual_petro, direcao_player2, direcao_x, direcao_y, disparos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_ataque_especial, escudo_devota_ativo, estado, estado_jogo, fila_envio, fila_recebimento, fonte, fonte_mensagem, frame_atual, frame_atual_chefe, frame_porcentagem, hitboxes, impulsiva_ativa, imune_tempo_restante, iniciar_boss, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, jogador_morto, jogador_posicoes, jogador_remoto_morto, largura_disparo, loja_aberta, mensagem, mensagem_ativa, mensagem_mostrada, mensagens_exibidas, moedas_coletadas, moedas_soltadas, mostrar_tutorial, movimento_pressionado, ondas, outro_jogador_morto, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe, pos_x_personagem, pos_x_petro, pos_x_player2, pos_y_chefe, pos_y_personagem, pos_y_petro, pos_y_player2, quantidade_roubo_vida, r_press, roubo_de_vida, running, sprite_moeda, tela, teleportado, tempo_anterior_petro, tempo_ataque_especial, tempo_atual, tempo_cooldown_dash, tempo_envio_ping, tempo_fim_mensagem, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_morte, tempo_mostrando_mensagem, tempo_passado, tempo_passado_animacao_chefe, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_mudanca_direcao_boss, tempo_ultima_regeneracao, tempo_ultima_troca_alvo, tempo_ultimo_ataque, tempo_ultimo_dano_ataque, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, tipo_buff_impulsiva, trembo, ultima_direcao_boss, ultima_vida_enviada, ultimo_tick_veneno_boss, upgrades, velocidade_personagem, vida, vida_boss, vida_inimigo_maxima, vida_maxima, vida_maxima_boss1, vida_maxima_petro, vida_petro, xp_petro, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
+    global joystick, botao_mouse, ondas_choque, carregar_atributos_na_fase, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss1, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Safe, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, alvo_x, alvo_y, apertou_q, bonus_pontuacao, boss, boss_envenenado, boss_vivo1, cartas_compradas, chance_critico, cliente_ativo, conn, convite_boss_ativo, convite_boss_recebido, convite_boss_tempo, dados, dano, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_alvo, direcao_atual, direcao_atual_p2, direcao_atual_petro, direcao_player2, direcao_x, direcao_y, disparos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_ataque_especial, escudo_devota_ativo, estado, estado_jogo, fila_envio, fila_recebimento, fonte, fonte_mensagem, frame_atual, frame_atual_chefe, frame_porcentagem, hitboxes, impulsiva_ativa, imune_tempo_restante, iniciar_boss, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, jogador_morto, jogador_posicoes, jogador_remoto_morto, largura_disparo, loja_aberta, mensagem, mensagem_ativa, mensagem_mostrada, mensagens_exibidas, moedas_coletadas, moedas_soltadas, mostrar_tutorial, movimento_pressionado, ondas, outro_jogador_morto, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe, pos_x_personagem, pos_x_petro, pos_x_player2, pos_y_chefe, pos_y_personagem, pos_y_petro, pos_y_player2, quantidade_roubo_vida, r_press, roubo_de_vida, running, sprite_moeda, tela, teleportado, tempo_anterior_petro, tempo_ataque_especial, tempo_boss_entrada_fim, tempo_atual, tempo_cooldown_dash, tempo_envio_ping, tempo_fim_mensagem, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_morte, tempo_mostrando_mensagem, tempo_passado, tempo_passado_animacao_chefe, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_mudanca_direcao_boss, tempo_ultima_regeneracao, tempo_ultima_troca_alvo, tempo_ultimo_ataque, tempo_ultimo_dano_ataque, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, tipo_buff_impulsiva, trembo, ultima_direcao_boss, ultima_vida_enviada, ultimo_tick_veneno_boss, upgrades, velocidade_personagem, vida, vida_boss, vida_inimigo_maxima, vida_maxima, vida_maxima_boss1, vida_maxima_petro, vida_petro, xp_petro, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -1047,9 +1054,75 @@ def executar_jogo(game_manager=None):
         running = True
         while running:
             tempo_atual = pygame.time.get_ticks()
+
+            # Registrar snapshot para o sistema de rewind
+            if vida > 0:
+                snapshot_attrs = {
+                    "velocidade_personagem": velocidade_personagem,
+                    "intervalo_disparo": intervalo_disparo,
+                    "dano_person_hit": dano_person_hit,
+                    "chance_critico": chance_critico,
+                    "roubo_de_vida": roubo_de_vida,
+                    "quantidade_roubo_vida": quantidade_roubo_vida,
+                    "vida_petro": vida_petro,
+                    "vida_maxima_personagem": vida_maxima,
+                    "vida_maxima_petro": vida_maxima_petro,
+                    "nivel_Petro": xp_petro,
+                    "existencia_petro": Petro_active,
+                    "existencia_trembo": trembo,
+                    "dano_petro": dano_petro,
+                    "resistencia_personagem": Resistencia,
+                    "resistencia_petro": Resistencia_petro,
+                    "dano_inimigo_longe": dano_inimigo_longe,
+                    "dano_inimigo_perto": dano_inimigo_perto,
+                    "Poison_Active": Poison_Active,
+                    "Ultimo_Estalo": Ultimo_Estalo,
+                    "Executa_inimigo": Executa_inimigo,
+                    "Mercenaria_Active": Mercenaria_Active,
+                    "Valor_Bonus": Valor_Bonus,
+                    "tempo_cooldown_dash": tempo_cooldown_dash,
+                    "petro_evolucao": petro_evolucao,
+                    "Dano_Veneno_Acumulado": Dano_Veneno_Acumulado,
+                    "Tempo_cura": Tempo_cura,
+                    "porcentagem_cura": porcentagem_cura,
+                    "moedas_totais": moedas_totais,
+                    "Chance_Sorte": Chance_Sorte,
+                    "cartas_compradas": cartas_compradas,
+                }
+                snapshot_data = {
+                    "atributos": snapshot_attrs,
+                    "pos_x": pos_x_personagem,
+                    "pos_y": pos_y_personagem,
+                    "vida_boss": vida_chefe if 'vida_chefe' in locals() or 'vida_chefe' in globals() else (
+                                 vida_boss if 'vida_boss' in locals() or 'vida_boss' in globals() else (
+                                 vida_boss2 if 'vida_boss2' in locals() or 'vida_boss2' in globals() else (
+                                 vida_boss3 if 'vida_boss3' in locals() or 'vida_boss3' in globals() else (
+                                 vida_boss4 if 'vida_boss4' in locals() or 'vida_boss4' in globals() else None))))
+                }
+                Variaveis.registrar_snapshot(snapshot_data, tempo_atual)
+
             if carregar_atributos_na_fase:
                 try:
                     carregar_atributos()
+                    if Variaveis.snapshot_para_carregar is not None:
+                        snap = Variaveis.snapshot_para_carregar
+                        pos_x_personagem = snap.get("pos_x", pos_x_personagem)
+                        pos_y_personagem = snap.get("pos_y", pos_y_personagem)
+                        vida = snap.get("vida_fracao", 0.20) * vida_maxima
+                        pontuacao = 0
+                        pontuacao_exib = 0
+                        if "vida_boss" in snap and snap["vida_boss"] is not None:
+                            if 'vida_chefe' in locals() or 'vida_chefe' in globals():
+                                vida_chefe = snap["vida_boss"]
+                            elif 'vida_boss' in locals() or 'vida_boss' in globals():
+                                vida_boss = snap["vida_boss"]
+                            elif 'vida_boss2' in locals() or 'vida_boss2' in globals():
+                                vida_boss2 = snap["vida_boss"]
+                            elif 'vida_boss3' in locals() or 'vida_boss3' in globals():
+                                vida_boss3 = snap["vida_boss"]
+                            elif 'vida_boss4' in locals() or 'vida_boss4' in globals():
+                                vida_boss4 = snap["vida_boss"]
+                        Variaveis.snapshot_para_carregar = None
                 except Exception as e:
                     print(f"Aviso: Nao foi possivel carregar atributos ({e}). Usando padrao.")
                 carregar_atributos_na_fase = False
@@ -1577,8 +1650,8 @@ def executar_jogo(game_manager=None):
                     trembo = False  # Consome o "trembo"
                     imune_tempo_restante = 10000
                     teleportado = True  # Ativa o teleporte aleatório
-                    porcentagem_cura = 0.02
-                    Tempo_cura = 2500
+                    porcentagem_cura = max(0.02, porcentagem_cura * 0.5)
+                    Tempo_cura = min(2500, int(Tempo_cura * 1.5))
                     pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(
                         largura_mapa, altura_mapa, largura_personagem, altura_personagem
                     )
@@ -1987,6 +2060,8 @@ def executar_jogo(game_manager=None):
             #AQUI GERAMOS O BOSS:
                 # --- ATIVAÇÃO DO BOSS ---
             if iniciar_boss and not r_press:
+                tempo_atual = pygame.time.get_ticks()
+                tempo_boss_entrada_fim = tempo_atual + 2500
                 r_press = True
                 iniciar_boss = False
                 boss_vivo1 = True
@@ -2060,13 +2135,13 @@ def executar_jogo(game_manager=None):
                         tela.blit(texto_dano, (pos_x_chefe + chefe_largura // 2, pos_y_chefe - 20))
                         vida_boss -= dano
                         disparos.remove(disparo)
-                        if random.random() < roubo_de_vida:
+                        if quantidade_roubo_vida > 0:
                             vida += (vida_maxima - vida) * quantidade_roubo_vida
 
                 # --- Colisão com jogador ---
                 rect_boss = pygame.Rect(pos_x_chefe, pos_y_chefe, 200, 100)
                 rect_personagem = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-                if rect_boss.colliderect(rect_personagem):
+                if rect_boss.colliderect(rect_personagem) and tempo_atual >= tempo_boss_entrada_fim:
                     tempo_atual = pygame.time.get_ticks()
                     if tempo_atual - tempo_ultimo_ataque >= 2500:
                         dano_boss_total = int((vida_maxima * 0.10) + 150 + dano_boss)
@@ -2208,7 +2283,7 @@ def executar_jogo(game_manager=None):
                                         vida_boss += 15 + nivel_ameaca * 10
                                         vida_maxima_boss1 = vida_boss
 
-                            if random.random() < roubo_de_vida:
+                            if quantidade_roubo_vida > 0:
                                 vida += (vida_maxima - vida) * quantidade_roubo_vida
 
 
@@ -2273,7 +2348,7 @@ def executar_jogo(game_manager=None):
 
 
 
-                            if random.random() < roubo_de_vida:
+                            if quantidade_roubo_vida > 0:
                                 vida += (vida_maxima - vida) * quantidade_roubo_vida
 
 

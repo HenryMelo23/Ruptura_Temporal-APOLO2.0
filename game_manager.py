@@ -3,6 +3,7 @@ GAME MANAGER - Sistema de Gerenciamento de Estados
 Substitui subprocess por transições fluidas entre telas
 """
 
+import Caminhos
 import pygame
 import sys
 import importlib
@@ -110,6 +111,9 @@ class GameManager:
             if self.proximo_estado == EstadoJogo.GAME_OVER:
                 if self.estado_atual not in [EstadoJogo.GAME_OVER, EstadoJogo.MENU_PRINCIPAL, EstadoJogo.SAIR, EstadoJogo.CONFIGURACOES]:
                     self.dados_compartilhados['fase_antes_do_game_over'] = self.estado_atual
+            else:
+                import Variaveis
+                Variaveis.limpar_historico_rewind()
             self.estado_atual = self.proximo_estado
             self.proximo_estado = None
             

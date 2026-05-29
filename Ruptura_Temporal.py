@@ -4,6 +4,7 @@
 
 
 
+import Caminhos
 import pygame
 import sys
 import importlib
@@ -104,10 +105,14 @@ def inicializar_menu():
     global ultima_troca, ultima_mudanca_de_opcao, controle
     
     if tela is not None:
-        return
+        try:
+            tela.fill((0, 0, 0))
+            return
+        except pygame.error:
+            tela = None
         
     pygame.init()
-    pygame.mouse.set_visible(False)
+    pygame.mouse.set_visible(True)
     centro_tela = (largura_tela // 2, altura_tela // 2)
     pygame.mouse.set_pos(centro_tela)
     
@@ -780,6 +785,34 @@ def tela_selecao_aurea(tela, fonte):
                     tocar_selecionar()
                     return "voltar"
 
+        # Detecção de hover e cliques do mouse nas áureas
+        largura_quadro = 160
+        altura_quadro = 220
+        for i, aurea in enumerate(aureas):
+            if not aurea["ativa"]:
+                continue
+            curr_scale = card_scale[i]
+            w_scaled = int(largura_quadro * curr_scale)
+            h_scaled = int(altura_quadro * curr_scale)
+            x_pos = int(card_x[i] - w_scaled // 2)
+            y_pos = int(altura // 3.3 + card_y_offset[i])
+            rect_card = pygame.Rect(x_pos, y_pos, w_scaled, h_scaled)
+            
+            if rect_card.collidepoint(mx, my):
+                if selecionado != i:
+                    selecionado = i
+                    tocar_hover()
+                if clicado:
+                    tocar_selecionar()
+                    nome_aurea = aurea["nome"]
+                    if nome_aurea == "Aleatória":
+                        nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda"])
+                    
+                    os.makedirs("saves", exist_ok=True)
+                    with open("saves/aurea_selecionada.json", "w") as file:
+                        json.dump({"aurea": nome_aurea}, file)
+                    return "confirmar"
+
         # 2. Interpolação de Fundo
         bg_alvo = aureas[selecionado]["bg_tema"]
         for c in range(3):
@@ -1007,24 +1040,51 @@ def tela_decisao_tutorial(tela, fonte):
         texto_titulo = fonte.render("Deseja jogar o tutorial?", True, (255, 255, 255))
         tela.blit(texto_titulo, (largura_tela // 2 - texto_titulo.get_width() // 2, altura_tela // 4))
 
+        mx, my = pygame.mouse.get_pos()
+        clicado = False
+
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 exit()
+            elif evento.type == pygame.MOUSEBUTTONDOWN:
+                if evento.button == 1:
+                    clicado = True
             elif evento.type == pygame.KEYDOWN:
                 if evento.key in [pygame.K_LEFT, pygame.K_a]:
                     selecionado = (selecionado - 1) % len(opcoes)
+                    tocar_hover()
                 elif evento.key in [pygame.K_RIGHT, pygame.K_d]:
                     selecionado = (selecionado + 1) % len(opcoes)
+                    tocar_hover()
                 elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    tocar_selecionar()
                     with open("saves/tutorial_config.json", "w") as file:
                         json.dump({"mostrar_tutorial": opcoes[selecionado] == "Sim"}, file)
                     return opcoes[selecionado] == "Sim"
 
         for i, texto in enumerate(opcoes):
+            rx = largura_tela // 2 - 100 + i * 150
+            ry = altura_tela // 2
+            
+            # Caixa de colisão para a opção
+            rect_opcao = pygame.Rect(rx - 10, ry - 5, 80, 40)
+            if rect_opcao.collidepoint(mx, my):
+                if selecionado != i:
+                    selecionado = i
+                    tocar_hover()
+                if clicado:
+                    tocar_selecionar()
+                    with open("saves/tutorial_config.json", "w") as file:
+                        json.dump({"mostrar_tutorial": opcoes[selecionado] == "Sim"}, file)
+                    return opcoes[selecionado] == "Sim"
+            
             cor = (255, 255, 255) if i == selecionado else (120, 120, 120)
             render = fonte.render(texto, True, cor)
-            tela.blit(render, (largura_tela // 2 - 100 + i * 150, altura_tela // 2))
+            tela.blit(render, (rx, ry))
+
+        pygame.display.flip()
+        clock.tick(60)
 
 def tela_configuracoes_graficas(tela, fonte):
     """Tela de configurações gráficas"""
@@ -1124,17 +1184,26 @@ def tela_configuracoes_graficas(tela, fonte):
             
         tela.blit(texto_titulo, retangulo_titulo)
         
+        mx, my = pygame.mouse.get_pos()
+        clicado = False
+        
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 exit()
+            elif evento.type == pygame.MOUSEBUTTONDOWN:
+                if evento.button == 1:
+                    clicado = True
             elif evento.type == pygame.KEYDOWN:
                 if evento.key in [pygame.K_UP, pygame.K_w]:
                     selecionado = (selecionado - 1) % len(opcoes_config)
+                    tocar_hover()
                 elif evento.key in [pygame.K_DOWN, pygame.K_s]:
                     selecionado = (selecionado + 1) % len(opcoes_config)
+                    tocar_hover()
                 elif evento.key in [pygame.K_LEFT, pygame.K_a, pygame.K_RIGHT, pygame.K_d]:
                     if opcoes_config[selecionado]["chave"]:
+                        tocar_hover()
                         chave = opcoes_config[selecionado]["chave"]
                         valores = opcoes_config[selecionado]["valores"]
                         valor_atual = config[chave]
@@ -1152,9 +1221,11 @@ def tela_configuracoes_graficas(tela, fonte):
                             json.dump(config, f, indent=4)
                 
                 elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    tocar_selecionar()
                     if opcoes_config[selecionado]["nome"] == "Voltar":
                         return
                 elif evento.key == pygame.K_ESCAPE:
+                    tocar_selecionar()
                     return
         
         # Desenhar opções
@@ -1163,10 +1234,40 @@ def tela_configuracoes_graficas(tela, fonte):
         
         for i, opcao in enumerate(opcoes_config):
             y_pos = y_inicial + i * espacamento
+            rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 42)
+            
+            # Detecção de hover e cliques do mouse
+            if rect_bg.collidepoint(mx, my):
+                if selecionado != i:
+                    selecionado = i
+                    tocar_hover()
+                if clicado:
+                    tocar_selecionar()
+                    if opcao["nome"] == "Voltar":
+                        return
+                    elif opcao["chave"]:
+                        chave = opcao["chave"]
+                        valores = opcao["valores"]
+                        valor_atual = config[chave]
+                        indice_atual = valores.index(valor_atual)
+                        
+                        # Verificar se o clique foi na seta esquerda ou direita
+                        rect_seta_esq = pygame.Rect(largura_tela // 2 + 15, y_pos + 4, 25, 34)
+                        rect_seta_dir = pygame.Rect(largura_tela // 2 + 225, y_pos + 4, 25, 34)
+                        
+                        if rect_seta_esq.collidepoint(mx, my):
+                            novo_indice = (indice_atual - 1) % len(valores)
+                        elif rect_seta_dir.collidepoint(mx, my):
+                            novo_indice = (indice_atual + 1) % len(valores)
+                        else:
+                            novo_indice = (indice_atual + 1) % len(valores)
+                            
+                        config[chave] = valores[novo_indice]
+                        with open("saves/config_graficos.json", "w") as f:
+                            json.dump(config, f, indent=4)
             
             # Caixa glassy para a opção selecionada
             if i == selecionado:
-                rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 42)
                 pygame.draw.rect(tela, (0, 180, 200, 65), rect_bg, border_radius=6)
                 pygame.draw.rect(tela, (0, 255, 230), rect_bg, width=2, border_radius=6)
                 cor_nome = (255, 255, 255)
@@ -1292,17 +1393,27 @@ def tela_configuracoes_audio(tela, fonte):
             
         tela.blit(texto_titulo, retangulo_titulo)
         
+        mx, my = pygame.mouse.get_pos()
+        clicado = False
+        mouse_pressionado = pygame.mouse.get_pressed()[0]
+        
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 exit()
+            elif evento.type == pygame.MOUSEBUTTONDOWN:
+                if evento.button == 1:
+                    clicado = True
             elif evento.type == pygame.KEYDOWN:
                 if evento.key in [pygame.K_UP, pygame.K_w]:
                     selecionado = (selecionado - 1) % len(opcoes)
+                    tocar_hover()
                 elif evento.key in [pygame.K_DOWN, pygame.K_s]:
                     selecionado = (selecionado + 1) % len(opcoes)
+                    tocar_hover()
                 elif evento.key in [pygame.K_LEFT, pygame.K_a]:
                     if opcoes[selecionado] != "voltar":
+                        tocar_hover()
                         chave = opcoes[selecionado]
                         config[chave] = max(0.0, config[chave] - 0.1)
                         
@@ -1313,6 +1424,7 @@ def tela_configuracoes_audio(tela, fonte):
                 
                 elif evento.key in [pygame.K_RIGHT, pygame.K_d]:
                     if opcoes[selecionado] != "voltar":
+                        tocar_hover()
                         chave = opcoes[selecionado]
                         config[chave] = min(1.0, config[chave] + 0.1)
                         
@@ -1322,9 +1434,11 @@ def tela_configuracoes_audio(tela, fonte):
                         aplicar_volumes_audio(config)
                 
                 elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    tocar_selecionar()
                     if opcoes[selecionado] == "voltar":
                         return
                 elif evento.key == pygame.K_ESCAPE:
+                    tocar_selecionar()
                     return
         
         # Desenhar opções
@@ -1333,10 +1447,34 @@ def tela_configuracoes_audio(tela, fonte):
         
         for i, opcao in enumerate(opcoes):
             y_pos = y_inicial + i * espacamento
+            rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 48)
             
+            # Detecção de hover e cliques do mouse
+            if rect_bg.collidepoint(mx, my):
+                if selecionado != i:
+                    selecionado = i
+                    tocar_hover()
+                if clicado:
+                    tocar_selecionar()
+                    if opcao == "voltar":
+                        return
+                
+                # Se arrastar ou clicar nos volumes, ajustar dinamicamente
+                if mouse_pressionado and opcao != "voltar":
+                    barra_x = largura_tela // 2 - 20
+                    barra_largura = 200
+                    # Calcula novo volume de forma contínua
+                    novo_val = (mx - barra_x) / barra_largura
+                    novo_val = max(0.0, min(1.0, novo_val))
+                    novo_val = round(novo_val, 2)
+                    if config[opcao] != novo_val:
+                        config[opcao] = novo_val
+                        with open("saves/config_audio.json", "w") as f:
+                            json.dump(config, f, indent=4)
+                        aplicar_volumes_audio(config)
+
             # Caixa glassy para a opção selecionada
             if i == selecionado:
-                rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 48)
                 pygame.draw.rect(tela, (0, 180, 200, 65), rect_bg, border_radius=6)
                 pygame.draw.rect(tela, (0, 255, 230), rect_bg, width=2, border_radius=6)
                 cor_nome = (255, 255, 255)
@@ -1403,6 +1541,259 @@ def tela_configuracoes_audio(tela, fonte):
             tela.blit(texto_inst, (largura_tela // 2 - texto_inst.get_width() // 2, y_instrucao))
             y_instrucao += 20
         
+        pygame.display.flip()
+        clock.tick(60)
+
+
+def tela_configuracoes_jogabilidade(tela, fonte):
+    """Tela de configurações de jogabilidade"""
+    global ultima_troca, exibindo_fundo1, indice_fundo
+    
+    # Carregar tutorial config
+    try:
+        with open("saves/tutorial_config.json", "r") as f:
+            mostrar_tut = json.load(f).get("mostrar_tutorial", True)
+    except:
+        mostrar_tut = True
+        
+    # Carregar teleporte config
+    try:
+        with open("saves/config_teleporte.json", "r") as f:
+            modo_teleporte = json.load(f).get("modo", "fixo")
+    except:
+        modo_teleporte = "fixo"
+
+    # Carregar cartas config
+    try:
+        with open("saves/config_cartas.json", "r") as f:
+            modo_cartas = json.load(f).get("modo_cartas", "loja")
+    except:
+        modo_cartas = "loja"
+        
+    config = {
+        "mostrar_tutorial": mostrar_tut,
+        "modo_teleporte": modo_teleporte,
+        "modo_cartas": modo_cartas
+    }
+    
+    opcoes_config = [
+        {"nome": "Tutorial", "chave": "mostrar_tutorial", "valores": [True, False], "labels": ["Ativado", "Desativado"]},
+        {"nome": "Modo de Teleporte", "chave": "modo_teleporte", "valores": ["fixo", "mouse"], "labels": ["Fixo", "Mouse Target"]},
+        {"nome": "Sistema de Cartas", "chave": "modo_cartas", "valores": ["loja", "drops"], "labels": ["Loja (Padrão)", "Drops de Inimigos"]},
+        {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
+    ]
+    
+    descricoes_valores = {
+        "mostrar_tutorial": {
+            True: "Exibe balões explicativos e dicas ao longo das fases para iniciantes.",
+            False: "Desativa tutoriais de jogabilidade. Recomendado para jogadores experientes."
+        },
+        "modo_teleporte": {
+            "fixo": "O teleporte salta uma distância fixa na direção do movimento.",
+            "mouse": "O teleporte mirará dinamicamente na direção do cursor do mouse."
+        },
+        "modo_cartas": {
+            "loja": "Adquira e escolha cartas na loja ao final de cada fase.",
+            "drops": "Cartas dropam aleatoriamente de inimigos e expiram em 4 segundos."
+        }
+    }
+    
+    selecionado = 0
+    clock = pygame.time.Clock()
+    fonte_titulo_tela = pygame.font.Font(caminho_fonte_titulo, 48)
+    fonte_opcao_tela = pygame.font.Font(caminho_fonte_letra1, 24)
+    fonte_valor_tela = pygame.font.Font(caminho_fonte_letras, 20)
+    
+    while True:
+        agora = pygame.time.get_ticks()
+        
+        # Fundo dinâmico
+        if exibindo_fundo1:
+            tela.blit(fundo_menu1, (0, 0))
+            if agora - ultima_troca > tempo_exibicao_fundo1:
+                exibindo_fundo1 = False
+                ultima_troca = agora
+                indice_fundo = 0
+        else:
+            tela.blit(imagens_fundo[indice_fundo], (0, 0))
+            if agora - ultima_troca > tempo_troca_fundo:
+                indice_fundo = (indice_fundo + 1) % len(imagens_fundo)
+                ultima_troca = agora
+                
+        # Overlay
+        overlay = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 185))
+        tela.blit(overlay, (0, 0))
+        
+        # Título
+        texto_titulo = render_glitch_text_with_fallback("CONFIGURAÇÕES DE JOGABILIDADE", fonte_titulo_tela, fonte_fallback_config, (0, 255, 204))
+        retangulo_titulo = texto_titulo.get_rect(center=(largura_tela // 2, altura_tela // 8))
+        
+        # Sombra
+        texto_titulo_sombra = render_glitch_text_with_fallback("CONFIGURAÇÕES DE JOGABILIDADE", fonte_titulo_tela, fonte_fallback_config, (15, 5, 25))
+        tela.blit(texto_titulo_sombra, (retangulo_titulo.left + 4, retangulo_titulo.top + 4))
+        
+        # Contorno
+        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            texto_titulo_contorno = render_glitch_text_with_fallback("CONFIGURAÇÕES DE JOGABILIDADE", fonte_titulo_tela, fonte_fallback_config, contorno_rosa)
+            tela.blit(texto_titulo_contorno, (retangulo_titulo.left + dx, retangulo_titulo.top + dy))
+            
+        tela.blit(texto_titulo, retangulo_titulo)
+        
+        mx, my = pygame.mouse.get_pos()
+        clicado = False
+        
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+            elif evento.type == pygame.MOUSEBUTTONDOWN:
+                if evento.button == 1:
+                    clicado = True
+            elif evento.type == pygame.KEYDOWN:
+                if evento.key in [pygame.K_UP, pygame.K_w]:
+                    selecionado = (selecionado - 1) % len(opcoes_config)
+                    tocar_hover()
+                elif evento.key in [pygame.K_DOWN, pygame.K_s]:
+                    selecionado = (selecionado + 1) % len(opcoes_config)
+                    tocar_hover()
+                elif evento.key in [pygame.K_LEFT, pygame.K_a, pygame.K_RIGHT, pygame.K_d]:
+                    if opcoes_config[selecionado]["chave"]:
+                        tocar_hover()
+                        chave = opcoes_config[selecionado]["chave"]
+                        valores = opcoes_config[selecionado]["valores"]
+                        valor_atual = config[chave]
+                        indice_atual = valores.index(valor_atual)
+                        
+                        if evento.key in [pygame.K_RIGHT, pygame.K_d]:
+                            novo_indice = (indice_atual + 1) % len(valores)
+                        else:
+                            novo_indice = (indice_atual - 1) % len(valores)
+                        
+                        config[chave] = valores[novo_indice]
+                        
+                        # Salvar imediatamente
+                        if chave == "mostrar_tutorial":
+                            with open("saves/tutorial_config.json", "w") as f:
+                                json.dump({"mostrar_tutorial": config[chave]}, f)
+                        elif chave == "modo_teleporte":
+                            with open("saves/config_teleporte.json", "w") as f:
+                                json.dump({"modo": config[chave]}, f)
+                        elif chave == "modo_cartas":
+                            with open("saves/config_cartas.json", "w") as f:
+                                json.dump({"modo_cartas": config[chave]}, f)
+                                
+                elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    tocar_selecionar()
+                    if opcoes_config[selecionado]["nome"] == "Voltar":
+                        return
+                elif evento.key == pygame.K_ESCAPE:
+                    tocar_selecionar()
+                    return
+                    
+        # Desenhar opções
+        y_inicial = altura_tela // 3 + 20
+        espacamento = 70
+        
+        for i, opcao in enumerate(opcoes_config):
+            y_pos = y_inicial + i * espacamento
+            rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 48)
+            
+            # Detecção de hover e cliques do mouse
+            if rect_bg.collidepoint(mx, my):
+                if selecionado != i:
+                    selecionado = i
+                    tocar_hover()
+                if clicado:
+                    tocar_selecionar()
+                    if opcao["nome"] == "Voltar":
+                        return
+                    elif opcao["chave"]:
+                        chave = opcao["chave"]
+                        valores = opcao["valores"]
+                        valor_atual = config[chave]
+                        indice_atual = valores.index(valor_atual)
+                        
+                        # Verificar se o clique foi na seta esquerda ou direita
+                        rect_seta_esq = pygame.Rect(largura_tela // 2 + 15, y_pos + 4, 25, 34)
+                        rect_seta_dir = pygame.Rect(largura_tela // 2 + 225, y_pos + 4, 25, 34)
+                        
+                        if rect_seta_esq.collidepoint(mx, my):
+                            novo_indice = (indice_atual - 1) % len(valores)
+                        elif rect_seta_dir.collidepoint(mx, my):
+                            novo_indice = (indice_atual + 1) % len(valores)
+                        else:
+                            novo_indice = (indice_atual + 1) % len(valores)
+                            
+                        config[chave] = valores[novo_indice]
+                        
+                        # Salvar imediatamente
+                        if chave == "mostrar_tutorial":
+                            with open("saves/tutorial_config.json", "w") as f:
+                                json.dump({"mostrar_tutorial": config[chave]}, f)
+                        elif chave == "modo_teleporte":
+                            with open("saves/config_teleporte.json", "w") as f:
+                                json.dump({"modo": config[chave]}, f)
+                        elif chave == "modo_cartas":
+                            with open("saves/config_cartas.json", "w") as f:
+                                json.dump({"modo_cartas": config[chave]}, f)
+            
+            # Caixa glassy para a opção selecionada
+            if i == selecionado:
+                pygame.draw.rect(tela, (0, 180, 200, 65), rect_bg, border_radius=6)
+                pygame.draw.rect(tela, (0, 255, 230), rect_bg, width=2, border_radius=6)
+                cor_nome = (255, 255, 255)
+            else:
+                cor_nome = (120, 120, 120)
+                
+            # Nome da opção
+            texto_nome = fonte_opcao_tela.render(opcao["nome"], True, cor_nome)
+            tela.blit(texto_nome, (largura_tela // 4, y_pos))
+            
+            # Valor atual
+            if opcao["chave"]:
+                valor_atual = config[opcao["chave"]]
+                indice_valor = opcao["valores"].index(valor_atual)
+                label_valor = opcao["labels"][indice_valor]
+                
+                cor_valor = (0, 255, 204) if i == selecionado else (150, 150, 150)
+                texto_valor = fonte_valor_tela.render(label_valor, True, cor_valor)
+                tela.blit(texto_valor, (largura_tela // 2 + 50, y_pos + 4))
+                
+                if i == selecionado:
+                    seta_esq = fonte_valor_tela.render("<", True, (255, 255, 255))
+                    seta_dir = fonte_valor_tela.render(">", True, (255, 255, 255))
+                    tela.blit(seta_esq, (largura_tela // 2 + 20, y_pos + 4))
+                    tela.blit(seta_dir, (largura_tela // 2 + 230, y_pos + 4))
+                    
+        # Caixa de Descrição Dinâmica
+        rect_desc = pygame.Rect(largura_tela // 2 - 360, 520, 720, 50)
+        pygame.draw.rect(tela, (15, 10, 30, 200), rect_desc, border_radius=8)
+        pygame.draw.rect(tela, (0, 255, 230, 80), rect_desc, width=1, border_radius=8)
+        
+        opt_sel = opcoes_config[selecionado]
+        if opt_sel["chave"] is None:
+            texto_desc_str = "Retornar ao menu de configurações anterior."
+        else:
+            val_sel = config[opt_sel["chave"]]
+            texto_desc_str = descricoes_valores[opt_sel["chave"]][val_sel]
+            
+        surf_desc_texto = fonte_valor_tela.render(texto_desc_str, True, (200, 200, 220))
+        rect_desc_texto = surf_desc_texto.get_rect(center=rect_desc.center)
+        tela.blit(surf_desc_texto, rect_desc_texto)
+        
+        # Instruções no rodapé
+        instrucoes = [
+            "W/S: Navegar | A/D: Alterar valor",
+            "ENTER/ESPAÇO: Confirmar | ESC: Voltar"
+        ]
+        
+        y_instrucao = altura_tela - 55
+        for instrucao in instrucoes:
+            texto_inst = fonte_instrucao.render(instrucao, True, (150, 150, 150))
+            tela.blit(texto_inst, (largura_tela // 2 - texto_inst.get_width() // 2, y_instrucao))
+            y_instrucao += 20
+            
         pygame.display.flip()
         clock.tick(60)
 
@@ -1510,6 +1901,31 @@ def executar_menu_principal(game_manager=None):
                                 'raio': random.uniform(2, 6),
                                 'vida': 1.0
                             })
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    mx, my = event.pos
+                    for i, opcao in enumerate(opcoes):
+                        x_botao = 60
+                        y_botao = altura_tela // 2 - 20 + i * 70
+                        rect_botao = pygame.Rect(x_botao, y_botao, 320, 50)
+                        if rect_botao.collidepoint(mx, my):
+                            opcao_confirmada = i
+                            tempo_confirmacao = agora
+                            tocar_selecionar()
+                            
+                            particulas_eclosao = []
+                            x_centro = 60 + 320 // 2
+                            y_centro = y_botao + 50 // 2
+                            import random
+                            for _ in range(40):
+                                particulas_eclosao.append({
+                                    'x': x_centro + random.uniform(-160, 160),
+                                    'y': y_centro + random.uniform(-25, 25),
+                                    'dx': random.uniform(-8, 8),
+                                    'dy': random.uniform(-8, 8),
+                                    'cor': random.choice([(0, 255, 230), (255, 0, 128), (255, 255, 255)]),
+                                    'raio': random.uniform(2, 6),
+                                    'vida': 1.0
+                                })
                             
                 elif event.type == pygame.JOYAXISMOTION and controle is not None:
                     if event.axis == 1 and abs(controle.get_axis(0)) < 0.2:
@@ -1545,6 +1961,17 @@ def executar_menu_principal(game_manager=None):
                                 'raio': random.uniform(2, 6),
                                 'vida': 1.0
                             })
+
+        # Detecção de hover pelo mouse
+        mx, my = pygame.mouse.get_pos()
+        for i, opcao in enumerate(opcoes):
+            x_botao = 60
+            y_botao = altura_tela // 2 - 20 + i * 70
+            rect_botao = pygame.Rect(x_botao, y_botao, 320, 50)
+            if rect_botao.collidepoint(mx, my) and opcao_confirmada is None:
+                if indice_selecionado != i:
+                    indice_selecionado = i
+                    tocar_hover()
 
         # Lógica de troca de imagem de fundo
         agora = pygame.time.get_ticks()
@@ -1736,6 +2163,15 @@ def executar_menu_principal(game_manager=None):
 
                 pygame.mixer.music.stop()
 
+                # Começar partida limpa ao iniciar a partir do menu
+                import Variaveis
+                Variaveis.limpar_historico_rewind()
+                if os.path.exists("saves/atributos.json"):
+                    try:
+                        os.remove("saves/atributos.json")
+                    except Exception as e:
+                        print("Aviso ao remover atributos antigos:", e)
+
                 with open("saves/modo_jogo.json", "w") as f:
                     json.dump({"modo": modo, "ip": ip}, f)
 
@@ -1766,21 +2202,7 @@ def executar_menu_principal(game_manager=None):
                 while config_rodando:
                     agora_conf = pygame.time.get_ticks()
                     
-                    try:
-                        with open("saves/tutorial_config.json", "r") as f:
-                            mostrar_tut = json.load(f).get("mostrar_tutorial", True)
-                    except:
-                        mostrar_tut = True
-                    
-                    try:
-                        with open("saves/config_teleporte.json", "r") as f:
-                            modo_teleporte = json.load(f).get("modo", "fixo")
-                    except:
-                        modo_teleporte = "fixo"
-                    
-                    status_tut = "ATIVADO" if mostrar_tut else "DESATIVADO"
-                    status_telep = "FIXO" if modo_teleporte == "fixo" else "MOUSE"
-                    opcoes_config = ["Controles", "Gráficos", "Áudio", f"Tutorial: {status_tut}", f"Teleporte: {status_telep}", "Voltar"]
+                    opcoes_config = ["Controles", "Gráficos", "Áudio", "Jogabilidade", "Voltar"]
                     
                     # Atualiza e desenha o fundo dinâmico do menu
                     if exibindo_fundo1:
@@ -1852,6 +2274,43 @@ def executar_menu_principal(game_manager=None):
                                 elif event_config.key == pygame.K_ESCAPE:
                                     config_rodando = False
                                     break
+                            elif event_config.type == pygame.MOUSEBUTTONDOWN and event_config.button == 1:
+                                mx_conf, my_conf = event_config.pos
+                                for i, opcao in enumerate(opcoes_config):
+                                    x_botao = largura_tela // 2 - 160
+                                    y_botao = int(altura_tela // 4.5 + i * 65)
+                                    rect_botao = pygame.Rect(x_botao, y_botao, 320, 50)
+                                    if rect_botao.collidepoint(mx_conf, my_conf):
+                                        opcao_conf_confirmada = i
+                                        tempo_conf_confirmacao = agora_conf
+                                        tocar_selecionar()
+                                        
+                                        particulas_conf_eclosao = []
+                                        x_centro = largura_tela // 2
+                                        y_centro = y_botao + 50 // 2
+                                        import random
+                                        for _ in range(40):
+                                            particulas_conf_eclosao.append({
+                                                'x': x_centro + random.uniform(-160, 160),
+                                                'y': y_centro + random.uniform(-25, 25),
+                                                'dx': random.uniform(-8, 8),
+                                                'dy': random.uniform(-8, 8),
+                                                'cor': random.choice([(0, 255, 230), (255, 0, 128), (255, 255, 255)]),
+                                                'raio': random.uniform(2, 6),
+                                                'vida': 1.0
+                                            })
+                                        break
+
+                    # Detecção de hover pelo mouse no submenu de configurações
+                    mx_conf, my_conf = pygame.mouse.get_pos()
+                    for i, opcao in enumerate(opcoes_config):
+                        x_botao = largura_tela // 2 - 160
+                        y_botao = int(altura_tela // 4.5 + i * 65)
+                        rect_botao = pygame.Rect(x_botao, y_botao, 320, 50)
+                        if rect_botao.collidepoint(mx_conf, my_conf) and opcao_conf_confirmada is None:
+                            if indice_config != i:
+                                indice_config = i
+                                tocar_hover()
                                     
                     if not config_rodando:
                         break
@@ -1966,15 +2425,9 @@ def executar_menu_principal(game_manager=None):
                             tela_configuracoes_graficas(tela, fonte)
                         elif escolha_config == 2:  # Áudio
                             tela_configuracoes_audio(tela, fonte)
-                        elif escolha_config == 3:  # Tutorial: Alternar status
-                            mostrar_tut = not mostrar_tut
-                            with open("saves/tutorial_config.json", "w") as f:
-                                json.dump({"mostrar_tutorial": mostrar_tut}, f)
-                        elif escolha_config == 4:  # Teleporte: Alternar status
-                            modo_teleporte = "mouse" if modo_teleporte == "fixo" else "fixo"
-                            with open("saves/config_teleporte.json", "w") as f:
-                                json.dump({"modo": modo_teleporte}, f)
-                        elif escolha_config == 5:  # Voltar
+                        elif escolha_config == 3:  # Jogabilidade
+                            tela_configuracoes_jogabilidade(tela, fonte)
+                        elif escolha_config == 4:  # Voltar
                             config_rodando = False
 
             elif escolha == 2:  # Sair

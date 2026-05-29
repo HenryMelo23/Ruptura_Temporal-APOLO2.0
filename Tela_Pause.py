@@ -1,3 +1,4 @@
+import Caminhos
 import pygame
 import sys
 import math
@@ -470,6 +471,242 @@ def abrir_configuracoes_audio(tela, fontes, fundo_pausa=None):
         pygame.display.flip()
         clock.tick(60)
 
+def abrir_analise_atributos(tela, fontes, fundo_pausa=None):
+    """
+    Exibe a tela de Análise de Atributos do jogador, mostrando
+    dados estatísticos detalhados com legibilidade máxima (fundos escuros, sombras).
+    """
+    try:
+        with open("saves/atributos.json", "r") as f:
+            attrs = json.load(f)
+    except:
+        attrs = {}
+        
+    largura_tela, altura_tela = tela.get_size()
+    clock = pygame.time.Clock()
+    
+    fonte_titulo_tela = fontes["titulo"](44)
+    fonte_secao = fontes["titulo"](24)
+    fonte_label = fontes["texto"](22)
+    fonte_valor = fontes["texto"](22)
+    fonte_instrucao = fontes["texto"](20)
+    
+    # Valores extraídos com fallbacks seguros
+    vida_atual = attrs.get("vida_atual_personagem", 100)
+    vida_max = attrs.get("vida_maxima_personagem", 100)
+    dano_base = attrs.get("dano_person_hit", 1.0)
+    vel_ataque_ms = attrs.get("intervalo_disparo", 300)
+    chance_crit = attrs.get("chance_critico", 0.02)
+    roubo_vida = attrs.get("roubo_de_vida", 0.0)
+    sorte = attrs.get("Chance_Sorte", 0.01)
+    resistencia = attrs.get("resistencia_personagem", 0)
+    dash_cd = attrs.get("tempo_cooldown_dash", 2000)
+    moedas = attrs.get("moedas_totais", 0)
+    poison = attrs.get("Poison_Active", False)
+    executa = attrs.get("Executa_inimigo", False)
+    mercenaria = attrs.get("Mercenaria_Active", False)
+    
+    petro_ativo = attrs.get("existencia_petro", False)
+    petro_nivel = attrs.get("nivel_Petro", 1)
+    petro_dano = attrs.get("dano_petro", 10)
+    petro_res = attrs.get("resistencia_petro", 0)
+    
+    # Organização das colunas
+    col_ofensiva = [
+        ("Dano do Disparo", f"{dano_base:.2f}"),
+        ("Intervalo de Tiro", f"{vel_ataque_ms} ms"),
+        ("Chance Crítica", f"{chance_crit * 100:.2f}%"),
+        ("Multiplicador Crítico", "3.00x (300%)"),
+        ("Roubo de Vida", f"{attrs.get('quantidade_roubo_vida', 0.0) * 100:.2f}% perd." if attrs.get('quantidade_roubo_vida', 0.0) > 0 else "Inativo"),
+        ("Ataque Venenoso", "Ativo" if poison else "Inativo"),
+        ("Foice do Tempo (Executar)", "Ativo" if executa else "Inativo")
+    ]
+    
+    col_defensiva = [
+        ("Vida do Jogador", f"{int(vida_atual)} / {int(vida_max)}"),
+        ("Resistência Corporal", f"+{resistencia}"),
+        ("Tempo Recarga Dash", f"{dash_cd / 1000:.2f}s"),
+        ("Sorte (Drop Raro)", f"{sorte * 100:.2f}%"),
+        ("Ganho Mercenária", "Ativo (+Bonus)" if mercenaria else "Inativo"),
+        ("Tempo de Regeneração", f"{attrs.get('Tempo_cura', 2500)/1000:.2f}s"),
+        ("Taxa de Regeneração", f"{attrs.get('porcentagem_cura', 0.02) * 100:.2f}%")
+    ]
+    
+    col_petro = [
+        ("Petro (Sentinela)", "Ativo" if petro_ativo else "Inativo"),
+        ("Nível de Petro", f"Nív. {petro_nivel}"),
+        ("Dano Petro", f"{float(petro_dano):.2f}" if isinstance(petro_dano, (int, float)) else str(petro_dano)),
+        ("Resistência Petro", f"+{float(petro_res):.2f}" if isinstance(petro_res, (int, float)) else str(petro_res)),
+        ("Moedas Acumuladas", f"{moedas} moedas")
+    ]
+    
+    rodando = True
+    while rodando:
+        if fundo_pausa:
+            tela.blit(fundo_pausa, (0, 0))
+        else:
+            tela.fill((10, 10, 20))
+            
+        overlay = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
+        overlay.fill((8, 5, 15, 235)) # Fundo escuro com opacidade alta para total legibilidade
+        
+        # Linhas cibernéticas sutis de fundo
+        for y in range(0, altura_tela, 8):
+            pygame.draw.line(overlay, (0, 255, 204, 8), (0, y), (largura_tela, y))
+            
+        tela.blit(overlay, (0, 0))
+        
+        # Título principal com sombra para alto contraste
+        texto_titulo = fonte_titulo_tela.render("ANALISE DE ATRIBUTOS", True, (0, 255, 204))
+        ret_tit = texto_titulo.get_rect(center=(largura_tela // 2, 60))
+        titulo_sombra = fonte_titulo_tela.render("ANALISE DE ATRIBUTOS", True, (0, 0, 0))
+        tela.blit(titulo_sombra, (ret_tit.x + 3, ret_tit.y + 3))
+        tela.blit(texto_titulo, ret_tit)
+        
+        # Configuração do Grid
+        margem_x = (largura_tela - 1100) // 2
+        col_w = 340
+        col_h = 440
+        col_y = 120
+        
+        mx, my = pygame.mouse.get_pos()
+        
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif evento.type == pygame.KEYDOWN:
+                if evento.key in [pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_SPACE]:
+                    rodando = False
+            elif evento.type == pygame.MOUSEBUTTONDOWN:
+                back_rect = pygame.Rect(largura_tela // 2 - 100, altura_tela - 75, 200, 40)
+                if back_rect.collidepoint(mx, my):
+                    rodando = False
+                    
+        # Pulsing and scanner math
+        tempo = pygame.time.get_ticks()
+        pulse = int(200 + 55 * math.sin(tempo * 0.005))
+        scan_offset = (tempo // 6) % (col_h - 20)
+        
+        # 1. Coluna Ofensiva (Cian/Verde)
+        x_of = margem_x
+        panel_of = pygame.Rect(x_of, col_y, col_w, col_h)
+        hover_of = panel_of.collidepoint(mx, my)
+        bg_of = (25, 20, 50, 230) if hover_of else (15, 12, 30, 215)
+        border_of = (0, pulse, int(pulse * 0.8)) if hover_of else (0, 255, 204, 120)
+        border_w_of = 3 if hover_of else 2
+        
+        pygame.draw.rect(tela, bg_of, panel_of, border_radius=12)
+        pygame.draw.rect(tela, border_of, panel_of, width=border_w_of, border_radius=12)
+        
+        if hover_of:
+            scan_y = col_y + 10 + scan_offset
+            pygame.draw.line(tela, (0, pulse, int(pulse * 0.8), 120), (x_of + 10, scan_y), (x_of + col_w - 10, scan_y), 2)
+        
+        txt_sec_of = fonte_secao.render("OFENSIVO", True, (0, 255, 204))
+        tela.blit(fonte_secao.render("OFENSIVO", True, (0, 0, 0)), (x_of + 22, col_y + 22))
+        tela.blit(txt_sec_of, (x_of + 20, col_y + 20))
+        pygame.draw.line(tela, (0, 255, 204, 80), (x_of + 20, col_y + 55), (x_of + col_w - 20, col_y + 55), 1)
+        
+        item_y = col_y + 70
+        for label, val in col_ofensiva:
+            txt_lbl = fonte_label.render(label, True, (200, 200, 210))
+            tela.blit(fonte_label.render(label, True, (0, 0, 0)), (x_of + 21, item_y + 1))
+            tela.blit(txt_lbl, (x_of + 20, item_y))
+            
+            cor_val = (0, 255, 150) if val not in ["Inativo", "Desativado"] else (220, 100, 100)
+            txt_v = fonte_valor.render(val, True, cor_val)
+            tela.blit(fonte_valor.render(val, True, (0, 0, 0)), (x_of + col_w - 21 - txt_v.get_width(), item_y + 1))
+            tela.blit(txt_v, (x_of + col_w - 20 - txt_v.get_width(), item_y))
+            item_y += 45
+            
+        # 2. Coluna Defensiva (Roxo/Rosa)
+        x_def = margem_x + col_w + 40
+        panel_def = pygame.Rect(x_def, col_y, col_w, col_h)
+        hover_def = panel_def.collidepoint(mx, my)
+        bg_def = (35, 18, 50, 230) if hover_def else (15, 12, 30, 215)
+        border_def = (pulse, int(pulse * 0.5), pulse) if hover_def else (180, 100, 255, 120)
+        border_w_def = 3 if hover_def else 2
+        
+        pygame.draw.rect(tela, bg_def, panel_def, border_radius=12)
+        pygame.draw.rect(tela, border_def, panel_def, width=border_w_def, border_radius=12)
+        
+        if hover_def:
+            scan_y = col_y + 10 + scan_offset
+            pygame.draw.line(tela, (pulse, 100, pulse, 120), (x_def + 10, scan_y), (x_def + col_w - 10, scan_y), 2)
+        
+        txt_sec_def = fonte_secao.render("SOBREVIVENCIA", True, (180, 100, 255))
+        tela.blit(fonte_secao.render("SOBREVIVENCIA", True, (0, 0, 0)), (x_def + 22, col_y + 22))
+        tela.blit(txt_sec_def, (x_def + 20, col_y + 20))
+        pygame.draw.line(tela, (180, 100, 255, 80), (x_def + 20, col_y + 55), (x_def + col_w - 20, col_y + 55), 1)
+        
+        item_y = col_y + 70
+        for label, val in col_defensiva:
+            txt_lbl = fonte_label.render(label, True, (210, 200, 220))
+            tela.blit(fonte_label.render(label, True, (0, 0, 0)), (x_def + 21, item_y + 1))
+            tela.blit(txt_lbl, (x_def + 20, item_y))
+            
+            cor_val = (180, 120, 255)
+            if "/" in val:
+                cor_val = (255, 100, 100)
+            elif "Ativo" in val:
+                cor_val = (0, 255, 150)
+            elif "Inativo" in val:
+                cor_val = (220, 100, 100)
+                
+            txt_v = fonte_valor.render(val, True, cor_val)
+            tela.blit(fonte_valor.render(val, True, (0, 0, 0)), (x_def + col_w - 21 - txt_v.get_width(), item_y + 1))
+            tela.blit(txt_v, (x_def + col_w - 20 - txt_v.get_width(), item_y))
+            item_y += 45
+ 
+        # 3. Coluna Petro / Recursos (Laranja/Amarelo)
+        x_pet = margem_x + (col_w + 40) * 2
+        panel_pet = pygame.Rect(x_pet, col_y, col_w, col_h)
+        hover_pet = panel_pet.collidepoint(mx, my)
+        bg_pet = (38, 25, 18, 230) if hover_pet else (15, 12, 30, 215)
+        border_pet = (pulse, int(pulse * 0.7), 0) if hover_pet else (255, 180, 0, 120)
+        border_w_pet = 3 if hover_pet else 2
+        
+        pygame.draw.rect(tela, bg_pet, panel_pet, border_radius=12)
+        pygame.draw.rect(tela, border_pet, panel_pet, width=border_w_pet, border_radius=12)
+        
+        if hover_pet:
+            scan_y = col_y + 10 + scan_offset
+            pygame.draw.line(tela, (pulse, 180, 0, 120), (x_pet + 10, scan_y), (x_pet + col_w - 10, scan_y), 2)
+        
+        txt_sec_pet = fonte_secao.render("COMPANHEIRO & RECURSOS", True, (255, 180, 0))
+        tela.blit(fonte_secao.render("COMPANHEIRO & RECURSOS", True, (0, 0, 0)), (x_pet + 22, col_y + 22))
+        tela.blit(txt_sec_pet, (x_pet + 20, col_y + 20))
+        pygame.draw.line(tela, (255, 180, 0, 80), (x_pet + 20, col_y + 55), (x_pet + col_w - 20, col_y + 55), 1)
+        
+        item_y = col_y + 70
+        for label, val in col_petro:
+            txt_lbl = fonte_label.render(label, True, (220, 210, 190))
+            tela.blit(fonte_label.render(label, True, (0, 0, 0)), (x_pet + 21, item_y + 1))
+            tela.blit(txt_lbl, (x_pet + 20, item_y))
+            
+            cor_val = (255, 180, 0)
+            if "Inativo" in val or "Não" in val:
+                cor_val = (160, 160, 160)
+            elif "Ativo" in val:
+                cor_val = (0, 255, 150)
+                
+            txt_v = fonte_valor.render(val, True, cor_val)
+            tela.blit(fonte_valor.render(val, True, (0, 0, 0)), (x_pet + col_w - 21 - txt_v.get_width(), item_y + 1))
+            tela.blit(txt_v, (x_pet + col_w - 20 - txt_v.get_width(), item_y))
+            item_y += 45
+            
+        # Botão Voltar
+        back_rect = pygame.Rect(largura_tela // 2 - 100, altura_tela - 75, 200, 40)
+        is_hover_back = back_rect.collidepoint(mx, my)
+        pygame.draw.rect(tela, (0, 180, 200, 75) if is_hover_back else (15, 12, 35, 230), back_rect, border_radius=6)
+        pygame.draw.rect(tela, (0, 255, 230) if is_hover_back else (0, 255, 204), back_rect, width=2, border_radius=6)
+        txt_back = fonte_instrucao.render("VOLTAR AO MENU", True, (255, 255, 255) if is_hover_back else (200, 200, 200))
+        tela.blit(txt_back, (back_rect.centerx - txt_back.get_width()//2, back_rect.centery - txt_back.get_height()//2))
+        
+        pygame.display.flip()
+        clock.tick(60)
+
 def exibir_tela_pause(tela, cartas_compradas, joystick=None):
     pygame.init()
     clock = pygame.time.Clock()
@@ -479,6 +716,7 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
     
     opcoes_pause = [
         "Continuar",
+        "Análise de Atributos",
         "Ajustar Controles",
         "Ajustar Áudio",
         "Ajustar Gráficos",
@@ -488,6 +726,7 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
     
     descricoes_pause = {
         "Continuar": "Retornar ao combate e retomar a jornada.",
+        "Análise de Atributos": "Visualizar suas estatísticas detalhadas de combate e sobrevivência.",
         "Ajustar Controles": "Configurar teclas do teclado e botões do mouse.",
         "Ajustar Áudio": "Ajustar volumes de música, efeitos e som geral.",
         "Ajustar Gráficos": "Modificar configurações de sombra, partículas e FPS.",
@@ -521,7 +760,7 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                 f_temp = pygame.font.Font(None, 80)
                 letra = f_temp.render(nome[0], True, (0, 255, 200))
                 img.blit(letra, (75 - letra.get_width()//2, 100 - letra.get_height()//2))
-
+ 
             cartas_adquiridas.append({
                 "nome": nome,
                 "Nick": dados["Nick"],
@@ -529,7 +768,7 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                 "imagem": img,
                 "quantidade": qtd
             })
-
+ 
     selecionado_card_idx = 0
     current_offset = 0.0
     
@@ -539,9 +778,9 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
     fonte_desc = fontes["texto"](20)
     
     CARD_W = 280
-    CARD_H = 340
+    CARD_H = 390
     CARD_X = 70
-    CARD_Y = 180
+    CARD_Y = 160
     
     # Joystick movement delay
     last_joy_move = 0
@@ -573,6 +812,8 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                         opcao_sel = opcoes_pause[selecionado]
                         if opcao_sel == "Continuar":
                             return "continuar"
+                        elif opcao_sel == "Análise de Atributos":
+                            abrir_analise_atributos(tela, fontes, fundo_pausa=fundo_pausa)
                         elif opcao_sel == "Ajustar Controles":
                             from Config_Teclas import tela_de_controles, carregar_config_teclas
                             cfg = carregar_config_teclas()
@@ -609,6 +850,8 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                                 opcao_sel = opcoes_pause[selecionado]
                                 if opcao_sel == "Continuar":
                                     return "continuar"
+                                elif opcao_sel == "Análise de Atributos":
+                                    abrir_analise_atributos(tela, fontes, fundo_pausa=fundo_pausa)
                                 elif opcao_sel == "Ajustar Controles":
                                     from Config_Teclas import tela_de_controles, carregar_config_teclas
                                     cfg = carregar_config_teclas()
@@ -638,6 +881,8 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                         opcao_sel = opcoes_pause[selecionado]
                         if opcao_sel == "Continuar":
                             return "continuar"
+                        elif opcao_sel == "Análise de Atributos":
+                            abrir_analise_atributos(tela, fontes, fundo_pausa=fundo_pausa)
                         elif opcao_sel == "Ajustar Controles":
                             from Config_Teclas import tela_de_controles, carregar_config_teclas
                             cfg = carregar_config_teclas()

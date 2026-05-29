@@ -72,10 +72,10 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
          "descricao": "Aumente sua chance critica em 2% e triplique o dano causado. Transforme cada acerto em uma tempestade!"},
 
         {"nome": "Cura", "Nick": "Mordida Sombria", 
-         "descricao": "Restaure 3% da sua vida a cada hit e 4% a cada ativacao. Recupere sua saude enquanto luta!"},
+         "descricao": "Toda bala recupera +0.20% da vida perdida. Recupere sua saude proporcionalmente a cada acerto!"},
 
         {"nome": "Trembo", "Nick": "Reversão Temporal", 
-         "descricao": "Quando a morte se aproxima, o tempo volta. Recupere toda a sua saude e reapareca em outro local!"},
+         "descricao": "Quando a morte se aproxima, o tempo volta. Recupere toda a saude e reapareca. Acumular 2 buffa a regeneracao. Se consumida, a regen diminui so 50%."},
 
         {"nome": "Speed Atack", "Nick": "Fluidez Letal", 
          "descricao": "Aumente a velocidade de ataque em 5%, tornando seus tiros rapidos e letais."},
@@ -159,7 +159,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
         cartas.append(carta)
 
     def obter_cartas_disponiveis(cartas, cartas_compradas, qtd=3):
-        rare_names = {"Tempestade", "Trembo", "Petro", "Poison", "Coletora"}
+        rare_names = {"Trembo", "Petro", "Poison", "Coletora"}
         
         # pool preference for unbought cards
         pool_nao_compradas = [c for c in cartas if cartas_compradas.get(c["nome"], 0) == 0]
@@ -174,10 +174,14 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
         
         selecionadas = []
         
+        # Apply 10% rare drop rate floor if player has 15 or more Sorte cards
+        sorte_count = cartas_compradas.get("Sorte", 0)
+        chance_efetiva = max(Chance_Sorte, 0.10) if sorte_count >= 15 else Chance_Sorte
+        
         def pop_card(rares, commons):
             if not rares and not commons:
                 return None
-            if rares and (not commons or random.random() < Chance_Sorte):
+            if rares and (not commons or random.random() < chance_efetiva):
                 choice = random.choice(rares)
                 rares.remove(choice)
                 return choice
@@ -237,7 +241,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
         nonlocal velocidade_personagem, intervalo_disparo, vida, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida
         nonlocal tempo_cooldown_dash, vida_maxima, Petro_active, Resistencia, vida_petro, vida_maxima_petro, dano_petro, xp_petro
         nonlocal petro_evolucao, Resistencia_petro, Chance_Sorte, Poison_Active, Dano_Veneno_Acumulado, Executa_inimigo, Ultimo_Estalo
-        nonlocal Mercenaria_Active, Valor_Bonus, Tempo_cura, porcentagem_cura, compras_restantes, cartas_selecionadas
+        nonlocal Mercenaria_Active, Valor_Bonus, Tempo_cura, porcentagem_cura, compras_restantes, cartas_selecionadas, trembo
         
         nome = carta_sel["nome"]
         if nome == "Speed Boost":
@@ -256,17 +260,21 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
             cartas_compradas["Disparo crescente"] += 1
         elif nome == "Trembo":
             trembo = True
-            Tempo_cura -= Tempo_cura * 0.05
-            porcentagem_cura += 0.001 + (inimigos_eliminados // 100) * 0.0005
             cartas_compradas["Trembo"] += 1
+            if cartas_compradas["Trembo"] >= 2:
+                Tempo_cura = max(500, int(Tempo_cura * 0.75))
+                porcentagem_cura += 0.005 + (inimigos_eliminados // 100) * 0.001
+            else:
+                Tempo_cura -= Tempo_cura * 0.05
+                porcentagem_cura += 0.001 + (inimigos_eliminados // 100) * 0.0005
         elif nome == "Tempestade":
             dano_person_hit += 10 + (inimigos_eliminados // 50) * 4
             chance_critico += 0.02 + (inimigos_eliminados // 100) * 0.005
             cartas_compradas["Tempestade"] += 1
         elif nome == "Cura":
             # Coop balance values
-            roubo_de_vida += 0.04 + (inimigos_eliminados // 80) * 0.01
-            quantidade_roubo_vida += 0.03 + (inimigos_eliminados // 80) * 0.005
+            roubo_de_vida = 1.0
+            quantidade_roubo_vida += 0.002 + (inimigos_eliminados // 80) * 0.0005
             cartas_compradas["Cura"] += 1
         elif nome == "Speed Atack":
             intervalo_disparo -= 20 + (inimigos_eliminados // 100) * 5

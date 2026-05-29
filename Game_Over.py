@@ -1,3 +1,4 @@
+import Caminhos
 import pygame
 import sys
 import random
@@ -24,6 +25,57 @@ def generate_crack_points(p1, p2, deviation):
     subdivide(p1, p2, deviation)
     points.append(p2)
     return points
+
+def tratar_tentar_novamente(game_manager):
+    import Variaveis
+    if not Variaveis.pode_tentar_novamente():
+        return False
+    Variaveis.preparar_rewind()
+    if game_manager:
+        from game_manager import EstadoJogo
+        fase_retorno = game_manager.dados_compartilhados.get('fase_antes_do_game_over', EstadoJogo.JOGO_FASE_1)
+        game_manager.mudar_estado(fase_retorno)
+        return True
+    else:
+        import json
+        import sys
+        try:
+            with open("saves/modo_jogo.json", "r") as f:
+                dados = json.load(f)
+            modo = dados["modo"]
+            ip = dados["ip"]
+        except:
+            modo = "offline"
+            ip = None
+
+        if modo in ["host", "join"]:
+            from rede import iniciar_host, conectar_ao_host
+            if modo == "host":
+                conn = iniciar_host()
+            else:
+                conn = conectar_ao_host(ip)
+            import GAMERE
+            GAMERE.modo = modo
+            if modo == "join":
+                GAMERE.ip_host = ip
+            GAMERE.conn = conn
+        else:
+            import GAME
+            GAME.executar_jogo()
+        return False
+
+def _obter_mensagem_rewind():
+    """Retorna linhas curtas de aviso conforme a tentativa atual."""
+    import Variaveis
+    t = Variaveis.tentativas_rewind
+    if t >= Variaveis.MAX_TENTATIVAS_REWIND:
+        return ["O tempo se recusa a ser manipulado novamente.", "Suas chances acabaram."]
+    elif t == 0:
+        return ["Regressao Temporal: 20% de Vida | Pontuacao zerada.", "O tempo cobra caro por segunda chances."]
+    elif t == 1:
+        return ["Regressao Temporal: 10% de Vida | Metade das cartas perdidas.", "A realidade esta rejeitando voce."]
+    else:
+        return ["ULTIMA CHANCE: 5% de Vida | Todas as cartas perdidas.", "Voce sera apenas um eco do que ja foi."]
 
 def executar_game_over(game_manager=None):
     pygame.init()
@@ -103,6 +155,8 @@ def executar_game_over(game_manager=None):
     crack_points = generate_crack_points(p1, p2, 60)
     ultimo_flicker_fenda = pygame.time.get_ticks()
 
+    debuff_lines = _obter_mensagem_rewind()
+
     # Loop Principal da Tela
     running = True
     while running:
@@ -158,36 +212,9 @@ def executar_game_over(game_manager=None):
                             return
                         else:
                             import Ruptura_Temporal
-                            
                     elif escolha == "Tentar Novamente":
-                        if game_manager:
-                            from game_manager import EstadoJogo
-                            game_manager.mudar_estado(EstadoJogo.JOGO_FASE_1)
+                        if tratar_tentar_novamente(game_manager):
                             return
-                        else:
-                            import json
-                            try:
-                                with open("saves/modo_jogo.json", "r") as f:
-                                    dados = json.load(f)
-                                modo = dados["modo"]
-                                ip = dados["ip"]
-                            except:
-                                modo = "offline"
-                                ip = None
-
-                            if modo in ["host", "join"]:
-                                from rede import iniciar_host, conectar_ao_host
-                                if modo == "host":
-                                    conn = iniciar_host()
-                                else:
-                                    conn = conectar_ao_host(ip)
-                                import GAMERE
-                                GAMERE.modo = modo
-                                if modo == "join":
-                                    GAMERE.ip_host = ip
-                                GAMERE.conn = conn
-                            else:
-                                import GAME
 
         # Controle de Joystick Xbox
         if joystick and joystick.get_init():
@@ -218,12 +245,8 @@ def executar_game_over(game_manager=None):
                         else:
                             import Ruptura_Temporal
                     elif escolha == "Tentar Novamente":
-                        if game_manager:
-                            from game_manager import EstadoJogo
-                            game_manager.mudar_estado(EstadoJogo.JOGO_FASE_1)
+                        if tratar_tentar_novamente(game_manager):
                             return
-                        else:
-                            import GAMERE
             except:
                 pass
 
@@ -294,6 +317,22 @@ def executar_game_over(game_manager=None):
         txt_sub = font_desc.render("A fenda colapsou o espaco-tempo. Sua jornada foi fragmentada.", True, (160, 160, 175))
         window.blit(txt_sub, (largura // 2 - txt_sub.get_width() // 2, title_y + 70))
 
+        # Renderizar aviso pesado de rewind (atualiza dinamicamente)
+        debuff_lines = _obter_mensagem_rewind()
+        import Variaveis as _Var
+        tentativas_esgotadas = _Var.tentativas_rewind >= _Var.MAX_TENTATIVAS_REWIND
+        cor_aviso = (120, 60, 60) if tentativas_esgotadas else (255, 75, 75)
+        y_aviso = title_y + 105
+        for line in debuff_lines:
+            txt_aviso = font_desc.render(line, True, cor_aviso)
+            window.blit(txt_aviso, (largura // 2 - txt_aviso.get_width() // 2, y_aviso))
+            y_aviso += 22
+
+        # Indicador de tentativas restantes
+        restantes = max(0, _Var.MAX_TENTATIVAS_REWIND - _Var.tentativas_rewind)
+        txt_tentativas = font_desc.render(f"Regressoes restantes: {restantes}/{_Var.MAX_TENTATIVAS_REWIND}", True, (180, 180, 200) if restantes > 0 else (80, 40, 40))
+        window.blit(txt_tentativas, (largura // 2 - txt_tentativas.get_width() // 2, y_aviso + 4))
+
         # --- BOTÕES / CARDS INTERATIVOS ---
         card_w = 330
         card_h = 55
@@ -324,17 +363,20 @@ def executar_game_over(game_manager=None):
                         else:
                             import Ruptura_Temporal
                     elif text == "Tentar Novamente":
-                        if game_manager:
-                            from game_manager import EstadoJogo
-                            game_manager.mudar_estado(EstadoJogo.JOGO_FASE_1)
+                        if tratar_tentar_novamente(game_manager):
                             return
-                        else:
-                            import GAME
 
             is_selected = (selected_button == idx)
+
+            # Verificar se o botão "Tentar Novamente" está desabilitado
+            btn_desabilitado = (text == "Tentar Novamente" and tentativas_esgotadas)
             
             # Cores dinâmicas de borda baseadas na opção
-            if is_selected:
+            if btn_desabilitado:
+                border_color = (50, 40, 45)
+                bg_color = (12, 10, 14, 100)
+                border_width = 1
+            elif is_selected:
                 if text == "Tentar Novamente":
                     border_color = (0, 255, 204) # Ciano elétrico
                 elif text == "Voltar para o Menu":
@@ -353,15 +395,20 @@ def executar_game_over(game_manager=None):
             pygame.draw.rect(surf_card, bg_color, (0, 0, card_w, card_h), border_radius=10)
             pygame.draw.rect(surf_card, border_color, (0, 0, card_w, card_h), width=border_width, border_radius=10)
             
-            # Glow suave no card selecionado
-            if is_selected:
+            # Glow suave no card selecionado (não para desabilitados)
+            if is_selected and not btn_desabilitado:
                 pulsar_glow = 20 + int(math.sin(agora * 0.015) * 15)
                 pygame.draw.rect(surf_card, (border_color[0], border_color[1], border_color[2], pulsar_glow), (4, 4, card_w - 8, card_h - 8), border_radius=6)
             
             window.blit(surf_card, (rect_btn.x, rect_btn.y))
 
             # Desenhar texto do botão
-            txt_color = (255, 255, 255) if is_selected else (140, 140, 150)
+            if btn_desabilitado:
+                txt_color = (60, 50, 55)
+            elif is_selected:
+                txt_color = (255, 255, 255)
+            else:
+                txt_color = (140, 140, 150)
             rendered_text = font_btn.render(text, True, txt_color)
             window.blit(rendered_text, (rect_btn.centerx - rendered_text.get_width() // 2, rect_btn.centery - rendered_text.get_height() // 2))
 
