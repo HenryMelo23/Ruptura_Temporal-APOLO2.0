@@ -16,14 +16,14 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
     clock = pygame.time.Clock()
     fontes = ui_helpers.carregar_fontes()
     
-    fonte_titulo_large = ui_helpers.get_cached_font(fontes["titulo_path"], 46)
-    fonte_titulo_sub = ui_helpers.get_cached_font(fontes["texto_path"], 22)
-    fonte_card_name = ui_helpers.get_cached_font(fontes["texto_path"], 26)
-    fonte_card_level = ui_helpers.get_cached_font(fontes["texto_path"], 20)
-    fonte_panel_title = ui_helpers.get_cached_font(fontes["texto_path"], 32)
-    fonte_panel_label = ui_helpers.get_cached_font(fontes["texto_path"], 24)
-    fonte_panel_text = ui_helpers.get_cached_font(fontes["texto_path"], 22)
-    fonte_panel_lore = ui_helpers.get_cached_font(fontes["texto_path"], 18)
+    fonte_titulo_large = ui_helpers.get_cached_font(fontes["titulo_path"], 52)
+    fonte_titulo_sub = ui_helpers.get_cached_font(fontes["texto_path"], 26)
+    fonte_card_name = ui_helpers.get_cached_font(fontes["texto_path"], 32)
+    fonte_card_level = ui_helpers.get_cached_font(fontes["texto_path"], 24)
+    fonte_panel_title = ui_helpers.get_cached_font(fontes["texto_path"], 38)
+    fonte_panel_label = ui_helpers.get_cached_font(fontes["texto_path"], 30)
+    fonte_panel_text = ui_helpers.get_cached_font(fontes["texto_path"], 28)
+    fonte_panel_lore = ui_helpers.get_cached_font(fontes["texto_path"], 22)
     
     # Pre-carregar upgrades
     upgrades_caminho = "saves/aureas_upgrade.json"
@@ -89,29 +89,29 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
         
         # Bottom Info Panel Rect (Glassmorphic)
         panel_w = max(600, largura_tela - 160)
-        panel_h = 240
+        panel_h = 275
         panel_x = (largura_tela - panel_w) // 2
-        panel_y = altura_tela - panel_h - 45
+        panel_y = altura_tela - panel_h - 25
         panel_rect = pygame.Rect(panel_x, panel_y, panel_w, panel_h)
         
         # Colunas do painel inferior
-        left_col_rect = pygame.Rect(panel_rect.left + 30, panel_rect.top + 20, panel_rect.width // 2 - 60, panel_rect.height - 40)
-        right_col_rect = pygame.Rect(panel_rect.left + panel_rect.width // 2 + 30, panel_rect.top + 20, panel_rect.width // 2 - 60, panel_rect.height - 40)
+        left_col_rect = pygame.Rect(panel_rect.left + 35, panel_rect.top + 20, panel_rect.width // 2 - 70, panel_rect.height - 40)
+        right_col_rect = pygame.Rect(panel_rect.left + panel_rect.width // 2 + 35, panel_rect.top + 20, panel_rect.width // 2 - 70, panel_rect.height - 40)
         
         # Sub-rects da coluna esquerda para segurança absoluta de textos
-        left_name_rect = pygame.Rect(left_col_rect.left, left_col_rect.top, left_col_rect.width, 30)
-        left_cat_rect = pygame.Rect(left_col_rect.left, left_col_rect.top + 30, left_col_rect.width, 25)
-        left_desc_rect = pygame.Rect(left_col_rect.left, left_col_rect.top + 55, left_col_rect.width, 80)
-        left_lore_rect = pygame.Rect(left_col_rect.left, left_col_rect.top + 140, left_col_rect.width, left_col_rect.height - 140)
+        left_name_rect = pygame.Rect(left_col_rect.left, left_col_rect.top, left_col_rect.width, 35)
+        left_cat_rect = pygame.Rect(left_col_rect.left, left_col_rect.top + 35, left_col_rect.width, 30)
+        left_desc_rect = pygame.Rect(left_col_rect.left, left_col_rect.top + 65, left_col_rect.width, 100)
+        left_lore_rect = pygame.Rect(left_col_rect.left, left_col_rect.top + 170, left_col_rect.width, left_col_rect.height - 170)
         
         # Sub-rects da coluna direita
-        right_eff_lbl_rect = pygame.Rect(right_col_rect.left, right_col_rect.top, right_col_rect.width, 25)
-        right_eff_val_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 25, right_col_rect.width, 30)
-        right_next_lbl_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 55, right_col_rect.width, 25)
-        right_next_val_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 80, right_col_rect.width, 30)
-        right_progress_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 115, right_col_rect.width, 10)
-        right_cost_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 135, right_col_rect.width, 30)
-        right_action_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 170, right_col_rect.width, 30)
+        right_eff_lbl_rect = pygame.Rect(right_col_rect.left, right_col_rect.top, right_col_rect.width, 30)
+        right_eff_val_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 30, right_col_rect.width, 35)
+        right_next_lbl_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 65, right_col_rect.width, 30)
+        right_next_val_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 95, right_col_rect.width, 35)
+        right_progress_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 135, right_col_rect.width, 12)
+        right_cost_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 155, right_col_rect.width, 35)
+        right_action_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 195, right_col_rect.width, 35)
         
         # Rodapé
         footer_rect = pygame.Rect(0, altura_tela - 22, largura_tela, 20)
@@ -426,7 +426,7 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
         
         # 5. Top Bar (Título e Moedas)
         titulo_rect = pygame.Rect(header_rect.left, header_rect.top, max_titulo_w, 40)
-        ui_helpers.renderizar_titulo(tela, "NUCLEO DE EVOLUCAO TEMPORAL", max_titulo_w, titulo_rect, fontes["titulo_path"], 46, (255, 255, 255))
+        ui_helpers.renderizar_titulo(tela, "NUCLEO DE EVOLUCAO TEMPORAL", max_titulo_w, titulo_rect, fontes["titulo_path"], 52, (255, 255, 255))
         
         t_sub = fonte_titulo_sub.render("Estabilize os fragmentos de energia para expandir sua linhagem temporal", True, (150, 150, 160))
         tela.blit(t_sub, (header_rect.left, header_rect.top + 45))

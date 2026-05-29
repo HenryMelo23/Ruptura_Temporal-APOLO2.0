@@ -192,15 +192,23 @@ def configurar_tela(largura, altura):
     Inicializa a tela do Pygame.
     """
     import pygame
-    
-    # Tenta inicializar com Double Buffer e VSync ativo.
+    import json
+    import os
+    from ui_helpers import ativar_palco_fullscreen, desativar_palco
+
+    tela_cheia = False
     try:
-        tela = pygame.display.set_mode((largura, altura), pygame.DOUBLEBUF, vsync=1)
+        if os.path.exists("saves/config_graficos.json"):
+            with open("saves/config_graficos.json", "r") as f:
+                tela_cheia = bool(json.load(f).get("tela_cheia", False))
     except Exception:
-        try:
-            tela = pygame.display.set_mode((largura, altura), pygame.DOUBLEBUF)
-        except Exception:
-            tela = pygame.display.set_mode((largura, altura))
+        tela_cheia = False
+
+    if tela_cheia:
+        return ativar_palco_fullscreen(largura, altura)
+
+    desativar_palco()
+    tela = pygame.display.set_mode((largura, altura))
     return tela
 
 

@@ -103,7 +103,8 @@ if not hasattr(builtins, "_saves_redirected"):
                 "qualidade_grafica": "alta",
                 "particulas_ativas": True,
                 "efeitos_visuais": True,
-                "fps_limite": 60
+                "fps_limite": 60,
+                "tela_cheia": False
             },
             "config_teclas.json": {
                 "Mover para cima": 119, # pygame.K_w

@@ -13,6 +13,20 @@ def carregar_fonte(caminho, tamanho, fallback_name=None):
         pass
     return pygame.font.Font(fallback_name, tamanho)
 
+def obter_tela_loja():
+    try:
+        from ui_helpers import obter_superficie_palco
+        tela_palco = obter_superficie_palco()
+        if tela_palco is not None:
+            return tela_palco
+    except Exception:
+        pass
+
+    tela_atual = pygame.display.get_surface()
+    if tela_atual is not None:
+        return tela_atual
+    return pygame.display.set_mode((largura_tela, altura_tela))
+
 def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_disparo, altura_disparo, trembo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,
                   tempo_cooldown_dash, vida_maxima, Petro_active, Resistencia, vida_petro, vida_maxima_petro, dano_petro, xp_petro, petro_evolucao, Resistencia_petro, Chance_Sorte, Poison_Active, Dano_Veneno_Acumulado, Executa_inimigo, Ultimo_Estalo, mostrar_info, Mercenaria_Active, Valor_Bonus, dispositivo_ativo, Tempo_cura,
                   porcentagem_cura, cartas_compradas, pontuacao_exib, max_cartas_compraveis=1, inimigos_eliminados=0):
@@ -32,9 +46,8 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
     except:
         som_tick = None
         
-    tela = pygame.display.get_surface()
-    if tela is None:
-        tela = pygame.display.set_mode((largura_tela, altura_tela))
+    tela = obter_tela_loja()
+    largura_tela, altura_tela = tela.get_size()
         
     pygame.display.set_caption('Ruptura Temporal - Cards Shop')
     

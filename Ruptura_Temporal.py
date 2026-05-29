@@ -1099,14 +1099,17 @@ def tela_configuracoes_graficas(tela, fonte):
             "qualidade_grafica": "alta",
             "particulas_ativas": True,
             "efeitos_visuais": True,
-            "fps_limite": 60
+            "fps_limite": 60,
+            "tela_cheia": False
         }
     # Garante que chaves novas existam em configs antigas
     config.setdefault("fps_limite", 60)
     config.setdefault("particulas_ativas", True)
     config.setdefault("efeitos_visuais", True)
+    config.setdefault("tela_cheia", False)
     
     opcoes_config = [
+        {"nome": "Tela Cheia", "chave": "tela_cheia", "valores": [False, True], "labels": ["Janela", "Tela Cheia"]},
         {"nome": "Sombras", "chave": "sombras_ativas", "valores": ["desativadas", "simples", "dinamicas"], "labels": ["Desativadas", "Simples", "Dinâmicas"]},
         {"nome": "Qualidade Gráfica", "chave": "qualidade_grafica", "valores": ["alta", "media", "baixa"], "labels": ["Alta", "Média", "Baixa"]},
         {"nome": "Partículas", "chave": "particulas_ativas", "valores": [True, False], "labels": ["Ativadas", "Desativadas"]},
@@ -1116,6 +1119,10 @@ def tela_configuracoes_graficas(tela, fonte):
     ]
     
     descricoes_valores = {
+        "tela_cheia": {
+            False: "Modo janela. Mantem barras e habilidades sobre a tela do jogo.",
+            True: "Tela cheia. Centraliza o jogo e move HUD para molduras laterais."
+        },
         "sombras_ativas": {
             "desativadas": "Desliga sombras. Melhora muito o desempenho em PCs fracos.",
             "simples": "Sombras básicas estáticas. Bom equilíbrio de performance.",
@@ -1229,8 +1236,8 @@ def tela_configuracoes_graficas(tela, fonte):
                     return
         
         # Desenhar opções
-        y_inicial = altura_tela // 4 + 20
-        espacamento = 55
+        y_inicial = altura_tela // 4
+        espacamento = 46
         
         for i, opcao in enumerate(opcoes_config):
             y_pos = y_inicial + i * espacamento
@@ -1296,7 +1303,7 @@ def tela_configuracoes_graficas(tela, fonte):
                     tela.blit(seta_dir, (largura_tela // 2 + 230, y_pos + 4))
         
         # Caixa de Descrição Dinâmica
-        rect_desc = pygame.Rect(largura_tela // 2 - 360, 480, 720, 50)
+        rect_desc = pygame.Rect(largura_tela // 2 - 360, 535, 720, 50)
         pygame.draw.rect(tela, (15, 10, 30, 200), rect_desc, border_radius=8)
         pygame.draw.rect(tela, (0, 255, 230, 80), rect_desc, width=1, border_radius=8)
         
@@ -1589,8 +1596,8 @@ def tela_configuracoes_jogabilidade(tela, fonte):
             False: "Desativa tutoriais de jogabilidade. Recomendado para jogadores experientes."
         },
         "modo_teleporte": {
-            "fixo": "O teleporte salta uma distância fixa na direção do movimento.",
-            "mouse": "O teleporte mirará dinamicamente na direção do cursor do mouse."
+            "fixo": "Modo Fixo: Teleporta na direcao do movimento. Rapido e instantaneo.",
+            "mouse": "Modo Mouse: Segure a tecla para mirar na posicao do cursor e solte para teleportar."
         },
         "modo_cartas": {
             "loja": "Adquira e escolha cartas na loja ao final de cada fase.",

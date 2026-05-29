@@ -497,7 +497,7 @@ largura_disparo, altura_disparo = 40, 40
 velocidade_disparo = 10
 disparos = []
 
-tela = pygame.display.set_mode((largura_mapa, altura_mapa))
+tela = pygame.Surface((largura_mapa, altura_mapa))
 pygame.display.set_caption("Renderizando Mapa com Personagem")
 
 pontuacao_inimigos=0
@@ -1008,6 +1008,19 @@ def executar_jogo(game_manager=None):
     if _orig_builtins_exit:
         _builtins.exit = local_exit
     try:
+        global tela
+        tela = configurar_tela(largura_mapa, altura_mapa)
+
+        # Pre-carregar frames de disparo
+        frames_disparo_normal_base = [
+            pygame.image.load("Sprites/Fogo1.png").convert_alpha(),
+            pygame.image.load("Sprites/Fogo2.png").convert_alpha()
+        ]
+        frames_disparo_impulso_base = [
+            pygame.image.load("Sprites/Fogo_impulso1.png").convert_alpha(),
+            pygame.image.load("Sprites/Fogo_impulso2.png").convert_alpha()
+        ]
+        
         tempo_parado_person = pygame.time.get_ticks()  
         boss_atingido_por_onda = pygame.time.get_ticks()
         tempo_ultimo_disparo = pygame.time.get_ticks()
@@ -1018,6 +1031,143 @@ def executar_jogo(game_manager=None):
 
         upgrades = carregar_upgrade_aureas("saves/aureas_upgrade.json")
         ondas_choque = []
+        fragmentos_morte = []
+
+        def gerar_explosao_branca(cx, cy):
+            if not (config_graficos.get("particulas_ativas", True) and config_graficos.get("efeitos_visuais", True)):
+                return
+            for _ in range(random.randint(40, 60)):
+                px = cx + random.uniform(-10, 10)
+                py = cy + random.uniform(-10, 10)
+                angulo = random.uniform(0, 2 * math.pi)
+                velocidade = random.uniform(4, 12)
+                vx = math.cos(angulo) * velocidade
+                vy = math.sin(angulo) * velocidade
+                
+                choice = random.random()
+                if choice < 0.8:
+                    color = (255, 255, 255)
+                elif choice < 0.9:
+                    color = (240, 240, 255)
+                else:
+                    color = (255, 255, 200)
+                    
+                size = random.uniform(3, 8)
+                shape_type = random.choice(["triangulo", "losango", "quadrado"])
+                if shape_type == "triangulo":
+                    vertices = [
+                        (0, -size),
+                        (-size * 0.8, size * 0.6),
+                        (size * 0.8, size * 0.6)
+                    ]
+                elif shape_type == "losango":
+                    vertices = [
+                        (0, -size),
+                        (size * 0.6, 0),
+                        (0, size),
+                        (-size * 0.6, 0)
+                    ]
+                else:
+                    vertices = [
+                        (-size * 0.5, -size * 0.5),
+                        (size * 0.5, -size * 0.5),
+                        (size * 0.5, size * 0.5),
+                        (-size * 0.5, size * 0.5)
+                    ]
+                    
+                fragmentos_morte.append({
+                    "x": px,
+                    "y": py,
+                    "vx": vx,
+                    "vy": vy,
+                    "color": color,
+                    "vertices": vertices,
+                    "rot": random.uniform(0, 360),
+                    "vrot": random.uniform(-12, 12),
+                    "life": random.randint(30, 50)
+                })
+
+        def gerar_fragmentos_trembo(x, y, w, h):
+            if not (config_graficos.get("particulas_ativas", True) and config_graficos.get("efeitos_visuais", True)):
+                return
+            for _ in range(random.randint(30, 45)):
+                px = random.uniform(x, x + w)
+                py = random.uniform(y, y + h)
+                vx = random.uniform(-6, 6)
+                vy = random.uniform(-6, 6)
+                
+                choice = random.random()
+                if choice < 0.4:
+                    color = (0, random.randint(180, 255), 255)  # Ciano / Sky Blue
+                elif choice < 0.7:
+                    color = (255, 255, 255)  # Branco
+                else:
+                    color = (random.randint(160, 220), 50, 255)  # Roxo / Violeta
+                    
+                size = random.uniform(4, 9)
+                shape_type = random.choice(["triangulo", "losango", "quadrado"])
+                if shape_type == "triangulo":
+                    vertices = [
+                        (0, -size),
+                        (-size * 0.8, size * 0.6),
+                        (size * 0.8, size * 0.6)
+                    ]
+                elif shape_type == "losango":
+                    vertices = [
+                        (0, -size),
+                        (size * 0.6, 0),
+                        (0, size),
+                        (-size * 0.6, 0)
+                    ]
+                else:
+                    vertices = [
+                        (-size * 0.5, -size * 0.5),
+                        (size * 0.5, -size * 0.5),
+                        (size * 0.5, size * 0.5),
+                        (-size * 0.5, size * 0.5)
+                    ]
+                    
+                fragmentos_morte.append({
+                    "x": px,
+                    "y": py,
+                    "vx": vx,
+                    "vy": vy - 2.0,
+                    "color": color,
+                    "vertices": vertices,
+                    "rot": random.uniform(0, 360),
+                    "vrot": random.uniform(-15, 15),
+                    "life": random.randint(40, 65)
+                })
+
+        def atualizar_e_desenhar_fragmentos(tela):
+            if not (config_graficos.get("particulas_ativas", True) and config_graficos.get("efeitos_visuais", True)):
+                fragmentos_morte.clear()
+                return
+            novos_frag = []
+            for f in fragmentos_morte:
+                f["x"] += f["vx"]
+                f["y"] += f["vy"]
+                f["vy"] += 0.15
+                f["vx"] *= 0.98
+                f["rot"] += f["vrot"]
+                f["life"] -= 1
+                
+                if f["life"] <= 0:
+                    continue
+                    
+                rad = math.radians(f["rot"])
+                cos_r = math.cos(rad)
+                sin_r = math.sin(rad)
+                
+                rotated_vertices = []
+                for vx, vy in f["vertices"]:
+                    rx = f["x"] + (vx * cos_r - vy * sin_r)
+                    ry = f["y"] + (vx * sin_r + vy * cos_r)
+                    rotated_vertices.append((rx, ry))
+                    
+                pygame.draw.polygon(tela, f["color"], rotated_vertices)
+                novos_frag.append(f)
+            fragmentos_morte[:] = novos_frag
 
         # Configurar e escalar as passivas das áureas
         nivel_devota = upgrades.get("Devota", 0)
@@ -1132,6 +1282,10 @@ def executar_jogo(game_manager=None):
                 Variaveis.atualizar_estado_mouse(event)
                 Variaveis.processar_eventos_teleporte(event, cooldown_dash)
                 if event.type == pygame.QUIT:
+                    if game_manager:
+                        from game_manager import EstadoJogo
+                        game_manager.mudar_estado(EstadoJogo.SAIR)
+                        raise CleanExit()
                     running = False
 
             keys = pygame.key.get_pressed()
@@ -1153,11 +1307,9 @@ def executar_jogo(game_manager=None):
             atualizar_posicao_personagem(keys, joystick)
 
             if impulsiva_ativa:
-                disparo_paths = ["Sprites/Fogo_impulso1.png", "Sprites/Fogo_impulso2.png"]
+                frames_disparo = [pygame.transform.scale(frame, (largura_disparo, altura_disparo)) for frame in frames_disparo_impulso_base]
             else:
-                disparo_paths = ["Sprites/Fogo1.png", "Sprites/Fogo2.png"]
-            frames_disparo = [pygame.image.load(path) for path in disparo_paths]
-            frames_disparo = [pygame.transform.scale(frame, (largura_disparo, altura_disparo)) for frame in frames_disparo]
+                frames_disparo = [pygame.transform.scale(frame, (largura_disparo, altura_disparo)) for frame in frames_disparo_normal_base]
 
 
             #################################### Conexão Host ou cliente
@@ -1646,6 +1798,43 @@ def executar_jogo(game_manager=None):
             # Jogador morre
             if vida <= 0 and not jogador_morto:
                 if trembo:
+                    # Capturar posições antigas antes do teleporte
+                    old_cx = pos_x_personagem + largura_personagem // 2
+                    old_cy = pos_y_personagem + altura_personagem // 2
+                    
+                    if 'trembo_pos_x_atual' in locals() or 'trembo_pos_x_atual' in globals():
+                         trembo_x = trembo_pos_x_atual
+                         trembo_y = trembo_pos_y_atual
+                    else:
+                         trembo_x = pos_x_personagem
+                         trembo_y = pos_y_personagem
+                    
+                    # Gerar animações de explosão branca e fragmentação do Trembo
+                    gerar_explosao_branca(old_cx, old_cy)
+                    gerar_fragmentos_trembo(trembo_x, trembo_y, largura_trembo, altura_trembo)
+                    
+                    # Ondas de choque da explosão branca
+                    ondas_choque.append({
+                        "cx": old_cx,
+                        "cy": old_cy,
+                        "raio_atual": 10.0,
+                        "raio_max": 200.0,
+                        "velocidade": 12.0,
+                        "cor": (255, 255, 255)
+                    })
+                    ondas_choque.append({
+                        "cx": old_cx,
+                        "cy": old_cy,
+                        "raio_atual": 20.0,
+                        "raio_max": 150.0,
+                        "velocidade": 8.0,
+                        "cor": (240, 240, 250)
+                    })
+                    
+                    # Tocar som de teleporte
+                    Som_portal.play()
+                    
+                    # Executar a segunda chance e teleporte
                     vida = vida_maxima  # Recupera a vida total
                     trembo = False  # Consome o "trembo"
                     imune_tempo_restante = 10000
@@ -1755,12 +1944,13 @@ def executar_jogo(game_manager=None):
 
             # Adicione esta verificação para controlar o piscar da barra de vida
             if piscando_vida:
-                if tempo_atual % 500 < 250:  # Altere o valor 500 e 250 conforme necessário
-                    # Desenha a barra de vida piscando em vermelho
-                    pygame.draw.rect(tela, (255, 0, 0), (posicao_barra_vida[0], posicao_barra_vida[1], largura_barra_vida, altura_barra_vida))
-                else:
-                    # Desenha a barra de vida normalmente
-                    pygame.draw.rect(tela, verde, (posicao_barra_vida[0], posicao_barra_vida[1], (vida / vida_maxima) * largura_barra_vida, altura_barra_vida))
+                if False: # Desativado para o HUD widescreen
+                    if tempo_atual % 500 < 250:  # Altere o valor 500 e 250 conforme necessário
+                        # Desenha a barra de vida piscando em vermelho
+                        pygame.draw.rect(tela, (255, 0, 0), (posicao_barra_vida[0], posicao_barra_vida[1], largura_barra_vida, altura_barra_vida))
+                    else:
+                        # Desenha a barra de vida normalmente
+                        pygame.draw.rect(tela, verde, (posicao_barra_vida[0], posicao_barra_vida[1], (vida / vida_maxima) * largura_barra_vida, altura_barra_vida))
 
                 # Adicione esta verificação para parar o piscar depois de um tempo
                 if tempo_atual - tempo_ultimo_hit_inimigo >= intervalo_hit_inimigo:
@@ -2434,129 +2624,88 @@ def executar_jogo(game_manager=None):
 
 
 
-            posicao_barra_vida = (80, altura_mapa - (altura_mapa - 34))
-            fonte = pygame.font.Font(None, int(altura_barra_vida*1))
-            texto_pontuacao = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (250, 255,255))
-            fonte_vida = pygame.font.Font(None, int(altura_barra_vida*0.9))
-            texto_vida = fonte_vida.render(f'{int(vida)}/{int(vida_maxima)}', True, (255, 255, 255))
-
-            # Renderiza o texto de pontuação com uma borda
-            texto_pontuacao_borda = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (0, 0, 0))  # Cor preta para a borda
-            # Desenha o texto da borda um pouco deslocado para criar o efeito de contorno
-            tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 - 1))
-            tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 + 1, altura_mapa*0.118 - 1))
-            tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 + 1))
-            tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 + 1, altura_mapa*0.118 + 1))
-
-            # Desenha o texto da pontuação por cima da borda
-            tela.blit(texto_pontuacao, (largura_mapa*0.075, altura_mapa*0.118))
-
-
-
-
-
-            # Calculando o ângulo do preenchimento em graus
-            angulo_preenchimento = (pontuacao_magia / 735) * 360  # ângulo em graus
-            # Preenchendo a parte do círculo
-            if angulo_preenchimento > 0:
-                pontos = []
-                for i in range(int(angulo_preenchimento) + 1):
-                    radianos = math.radians(i - 90) 
-                    x = centro_circulo[0] + raio_circulo * math.cos(radianos)
-                    y = centro_circulo[1] + raio_circulo * math.sin(radianos)
-                    pontos.append((x, y))
-                pygame.draw.polygon(tela, (53, 239, 252), [centro_circulo] + pontos) 
-
-            tela.blit(imagem_relogio, posicao_imagem_relogio)
-
-
-
-            if vida > vida_maxima:
-                vida_maxima=vida
-
-            porcentagem_vida_personagem = (vida / vida_maxima) * 100
-            if aurea == "Devota" and escudo_devota_ativo:
-                cor_barra = (0, 150, 255)  # Azul para indicar o escudo ativo
-            else:
-                cor_barra = calcular_cor_barra_de_vida(porcentagem_vida_personagem)
-
-            pygame.draw.rect(tela, cor_barra, (posicao_barra_vida[0], posicao_barra_vida[1], (vida / vida_maxima) * largura_barra_vida, altura_barra_vida))
-            pygame.draw.rect(tela, (0, 0, 0), (posicao_barra_vida[0], posicao_barra_vida[1], largura_barra_vida, altura_barra_vida), 2)
-
-
-            # Renderiza o texto de vida com uma borda
-            texto_vida_borda = fonte_vida.render(f'{int(vida)}/{int(vida_maxima)}', True, (0, 0, 0))  # Cor preta para a borda
-            # Desenha o texto da borda um pouco deslocado para criar o efeito de contorno
-            tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 - 1, posicao_barra_vida[1] + 5 - 1))
-            tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 + 1, posicao_barra_vida[1] + 5 - 1))
-            tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 - 1, posicao_barra_vida[1] + 5 + 1))
-            tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 + 1, posicao_barra_vida[1] + 5 + 1))
-
-            # Desenha o texto da vida por cima da borda
-            tela.blit(texto_vida, (posicao_barra_vida[0]*2, posicao_barra_vida[1] + 5))
-
-
-            tela.blit(imagem_vida, posicao_vida)
-                # Verifica se o personagem está passando pelo centro da tela e se a mensagem ainda não foi mostrada
-            if (pos_x_personagem >= centro_x_tela_pequena - 400 and
-                pos_x_personagem <= centro_x_tela_pequena + 400 and
-                pos_y_personagem >= centro_y_tela_pequena - 400 and
-                pos_y_personagem <= centro_y_tela_pequena + 400 and mensagem_mostrada):
-
-
-                # Renderiza o texto
-                texto_renderizado = fonte.render(mensagem, True, (0,0,0))
-                # Obtém o retângulo do texto
-                texto_rect = texto_renderizado.get_rect()
-                # Define a posição do texto para que ele fique no centro da tela
-                texto_rect.center = (centro_x_tela_pequena, centro_y_tela_pequena)
-
-                # Calcula as dimensões do retângulo de fundo da mensagem
-                largura_fundo = texto_rect.width + 20  # Adiciona um espaço de 10 pixels de cada lado
-                altura_fundo = texto_rect.height + 20  # Adiciona um espaço de 10 pixels em cima e embaixo
-                # Cria um retângulo branco para o fundo da mensagem
-                fundo_rect = pygame.Rect((centro_x_tela_pequena - largura_fundo // 2, centro_y_tela_pequena - altura_fundo // 2), (largura_fundo, altura_fundo))
-                # Desenha o retângulo branco na tela
-                pygame.draw.rect(tela, (225, 255, 255), fundo_rect)
-                # Desenha o texto na tela
-                tela.blit(texto_renderizado, texto_rect) 
-
-                # Incrementa o tempo que a mensagem está sendo mostrada
-                tempo_mostrando_mensagem += 1
-
-                # Se a mensagem estiver sendo mostrada por mais de 3 segundos
-                if tempo_mostrando_mensagem > 420:  # 60 frames por segundo * 3 segundos = 180
-                    mensagem_mostrada = False  # Define que a mensagem foi mostrada
-                    tempo_mostrando_mensagem = 0  # Reinicia o contador de tempo
-
-            # Remova o texto após 2 segundos
-            if texto_dano is not None and pygame.time.get_ticks() - tempo_texto_dano >= 250:
-                texto_dano = None
-
             cooldowns = {
                 "disparo": max(0.0, (intervalo_disparo - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
                 "teleporte": max(0.0, (tempo_cooldown_dash - (pygame.time.get_ticks() - tempo_ultimo_dash)) / 1000.0),
                 "onda": max(0.0, (cooldown_habilidade - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
                 "loja": 1 if pontuacao_exib >= custo_carta_atual else 0, 
             }
-            if not area_icones.colliderect(
-            (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-            ):
-                # Desenhar habilidades na tela
-                desenhar_habilidades(tela, cooldowns,dispositivo_ativo)
-            if eliminacoes_consecutivas > 0:
-                fonte_combo = pygame.font.Font(None, 36)  # Tamanho maior para o combo
-                fonte_bonus = pygame.font.Font(None, 28)  # Tamanho menor para o bônus
 
-                # Texto do combo
-                texto_combo = f"Combo: {eliminacoes_consecutivas}"
-                posicao_combo = (largura_mapa - 170, 50)  
-                desenhar_texto_com_contorno(tela, texto_combo, fonte_combo, (255, 255, 255), (0, 0, 0), posicao_combo)
+            if False: # Desativado pois o HUD agora é widescreen desenhado nas bordas
+                posicao_barra_vida = (80, altura_mapa - (altura_mapa - 34))
+                fonte = pygame.font.Font(None, int(altura_barra_vida*1))
+                texto_pontuacao = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (250, 255,255))
+                fonte_vida = pygame.font.Font(None, int(altura_barra_vida*0.9))
+                texto_vida = fonte_vida.render(f'{int(vida)}/{int(vida_maxima)}', True, (255, 255, 255))
 
-                # Texto do bônus
-                texto_bonus = f"Bônus: +{bonus_pontuacao}"
-                posicao_bonus = (largura_mapa - 200, 90)  
-                desenhar_texto_com_contorno(tela, texto_bonus, fonte_bonus, (255, 255, 255), (0, 0, 0), posicao_bonus)
+                # Renderiza o texto de pontuação com uma borda
+                texto_pontuacao_borda = fonte.render(f'{pontuacao_exib}/{custo_carta_atual}', True, (0, 0, 0))  # Cor preta para a borda
+                # Desenha o texto da borda um pouco deslocado para criar o efeito de contorno
+                tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 - 1))
+                tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 + 1, altura_mapa*0.118 - 1))
+                tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 - 1, altura_mapa*0.118 + 1))
+                tela.blit(texto_pontuacao_borda, (largura_mapa*0.075 + 1, altura_mapa*0.118 + 1))
+
+                # Desenha o texto da pontuação por cima da borda
+                tela.blit(texto_pontuacao, (largura_mapa*0.075, altura_mapa*0.118))
+
+                # Calculando o ângulo do preenchimento em graus
+                angulo_preenchimento = (pontuacao_magia / 735) * 360  # ângulo em graus
+                # Preenchendo a parte do círculo
+                if angulo_preenchimento > 0:
+                    pontos = []
+                    for i in range(int(angulo_preenchimento) + 1):
+                        radianos = math.radians(i - 90) 
+                        x = centro_circulo[0] + raio_circulo * math.cos(radianos)
+                        y = centro_circulo[1] + raio_circulo * math.sin(radianos)
+                        pontos.append((x, y))
+                    pygame.draw.polygon(tela, (53, 239, 252), [centro_circulo] + pontos) 
+
+                tela.blit(imagem_relogio, posicao_imagem_relogio)
+
+                if vida > vida_maxima:
+                    vida_maxima=vida
+
+                porcentagem_vida_personagem = (vida / vida_maxima) * 100
+                if aurea == "Devota" and escudo_devota_ativo:
+                    cor_barra = (0, 150, 255)  # Azul para indicar o escudo ativo
+                else:
+                    cor_barra = calcular_cor_barra_de_vida(porcentagem_vida_personagem)
+
+                pygame.draw.rect(tela, cor_barra, (posicao_barra_vida[0], posicao_barra_vida[1], (vida / vida_maxima) * largura_barra_vida, altura_barra_vida))
+                pygame.draw.rect(tela, (0, 0, 0), (posicao_barra_vida[0], posicao_barra_vida[1], largura_barra_vida, altura_barra_vida), 2)
+
+                # Renderiza o texto de vida com uma borda
+                texto_vida_borda = fonte_vida.render(f'{int(vida)}/{int(vida_maxima)}', True, (0, 0, 0))  # Cor preta para a borda
+                # Desenha o texto da borda um pouco deslocado para criar o efeito de contorno
+                tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 - 1, posicao_barra_vida[1] + 5 - 1))
+                tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 + 1, posicao_barra_vida[1] + 5 - 1))
+                tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 - 1, posicao_barra_vida[1] + 5 + 1))
+                tela.blit(texto_vida_borda, (posicao_barra_vida[0]*2 + 1, posicao_barra_vida[1] + 5 + 1))
+
+                # Desenha o texto da vida por cima da borda
+                tela.blit(texto_vida, (posicao_barra_vida[0]*2, posicao_barra_vida[1] + 5))
+
+                tela.blit(imagem_vida, posicao_vida)
+
+                if not area_icones.colliderect(
+                (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+                ):
+                    # Desenhar habilidades na tela
+                    desenhar_habilidades(tela, cooldowns,dispositivo_ativo)
+                if eliminacoes_consecutivas > 0:
+                    fonte_combo = pygame.font.Font(None, 36)  # Tamanho maior para o combo
+                    fonte_bonus = pygame.font.Font(None, 28)  # Tamanho menor para o bônus
+
+                    # Texto do combo
+                    texto_combo = f"Combo: {eliminacoes_consecutivas}"
+                    posicao_combo = (largura_mapa - 170, 50)  
+                    desenhar_texto_com_contorno(tela, texto_combo, fonte_combo, (255, 255, 255), (0, 0, 0), posicao_combo)
+
+                    # Texto do bônus
+                    texto_bonus = f"Bônus: +{bonus_pontuacao}"
+                    posicao_bonus = (largura_mapa - 200, 90)  
+                    desenhar_texto_com_contorno(tela, texto_bonus, fonte_bonus, (255, 255, 255), (0, 0, 0), posicao_bonus)
 
             # Desenhe o texto na tela
             if texto_dano is not None:
@@ -2672,8 +2821,13 @@ def executar_jogo(game_manager=None):
                     tela.blit(surf, (oc["cx"] - int(oc["raio_atual"]), oc["cy"] - int(oc["raio_atual"])))
             ondas_choque = ondas_ativas
 
+            # Atualizar e desenhar fragmentos de morte / Trembo
+            atualizar_e_desenhar_fragmentos(tela)
+
             tela.blit(cursor_imagem, (mouse_x, mouse_y))
+
             exibir_cronometro(tela)
+
             pygame.display.flip()
             FPS.tick(100)  # Limita a 100 FPS
 

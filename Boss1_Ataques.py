@@ -188,6 +188,7 @@ class DiluvioSuspenso(AtaqueBoss1):
     def __init__(self, boss_pos, jogador_pos, largura_mapa, altura_mapa, num_gotas=10):
         super().__init__("Diluvio Suspenso", 6500, boss_pos, jogador_pos, largura_mapa, altura_mapa)
         self.gotas = []
+        self.notificacoes = []
         # Spawn gotas
         for i in range(num_gotas):
             self.gotas.append({
@@ -314,7 +315,7 @@ class DiluvioSuspenso(AtaqueBoss1):
             tx, ty = int(g["target_pos"][0]), int(g["target_pos"][1])
             st = g["estado_gota"]
 
-            # 1. Desenhar a Sombra / Poça no chão
+            # 1. Desenhar a Sombra / Poça / Telegraph no chão
             if st in ["no_ar", "caindo", "impacto"]:
                 r = int(g["raio_sombra"])
                 if r > 0:
@@ -327,6 +328,31 @@ class DiluvioSuspenso(AtaqueBoss1):
                     pygame.draw.circle(surf_s, (0, 200, 255, alpha), (r + 5, r + 5), r, 2)
                     tela.blit(surf_s, (tx - r - 5, ty - r - 5))
 
+                if st == "no_ar":
+                    decorrido_no_ar = tempo_atual - g["tempo_gota"]
+                    restante = 2200 - decorrido_no_ar
+                    
+                    # Coluna de luz vertical indicando a queda iminente (Telegraph aéreo)
+                    surf_beam = pygame.Surface((12, ty), pygame.SRCALPHA)
+                    pygame.draw.rect(surf_beam, (0, 180, 255, 20), (0, 0, 12, ty))
+                    pygame.draw.rect(surf_beam, (0, 230, 255, 45), (4, 0, 4, ty))
+                    tela.blit(surf_beam, (tx - 6, 0))
+
+                    # Retículo/Anel que encolhe em direção ao alvo
+                    r_shrink = r + int(max(0.0, (restante / 2200.0) * 55.0))
+                    pygame.draw.circle(tela, (255, 50, 50, 160), (tx, ty), r_shrink, 2)
+
+                    # Sinal de alerta (!) flutuando acima do alvo
+                    pulse = 1.0 + 0.12 * math.sin(tempo_atual * 0.015)
+                    pt1 = (tx, int(ty - 45 * pulse))
+                    pt2 = (int(tx - 12 * pulse), int(ty - 20 * pulse))
+                    pt3 = (int(tx + 12 * pulse), int(ty - 20 * pulse))
+                    pygame.draw.polygon(tela, (255, 50, 50), [pt1, pt2, pt3])
+                    pygame.draw.polygon(tela, (255, 255, 255), [pt1, pt2, pt3], 1)
+                    # Exclamação no triângulo
+                    pygame.draw.line(tela, (255, 255, 255), (tx, int(ty - 38 * pulse)), (tx, int(ty - 28 * pulse)), 2)
+                    pygame.draw.circle(tela, (255, 255, 255), (tx, int(ty - 24 * pulse)), 2)
+
             elif st == "poca":
                 # Desenhar a poça temporal azul/roxa translúcida
                 r = int(g["raio_sombra"])
@@ -338,15 +364,49 @@ class DiluvioSuspenso(AtaqueBoss1):
                     pygame.draw.circle(surf_p, (0, 150, 255, 140), (r + 5, r + 5), int(r + ondulacao), 2)
                     tela.blit(surf_p, (tx - r - 5, ty - r - 5))
 
+                    # Bolhas corrosivas que sobem da poça
+                    if random.random() < 0.08:
+                        self.particulas.append({
+                            "x": tx + random.uniform(-r, r),
+                            "y": ty + random.uniform(-r * 0.3, r * 0.3),
+                            "vx": random.uniform(-0.1, 0.1),
+                            "vy": random.uniform(-0.6, -0.2),
+                            "alpha": 180,
+                            "cor": (0, 180, 255)
+                        })
+
             # 2. Desenhar a Gota Física no ar
             if st == "subindo":
                 # Desenha linha de subida do boss
                 pygame.draw.line(tela, (0, 180, 255, 150), (int(self.boss_pos[0]), int(g["y_gota"] + 20)), (int(self.boss_pos[0]), int(g["y_gota"])), 2)
             elif st == "caindo":
-                # Gota caindo com linha vertical de velocidade
+                # Gota caindo com forma realista de gota d'água (Glow + teardrop shape)
                 yg = int(g["y_gota"])
-                pygame.draw.line(tela, (255, 255, 255, 230), (tx, yg - 30), (tx, yg), 3)
-                pygame.draw.line(tela, (0, 200, 255, 150), (tx, yg - 50), (tx, yg - 30), 1)
+                # Linha de rastro/velocidade
+                pygame.draw.line(tela, (0, 200, 255, 80), (tx, yg - 40), (tx, yg), 2)
+                # Corpo da gota
+                pygame.draw.circle(tela, (255, 255, 255), (tx, yg), 8)
+                pygame.draw.polygon(tela, (0, 180, 255), [(tx - 8, yg), (tx, yg - 18), (tx + 8, yg)])
+                # Núcleo brilhante
+                pygame.draw.circle(tela, (255, 255, 255), (tx, yg - 2), 3)
+
+        # 3. Desenhar notificações de dano / efeitos flutuantes personalizados
+        fonte_notif = pygame.font.Font(None, 24)
+        novas_notif = []
+        for n in self.notificacoes:
+            decorrido = tempo_atual - n["tempo_inicio"]
+            if decorrido < n["duracao"]:
+                y_offset = (decorrido / n["duracao"]) * 35.0
+                alpha = int(255 * (1.0 - (decorrido / n["duracao"])))
+                
+                text_surf = fonte_notif.render(n["texto"], True, n["cor"])
+                surf_temp = pygame.Surface(text_surf.get_size(), pygame.SRCALPHA)
+                surf_temp.fill((255, 255, 255, alpha))
+                surf_temp.blit(text_surf, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+                
+                tela.blit(surf_temp, (int(n["x"] - text_surf.get_width() // 2), int(n["y"] - y_offset)))
+                novas_notif.append(n)
+        self.notificacoes = novas_notif
 
     def verificar_colisao(self, pos_jogador, largura_j, altura_j, vida, vida_maxima, escudo_ativo, dano_adicional):
         tempo_atual = pygame.time.get_ticks()
@@ -366,8 +426,25 @@ class DiluvioSuspenso(AtaqueBoss1):
                     g["danificou"] = True
                     if escudo_ativo:
                         escudo_ativo = False
+                        self.notificacoes.append({
+                            "texto": "ESCUDO BLOQUEOU GOTA!",
+                            "x": pos_jogador[0] + largura_j // 2,
+                            "y": pos_jogador[1] - 30,
+                            "cor": (0, 255, 200),
+                            "tempo_inicio": tempo_atual,
+                            "duracao": 1200
+                        })
                     else:
-                        vida = max(0.0, vida - (vida_maxima * 0.10 + dano_adicional))
+                        dano = (vida_maxima * 0.10 + dano_adicional)
+                        vida = max(0.0, vida - dano)
+                        self.notificacoes.append({
+                            "texto": f"-{int(dano)} (IMPACTO GOTA!)",
+                            "x": pos_jogador[0] + largura_j // 2,
+                            "y": pos_jogador[1] - 30,
+                            "cor": (255, 50, 50),
+                            "tempo_inicio": tempo_atual,
+                            "duracao": 1500
+                        })
 
             elif st == "poca":
                 # Lentidão e dano leve na poça
@@ -381,7 +458,16 @@ class DiluvioSuspenso(AtaqueBoss1):
                     if tempo_atual >= g["dano_poca_cooldown"]:
                         g["dano_poca_cooldown"] = tempo_atual + 300
                         if not escudo_ativo:
-                            vida = max(0.0, vida - (vida_maxima * 0.01 + dano_adicional * 0.1))
+                            dano_p = (vida_maxima * 0.01 + dano_adicional * 0.1)
+                            vida = max(0.0, vida - dano_p)
+                            self.notificacoes.append({
+                                "texto": "Poça Ácida!",
+                                "x": pos_jogador[0] + largura_j // 2,
+                                "y": pos_jogador[1] - 10,
+                                "cor": (0, 150, 255),
+                                "tempo_inicio": tempo_atual,
+                                "duracao": 600
+                            })
 
         # Modifica temporariamente a velocidade se necessário (retornado ao GAME.py)
         return pos_jogador[0], pos_jogador[1], vida, escudo_ativo, slow_multiplier

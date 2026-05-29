@@ -45,6 +45,8 @@ class GameManager:
             dados: Dados opcionais para passar ao próximo estado
         """
         self.proximo_estado = novo_estado
+        if novo_estado == EstadoJogo.SAIR:
+            self.rodando = False
         if dados:
             self.dados_compartilhados.update(dados)
     
@@ -61,38 +63,59 @@ class GameManager:
             
         elif self.estado_atual in [EstadoJogo.JOGO_PRINCIPAL, EstadoJogo.JOGO_FASE_1]:
             # Fase 1 ou modo offline
+            import Variaveis
+            Variaveis.reset_game_session()
             modo = self.dados_compartilhados.get('modo_jogo', 'offline')
             
             if modo == 'offline':
+                print("[GameManager] Modo offline selecionado. Recarregando GAME module...", flush=True)
                 if 'GAME' in sys.modules:
+                    print("[GameManager] Encontrado GAME em sys.modules. Executando importlib.reload...", flush=True)
                     importlib.reload(sys.modules['GAME'])
+                print("[GameManager] Importando GAME...", flush=True)
                 import GAME
+                print("[GameManager] Iniciando GAME.executar_jogo(self)...", flush=True)
                 resultado = GAME.executar_jogo(self)
+                print("[GameManager] GAME.executar_jogo finalizado. Resultado:", resultado, flush=True)
             else:
+                print("[GameManager] Modo online selecionado. Recarregando GAMERE module...", flush=True)
                 if 'GAMERE' in sys.modules:
+                    print("[GameManager] Encontrado GAMERE em sys.modules. Executando importlib.reload...", flush=True)
                     importlib.reload(sys.modules['GAMERE'])
+                print("[GameManager] Importando GAMERE...", flush=True)
                 import GAMERE
+                print("[GameManager] Iniciando GAMERE.executar_jogo(self)...", flush=True)
                 resultado = GAMERE.executar_jogo(self)
+                print("[GameManager] GAMERE.executar_jogo finalizado. Resultado:", resultado, flush=True)
                 
         elif self.estado_atual == EstadoJogo.JOGO_FASE_2:
+            import Variaveis
+            Variaveis.reset_phase_state()
+            print("[GameManager] Iniciando JOGO_FASE_2. Recarregando GAME2...", flush=True)
             if 'GAME2' in sys.modules:
                 importlib.reload(sys.modules['GAME2'])
             import GAME2
             resultado = GAME2.executar_jogo(self)
             
         elif self.estado_atual == EstadoJogo.JOGO_FASE_3:
+            import Variaveis
+            Variaveis.reset_phase_state()
             if 'GAME3' in sys.modules:
                 importlib.reload(sys.modules['GAME3'])
             import GAME3
             resultado = GAME3.executar_jogo(self)
             
         elif self.estado_atual == EstadoJogo.JOGO_FASE_4:
+            import Variaveis
+            Variaveis.reset_phase_state()
             if 'GAME4' in sys.modules:
                 importlib.reload(sys.modules['GAME4'])
             import GAME4
             resultado = GAME4.executar_jogo(self)
             
         elif self.estado_atual == EstadoJogo.JOGO_FASE_5:
+            import Variaveis
+            Variaveis.reset_phase_state()
             if 'GAME5' in sys.modules:
                 importlib.reload(sys.modules['GAME5'])
             import GAME5
@@ -107,6 +130,21 @@ class GameManager:
             return False
             
         # Aplica transição de estado se houver
+        estados_jogaveis = {
+            EstadoJogo.JOGO_PRINCIPAL,
+            EstadoJogo.JOGO_FASE_1,
+            EstadoJogo.JOGO_FASE_2,
+            EstadoJogo.JOGO_FASE_3,
+            EstadoJogo.JOGO_FASE_4,
+            EstadoJogo.JOGO_FASE_5,
+        }
+
+        # Se uma fase terminou sem escolher outra tela, nao reabre a mesma fase.
+        # Isso cobre pygame.QUIT/sys.exit interceptados como CleanExit nos GAME*.py.
+        if self.estado_atual in estados_jogaveis and self.proximo_estado is None:
+            self.rodando = False
+            return False
+
         if self.proximo_estado:
             if self.proximo_estado == EstadoJogo.GAME_OVER:
                 if self.estado_atual not in [EstadoJogo.GAME_OVER, EstadoJogo.MENU_PRINCIPAL, EstadoJogo.SAIR, EstadoJogo.CONFIGURACOES]:
