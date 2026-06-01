@@ -117,6 +117,8 @@ def tela_loja_endgame():
     pygame.init()
     W,H=largura_mapa,altura_mapa
     tela=pygame.display.set_mode((W,H))
+    pygame.event.set_grab(False)
+    pygame.mouse.set_visible(True)
     pygame.display.set_caption("Loja da Ruptura — Monte sua Build")
     clock=pygame.time.Clock()
 
@@ -411,7 +413,4 @@ def aplicar_deck_endgame(deck, v):
         elif cu=="Sifão Aprimorado": v["bonus_cura_sifon"]+=0.05
 
     v["vida"]=v["vida_maxima"]; v["vida_umbra"]=v["vida_maxima_umbra"]
-    print(f"\n[ LOJA ] {len(deck)} cartas | Umbra {qtd_u} cartas")
-    for c,q in sorted(collections.Counter(deck).items(),key=lambda x:x[1],reverse=True): print(f"  [{q}x] {c}")
-    print("="*50)
     return v

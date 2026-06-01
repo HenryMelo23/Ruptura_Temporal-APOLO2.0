@@ -1,8 +1,13 @@
 import os
 import shutil
 import subprocess
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 def build():
+    os.chdir(PROJECT_ROOT)
     print("=== STARTING BUILD PROCESS ===")
     
     # 1. Clean old builds

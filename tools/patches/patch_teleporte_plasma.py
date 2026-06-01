@@ -1,8 +1,12 @@
 import os
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+os.chdir(PROJECT_ROOT)
 
 files_to_patch = [
     "GAME.py", "GAME2.py", "GAME3.py", "GAME4.py", "GAME5.py", 
-    "GAME5_PLAYER.py", "GAMERE.py", "_build_player.py"
+    "GAME5_PLAYER.py", "GAMERE.py", "scripts/build_player.py"
 ]
 
 for filename in files_to_patch:

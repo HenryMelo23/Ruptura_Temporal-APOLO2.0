@@ -4,6 +4,7 @@ import shutil
 import json
 import hashlib
 from pathlib import Path
+from qa_logger import registrar_erro
 
 # Garantir que o redirecionamento ocorra apenas uma vez
 if not hasattr(builtins, "_saves_redirected"):
@@ -71,7 +72,7 @@ if not hasattr(builtins, "_saves_redirected"):
                     pasta_cofre.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(caminho_antigo_local, caminho_final)
                 except Exception as e:
-                    print(f"[Cofre Dimensional] Erro ao migrar {nome_arquivo}: {e}")
+                    registrar_erro(f"Cofre Dimensional: erro ao migrar {nome_arquivo}", e)
                     
             return str(caminho_final)
             
@@ -101,6 +102,7 @@ if not hasattr(builtins, "_saves_redirected"):
             "config_graficos.json": {
                 "sombras_ativas": "dinamicas",
                 "qualidade_grafica": "alta",
+                "nivel_detalhes": "alto",
                 "particulas_ativas": True,
                 "efeitos_visuais": True,
                 "fps_limite": 60,
@@ -134,20 +136,20 @@ if not hasattr(builtins, "_saves_redirected"):
                 try:
                     shutil.copy2(caminho_antigo_local, caminho_final)
                 except Exception as e:
-                    print(f"[Cofre Dimensional] Erro ao migrar {nome_arquivo}: {e}")
+                    registrar_erro(f"Cofre Dimensional: erro ao migrar {nome_arquivo}", e)
             else:
                 # Se não existe em nenhum lugar, cria o arquivo com as configurações padrão
                 try:
                     with _original_open(caminho_final, "w") as f:
                         json.dump(default_data, f, indent=4)
                 except Exception as e:
-                    print(f"[Cofre Dimensional] Erro ao criar padrão para {nome_arquivo}: {e}")
+                    registrar_erro(f"Cofre Dimensional: erro ao criar padrao para {nome_arquivo}", e)
 
     # Executa a inicialização de padrões/migração ao carregar o módulo
     try:
         inicializar_cofre()
     except Exception as e:
-        print(f"[Cofre Dimensional] Erro crítico na inicialização: {e}")
+        registrar_erro("Cofre Dimensional: erro critico na inicializacao", e)
 
     # Funções patcheadas
     def patched_open(file, *args, **kwargs):

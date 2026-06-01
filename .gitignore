@@ -2,3 +2,10 @@
 __pycache__/
 *.pyc
 scratch/
+dist/
+build/
+*.spec
+*.log
+*.tmp
+*.bak
+*.pt.bak

@@ -26,10 +26,10 @@ SETUP (rode setup_gpu.bat primeiro):
   Veja setup_gpu.bat para instalar o ambiente correto.
 
 Uso:
-    .venv312\\Scripts\\python treino_laser_gpu.py
-    .venv312\\Scripts\\python treino_laser_gpu.py --curriculum --geracoes 3000
-    .venv312\\Scripts\\python treino_laser_gpu.py --verificar
-    .venv312\\Scripts\\python treino_laser_gpu.py --limpar
+    .venv312\\Scripts\\python tools/ai/treino_laser_gpu.py
+    .venv312\\Scripts\\python tools/ai/treino_laser_gpu.py --curriculum --geracoes 3000
+    .venv312\\Scripts\\python tools/ai/treino_laser_gpu.py --verificar
+    .venv312\\Scripts\\python tools/ai/treino_laser_gpu.py --limpar
 """
 
 import math
@@ -40,6 +40,12 @@ import time
 import argparse
 import collections
 import threading
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+os.chdir(PROJECT_ROOT)
 
 import torch
 import torch.nn as nn
@@ -61,7 +67,7 @@ def checar_gpu():
     if not torch.cuda.is_available():
         print("\n[ERRO] CUDA nao disponivel!")
         print("       Certifique-se de usar o ambiente Python correto:")
-        print("       > .venv312\\Scripts\\python treino_laser_gpu.py")
+        print("       > .venv312\\Scripts\\python tools/ai/treino_laser_gpu.py")
         print("       Execute setup_gpu.bat para criar o ambiente.\n")
         sys.exit(1)
 
@@ -746,7 +752,7 @@ def treinar_gpu(num_geracoes: int = 2000, n_envs: int = 8,
     print(f"  Melhor rodada:      {melhor_rodada}/4")
     sv_fin = {rr: sum(hist_rod[rr][-100:]) / max(1, len(hist_rod[rr][-100:])) * 100 for rr in range(1, 5)}
     print(f"  Sv% (ult 100ep):   R1={sv_fin[1]:.0f}% R2={sv_fin[2]:.0f}% R3={sv_fin[3]:.0f}% R4={sv_fin[4]:.0f}%")
-    print(f"  Pesos salvos em:    apolo_memoria_dqn.pt")
+    print(f"  Pesos salvos em:    saves/apolo_memoria_dqn.pt")
     print("=" * 65)
 
 

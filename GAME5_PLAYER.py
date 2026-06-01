@@ -7,6 +7,7 @@ import math
 import time
 import os
 import json
+from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from Tela_Cartas import tela_de_pausa
 from Variaveis import *
 import Variaveis
@@ -17,6 +18,10 @@ from audio_manager import carregar_config_audio, aplicar_volume_som
 from sistema_ratos_umbra import GerenciadorRatos
 from vfx_engine_apolo import ApoloVFXManager
 from habilidades_personagem import desenhar_onda, criar_particulas_explosao_onda as criar_particulas_explosao
+
+instalar_captura_global()
+instalar_filtro_prints()
+
 escudo_devota_ativo = True
 duracao_incendio_vanguarda = 5000
 intervalo_escudo = 30000
@@ -910,13 +915,6 @@ def executar_jogo(game_manager=None):
                 if melhor_carta:
                     escolhas.append(melhor_carta)
 
-            contagem = collections.Counter(escolhas)
-            print("\n" + "="*50)
-            print(f"SELECAO GENETICA DE APOLO UCB ({qtd} Cartas)")
-            for carta, q in sorted(contagem.items(), key=lambda x: x[1], reverse=True): 
-                print(f"[{q}x] {carta}")
-            print("="*50)
-
             return escolhas
 
         def injetar_build_endgame(qtd_cartas_jogador=30):
@@ -1013,11 +1011,6 @@ def executar_jogo(game_manager=None):
 
             vida = vida_maxima
             vida_umbra = vida_maxima_umbra
-
-            print(f"\n[ UMBRA ] - {qtd_cartas_umbra} Cartas Sorteadas (Caos Puro)")
-            for carta_u, qtd in sorted(collections.Counter(registro_umbra).items(), key=lambda x: x[1], reverse=True):
-                print(f" -> [{qtd}x] {carta_u}")
-            print("="*50 + "\n")
 
         # Invoca a mutação absoluta
         injetar_build_endgame(qtd_cartas_jogador=80)
@@ -1123,7 +1116,7 @@ def executar_jogo(game_manager=None):
                                 vida_boss4 = snap["vida_boss"]
                         Variaveis.snapshot_para_carregar = None
                 except Exception as e:
-                    print(f"Aviso: Nao foi possivel carregar atributos ({e}). Usando padrao.")
+                    registrar_erro("Fase 5 player: erro ao carregar atributos; usando padrao", e)
                 carregar_atributos_na_fase = False
             agora = pygame.time.get_ticks()
 
@@ -1165,7 +1158,7 @@ def executar_jogo(game_manager=None):
                     try:
                         salvar_atributos()
                     except Exception as e:
-                        print(f"Erro ao salvar atributos para pausa: {e}")
+                        registrar_erro("Fase 5 player: erro ao salvar atributos para pausa", e)
                     from Tela_Pause import exibir_tela_pause
                     ret_pause = exibir_tela_pause(tela, cartas_compradas, joystick)
                     if ret_pause == "sair":
@@ -1458,6 +1451,23 @@ def executar_jogo(game_manager=None):
                     Tempo_cura = min(2500, int(Tempo_cura * 1.5))
                     pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem)
                 else:
+                    from utils import executar_animacao_morte_personagem
+                    frame_para_desenhar_morte = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
+                    executar_animacao_morte_personagem(
+                        tela=tela,
+                        pos_x_personagem=pos_x_personagem,
+                        pos_y_personagem=pos_y_personagem,
+                        largura_personagem=largura_personagem,
+                        altura_personagem=altura_personagem,
+                        frame_para_desenhar=frame_para_desenhar_morte,
+                        angulo_inclinacao_personagem=angulo_inclinacao_personagem,
+                        desenhar_hud_callback=None,
+                        exibir_cronometro_callback=lambda s: exibir_cronometro(s),
+                        cursor_imagem=cursor_imagem,
+                        mouse_pos=(mouse_x, mouse_y),
+                        config_graficos=config_graficos,
+                        som_morte=locals().get('Dano_person', globals().get('Dano_person', None))
+                    )
                     pass
                     limpar_salvamento()
                     if game_manager:
@@ -2773,13 +2783,15 @@ def executar_jogo(game_manager=None):
                             if not boss_envenenado and Poison_Active:
                                 boss_envenenado = True
                                 # O dano escala com a vida MÁXIMA da Umbra e o seu acúmulo de cartas
-                                dano_por_tick_veneno_boss = vida_maxima_umbra * (Dano_Veneno_Acumulado / 100)
+                                global duracao_veneno_boss
+                                dano_por_tick_veneno_boss = vida_maxima_umbra * Dano_Veneno_Acumulado
+                                duracao_veneno_boss = 8000 + cartas_compradas.get("Poison", 0) * 100
                                 tempo_inicio_veneno_boss = agora
                                 ultimo_tick_veneno_boss = agora
                             # --- CORROSÃO: DANO CONTÍNUO DE VENENO ---
                             if boss_envenenado:
                                 # Aplica o tick de dano a cada 500 milissegundos
-                                if agora - ultimo_tick_veneno_boss >= 500:
+                                if agora - ultimo_tick_veneno_boss >= INTERVALO_TICK_VENENO:
                                     vida_umbra -= dano_por_tick_veneno_boss
                                     ultimo_tick_veneno_boss = agora
 

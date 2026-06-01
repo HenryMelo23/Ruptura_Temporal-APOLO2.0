@@ -387,8 +387,6 @@ apolo_centro_y = pos_y_personagem + altura_personagem // 2
 # Spawnar ratos automaticamente quando cooldown passar
 if gerenciador_ratos.pode_spawnar(tempo_atual):
     qtd_spawnada = gerenciador_ratos.spawnar_ratos(tempo_atual)
-    if qtd_spawnada > 0:
-        print(f"[UMBRA] Invocou {qtd_spawnada} ratos!")
 
 # Atualizar posição de todos os ratos
 gerenciador_ratos.atualizar(tempo_atual, apolo_centro_x, apolo_centro_y)
@@ -407,11 +405,6 @@ resultado_colisoes = gerenciador_ratos.verificar_colisoes(
 if resultado_colisoes['hits'] > 0:
     vida -= resultado_colisoes['dano_total']
     vida_umbra = resultado_colisoes['vida_umbra_nova']
-    
-    print(f"[RATO HIT] {resultado_colisoes['hits']} ratos acertaram!")
-    print(f"[APOLO] Dano: -{resultado_colisoes['dano_total']}")
-    print(f"[UMBRA] Cura: +{resultado_colisoes['cura_umbra']}")
-    print(f"[BUFF] Próximo spawn: {gerenciador_ratos.ratos_extras} ratos extras")
 
 # Desenhar ratos na tela (APÓS desenhar o mapa, ANTES de desenhar o Apolo)
 gerenciador_ratos.desenhar(tela, tempo_atual)

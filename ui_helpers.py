@@ -3,8 +3,11 @@ import pygame
 import os
 import math
 import random
+import json
 
 _font_cache = {}
+_cursor_personalizado = None
+_vida_animacoes = {}
 _stage = {
     "active": False,
     "display": None,
@@ -31,7 +34,10 @@ def obter_superficie_palco():
     return _stage["game_surface"] if _stage["active"] else pygame.display.get_surface()
 
 def obter_pos_mouse_jogo():
-    mx, my = pygame.mouse.get_pos()
+    return converter_pos_mouse_jogo(pygame.mouse.get_pos())
+
+def converter_pos_mouse_jogo(pos):
+    mx, my = pos
     if not _stage["active"]:
         return mx, my
     rect = _stage["dst_rect"]
@@ -41,6 +47,33 @@ def obter_pos_mouse_jogo():
     gx = (mx - rect.x) * game_w / rect.width
     gy = (my - rect.y) * game_h / rect.height
     return int(max(0, min(game_w - 1, gx))), int(max(0, min(game_h - 1, gy)))
+
+def obter_pos_mouse_superficie(superficie=None):
+    if _stage["active"] and (superficie is None or superficie == _stage["game_surface"]):
+        return obter_pos_mouse_jogo()
+    return pygame.mouse.get_pos()
+
+def _carregar_cursor_personalizado():
+    global _cursor_personalizado
+    if _cursor_personalizado is not None:
+        return _cursor_personalizado
+    try:
+        _cursor_personalizado = pygame.image.load("Sprites/Ponteiro.png").convert_alpha()
+    except Exception:
+        _cursor_personalizado = pygame.Surface((22, 28), pygame.SRCALPHA)
+        pygame.draw.polygon(_cursor_personalizado, (255, 255, 255), [(0, 0), (0, 24), (8, 18), (13, 28), (18, 25), (13, 15), (22, 15)])
+        pygame.draw.polygon(_cursor_personalizado, (0, 0, 0), [(0, 0), (0, 24), (8, 18), (13, 28), (18, 25), (13, 15), (22, 15)], 2)
+    return _cursor_personalizado
+
+def desenhar_cursor_personalizado(superficie, pos=None):
+    if superficie is None:
+        return
+    cursor = _carregar_cursor_personalizado()
+    x, y = pos if pos is not None else obter_pos_mouse_superficie(superficie)
+    largura, altura = superficie.get_size()
+    x = max(0, min(int(x), max(0, largura - cursor.get_width())))
+    y = max(0, min(int(y), max(0, altura - cursor.get_height())))
+    superficie.blit(cursor, (x, y))
 
 def ativar_palco_fullscreen(largura_jogo, altura_jogo):
     if _stage["orig_flip"] is None:
@@ -110,6 +143,415 @@ def _desenhar_barra_sidebar(surface, x, y, w, h, atual, maximo, cor):
         pygame.draw.rect(surface, cor, (x, y, max(3, int(w * pct)), h), border_radius=4)
     pygame.draw.rect(surface, (0, 255, 204), (x, y, w, h), 1, border_radius=4)
 
+def _obter_nivel_detalhes(config_graficos=None):
+    cfg = config_graficos or {}
+    if not cfg:
+        try:
+            with open("saves/config_graficos.json", "r") as f:
+                cfg = json.load(f)
+        except Exception:
+            cfg = {}
+    nivel = str(cfg.get("nivel_detalhes", cfg.get("qualidade_grafica", "alta"))).lower()
+    if nivel in ("alto", "alta"):
+        return "alto"
+    if nivel in ("medio", "media", "médio", "média"):
+        return "medio"
+    return "baixo"
+
+def _carregar_config_graficos():
+    try:
+        with open("saves/config_graficos.json", "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _atualizar_animacao_vida(chave, atual, maximo):
+    agora = pygame.time.get_ticks()
+    maximo = max(1.0, float(maximo))
+    pct = max(0.0, min(1.0, float(atual) / maximo))
+    estado = _vida_animacoes.setdefault(chave, {"pct": pct, "eventos": []})
+    pct_anterior = estado.get("pct", pct)
+    delta = pct - pct_anterior
+    if abs(delta) > 0.002:
+        estado["eventos"].append({
+            "tipo": "cura" if delta > 0 else "dano",
+            "inicio": min(pct_anterior, pct),
+            "fim": max(pct_anterior, pct),
+            "tempo": agora,
+            "seed": random.random(),
+        })
+        estado["pct"] = pct
+    estado["eventos"] = [ev for ev in estado["eventos"] if agora - ev["tempo"] < 760]
+    return estado["eventos"]
+
+def _desenhar_efeitos_barra_vida(surface, rect, atual, maximo, cor_base, chave="principal", config_graficos=None):
+    nivel = _obter_nivel_detalhes(config_graficos)
+    if nivel == "baixo":
+        frag_qtd, cura_linhas = 5, 4
+    elif nivel == "medio":
+        frag_qtd, cura_linhas = 10, 7
+    else:
+        frag_qtd, cura_linhas = 18, 12
+
+    eventos = _atualizar_animacao_vida(chave, atual, maximo)
+    agora = pygame.time.get_ticks()
+    for ev in eventos:
+        t = (agora - ev["tempo"]) / 760.0
+        if not 0 <= t <= 1:
+            continue
+        x0 = rect.x + int(rect.w * ev["inicio"])
+        x1 = rect.x + int(rect.w * ev["fim"])
+        largura = max(2, x1 - x0)
+        if ev["tipo"] == "dano":
+            rng = random.Random(int(ev["seed"] * 100000))
+            alpha = max(0, int(210 * (1 - t)))
+            for _ in range(frag_qtd):
+                fw = max(2, int(largura / rng.randint(5, 11)))
+                fh = rng.randint(3, max(4, rect.h))
+                fx = x0 + rng.randint(0, max(1, largura))
+                fy = rect.y + rng.randint(-2, max(1, rect.h - fh + 2))
+                drift = int((rng.random() - 0.5) * 38 * t)
+                queda = int((8 + rng.random() * 22) * t)
+                cor = (255, rng.randint(60, 120), rng.randint(45, 85), alpha)
+                frag = pygame.Surface((fw, fh), pygame.SRCALPHA)
+                pygame.draw.rect(frag, cor, (0, 0, fw, fh), border_radius=2)
+                surface.blit(frag, (fx + drift, fy + queda))
+        else:
+            alpha = max(0, int(190 * (1 - abs(t - 0.45))))
+            brilho = pygame.Surface((largura, rect.h + 8), pygame.SRCALPHA)
+            pygame.draw.rect(brilho, (*cor_base[:3], min(210, alpha)), (0, 4, int(largura * min(1, t * 1.6)), rect.h), border_radius=4)
+            for i in range(cura_linhas):
+                lx = int((i / max(1, cura_linhas - 1)) * largura)
+                pygame.draw.line(brilho, (210, 255, 240, alpha), (lx, 0), (lx, rect.h + 8), 1)
+            surface.blit(brilho, (x0, rect.y - 4))
+
+def _desenhar_brilho_loja(surface, rect, config_graficos=None):
+    nivel = _obter_nivel_detalhes(config_graficos)
+    if nivel == "baixo":
+        camadas = 1
+    elif nivel == "medio":
+        camadas = 2
+    else:
+        camadas = 4
+    tempo = pygame.time.get_ticks() * 0.004
+    for i in range(camadas):
+        margem = 8 + i * 7 + int(math.sin(tempo + i) * 2)
+        alpha = max(35, 105 - i * 18)
+        glow = pygame.Surface((rect.w + margem * 2, rect.h + margem * 2), pygame.SRCALPHA)
+        pygame.draw.ellipse(glow, (255, 230, 120, alpha), glow.get_rect())
+        surface.blit(glow, (rect.x - margem, rect.y - margem), special_flags=pygame.BLEND_RGBA_ADD)
+
+def _escudo_eletrico_ativo(aurea, escudo_ativo):
+    if not escudo_ativo:
+        return False
+    return str(aurea).strip().lower() == "devota"
+
+def _desenhar_escudo_eletrico_personagem(surface, x, y, w, h, config_graficos=None):
+    if surface is None:
+        return
+    try:
+        x, y, w, h = int(x), int(y), int(w), int(h)
+    except (TypeError, ValueError):
+        return
+    if w <= 0 or h <= 0:
+        return
+
+    nivel = _obter_nivel_detalhes(config_graficos)
+    if nivel == "baixo":
+        raios, particulas = 2, 5
+    elif nivel == "medio":
+        raios, particulas = 4, 8
+    else:
+        raios, particulas = 6, 12
+
+    tempo = pygame.time.get_ticks() / 1000.0
+    margem = 16
+    aura_w = w + margem * 2
+    aura_h = h + margem * 2
+    aura = pygame.Surface((aura_w, aura_h), pygame.SRCALPHA)
+    corpo = pygame.Rect(margem + int(w * 0.18), margem + int(h * 0.08), max(6, int(w * 0.64)), max(10, int(h * 0.86)))
+
+    for i in range(raios):
+        lado = i % 4
+        fase = (tempo * (1.35 + i * 0.07) + i * 0.173) % 1.0
+        jitter = math.sin(tempo * 15.0 + i * 2.4) * 3.0
+        if lado == 0:
+            base_x = corpo.left + corpo.w * fase
+            base_y = corpo.top + jitter
+        elif lado == 1:
+            base_x = corpo.right + jitter
+            base_y = corpo.top + corpo.h * fase
+        elif lado == 2:
+            base_x = corpo.right - corpo.w * fase
+            base_y = corpo.bottom + jitter
+        else:
+            base_x = corpo.left + jitter
+            base_y = corpo.bottom - corpo.h * fase
+
+        pontos = []
+        segmentos = 3 if nivel == "baixo" else 4
+        ang = tempo * 8.0 + i * 1.9
+        for j in range(segmentos):
+            px = base_x + math.cos(ang + j * 1.7) * (j * 4 + 2)
+            py = base_y + math.sin(ang + j * 2.1) * (j * 4 + 2)
+            px = max(corpo.left - 5, min(corpo.right + 5, px))
+            py = max(corpo.top - 6, min(corpo.bottom + 6, py))
+            pontos.append((int(px), int(py)))
+        if len(pontos) >= 2:
+            pygame.draw.lines(aura, (0, 92, 255, 120), False, pontos, 2)
+            pygame.draw.lines(aura, (185, 255, 255, 210), False, pontos, 1)
+
+    for i in range(particulas):
+        fase = (tempo * (0.9 + (i % 4) * 0.12) + i * 0.091) % 1.0
+        lado = (i * 3) % 4
+        if lado == 0:
+            px = corpo.left + corpo.w * fase
+            py = corpo.top + math.sin(tempo * 9.0 + i) * 4
+        elif lado == 1:
+            px = corpo.right + math.sin(tempo * 8.0 + i) * 4
+            py = corpo.top + corpo.h * fase
+        elif lado == 2:
+            px = corpo.right - corpo.w * fase
+            py = corpo.bottom + math.sin(tempo * 7.0 + i) * 4
+        else:
+            px = corpo.left + math.sin(tempo * 8.5 + i) * 4
+            py = corpo.bottom - corpo.h * fase
+        alpha = int(70 + 95 * ((math.sin(tempo * 6.5 + i) + 1.0) * 0.5))
+        pygame.draw.circle(aura, (135, 248, 255, alpha), (int(px), int(py)), 1 if nivel == "baixo" else 2)
+
+    surface.blit(aura, (x - margem, y - margem), special_flags=pygame.BLEND_RGBA_ADD)
+
+def desenhar_efeitos_vanguarda(
+    surface,
+    pos_x_personagem,
+    pos_y_personagem,
+    largura_personagem,
+    altura_personagem,
+    inimigos,
+    inimigos_em_chamas,
+    duracao_incendio_ms=5000,
+    aurea=None,
+    config_graficos=None,
+):
+    if surface is None or str(aurea).strip().lower() != "vanguarda":
+        return
+
+    nivel = _obter_nivel_detalhes(config_graficos)
+    if nivel == "baixo":
+        max_labaredas, max_brasas, max_chamas = 6, 8, 4
+    elif nivel == "medio":
+        max_labaredas, max_brasas, max_chamas = 11, 14, 7
+    else:
+        max_labaredas, max_brasas, max_chamas = 17, 22, 10
+
+    agora = pygame.time.get_ticks()
+    try:
+        px = int(pos_x_personagem)
+        py = int(pos_y_personagem)
+        pw = int(largura_personagem)
+        ph = int(altura_personagem)
+    except (TypeError, ValueError):
+        return
+
+    centro_x = px + pw // 2
+    centro_y = py + ph // 2
+    alcance = max(76, int(max(pw, ph) * 1.45))
+    inimigos = inimigos or []
+    inimigos_em_chamas = inimigos_em_chamas or {}
+    inimigos_proximos = []
+
+    for inimigo in inimigos:
+        rect = inimigo.get("rect") if isinstance(inimigo, dict) else None
+        if rect is None or inimigo.get("invisivel", False):
+            continue
+        dist = math.hypot(rect.centerx - centro_x, rect.centery - centro_y)
+        if dist <= alcance + max(rect.width, rect.height) * 0.4:
+            inimigos_proximos.append(inimigo)
+
+    if inimigos_proximos:
+        margem = alcance + 28
+        zona = pygame.Surface((margem * 2, margem * 2), pygame.SRCALPHA)
+        zc = margem
+        tempo = agora / 1000.0
+        pulso = (math.sin(tempo * 7.2) + 1.0) * 0.5
+
+        for i in range(max_labaredas):
+            ang = (i / max_labaredas) * math.tau + tempo * (0.45 + (i % 3) * 0.08)
+            raio_a = alcance * (0.58 + 0.28 * math.sin(tempo * 3.0 + i))
+            raio_b = alcance * (0.92 + 0.10 * pulso)
+            base = (
+                zc + math.cos(ang) * raio_a,
+                zc + math.sin(ang) * raio_a * 0.68,
+            )
+            ponta = (
+                zc + math.cos(ang + 0.12 * math.sin(tempo + i)) * raio_b,
+                zc + math.sin(ang + 0.12 * math.cos(tempo + i)) * raio_b * 0.68,
+            )
+            lateral = 8 + 5 * math.sin(tempo * 5.0 + i)
+            p1 = (int(base[0] + math.cos(ang + math.pi / 2) * lateral), int(base[1] + math.sin(ang + math.pi / 2) * lateral))
+            p2 = (int(ponta[0]), int(ponta[1]))
+            p3 = (int(base[0] + math.cos(ang - math.pi / 2) * lateral), int(base[1] + math.sin(ang - math.pi / 2) * lateral))
+            alpha = int(28 + 58 * pulso)
+            pygame.draw.polygon(zona, (255, 72, 10, alpha), [p1, p2, p3])
+            pygame.draw.line(zona, (255, 205, 80, min(150, alpha + 38)), p1, p2, 1)
+
+        for alvo in inimigos_proximos[: max(2, max_labaredas // 3)]:
+            rect = alvo["rect"]
+            ax = zc + (rect.centerx - centro_x)
+            ay = zc + (rect.centery - centro_y)
+            pygame.draw.line(zona, (255, 92, 18, 72), (zc, zc), (int(ax), int(ay)), 2)
+            pygame.draw.line(zona, (255, 220, 100, 48), (zc, zc), (int(ax), int(ay)), 1)
+
+        surface.blit(zona, (centro_x - zc, centro_y - zc), special_flags=pygame.BLEND_RGBA_ADD)
+
+    for inimigo in inimigos:
+        rect = inimigo.get("rect") if isinstance(inimigo, dict) else None
+        if rect is None:
+            continue
+        inicio = inimigos_em_chamas.get(id(inimigo))
+        if inicio is None or agora - inicio > duracao_incendio_ms:
+            continue
+
+        restante = max(0.0, 1.0 - ((agora - inicio) / max(1, duracao_incendio_ms)))
+        fogo = pygame.Surface((rect.width + 28, rect.height + 34), pygame.SRCALPHA)
+        ox = 14
+        oy = 18
+        fogo.fill((255, 72, 0, int(18 + 22 * restante)), pygame.Rect(ox, oy, rect.width, rect.height), special_flags=pygame.BLEND_RGBA_ADD)
+
+        seed = id(inimigo) % 997
+        for i in range(max_chamas):
+            fase = (agora * 0.006 + seed * 0.01 + i * 0.37) % 1.0
+            fx = ox + int(rect.width * ((i + fase) / max(1, max_chamas)))
+            base_y = oy + rect.height - int(rect.height * 0.10)
+            altura = int(rect.height * (0.34 + 0.22 * math.sin(agora * 0.011 + i + seed)))
+            largura = max(3, int(rect.width * 0.10))
+            pts = [
+                (fx - largura, base_y),
+                (fx + int(math.sin(agora * 0.013 + i) * 5), base_y - altura),
+                (fx + largura, base_y),
+            ]
+            alpha = int((92 + 70 * math.sin(agora * 0.01 + i) ** 2) * restante)
+            pygame.draw.polygon(fogo, (255, 58, 0, alpha), pts)
+            pygame.draw.polygon(fogo, (255, 214, 92, min(220, alpha + 35)), [
+                (pts[0][0] + 2, pts[0][1]),
+                (pts[1][0], pts[1][1] + max(2, altura // 4)),
+                (pts[2][0] - 2, pts[2][1]),
+            ])
+
+        for i in range(max_brasas):
+            fase = (agora * (0.0018 + i * 0.00006) + seed * 0.003 + i * 0.19) % 1.0
+            bx = ox + int(rect.width * ((i * 0.37 + fase) % 1.0))
+            by = oy + rect.height - int((rect.height + 22) * fase)
+            alpha = int((120 - 70 * fase) * restante)
+            pygame.draw.circle(fogo, (255, 178, 40, alpha), (bx, by), 1 if nivel == "baixo" else 2)
+
+        surface.blit(fogo, (rect.x - ox, rect.y - oy), special_flags=pygame.BLEND_RGBA_ADD)
+
+def racional_dilatacao_ativa(aurea, fim_ms, agora_ms=None):
+    if str(aurea).strip().lower() != "racional":
+        return False
+    agora_ms = pygame.time.get_ticks() if agora_ms is None else agora_ms
+    return agora_ms < fim_ms
+
+def fator_movimento_racional(aurea, fim_ms, agora_ms=None):
+    return 1.35 if racional_dilatacao_ativa(aurea, fim_ms, agora_ms) else 1.0
+
+def intervalo_disparo_racional(intervalo_base, aurea, fim_ms, agora_ms=None):
+    if not racional_dilatacao_ativa(aurea, fim_ms, agora_ms):
+        return intervalo_base
+    return max(50, int(intervalo_base * 0.72))
+
+def fator_mundo_racional(aurea, fim_ms, agora_ms=None):
+    return 0.42 if racional_dilatacao_ativa(aurea, fim_ms, agora_ms) else 1.0
+
+def desenhar_efeito_racional_dilatacao(
+    surface,
+    pos_x_personagem,
+    pos_y_personagem,
+    largura_personagem,
+    altura_personagem,
+    fim_ms,
+    aurea=None,
+    config_graficos=None,
+):
+    if surface is None or not racional_dilatacao_ativa(aurea, fim_ms):
+        return
+    cfg = config_graficos or {}
+    if cfg and not (cfg.get("efeitos_visuais", True) and cfg.get("particulas_ativas", True)):
+        return
+
+    nivel = _obter_nivel_detalhes(config_graficos)
+    if nivel == "baixo":
+        raios_borda, rastros = 5, 4
+    elif nivel == "medio":
+        raios_borda, rastros = 9, 7
+    else:
+        raios_borda, rastros = 15, 11
+
+    agora = pygame.time.get_ticks()
+    restante = max(0.0, min(1.0, (fim_ms - agora) / 3000.0))
+    tempo = agora / 1000.0
+    largura, altura = surface.get_size()
+
+    overlay = pygame.Surface((largura, altura), pygame.SRCALPHA)
+    overlay.fill((0, 50, 115, int(18 + 20 * restante)))
+
+    for i in range(raios_borda):
+        lado = i % 4
+        fase = (tempo * (0.42 + i * 0.017) + i * 0.137) % 1.0
+        comprimento = 28 + int(42 * (0.5 + 0.5 * math.sin(tempo * 6.0 + i)))
+        zigue = 5 + (i % 3) * 2
+        pontos = []
+        if lado == 0:
+            x0, y0 = int(largura * fase), 0
+            direcao = (0, 1)
+        elif lado == 1:
+            x0, y0 = largura - 1, int(altura * fase)
+            direcao = (-1, 0)
+        elif lado == 2:
+            x0, y0 = int(largura * (1.0 - fase)), altura - 1
+            direcao = (0, -1)
+        else:
+            x0, y0 = 0, int(altura * (1.0 - fase))
+            direcao = (1, 0)
+        for j in range(4):
+            desloc = j * comprimento / 3
+            ruido = math.sin(tempo * 14.0 + i * 2.7 + j) * zigue
+            if direcao[0] == 0:
+                px = x0 + ruido
+                py = y0 + direcao[1] * desloc
+            else:
+                px = x0 + direcao[0] * desloc
+                py = y0 + ruido
+            pontos.append((int(max(0, min(largura - 1, px))), int(max(0, min(altura - 1, py)))))
+        pygame.draw.lines(overlay, (0, 95, 255, int(95 * restante)), False, pontos, 2)
+        pygame.draw.lines(overlay, (170, 245, 255, int(165 * restante)), False, pontos, 1)
+
+    try:
+        px = int(pos_x_personagem)
+        py = int(pos_y_personagem)
+        pw = int(largura_personagem)
+        ph = int(altura_personagem)
+    except (TypeError, ValueError):
+        pw = ph = 0
+
+    if pw > 0 and ph > 0:
+        cx = px + pw // 2
+        cy = py + ph // 2
+        for i in range(rastros):
+            ang = tempo * (8.0 + i * 0.23) + i * math.tau / max(1, rastros)
+            raio_x = max(18, int(pw * (0.45 + (i % 3) * 0.06)))
+            raio_y = max(24, int(ph * (0.48 + (i % 2) * 0.08)))
+            x1 = cx + math.cos(ang) * raio_x
+            y1 = cy + math.sin(ang) * raio_y
+            x2 = x1 - math.cos(ang + 0.6) * (14 + i % 4 * 3)
+            y2 = y1 - math.sin(ang + 0.6) * (14 + i % 4 * 3)
+            alpha = int((100 + 70 * math.sin(tempo * 10.0 + i) ** 2) * restante)
+            pygame.draw.line(overlay, (0, 130, 255, alpha), (int(x1), int(y1)), (int(x2), int(y2)), 2)
+            pygame.draw.line(overlay, (190, 255, 255, min(220, alpha + 45)), (int(x1), int(y1)), (int((x1 + x2) / 2), int((y1 + y2) / 2)), 1)
+
+    surface.blit(overlay, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
 def _desenhar_hud_molduras(display):
     import Variaveis
     hud = _stage["hud"]
@@ -133,6 +575,7 @@ def _desenhar_hud_molduras(display):
         _texto_contorno(display, font_valor, f"{int(max(0, hud['vida']))}/{int(max(1, hud['vida_maxima']))}", (255, 255, 255), (pad, 60))
         cor_vida = (0, 150, 255) if hud["aurea"] == "Devota" and hud["escudo_devota_ativo"] else Variaveis.calcular_cor_barra_de_vida((max(0, hud["vida"]) / max(1, hud["vida_maxima"])) * 100)
         _desenhar_barra_sidebar(display, pad, 92, w, 16, hud["vida"], hud["vida_maxima"], cor_vida)
+        _desenhar_efeitos_barra_vida(display, pygame.Rect(pad, 92, w, 16), hud["vida"], hud["vida_maxima"], cor_vida, "sidebar", hud.get("config_graficos"))
 
         _texto_contorno(display, font_peq, "GEO", (0, 255, 204), (pad, 145))
         cx, cy, raio = left.centerx, 210, min(44, max(24, left.width // 5))
@@ -164,7 +607,7 @@ def _desenhar_hud_molduras(display):
             modo_drops = Variaveis.obter_modo_cartas() == "drops"
         except Exception:
             pass
-        _texto_contorno(display, font_peq, "FRAGMENTOS" if modo_drops else "PONTOS", (255, 220, 90), (x0, 36))
+        _texto_contorno(display, font_peq, "MOEDAS" if modo_drops else "PONTOS", (255, 220, 90), (x0, 36))
         valor_pts = f"{int(hud['pontuacao_exib'])}" if modo_drops else f"{int(hud['pontuacao_exib'])}/{int(max(1, hud['custo_carta_atual']))}"
         _texto_contorno(display, font_valor, valor_pts, (255, 255, 255), (x0, 60))
         if not modo_drops:
@@ -219,6 +662,117 @@ def _flip_palco():
     display.blit(scaled, _stage["dst_rect"].topleft)
     _desenhar_hud_molduras(display)
     return _stage["orig_flip"]()
+
+def _misturar_cores(cor_a, cor_b, peso):
+    peso = max(0.0, min(1.0, peso))
+    return tuple(int(cor_a[i] + (cor_b[i] - cor_a[i]) * peso) for i in range(3))
+
+def tela_transicao_dimensional(tela, fase_destino, duracao_ms=1900):
+    if tela is None:
+        return
+
+    paletas = {
+        1: ((145, 54, 255), (222, 122, 255), "FASE 1"),
+        2: ((28, 146, 255), (64, 238, 255), "FASE 2"),
+        3: ((255, 205, 35), (255, 245, 132), "FASE 3"),
+        4: ((138, 56, 255), (255, 207, 69), "FASE 4"),
+        5: ((38, 226, 124), (34, 169, 255), "FASE 5"),
+    }
+    cor_primaria, cor_secundaria, rotulo_fase = paletas.get(fase_destino, paletas[1])
+
+    alvo = _stage["display"] if _stage["active"] and _stage["display"] else tela
+    flip = _stage["orig_flip"] if _stage["active"] and _stage["orig_flip"] else pygame.display.flip
+    largura, altura = alvo.get_size()
+    centro_x, centro_y = largura // 2, altura // 2
+    raio_maximo = int(math.hypot(largura, altura) * 0.58)
+    fonte_titulo = get_cached_font(None, max(32, min(64, largura // 18)))
+    fonte_fase = get_cached_font(None, max(28, min(50, largura // 24)))
+    fonte_pequena = get_cached_font(None, max(18, min(28, largura // 45)))
+
+    particulas = []
+    for i in range(150):
+        particulas.append({
+            "angulo": random.uniform(0, math.tau),
+            "raio": random.uniform(35, raio_maximo),
+            "vel": random.uniform(1.8, 4.2),
+            "tamanho": random.randint(1, 4),
+            "fase": random.random(),
+        })
+
+    clock = pygame.time.Clock()
+    inicio = pygame.time.get_ticks()
+    while True:
+        agora = pygame.time.get_ticks()
+        progresso = (agora - inicio) / max(1, duracao_ms)
+        if progresso >= 1.0:
+            break
+
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                pygame.quit()
+                raise SystemExit()
+
+        alvo.fill((2, 2, 10))
+        brilho = math.sin(progresso * math.pi)
+        giro = progresso * math.tau * 2.8
+
+        camada = pygame.Surface((largura, altura), pygame.SRCALPHA)
+        for faixa in range(22):
+            raio = int((faixa / 21) * raio_maximo)
+            alpha = max(0, int((1.0 - faixa / 22) * 90 * brilho))
+            cor = _misturar_cores(cor_primaria, cor_secundaria, (faixa % 5) / 4)
+            rect = pygame.Rect(0, 0, raio * 2, int(raio * 1.15))
+            rect.center = (centro_x, centro_y)
+            inicio_arco = giro + faixa * 0.32
+            fim_arco = inicio_arco + math.pi * 1.15
+            pygame.draw.arc(camada, (*cor, alpha), rect, inicio_arco, fim_arco, max(2, faixa // 3))
+
+        for particula in particulas:
+            particula["raio"] -= particula["vel"] * (1.0 + progresso * 2.2)
+            if particula["raio"] < 18:
+                particula["raio"] = raio_maximo * random.uniform(0.72, 1.0)
+                particula["angulo"] = random.uniform(0, math.tau)
+            angulo = particula["angulo"] + giro + particula["raio"] * 0.006
+            x = centro_x + math.cos(angulo) * particula["raio"]
+            y = centro_y + math.sin(angulo) * particula["raio"] * 0.56
+            peso = (math.sin(particula["fase"] * math.tau + progresso * math.tau * 3) + 1) / 2
+            cor = _misturar_cores(cor_primaria, cor_secundaria, peso)
+            alpha = int(80 + 150 * brilho)
+            pygame.draw.circle(camada, (*cor, alpha), (int(x), int(y)), particula["tamanho"])
+
+        raio_portal = int((90 + raio_maximo * 0.18 * brilho) * (0.85 + progresso * 0.35))
+        for i in range(7):
+            raio = raio_portal + i * 18
+            cor = _misturar_cores(cor_primaria, cor_secundaria, i / 6)
+            alpha = max(25, int((180 - i * 18) * brilho))
+            pygame.draw.circle(camada, (*cor, alpha), (centro_x, centro_y), raio, max(3, 10 - i))
+
+        nucleo = pygame.Surface((raio_portal * 2, raio_portal * 2), pygame.SRCALPHA)
+        pygame.draw.circle(nucleo, (0, 0, 8, 235), (raio_portal, raio_portal), raio_portal)
+        pygame.draw.circle(nucleo, (*cor_secundaria, int(90 * brilho)), (raio_portal, raio_portal), max(4, raio_portal // 3))
+        alvo.blit(camada, (0, 0))
+        alvo.blit(nucleo, (centro_x - raio_portal, centro_y - raio_portal))
+
+        texto = "ATRAVESSANDO O VORTEX TEMPORAL"
+        subtitulo = f"DESTINO: {rotulo_fase}"
+        fase_alpha = int(150 + 105 * brilho)
+        titulo_surface = fonte_titulo.render(texto, True, (245, 248, 255))
+        destino_surface = fonte_fase.render(subtitulo, True, _misturar_cores(cor_primaria, cor_secundaria, 0.5))
+        dica_surface = fonte_pequena.render("sincronizando dimensao", True, (180, 198, 220))
+        alvo.blit(titulo_surface, (centro_x - titulo_surface.get_width() // 2, int(altura * 0.16)))
+        destino_surface.set_alpha(fase_alpha)
+        alvo.blit(destino_surface, (centro_x - destino_surface.get_width() // 2, int(altura * 0.16) + titulo_surface.get_height() + 12))
+        dica_surface.set_alpha(int(110 + 100 * brilho))
+        alvo.blit(dica_surface, (centro_x - dica_surface.get_width() // 2, int(altura * 0.80)))
+
+        flash = pygame.Surface((largura, altura), pygame.SRCALPHA)
+        if progresso > 0.78:
+            alpha_flash = int(((progresso - 0.78) / 0.22) * 120)
+            flash.fill((*_misturar_cores(cor_primaria, cor_secundaria, 0.5), alpha_flash))
+            alvo.blit(flash, (0, 0))
+
+        flip()
+        clock.tick(60)
 
 def carregar_fontes():
     fontes = {}
@@ -351,7 +905,7 @@ def desenhar_painel_fragmentos(tela, rect, fragmentos, fonte, cor_tema):
         (rect.left + 15, rect.top + 25)
     ])
     
-    txt_moedas = fonte.render(f"Fragmentos: {fragmentos}", True, (255, 255, 255))
+    txt_moedas = fonte.render(f"Moedas: {fragmentos}", True, (255, 255, 255))
     tela.blit(txt_moedas, (rect.left + 48, rect.top + (rect.height - txt_moedas.get_height()) // 2))
 
 class Particle:
@@ -491,6 +1045,20 @@ def desenhar_hud_fase(
     altura_personagem=None,
 ):
     import Variaveis
+    config_graficos_hud = _carregar_config_graficos()
+
+    if (
+        None not in (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+        and _escudo_eletrico_ativo(aurea, escudo_devota_ativo)
+    ):
+        _desenhar_escudo_eletrico_personagem(
+            tela,
+            pos_x_personagem,
+            pos_y_personagem,
+            largura_personagem,
+            altura_personagem,
+            config_graficos_hud,
+        )
 
     if palco_ativo():
         _stage["hud"] = {
@@ -505,6 +1073,7 @@ def desenhar_hud_fase(
             "bonus_pontuacao": bonus_pontuacao,
             "aurea": aurea,
             "escudo_devota_ativo": escudo_devota_ativo,
+            "config_graficos": config_graficos_hud,
         }
         return
 
@@ -542,6 +1111,13 @@ def desenhar_hud_fase(
     else:
         cor_barra = Variaveis.calcular_cor_barra_de_vida(porcentagem_vida_personagem)
 
+    rect_barra_vida = pygame.Rect(
+        posicao_barra_vida[0],
+        posicao_barra_vida[1],
+        Variaveis.largura_barra_vida,
+        Variaveis.altura_barra_vida,
+    )
+
     pygame.draw.rect(
         tela,
         cor_barra,
@@ -552,10 +1128,11 @@ def desenhar_hud_fase(
             Variaveis.altura_barra_vida,
         )
     )
+    _desenhar_efeitos_barra_vida(tela, rect_barra_vida, vida_segura, vida_maxima_segura, cor_barra, "principal", config_graficos_hud)
     pygame.draw.rect(
         tela,
         (0, 0, 0),
-        (posicao_barra_vida[0], posicao_barra_vida[1], Variaveis.largura_barra_vida, Variaveis.altura_barra_vida),
+        rect_barra_vida,
         2
     )
 
@@ -654,18 +1231,19 @@ def desenhar_hud_widescreen(tela_real, vida, vida_maxima, pontuacao_exib, custo_
     # Barra de vida
     largura_barra = w_painel - 40
     altura_barra = 24
+    config_graficos_hud = _carregar_config_graficos()
     pygame.draw.rect(surf_esq, (30, 20, 35), (20, 145, largura_barra, altura_barra), border_radius=5)
     
     # Preenchimento proporcional
     vida_porc = max(0.0, min(1.0, vida / vida_maxima))
+    cor_vida = (0, 255, 128) if vida_porc > 0.4 else (255, 50, 50)
+    if aurea == "Devota" and escudo_devota_ativo:
+        cor_vida = (0, 240, 255)
     if vida_porc > 0:
-        cor_vida = (0, 255, 128) if vida_porc > 0.4 else (255, 50, 50)
-        # Se estiver sob efeito de escudo devota, cor muda pra ciano
-        if aurea == "Devota" and escudo_devota_ativo:
-            cor_vida = (0, 240, 255)
         pygame.draw.rect(surf_esq, cor_vida, (20, 145, int(largura_barra * vida_porc), altura_barra), border_radius=5)
         # Detalhe de brilho
         pygame.draw.rect(surf_esq, (255, 255, 255, 80), (20, 145, int(largura_barra * vida_porc), 6), border_radius=2)
+    _desenhar_efeitos_barra_vida(surf_esq, pygame.Rect(20, 145, largura_barra, altura_barra), vida, vida_maxima, cor_vida, "widescreen", config_graficos_hud)
         
     # Borda externa da barra de vida
     pygame.draw.rect(surf_esq, (0, 255, 204, 150), (20, 145, largura_barra, altura_barra), width=2, border_radius=5)
@@ -726,7 +1304,7 @@ def desenhar_hud_widescreen(tela_real, vida, vida_maxima, pontuacao_exib, custo_
     texto_status = font_titulo.render("GEO-METRIA", True, (0, 255, 204))
     surf_dir.blit(texto_status, (20, 30))
     
-    # Fragmentos/Moedas Coletados
+    # Moedas coletadas
     txt_score_label = font_subtitulo.render("ENERGIA COLETADA", True, (255, 255, 255))
     surf_dir.blit(txt_score_label, (20, 120))
     

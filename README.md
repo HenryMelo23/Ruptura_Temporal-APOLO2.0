@@ -194,7 +194,7 @@ if laser_active and player_survived:
 - **Loss Function:** MSE (Mean Squared Error)
 - **Discount Factor (γ):** 0.95
 - **Exploration Rate (ε):** 0.20 (20% random actions)
-- **Memory Persistence:** `apolo_memoria_dqn.pt`
+- **Memory Persistence:** `saves/apolo_memoria_dqn.pt`
 
 ---
 
@@ -284,7 +284,7 @@ This allows Umbra to develop "intuition" about player behavior patterns, leading
 - **Loss Function:** MSE
 - **Discount Factor (γ):** 0.95
 - **Exploration Rate (ε):** 0.20
-- **Memory Persistence:** `memoria_umbra_dqn.pt` (neural weights) + `tendencias_umbra.json` (Bayesian stats)
+- **Memory Persistence:** `saves/memoria_umbra_dqn.pt` (neural weights) + `saves/tendencias_umbra.json` (Bayesian stats)
 
 ---
 
@@ -557,69 +557,35 @@ The architecture follows a **client-server model**, where the Host maintains gam
 ## 📁 Project Structure
 
 ```
-Ruptura_Temporal/
-├── 🚀 Core Game Files
-│   ├── Ruptura_Temporal.py       # Entry point — Main menu
-│   ├── GAME.py                   # Phase 1 — Ruined Beach (offline)
-│   ├── GAME2.py                  # Phase 2 — Frozen Kingdom
-│   ├── GAME3.py                  # Phase 3 — Cultist Rat Dimension
-│   ├── GAME4.py                  # Phase 4 — Scientist Frog World
-│   ├── GAME5.py                  # Phase 5 — Final Boss Arena (DQN showcase)
-│   ├── GAMERE.py                 # LAN Mode — Cooperative network play
-│   └── Game_Over.py              # Game Over screen
-│
-├── 🧠 AI/ML Components
-│   ├── habilidade_boss.py        # Umbra boss AI (DQN implementation)
-│   │                             # - UmbraDQN neural network class
-│   │                             # - MemoriaEvolutivaUmbra (memory manager)
-│   │                             # - Bayesian bias tracking
-│   │                             # - Decision graph integration
-│   ├── apolo_memoria_dqn.pt      # Apolo agent trained weights (PyTorch)
-│   ├── memoria_umbra_dqn.pt      # Umbra agent trained weights (PyTorch)
-│   ├── tendencias_umbra.json     # Bayesian movement statistics
-│   ├── memoria_cartas_apolo.json # Card selection learning weights
-│   └── historico_batalhas.json   # Battle history and metrics
-│
-├── ⚙️ Configuration & Utilities
-│   ├── Variaveis.py              # Global variables, screen config, boss stats
-│   ├── utils.py                  # Utilities (hash, save/load Áureas)
-│   ├── Config_Teclas.py          # Customizable control configuration
-│   ├── config_teclas.json        # Saved key bindings
-│   ├── config_graficos.json      # Graphics settings (shadows, quality)
-│   ├── config_audio.json         # Audio volume settings
-│   └── audio_manager.py          # Unified audio system
-│
-├── 🎮 Game Systems
-│   ├── Deck.py                   # Card system (upgrade sprites)
-│   ├── Tela_Cartas.py            # Card shop (offline mode)
-│   ├── Tela_Cartas_Coop.py       # Card shop (cooperative mode)
-│   ├── Tutorial.py               # Interactive tutorial phase
-│   ├── Digitacao.py              # Typing effect for narrative
-│   └── vfx_engine_apolo.py       # Visual effects engine
-│
-├── 🌐 Networking
-│   ├── rede.py                   # Network module (TCP/UDP sockets, threads)
-│   ├── modo_jogo.json            # Selected game mode (host/join/offline)
-│   └── tipo_conexao.json         # Network connection type
-│
-├── 💾 Save Data
-│   ├── atributos.json            # Character attributes save file
-│   ├── aurea_selecionada.json    # Selected Áurea
-│   ├── aureas_upgrade.json       # Áurea upgrade levels
-│   └── tutorial_config.json      # Tutorial configuration
-│
-├── 🎨 Assets
-│   ├── Sounds/                   # Sound effects and music
-│   ├── Sprites/                  # Sprites, backgrounds, visual assets
-│   │   ├── Git/                  # README screenshots
-│   │   └── Deck/                 # Card upgrade sprites
-│   └── Texto/                    # Custom fonts (.otf, .ttf)
-│
-└── 📄 Documentation
-    ├── README.md                 # This file
-    ├── LICENSE.txt               # CC BY-NC-SA 4.0 License
-    └── LOGICA_IA_UMBRA_E_APOLO_DQN_FUNDACIONAL.md  # AI architecture docs
+Ruptura_Temporal-APOLO2.0/
+├── Ruptura_Temporal.py       # main entry point / menu
+├── GAME*.py                  # playable phases and modes
+├── game_manager.py           # state transitions between screens
+├── Variaveis.py              # global gameplay state and shared constants
+├── habilidade_boss.py        # Umbra DQN and boss behavior
+├── apolo_brain.py            # Apolo neural agent
+├── *_helpers.py, utils.py    # shared runtime helpers
+├── Sprites/                  # images, backgrounds, cards and UI sprites
+├── Sounds/                   # music and sound effects
+├── Texto/                    # fonts
+├── Video/                    # video assets
+├── saves/                    # local saves, config and neural memories
+├── docs/                     # technical docs and lore notes
+│   ├── STRUCTURE.md
+│   └── lore/
+├── scripts/                  # build and packaging automation
+│   ├── build_dist.py
+│   └── build_player.py
+├── tools/                    # AI, telemetry and maintenance tools
+│   ├── ai/
+│   └── patches/
+├── tests/                    # tests and small verification scripts
+└── dist/                     # generated builds (ignored by git)
 ```
+
+> The runtime files remain in the project root for now because the game still uses
+> flat imports and root-relative asset paths such as `Sprites/...` and `Sounds/...`.
+> See [`docs/STRUCTURE.md`](docs/STRUCTURE.md) for the migration plan.
 
 ### Key Files for AI Development
 
@@ -627,9 +593,10 @@ Ruptura_Temporal/
 |:---|:---|
 | `habilidade_boss.py` | Complete DQN implementation for Umbra boss |
 | `GAME5.py` | Apolo DQN agent implementation and training loop |
-| `*.pt` files | PyTorch tensor weights (persistent neural network memory) |
-| `tendencias_umbra.json` | Bayesian statistical model of player behavior |
-| `historico_batalhas.json` | Training metrics and battle outcomes |
+| `saves/*.pt` | PyTorch tensor weights (persistent neural network memory) |
+| `saves/tendencias_umbra.json` | Bayesian statistical model of player behavior |
+| `saves/historico_batalhas.json` | Training metrics and battle outcomes |
+| `tools/ai/` | Training, telemetry and neural-memory maintenance scripts |
 
 ---
 
@@ -691,6 +658,14 @@ The game includes a Flask-based telemetry server that exposes AI decision-making
 # Access the dashboard at: http://localhost:5000/dados
 ```
 
+Auxiliary AI tools now live in `tools/ai`:
+
+```bash
+python tools/ai/grafico_evolucao.py
+python tools/ai/painel_neural.py
+python tools/ai/treino_laser_apolo.py
+```
+
 **Telemetry Data:**
 ```json
 {
@@ -733,15 +708,15 @@ self.optimizer = optim.Adam(self.q_network.parameters(), lr=0.001)
 
 ```bash
 # Delete weight files to start fresh
-rm apolo_memoria_dqn.pt
-rm memoria_umbra_dqn.pt
-rm tendencias_umbra.json
-rm historico_batalhas.json
+rm saves/apolo_memoria_dqn.pt
+rm saves/memoria_umbra_dqn.pt
+rm saves/tendencias_umbra.json
+rm saves/historico_batalhas.json
 ```
 
 ### Training Metrics
 
-After each battle, metrics are saved to `historico_batalhas.json`:
+After each battle, metrics are saved to `saves/historico_batalhas.json`:
 
 ```json
 {

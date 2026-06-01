@@ -8,6 +8,10 @@ import pygame
 import sys
 import importlib
 from enum import Enum
+from qa_logger import instalar_captura_global, instalar_filtro_prints
+
+instalar_captura_global()
+instalar_filtro_prints()
 
 class EstadoJogo(Enum):
     """Estados possíveis do jogo"""
@@ -68,30 +72,19 @@ class GameManager:
             modo = self.dados_compartilhados.get('modo_jogo', 'offline')
             
             if modo == 'offline':
-                print("[GameManager] Modo offline selecionado. Recarregando GAME module...", flush=True)
                 if 'GAME' in sys.modules:
-                    print("[GameManager] Encontrado GAME em sys.modules. Executando importlib.reload...", flush=True)
                     importlib.reload(sys.modules['GAME'])
-                print("[GameManager] Importando GAME...", flush=True)
                 import GAME
-                print("[GameManager] Iniciando GAME.executar_jogo(self)...", flush=True)
                 resultado = GAME.executar_jogo(self)
-                print("[GameManager] GAME.executar_jogo finalizado. Resultado:", resultado, flush=True)
             else:
-                print("[GameManager] Modo online selecionado. Recarregando GAMERE module...", flush=True)
                 if 'GAMERE' in sys.modules:
-                    print("[GameManager] Encontrado GAMERE em sys.modules. Executando importlib.reload...", flush=True)
                     importlib.reload(sys.modules['GAMERE'])
-                print("[GameManager] Importando GAMERE...", flush=True)
                 import GAMERE
-                print("[GameManager] Iniciando GAMERE.executar_jogo(self)...", flush=True)
                 resultado = GAMERE.executar_jogo(self)
-                print("[GameManager] GAMERE.executar_jogo finalizado. Resultado:", resultado, flush=True)
                 
         elif self.estado_atual == EstadoJogo.JOGO_FASE_2:
             import Variaveis
             Variaveis.reset_phase_state()
-            print("[GameManager] Iniciando JOGO_FASE_2. Recarregando GAME2...", flush=True)
             if 'GAME2' in sys.modules:
                 importlib.reload(sys.modules['GAME2'])
             import GAME2

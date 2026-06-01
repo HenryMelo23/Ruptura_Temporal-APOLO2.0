@@ -14,16 +14,18 @@ import ui_helpers
 def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
     # Setup
     clock = pygame.time.Clock()
+    pygame.event.set_grab(False)
+    pygame.mouse.set_visible(False)
     fontes = ui_helpers.carregar_fontes()
     
-    fonte_titulo_large = ui_helpers.get_cached_font(fontes["titulo_path"], 52)
-    fonte_titulo_sub = ui_helpers.get_cached_font(fontes["texto_path"], 26)
-    fonte_card_name = ui_helpers.get_cached_font(fontes["texto_path"], 32)
+    fonte_titulo_large = ui_helpers.get_cached_font(fontes["titulo_path"], 56)
+    fonte_titulo_sub = ui_helpers.get_cached_font(fontes["texto_path"], 28)
+    fonte_card_name = ui_helpers.get_cached_font(fontes["texto_path"], 30)
     fonte_card_level = ui_helpers.get_cached_font(fontes["texto_path"], 24)
-    fonte_panel_title = ui_helpers.get_cached_font(fontes["texto_path"], 38)
-    fonte_panel_label = ui_helpers.get_cached_font(fontes["texto_path"], 30)
-    fonte_panel_text = ui_helpers.get_cached_font(fontes["texto_path"], 28)
-    fonte_panel_lore = ui_helpers.get_cached_font(fontes["texto_path"], 22)
+    fonte_panel_title = ui_helpers.get_cached_font(fontes["texto_path"], 36)
+    fonte_panel_label = ui_helpers.get_cached_font(fontes["texto_path"], 26)
+    fonte_panel_text = ui_helpers.get_cached_font(fontes["texto_path"], 22)
+    fonte_panel_lore = ui_helpers.get_cached_font(fontes["texto_path"], 18)
     
     # Pre-carregar upgrades
     upgrades_caminho = "saves/aureas_upgrade.json"
@@ -37,6 +39,7 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
     
     # Estado da tela
     selecionado = 0
+    modo_interacao = "teclado"
     cor_fundo_atual = [15, 15, 20]
     
     # Partículas
@@ -89,7 +92,7 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
         
         # Bottom Info Panel Rect (Glassmorphic)
         panel_w = max(600, largura_tela - 160)
-        panel_h = 275
+        panel_h = 300
         panel_x = (largura_tela - panel_w) // 2
         panel_y = altura_tela - panel_h - 25
         panel_rect = pygame.Rect(panel_x, panel_y, panel_w, panel_h)
@@ -99,86 +102,140 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
         right_col_rect = pygame.Rect(panel_rect.left + panel_rect.width // 2 + 35, panel_rect.top + 20, panel_rect.width // 2 - 70, panel_rect.height - 40)
         
         # Sub-rects da coluna esquerda para segurança absoluta de textos
-        left_name_rect = pygame.Rect(left_col_rect.left, left_col_rect.top, left_col_rect.width, 35)
-        left_cat_rect = pygame.Rect(left_col_rect.left, left_col_rect.top + 35, left_col_rect.width, 30)
-        left_desc_rect = pygame.Rect(left_col_rect.left, left_col_rect.top + 65, left_col_rect.width, 100)
-        left_lore_rect = pygame.Rect(left_col_rect.left, left_col_rect.top + 170, left_col_rect.width, left_col_rect.height - 170)
+        left_name_rect = pygame.Rect(left_col_rect.left, left_col_rect.top, left_col_rect.width, 38)
+        left_cat_rect = pygame.Rect(left_col_rect.left, left_col_rect.top + 38, left_col_rect.width, 30)
+        left_desc_rect = pygame.Rect(left_col_rect.left, left_col_rect.top + 78, left_col_rect.width, 135)
+        left_lore_rect = pygame.Rect(left_col_rect.left, left_col_rect.top + 222, left_col_rect.width, left_col_rect.height - 222)
         
         # Sub-rects da coluna direita
-        right_eff_lbl_rect = pygame.Rect(right_col_rect.left, right_col_rect.top, right_col_rect.width, 30)
-        right_eff_val_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 30, right_col_rect.width, 35)
-        right_next_lbl_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 65, right_col_rect.width, 30)
-        right_next_val_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 95, right_col_rect.width, 35)
-        right_progress_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 135, right_col_rect.width, 12)
-        right_cost_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 155, right_col_rect.width, 35)
-        right_action_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 195, right_col_rect.width, 35)
+        right_eff_lbl_rect = pygame.Rect(right_col_rect.left, right_col_rect.top, right_col_rect.width, 28)
+        right_eff_val_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 30, right_col_rect.width, 58)
+        right_next_lbl_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 94, right_col_rect.width, 28)
+        right_next_val_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 124, right_col_rect.width, 58)
+        right_progress_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 190, right_col_rect.width, 12)
+        right_cost_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 212, right_col_rect.width, 32)
+        right_action_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 252, right_col_rect.width, 34)
         
         # Rodapé
         footer_rect = pygame.Rect(0, altura_tela - 22, largura_tela, 20)
+        btn_voltar_rect = pygame.Rect(header_margin, altura_tela - 62, 130, 34)
+        btn_evoluir_rect = right_action_rect.inflate(18, 8)
+        mx, my = ui_helpers.obter_pos_mouse_superficie(tela)
+
+        rects_aureas = []
+        for idx_aura in range(len(AUREAS_DADOS)):
+            x_target = centro_x + idx_aura * 280 - x_offset_lerp
+            distance_from_center = abs(x_target - centro_x)
+            max_visible_dist = largura_tela // 2
+            if distance_from_center > max_visible_dist:
+                continue
+            card_scale_evt = 1.3 + t_confirm_scale if idx_aura == selecionado else 0.85
+            w_card_evt = int(140 * card_scale_evt)
+            h_card_evt = int(185 * card_scale_evt)
+            x_pos_evt = int(x_target - w_card_evt // 2)
+            y_pos_evt = int(centro_y - h_card_evt // 2)
+            rects_aureas.append((idx_aura, pygame.Rect(x_pos_evt, y_pos_evt, w_card_evt, h_card_evt)))
 
         # 1. Tratar eventos
+        trigger_upgrade = False
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
-                if event.key in [pygame.K_ESCAPE]:
-                    running_menu = False
+                modo_interacao = "teclado"
+                if event.key == pygame.K_ESCAPE:
+                    pygame.event.clear()
+                    return moedas_disponiveis
                 elif event.key in [pygame.K_LEFT, pygame.K_a]:
                     selecionado = (selecionado - 1) % len(AUREAS_DADOS)
                 elif event.key in [pygame.K_RIGHT, pygame.K_d]:
                     selecionado = (selecionado + 1) % len(AUREAS_DADOS)
                 elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
-                    # Executar upgrade
-                    aura_atual = AUREAS_DADOS[selecionado]
-                    nivel_atual = upgrades.get(aura_atual["id"], 0)
-                    custo = custos_niveis.get(nivel_atual, 9999)
-                    
-                    if nivel_atual >= max_nivel:
-                        # Já está no máximo
-                        shake_amount = 6
-                        custo_erro_timer = 20
-                    elif moedas_disponiveis >= custo:
-                        # Sucesso
-                        moedas_disponiveis -= custo
-                        upgrades[aura_atual["id"]] += 1
-                        
-                        # Salvar
-                        salvar_upgrade_aureas(upgrades_caminho, upgrades)
-                        try:
-                            if os.path.exists("saves/atributos.json"):
-                                with open("saves/atributos.json", "r") as f:
-                                    atributos = json.load(f)
-                            else:
-                                atributos = {}
-                            atributos["moedas_totais"] = moedas_disponiveis
-                            with open("saves/atributos.json", "w") as f:
-                                json.dump(atributos, f, indent=4)
-                        except Exception:
-                            pass
-                            
-                        # Audio
-                        if som_confirm:
-                            som_confirm.play()
-                            
-                        # Feedbacks visuais
-                        t_confirm_scale = 1.35
-                        shake_amount = 0
-                        # Criar explosão de partículas
-                        for _ in range(60):
-                            explosoes.append(ui_helpers.Particle(centro_x, centro_y, aura_atual["cor"], style=aura_atual["estilo"]))
-                        # Adicionar texto flutuante
-                        textos_flutuantes.append(
-                            ui_helpers.FloatingText(centro_x, centro_y - 120, "NIVEL EXPANDIDO", aura_atual["cor"], fonte_panel_title)
-                        )
+                    trigger_upgrade = True
+            elif event.type == pygame.JOYBUTTONDOWN:
+                modo_interacao = "teclado"
+                if event.button in [1, 6]:  # B (1) or Back/Select (6)
+                    pygame.event.clear()
+                    return moedas_disponiveis
+                elif event.button == 0:  # A (0)
+                    trigger_upgrade = True
+            elif event.type == pygame.JOYHATMOTION:
+                modo_interacao = "teclado"
+                dx, dy = event.value
+                if dx < -0.5:
+                    selecionado = (selecionado - 1) % len(AUREAS_DADOS)
+                elif dx > 0.5:
+                    selecionado = (selecionado + 1) % len(AUREAS_DADOS)
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                modo_interacao = "mouse"
+                pos_evento = ui_helpers.converter_pos_mouse_jogo(event.pos)
+                if btn_voltar_rect.collidepoint(pos_evento):
+                    pygame.event.clear()
+                    return moedas_disponiveis
+                clicou_card = False
+                for idx_aura, rect_aura in rects_aureas:
+                    if rect_aura.collidepoint(pos_evento):
+                        if idx_aura > selecionado:
+                            selecionado = min(selecionado + 1, len(AUREAS_DADOS) - 1)
+                        elif idx_aura < selecionado:
+                            selecionado = max(selecionado - 1, 0)
+                        clicou_card = True
+                        break
+                if not clicou_card and btn_evoluir_rect.collidepoint(pos_evento):
+                    trigger_upgrade = True
+
+        if trigger_upgrade:
+            # Executar upgrade
+            aura_atual = AUREAS_DADOS[selecionado]
+            nivel_atual = upgrades.get(aura_atual["id"], 0)
+            custo = custos_niveis.get(nivel_atual, 9999)
+
+            if nivel_atual >= max_nivel:
+                # Já está no máximo
+                shake_amount = 6
+                custo_erro_timer = 20
+            elif moedas_disponiveis >= custo:
+                # Sucesso
+                moedas_disponiveis -= custo
+                upgrades[aura_atual["id"]] += 1
+
+                # Salvar
+                salvar_upgrade_aureas(upgrades_caminho, upgrades)
+                try:
+                    if os.path.exists("saves/atributos.json"):
+                        with open("saves/atributos.json", "r") as f:
+                            atributos = json.load(f)
                     else:
-                        # Erro de moedas
-                        shake_amount = 10
-                        custo_erro_timer = 30
-                        # Adicionar texto flutuante de erro
-                        textos_flutuantes.append(
-                            ui_helpers.FloatingText(centro_x, centro_y - 120, "FRAGMENTOS INSUFICIENTES", (255, 80, 80), fonte_card_name)
-                        )
+                        atributos = {}
+                    atributos["moedas_totais"] = moedas_disponiveis
+                    with open("saves/atributos.json", "w") as f:
+                        json.dump(atributos, f, indent=4)
+                except Exception:
+                    pass
+
+                # Audio
+                if som_confirm:
+                    som_confirm.play()
+
+                # Feedbacks visuais
+                t_confirm_scale = 1.35
+                shake_amount = 0
+                # Criar explosão de partículas
+                for _ in range(60):
+                    explosoes.append(ui_helpers.Particle(centro_x, centro_y, aura_atual["cor"], style=aura_atual["estilo"]))
+                # Adicionar texto flutuante
+                textos_flutuantes.append(
+                    ui_helpers.FloatingText(centro_x, centro_y - 120, "NIVEL EXPANDIDO", aura_atual["cor"], fonte_panel_title)
+                )
+            else:
+                # Erro de moedas
+                shake_amount = 10
+                custo_erro_timer = 30
+                # Adicionar texto flutuante de erro
+                textos_flutuantes.append(
+                    ui_helpers.FloatingText(centro_x, centro_y - 120, "MOEDAS INSUFICIENTES", (255, 80, 80), fonte_card_name)
+                )
                         
         # 2. Atualizar estado / interpolações
         aura_atual = AUREAS_DADOS[selecionado]
@@ -400,7 +457,7 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
             cor_custo = (255, 215, 0)
         else:
             custo_val = custos_niveis.get(nivel_atual, 1)
-            txt_custo_str = f"Custo: {custo_val} Fragmentos"
+            txt_custo_str = f"Custo: {custo_val} Moedas"
             if moedas_disponiveis >= custo_val:
                 cor_custo = (0, 255, 204)
             else:
@@ -418,26 +475,43 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
             prompt_str = "AUREA DOMINADA"
             cor_prompt = (255, 215, 0)
         else:
-            prompt_str = "ESPACO PARA EVOLUIR"
+            prompt_str = "CLIQUE PARA EVOLUIR"
             cor_prompt = (255, 255, 255)
-            
+
+        hover_action = modo_interacao == "mouse" and right_action_rect_shaken.collidepoint(mx, my)
+        rect_action_btn = right_action_rect_shaken.inflate(18, 8)
+        pygame.draw.rect(tela, (18, 18, 26), rect_action_btn, border_radius=6)
+        pygame.draw.rect(tela, aura_atual["cor"] if hover_action else (80, 80, 90), rect_action_btn, width=2 if hover_action else 1, border_radius=6)
         txt_prompt = fonte_panel_text.render(prompt_str, True, cor_prompt)
-        tela.blit(txt_prompt, (right_action_rect_shaken.left, right_action_rect_shaken.top))
-        
+        tela.blit(txt_prompt, (
+            rect_action_btn.centerx - txt_prompt.get_width() // 2,
+            rect_action_btn.centery - txt_prompt.get_height() // 2
+        ))
+
         # 5. Top Bar (Título e Moedas)
         titulo_rect = pygame.Rect(header_rect.left, header_rect.top, max_titulo_w, 40)
         ui_helpers.renderizar_titulo(tela, "NUCLEO DE EVOLUCAO TEMPORAL", max_titulo_w, titulo_rect, fontes["titulo_path"], 52, (255, 255, 255))
-        
-        t_sub = fonte_titulo_sub.render("Estabilize os fragmentos de energia para expandir sua linhagem temporal", True, (150, 150, 160))
+
+        t_sub = fonte_titulo_sub.render("Estabilize as moedas de energia para expandir sua linhagem temporal", True, (150, 150, 160))
         tela.blit(t_sub, (header_rect.left, header_rect.top + 45))
-        
-        # Moedas / Fragmentos no topo direito
+
+        # Moedas no topo direito
         ui_helpers.desenhar_painel_fragmentos(tela, moedas_rect, moedas_disponiveis, fonte_card_name, (0, 255, 204))
         
+        hover_voltar = modo_interacao == "mouse" and btn_voltar_rect.collidepoint(mx, my)
+        pygame.draw.rect(tela, (18, 18, 26), btn_voltar_rect, border_radius=6)
+        pygame.draw.rect(tela, aura_atual["cor"] if hover_voltar else (80, 80, 90), btn_voltar_rect, width=2 if hover_voltar else 1, border_radius=6)
+        txt_voltar = fonte_panel_lore.render("VOLTAR", True, (255, 255, 255))
+        tela.blit(txt_voltar, (
+            btn_voltar_rect.centerx - txt_voltar.get_width() // 2,
+            btn_voltar_rect.centery - txt_voltar.get_height() // 2
+        ))
+
         # Barra inferior de instrução
-        txt_barra_inf = fonte_panel_lore.render("A/D ou Setas para navegar  |  ESPACO ou ENTER para evoluir  |  ESC para retornar", True, (130, 130, 140))
+        txt_barra_inf = fonte_panel_lore.render("Clique nas laterais para navegar  |  Clique em Evoluir para comprar  |  A/D e ESC funcionam", True, (130, 130, 140))
         tela.blit(txt_barra_inf, (footer_rect.left + footer_rect.width // 2 - txt_barra_inf.get_width() // 2, footer_rect.top))
         
+        ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()
         clock.tick(60)
         

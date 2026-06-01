@@ -5,6 +5,7 @@ import os
 import pygame
 import random
 import math
+from qa_logger import registrar_erro
 
 def calcular_hash(dados: dict) -> str:
     dados_sem_hash = {k: v for k, v in dados.items() if k != "hash"}
@@ -47,7 +48,7 @@ def carregar_upgrade_aureas(caminho):
 
             return upgrades
     except Exception as e:
-        print(f"[Erro ao carregar upgrades]: {e}")
+        registrar_erro("Erro ao carregar upgrades de aureas", e)
         return {nome: 0 for nome in nomes_validos}
 
 
@@ -235,14 +236,14 @@ def tocar_trailer_se_necessario(tela):
 
     video_path = os.path.join("Video", "trailer.mp4")
     if not os.path.exists(video_path):
-        print(f"[Trailer] Arquivo nao encontrado em {video_path}")
+        registrar_erro(f"Trailer: arquivo nao encontrado em {video_path}")
         return
 
     # 2. Carrega python-vlc
     try:
         import vlc
     except Exception as e:
-        print(f"[Trailer] Erro ao carregar python-vlc: {e}. Pulando.")
+        registrar_erro("Trailer: erro ao carregar python-vlc", e)
         return
 
     # 3. Executa a reproducao
@@ -372,14 +373,14 @@ def tocar_trailer_se_necessario(tela):
         pygame.display.flip()
         
     except Exception as e:
-        print(f"[Trailer] Erro ao reproduzir: {e}")
+        registrar_erro("Trailer: erro ao reproduzir", e)
         
     # Salva nas configuracoes para nao repetir
     try:
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump({"trailer_assistido": True}, f)
     except Exception as e:
-        print(f"[Trailer] Erro ao salvar config: {e}")
+        registrar_erro("Trailer: erro ao salvar config", e)
 
 
 def redimensionar_cover(imagem, largura_dest, altura_dest):
@@ -409,3 +410,176 @@ def redimensionar_cover(imagem, largura_dest, altura_dest):
     y_offset = (nova_altura - altura_dest) // 2
     superficie_final.blit(imagem_redimensionada, (0, 0), (x_offset, y_offset, largura_dest, altura_dest))
     return superficie_final
+
+
+def executar_animacao_morte_personagem(
+    tela,
+    pos_x_personagem,
+    pos_y_personagem,
+    largura_personagem,
+    altura_personagem,
+    frame_para_desenhar,
+    angulo_inclinacao_personagem,
+    desenhar_hud_callback=None,
+    exibir_cronometro_callback=None,
+    cursor_imagem=None,
+    mouse_pos=None,
+    config_graficos=None,
+    som_morte=None
+):
+    """
+    Bloqueia o jogo na morte do jogador:
+    1. Pausa o jogo por 500ms mostrando a cena estática (congelada).
+    2. Divide a sprite atual do jogador em pedaços e executa uma animação de
+       fragmentação que cai por gravidade e desaparece gradualmente por 1 segundo.
+    """
+    import pygame
+    import random
+    import math
+    import sys
+
+    # Toca som de morte se fornecido
+    if som_morte:
+        try:
+            som_morte.play()
+        except:
+            pass
+
+    # Captura a tela de fundo sem o player (como ela se encontra no momento da chamada)
+    screen_bg = tela.copy()
+
+    # Cria a tela congelada com o player estático desenhado
+    screen_frozen = screen_bg.copy()
+    if frame_para_desenhar:
+        if angulo_inclinacao_personagem != 0:
+            frame_rotacionado = pygame.transform.rotate(frame_para_desenhar, angulo_inclinacao_personagem)
+            novo_rect = frame_rotacionado.get_rect(center=(pos_x_personagem + largura_personagem//2, pos_y_personagem + altura_personagem//2))
+            screen_frozen.blit(frame_rotacionado, novo_rect.topleft)
+        else:
+            screen_frozen.blit(frame_para_desenhar, (pos_x_personagem, pos_y_personagem))
+
+    # Desenha o HUD e cronômetro na tela congelada se os callbacks forem fornecidos
+    if desenhar_hud_callback:
+        try:
+            desenhar_hud_callback(screen_frozen)
+        except Exception as e:
+            pass
+    if exibir_cronometro_callback:
+        try:
+            exibir_cronometro_callback(screen_frozen)
+        except Exception as e:
+            pass
+    if cursor_imagem and mouse_pos:
+        screen_frozen.blit(cursor_imagem, mouse_pos)
+
+    # --- FASE 1: CONGELAMENTO POR 500MS ---
+    tempo_inicio_congelamento = pygame.time.get_ticks()
+    clock = pygame.time.Clock()
+    
+    while pygame.time.get_ticks() - tempo_inicio_congelamento < 500:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit(0)
+                
+        tela.blit(screen_frozen, (0, 0))
+        pygame.display.flip()
+        clock.tick(60)
+
+    # --- FASE 2: ANIMAÇÃO DE FRAGMENTAÇÃO (1000MS) ---
+    fragments = []
+    if frame_para_desenhar:
+        num_rows = 6
+        num_cols = 6
+        w, h = frame_para_desenhar.get_size()
+        tile_w = w // num_cols
+        tile_h = h // num_rows
+        colorkey = frame_para_desenhar.get_colorkey()
+
+        for r in range(num_rows):
+            for c in range(num_cols):
+                rect = pygame.Rect(c * tile_w, r * tile_h, tile_w, tile_h)
+                try:
+                    sub = frame_para_desenhar.subsurface(rect).copy()
+                except ValueError:
+                    continue
+                
+                # Checagem de transparência por canal alpha ou colorkey
+                has_pixel = False
+                for tx in range(tile_w):
+                    for ty in range(tile_h):
+                        pixel_color = sub.get_at((tx, ty))
+                        if len(pixel_color) > 3 and pixel_color[3] <= 10:
+                            continue
+                        if colorkey is not None:
+                            if pixel_color[:3] == colorkey[:3]:
+                                continue
+                        has_pixel = True
+                        break
+                    if has_pixel:
+                        break
+                
+                if not has_pixel:
+                    continue
+
+                fragments.append({
+                    "surf": sub,
+                    "rel_x": float(c * tile_w),
+                    "rel_y": float(r * tile_h),
+                    "x_offset": 0.0,
+                    "y_offset": 0.0,
+                    "vx": random.uniform(-4.5, 4.5),
+                    "vy": random.uniform(-8.0, -2.0),
+                    "rot": 0.0,
+                    "vrot": random.uniform(-15.0, 15.0),
+                    "alpha": 255.0
+                })
+
+    tempo_inicio_animacao = pygame.time.get_ticks()
+    
+    while pygame.time.get_ticks() - tempo_inicio_animacao < 1000:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit(0)
+
+        # 1. Baseia o frame na tela de fundo capturada sem o player
+        screen_temp = screen_bg.copy()
+
+        # 2. Atualiza e desenha cada fragmento
+        gravity = 0.35
+        for f in fragments:
+            f["x_offset"] += f["vx"]
+            f["y_offset"] += f["vy"]
+            f["vy"] += gravity
+            f["vx"] *= 0.98
+            f["rot"] += f["vrot"]
+            f["alpha"] = max(0.0, f["alpha"] - 4.5)
+
+            if f["alpha"] > 0:
+                rot_surf = pygame.transform.rotate(f["surf"], f["rot"])
+                rot_surf.set_alpha(int(f["alpha"]))
+                
+                cx = pos_x_personagem + f["rel_x"] + f["surf"].get_width() / 2 + f["x_offset"]
+                cy = pos_y_personagem + f["rel_y"] + f["surf"].get_height() / 2 + f["y_offset"]
+                
+                rect = rot_surf.get_rect(center=(int(cx), int(cy)))
+                screen_temp.blit(rot_surf, rect.topleft)
+
+        # 3. Desenha o HUD, cronômetro e cursor por cima
+        if desenhar_hud_callback:
+            try:
+                desenhar_hud_callback(screen_temp)
+            except Exception as e:
+                pass
+        if exibir_cronometro_callback:
+            try:
+                exibir_cronometro_callback(screen_temp)
+            except Exception as e:
+                pass
+        if cursor_imagem and mouse_pos:
+            screen_temp.blit(cursor_imagem, mouse_pos)
+
+        tela.blit(screen_temp, (0, 0))
+        pygame.display.flip()
+        clock.tick(60)

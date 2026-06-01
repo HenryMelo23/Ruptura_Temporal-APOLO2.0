@@ -7,10 +7,15 @@ import math
 import time
 import os
 import json
+from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from Tela_Cartas import tela_de_pausa
 from Variaveis import *
 from utils import *
+from ui_helpers import tela_transicao_dimensional, desenhar_efeitos_vanguarda
 from audio_manager import carregar_config_audio, aplicar_volume_som
+
+instalar_captura_global()
+instalar_filtro_prints()
 
 # Forward declarations (atribuídos no loop principal)
 botao_mouse = (False, False, False)
@@ -700,6 +705,7 @@ def executar_jogo(game_manager=None):
                                         json.dump(atributos, f)
 
                         elif evento.key == pygame.K_ESCAPE:
+                            pygame.event.clear()
                             return
 
                 for i, aurea in enumerate(aureas):
@@ -1100,7 +1106,7 @@ def executar_jogo(game_manager=None):
                 # Desenhar sombra do inimigo
                 desenhar_sombra(tela, inimigo["rect"].x, inimigo["rect"].y, largura_inimigo, altura_inimigo)
                 tela.blit(inimigo["image"], inimigo["rect"])
-                desenhar_barra_de_vida(tela, inimigo["rect"].x, inimigo["rect"].y - 10, largura_inimigo, 5, inimigo["vida"], inimigo["vida_maxima"])
+                desenhar_barra_de_vida(tela, inimigo["rect"].x, inimigo["rect"].y - 10, largura_inimigo, 5, inimigo["vida"], inimigo["vida_maxima"], False, Executa_inimigo if Ultimo_Estalo else None)
 
             personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem*0.5, altura_personagem*0.8)
             inimigos_rects = [inimigo["rect"] for inimigo in inimigos_comum]
@@ -1159,11 +1165,11 @@ def executar_jogo(game_manager=None):
                 else:
                     mostrar_tutorial=False
                     pausar_cronometro()
-                    pygame.time.delay(2000)
                     Musica_tema_fases.stop()
                     Som_tema_fases.stop()
-                    tela_upgrade_aureas(tela, fonte, moedas_totais)
-
+                    if moedas_totais > 0:
+                        tela_upgrade_aureas(tela, fonte, moedas_totais)
+                    pygame.event.clear()
 
                     limpar_salvamento()
                     if game_manager:
@@ -1172,7 +1178,7 @@ def executar_jogo(game_manager=None):
                         raise CleanExit()
                     else:
                         pygame.quit()
-                        subprocess.run([python, "Game_Over.py"])
+                        subprocess.run([sys.executable, "Game_Over.py"])
                         sys.exit()
 
             # Adicione esta verificação para controlar o piscar da barra de vida
@@ -1490,6 +1496,7 @@ def executar_jogo(game_manager=None):
                             Musica_tema_Boss1.stop()
                             salvar_atributos()
                             pausar_cronometro()
+                            tela_transicao_dimensional(tela, 2)
                             if game_manager:
                                 from game_manager import EstadoJogo
                                 game_manager.mudar_estado(EstadoJogo.JOGO_FASE_2)
@@ -1535,7 +1542,9 @@ def executar_jogo(game_manager=None):
                         # Ativar veneno no Boss com 50% de chance, se ainda não estiver envenenado
                         if not boss_envenenado and Poison_Active:
                             boss_envenenado = True
-                            dano_por_tick_veneno_boss = vida_boss * (Dano_Veneno_Acumulado / 100)  # Exemplo: 0.05% da vida máxima
+                            global duracao_veneno_boss
+                            dano_por_tick_veneno_boss = vida_maxima_boss1 * Dano_Veneno_Acumulado
+                            duracao_veneno_boss = 8000 + cartas_compradas.get("Poison", 0) * 100
                             tempo_inicio_veneno_boss = pygame.time.get_ticks()
                             ultimo_tick_veneno_boss = pygame.time.get_ticks()
 
@@ -1555,12 +1564,12 @@ def executar_jogo(game_manager=None):
                     tempo_atual = pygame.time.get_ticks()
 
                     # Aplicar dano a cada 500 ms
-                    if tempo_atual - ultimo_tick_veneno_boss >= 500:
+                    if tempo_atual - ultimo_tick_veneno_boss >= INTERVALO_TICK_VENENO:
                         vida_boss -= dano_por_tick_veneno_boss
                         ultimo_tick_veneno_boss = tempo_atual
 
                     # Exibir texto do dano de veneno (1.5 segundos)
-                    if tempo_atual - ultimo_tick_veneno_boss <= 250:
+                    if tempo_atual - ultimo_tick_veneno_boss <= 1500:
                         dano_veneno_texto = "-" + str(int(dano_por_tick_veneno_boss))
                         texto_dano_veneno = fonte_veneno.render(dano_veneno_texto, True, (0, 255, 0))
                         texto_dano_veneno_borda = fonte_veneno.render(dano_veneno_texto, True, (0, 0, 0))
@@ -1650,14 +1659,7 @@ def executar_jogo(game_manager=None):
                             vida += (vida_maxima-vida)*quantidade_roubo_vida
 
                         if Poison_Active:
-                            inimigo["veneno"] = {
-                                "dano_por_tick": inimigo["vida_maxima"] * Dano_Veneno_Acumulado,  # 0.5% da vida máxima
-                                "tempo_inicio": pygame.time.get_ticks(),
-                                "duracao": 4000,  # 4 segundos
-                                "ultimo_tick": pygame.time.get_ticks(),  # Tempo do último tick
-                                "posicao_texto": (inimigo["rect"].x, inimigo["rect"].y - 20),  # Posição inicial do texto
-                                "tempo_texto_dano": pygame.time.get_ticks()  # Tempo de exibição do texto
-                                }
+                            aplicar_veneno(inimigo, tempo_atual, cartas_compradas.get("Poison", 0))
 
                             # Dentro do loop principal, fora do loop de verificação de disparo
 
@@ -1754,13 +1756,13 @@ def executar_jogo(game_manager=None):
 
                 if "veneno" in inimigo:
                     # Verifique se é hora de aplicar dano
-                    if tempo_atual - inimigo["veneno"]["ultimo_tick"] >= 500:
+                    if tempo_atual - inimigo["veneno"]["ultimo_tick"] >= INTERVALO_TICK_VENENO:
                         inimigo["vida"] -= inimigo["veneno"]["dano_por_tick"]
                         inimigo["veneno"]["ultimo_tick"] = tempo_atual  # Atualiza o tempo do último tick
                         inimigo["veneno"]["tempo_texto_dano"] = tempo_atual  # Atualiza o tempo de exibição do texto
 
                     # Exibe o texto apenas por 1.5 segundos após o dano
-                    if tempo_atual - inimigo["veneno"]["tempo_texto_dano"] <= 250:
+                    if tempo_atual - inimigo["veneno"]["tempo_texto_dano"] <= 1500:
                         dano_veneno_texto = "-" + str(int(inimigo["veneno"]["dano_por_tick"]))
 
                         # Renderize o texto do dano com borda preta
@@ -1951,19 +1953,20 @@ def executar_jogo(game_manager=None):
             ):
                 # Desenhar habilidades na tela
                 desenhar_habilidades(tela, cooldowns,dispositivo_ativo)
-            if eliminacoes_consecutivas > 0:
+            if Mercenaria_Active:
                 fonte_combo = pygame.font.Font(None, 36)  # Tamanho maior para o combo
                 fonte_bonus = pygame.font.Font(None, 28)  # Tamanho menor para o bônus
 
                 # Texto do combo
-                texto_combo = f"Combo: {eliminacoes_consecutivas}"
-                posicao_combo = (largura_mapa - 170, 50)  
-                desenhar_texto_com_contorno(tela, texto_combo, fonte_combo, (255, 255, 255), (0, 0, 0), posicao_combo)
+                texto_combo = f"Mercenaria: {eliminacoes_consecutivas} abates"
+                posicao_combo = (largura_mapa - 330, 50)
+                desenhar_texto_com_contorno(tela, texto_combo, fonte_combo, (255, 220, 80), (0, 0, 0), posicao_combo)
 
                 # Texto do bônus
-                texto_bonus = f"Bônus: +{bonus_pontuacao}"
-                posicao_bonus = (largura_mapa - 200, 90)  
-                desenhar_texto_com_contorno(tela, texto_bonus, fonte_bonus, (255, 255, 255), (0, 0, 0), posicao_bonus)
+                faltam_bonus = 5 - (eliminacoes_consecutivas % 5)
+                texto_bonus = f"Bonus: +{bonus_pontuacao} | prox +{Valor_Bonus} em {faltam_bonus}"
+                posicao_bonus = (largura_mapa - 330, 90)
+                desenhar_texto_com_contorno(tela, texto_bonus, fonte_bonus, (255, 245, 190), (0, 0, 0), posicao_bonus)
 
             # Desenhe o texto na tela
             if texto_dano is not None:
@@ -2124,7 +2127,7 @@ def executar_jogo(game_manager=None):
                         tutorial_inimigo["image"] = frames_inimigo[frame_atual % len(frames_inimigo)]
                         desenhar_sombra(tela, tutorial_inimigo["rect"].x, tutorial_inimigo["rect"].y, largura_inimigo, altura_inimigo)
                         tela.blit(tutorial_inimigo["image"], tutorial_inimigo["rect"])
-                        desenhar_barra_de_vida(tela, tutorial_inimigo["rect"].x, tutorial_inimigo["rect"].y - 10, largura_inimigo, 5, tutorial_inimigo["vida"], tutorial_inimigo["vida_maxima"])
+                        desenhar_barra_de_vida(tela, tutorial_inimigo["rect"].x, tutorial_inimigo["rect"].y - 10, largura_inimigo, 5, tutorial_inimigo["vida"], tutorial_inimigo["vida_maxima"], False, Executa_inimigo if Ultimo_Estalo else None)
 
                         # Seta indicadora pulsando apontando para o inimigo
                         seta_pulso = abs(pygame.time.get_ticks() % 1000 - 500) / 500.0
@@ -2214,6 +2217,18 @@ def executar_jogo(game_manager=None):
                                 inimigos_em_chamas.pop(i_id, None)
                     else:
                         inimigos_em_chamas.pop(i_id, None)
+            desenhar_efeitos_vanguarda(
+                tela,
+                pos_x_personagem,
+                pos_y_personagem,
+                largura_personagem,
+                altura_personagem,
+                inimigos_comum,
+                inimigos_em_chamas,
+                duracao_incendio_vanguarda,
+                aurea,
+                config_graficos,
+            )
             for moeda in moedas_soltadas:
                 tela.blit(moeda["image"], moeda["rect"])
 

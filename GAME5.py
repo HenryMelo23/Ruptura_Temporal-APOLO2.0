@@ -10,6 +10,7 @@ import time
 import os
 import sys
 import json
+from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from flask import Flask, jsonify
 from flask_cors import CORS
 import threading
@@ -18,7 +19,13 @@ from Tela_Cartas import tela_de_pausa
 from Variaveis import *
 import Variaveis
 from utils import *
-from ui_helpers import desenhar_hud_fase, obter_pos_mouse_jogo
+from ui_helpers import (
+    desenhar_hud_fase,
+    obter_pos_mouse_jogo,
+    desenhar_efeito_racional_dilatacao,
+    fator_movimento_racional,
+    intervalo_disparo_racional,
+)
 dt = 1.0
 import habilidade_boss as hb
 import collections
@@ -27,6 +34,9 @@ from audio_manager import carregar_config_audio, aplicar_volume_som
 from sistema_ratos_umbra import GerenciadorRatos
 from umbra_dossie import DossieUmbra
 from habilidades_personagem import desenhar_onda, criar_particulas_explosao_onda as criar_particulas_explosao
+
+instalar_captura_global()
+instalar_filtro_prints()
 
 _VORTICE_SURF_CACHE = {}
 _fonte_bonus_cached = None
@@ -50,11 +60,12 @@ ultima_tecla_movimento = None
 teleporte_sprites = []
 teleporte_index = 0
 teleporte_timer = 0
+racional_dilatacao_fim = 0
 
 
 def executar_jogo(game_manager=None):
     global dt
-    global carregar_atributos_na_fase, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, _VORTICE_SURF_CACHE, _fonte_bonus_cached, _fonte_combo_cached, altura_boss, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apolo, bonus_cura_sifon, bonus_pontuacao, boss_envenenado, cartas_compradas_apolo_global, chance_critico, cooldown_dash, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_boss, disparos, distancia_dash, duracao_frame_onda, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_transicao_mapa, erros_player_contagem, escudo_devota_ativo, esferas_energia_umbra, espacamento, estado_atual_ia, frame_boss, gerenciador_ratos, hitbox_boss5, impulsiva_ativa, inicio_transicao_mapa, inimigos_eliminados, intervalo_disparo, largura_boss, largura_disparo, largura_personagem, linha, mapa_antigo, mapa_novo, modo_ia_treino, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, multiplicador_chamas, multiplicador_dano_umbra, ondas, particulas_fogo_player, petro_evolucao, player_em_chamas, pontuacao, pontuacao_exib, porcentagem_cura, pos_x_personagem, pos_x_petro, pos_x_umbra, pos_y_personagem, pos_y_petro, pos_y_umbra, projeteis_boss, quantidade_roubo_vida, reducao_cooldown_umbra, relogio, resistencia_umbra, roubo_de_vida, running, surf, teleporte_duration, teleporte_index, teleporte_timer, tempo_atual, tempo_boss_entrada_fim, tempo_cooldown_dash, tempo_fim_chamas, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado_boss, tempo_ultima_esfera_umbra, tempo_ultima_regeneracao, tempo_ultimo_dash, tempo_ultimo_disparo, tempo_ultimo_uso_habilidade, tipo_buff_impulsiva, trauma_umbra_acumulado, trembo, ultima_direcao_animacao, ultima_tecla_movimento, ultimo_tick_chamas, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_maxima, vida_maxima_petro, vida_maxima_umbra, vida_petro, vida_umbra, xp_petro, duracao_incendio_vanguarda, intervalo_escudo
+    global carregar_atributos_na_fase, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, _VORTICE_SURF_CACHE, _fonte_bonus_cached, _fonte_combo_cached, altura_boss, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apolo, bonus_cura_sifon, bonus_pontuacao, boss_envenenado, cartas_compradas_apolo_global, chance_critico, cooldown_dash, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_boss, disparos, distancia_dash, duracao_frame_onda, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_transicao_mapa, erros_player_contagem, escudo_devota_ativo, esferas_energia_umbra, espacamento, estado_atual_ia, frame_boss, gerenciador_ratos, hitbox_boss5, impulsiva_ativa, inicio_transicao_mapa, inimigos_eliminados, intervalo_disparo, largura_boss, largura_disparo, largura_personagem, linha, mapa_antigo, mapa_novo, modo_ia_treino, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, multiplicador_chamas, multiplicador_dano_umbra, ondas, particulas_fogo_player, petro_evolucao, player_em_chamas, pontuacao, pontuacao_exib, porcentagem_cura, pos_x_personagem, pos_x_petro, pos_x_umbra, pos_y_personagem, pos_y_petro, pos_y_umbra, projeteis_boss, quantidade_roubo_vida, racional_dilatacao_fim, reducao_cooldown_umbra, relogio, resistencia_umbra, roubo_de_vida, running, surf, teleporte_duration, teleporte_index, teleporte_timer, tempo_atual, tempo_boss_entrada_fim, tempo_cooldown_dash, tempo_fim_chamas, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado_boss, tempo_ultima_esfera_umbra, tempo_ultima_regeneracao, tempo_ultimo_dash, tempo_ultimo_disparo, tempo_ultimo_uso_habilidade, tipo_buff_impulsiva, trauma_umbra_acumulado, trembo, ultima_direcao_animacao, ultima_tecla_movimento, ultimo_tick_chamas, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_maxima, vida_maxima_petro, vida_maxima_umbra, vida_petro, vida_umbra, xp_petro, duracao_incendio_vanguarda, intervalo_escudo
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -625,17 +636,19 @@ def executar_jogo(game_manager=None):
 
                     # Fator de normalização para diagonal: 1/sqrt(2) ≈ 0.7071
                     fator_normalizacao = 0.7071
+                    velocidade_movimento = velocidade_personagem * fator_movimento_racional(aurea, racional_dilatacao_fim)
                     pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
-                                                 pos_x_personagem + dx * velocidade_personagem * fator_normalizacao * dt))
+                                                 pos_x_personagem + dx * velocidade_movimento * fator_normalizacao * dt))
                     pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
-                                                 pos_y_personagem + dy * velocidade_personagem * fator_normalizacao * dt))
+                                                 pos_y_personagem + dy * velocidade_movimento * fator_normalizacao * dt))
                 else:
                     angulo_inclinacao_personagem = 0
                     # Movimento cardinal (apenas uma direção)
+                    velocidade_movimento = velocidade_personagem * fator_movimento_racional(aurea, racional_dilatacao_fim)
                     pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
-                                                 pos_x_personagem + dx * velocidade_personagem * dt))
+                                                 pos_x_personagem + dx * velocidade_movimento * dt))
                     pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
-                                                 pos_y_personagem + dy * velocidade_personagem * dt))
+                                                 pos_y_personagem + dy * velocidade_movimento * dt))
             else:
                 angulo_inclinacao_personagem = 0
 
@@ -678,6 +691,8 @@ def executar_jogo(game_manager=None):
 
                 cooldown_dash = True
                 tempo_ultimo_dash = pygame.time.get_ticks()
+                if aurea == "Racional":
+                    racional_dilatacao_fim = tempo_ultimo_dash + 3000
                 aplicar_shockwave_teleporte()
 
             if cooldown_dash and pygame.time.get_ticks() - tempo_ultimo_dash > tempo_cooldown_dash:
@@ -1040,10 +1055,10 @@ def executar_jogo(game_manager=None):
                 t0 = time.time()
                 while time.time() - t0 < 10.0:
                     if os.path.exists(target) and os.path.getmtime(target) > mtime_antes:
-                        print("[APOLO] Memoria salva com sucesso.")
+                        pass
                         return
                     time.sleep(0.1)
-                print("[APOLO] AVISO: Timeout ao salvar memoria — worker pode estar travado.")
+                registrar_erro("APOLO: timeout ao salvar memoria")
 
             def encerrar(self):
                 if hasattr(self, 'worker_process') and self.worker_process.is_alive():
@@ -1068,7 +1083,7 @@ def executar_jogo(game_manager=None):
 
                 ultimo_tempo = self._ultimos_logs.get(chave, 0)
                 if agora - ultimo_tempo > 2000:
-                    print(f"[APOLO - {tipo}] {mensagem}")
+                    pass
                     self._ultimos_logs[chave] = agora
 
             def receber_dano_punitivo(self, hits, multiplicador_base=50.0):
@@ -2283,13 +2298,6 @@ def executar_jogo(game_manager=None):
                 if melhor_carta:
                     escolhas.append(melhor_carta)
 
-            contagem = collections.Counter(escolhas)
-            print("\n" + "="*50)
-            print(f"SELECAO GENETICA DE APOLO UCB ({qtd} Cartas)")
-            for carta, q in sorted(contagem.items(), key=lambda x: x[1], reverse=True): 
-                print(f"[{q}x] {carta}")
-            print("="*50)
-
             return escolhas
 
         def injetar_build_endgame(qtd_cartas_jogador=30):
@@ -2386,11 +2394,6 @@ def executar_jogo(game_manager=None):
 
             vida = vida_maxima
             vida_umbra = vida_maxima_umbra
-
-            print(f"\n[ UMBRA ] - {qtd_cartas_umbra} Cartas Sorteadas (Caos Puro)")
-            for carta_u, qtd in sorted(collections.Counter(registro_umbra).items(), key=lambda x: x[1], reverse=True):
-                print(f" -> [{qtd}x] {carta_u}")
-            print("="*50 + "\n")
 
         # Invoca a mutação absoluta
         injetar_build_endgame(qtd_cartas_jogador=80)
@@ -2496,7 +2499,7 @@ def executar_jogo(game_manager=None):
                                 vida_boss4 = snap["vida_boss"]
                         Variaveis.snapshot_para_carregar = None
                 except Exception as e:
-                    print(f"Aviso: Nao foi possivel carregar atributos ({e}). Usando padrao.")
+                    registrar_erro("Fase 5: erro ao carregar atributos; usando padrao", e)
                 carregar_atributos_na_fase = False
             agora = pygame.time.get_ticks()
 
@@ -2544,7 +2547,7 @@ def executar_jogo(game_manager=None):
                     try:
                         salvar_atributos()
                     except Exception as e:
-                        print(f"Erro ao salvar atributos para pausa: {e}")
+                        registrar_erro("Fase 5: erro ao salvar atributos para pausa", e)
                     from Tela_Pause import exibir_tela_pause
                     ret_pause = exibir_tela_pause(tela, cartas_compradas, joystick)
                     if isinstance(ret_pause, dict):
@@ -2566,7 +2569,7 @@ def executar_jogo(game_manager=None):
                             break
                     pygame.event.set_grab(True)
                     pygame.mouse.set_visible(False)
-                elif botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo and tempo_atual >= tempo_fim_stun:
+                elif botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual) and tempo_atual >= tempo_fim_stun:
                     pos_mouse = obter_pos_mouse_jogo()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
@@ -2872,6 +2875,29 @@ def executar_jogo(game_manager=None):
                     Tempo_cura = min(2500, int(Tempo_cura * 1.5))
                     pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem)
                 else:
+                    from utils import executar_animacao_morte_personagem
+                    frame_para_desenhar_morte = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
+                    executar_animacao_morte_personagem(
+                        tela=tela,
+                        pos_x_personagem=pos_x_personagem,
+                        pos_y_personagem=pos_y_personagem,
+                        largura_personagem=largura_personagem,
+                        altura_personagem=altura_personagem,
+                        frame_para_desenhar=frame_para_desenhar_morte,
+                        angulo_inclinacao_personagem=angulo_inclinacao_personagem,
+                        desenhar_hud_callback=lambda s: desenhar_hud_fase(
+                        s, 0, vida_maxima, pontuacao_exib, custo_carta_atual,
+                        pontuacao_magia, cooldowns, dispositivo_ativo,
+                        eliminacoes_consecutivas, bonus_pontuacao, aurea,
+                        escudo_devota_ativo, pos_x_personagem, pos_y_personagem,
+                        largura_personagem, altura_personagem
+                    ),
+                        exibir_cronometro_callback=lambda s: exibir_cronometro(s),
+                        cursor_imagem=cursor_imagem,
+                        mouse_pos=(mouse_x, mouse_y),
+                        config_graficos=config_graficos,
+                        som_morte=locals().get('Dano_person', globals().get('Dano_person', None))
+                    )
                     recompensar_cartas(cartas_compradas_apolo_global, venceu=False)
                     limpar_salvamento()
                     if 'apolo' in globals() and hasattr(apolo, 'encerrar'):
@@ -4000,6 +4026,16 @@ def executar_jogo(game_manager=None):
 
             # Desenhar zona de teleporte (se estiver mirando no modo mouse)
             Variaveis.desenhar_zona_teleporte(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, distancia_dash)
+            desenhar_efeito_racional_dilatacao(
+                tela,
+                pos_x_personagem,
+                pos_y_personagem,
+                largura_personagem,
+                altura_personagem,
+                racional_dilatacao_fim,
+                aurea,
+                config_graficos,
+            )
 
             # Se a IA ainda não foi processada neste frame, garantimos que o estado exista
             if 'estado_atual_ia' not in locals() and 'estado_atual_ia' not in globals():
@@ -4193,13 +4229,15 @@ def executar_jogo(game_manager=None):
                             if not boss_envenenado and Poison_Active:
                                 boss_envenenado = True
                                 # O dano escala com a vida MÁXIMA da Umbra e o seu acúmulo de cartas
-                                dano_por_tick_veneno_boss = vida_maxima_umbra * (Dano_Veneno_Acumulado / 100)
+                                global duracao_veneno_boss
+                                dano_por_tick_veneno_boss = vida_maxima_umbra * Dano_Veneno_Acumulado
+                                duracao_veneno_boss = 8000 + cartas_compradas.get("Poison", 0) * 100
                                 tempo_inicio_veneno_boss = agora
                                 ultimo_tick_veneno_boss = agora
                             # --- CORROSÃO: DANO CONTÍNUO DE VENENO ---
                             if boss_envenenado:
                                 # Aplica o tick de dano a cada 500 milissegundos
-                                if agora - ultimo_tick_veneno_boss >= 500:
+                                if agora - ultimo_tick_veneno_boss >= INTERVALO_TICK_VENENO:
                                     vida_umbra -= dano_por_tick_veneno_boss
                                     ultimo_tick_veneno_boss = agora
 
@@ -4358,7 +4396,7 @@ def executar_jogo(game_manager=None):
             total_cartas_compradas = sum(cartas_compradas.values())
             custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
             cooldowns = {
-                "disparo": max(0.0, (intervalo_disparo - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
+                "disparo": max(0.0, (intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual) - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
                 "teleporte": max(0.0, (tempo_cooldown_dash - (pygame.time.get_ticks() - tempo_ultimo_dash)) / 1000.0),
                 "onda": max(0.0, (cooldown_habilidade - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
                 "loja": 1 if pontuacao_exib >= custo_carta_atual else 0,

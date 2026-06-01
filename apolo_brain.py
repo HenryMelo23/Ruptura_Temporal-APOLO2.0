@@ -16,6 +16,7 @@ NEUROGENESE ATIVA:
 import math, random, collections, os, json, shutil
 import torch
 import torch.nn as nn
+from qa_logger import registrar_erro
 
 # =============================================================================
 # CONSTANTES CANONICAS
@@ -70,8 +71,6 @@ class GerenciadorArquitetura:
         if novo == cfg["hidden"]:
             return cfg  # Ja no teto
         novo_cfg = {"hidden": novo, "version": cfg.get("version", 1) + 1}
-        print(f"\n[NEUROGENESE] Arquitetura cresceu: {cfg['hidden']} -> {novo} neuronios!")
-        print(f"[NEUROGENESE] Memoria reiniciada para evitar conflito.\n")
         GerenciadorArquitetura.salvar(novo_cfg)
         # Limpa pesos antigos (incompativeis)
         if os.path.exists(PESOS_FILE):
@@ -570,16 +569,13 @@ class ApoloAgent:
     # ---- Persistencia ------------------------------------------------------
     def _carregar_pesos(self):
         if not os.path.exists(PESOS_FILE):
-            print("[APOLO] Sem pesos salvos — iniciando zerado.")
             return
         try:
             state = torch.load(PESOS_FILE, map_location=self.device, weights_only=True)
             self.q_online.load_state_dict(state)
-            print(f"[APOLO] Pesos carregados (hidden={self.arq_cfg['hidden']}).")
         except Exception as e:
             # Arquitetura incompativel -> backup + reset automatico
-            print(f"[APOLO] Pesos incompativeis: {e}")
-            print("[APOLO] Fazendo backup e reiniciando pesos...")
+            registrar_erro("APOLO: pesos incompativeis; fazendo backup e reiniciando pesos", e)
             bak = PESOS_FILE.replace(".pt", "_bak_incompat.pt")
             shutil.copy2(PESOS_FILE, bak)
             os.remove(PESOS_FILE)
@@ -737,17 +733,7 @@ def verificar_compatibilidade():
     nomes_acoes = ['cima','baixo','esq','dir','cima-esq','cima-dir','baixo-esq','baixo-dir','dash']
     n = sum(p.numel() for p in rede.parameters())
 
-    print(f"[OK] ApoloDQN Dueling: hidden={cfg['hidden']} | params={n:,}")
-    print(f"[OK] {t.shape} -> {q.shape} | device={device}")
-    print(f"[OK] Neurogenese: limiar={ENTROPIA_LIMIAR} janela={JANELA_ENTROPIA}")
-    print(f"[OK] Teto: {HIDDEN_MAX} neuronios | passo: {HIDDEN_STEP}")
-    print(f"")
-    print(f"[SURVIVAL GATE] Teste: vida=50%, orbe a direita")
-    print(f"[SURVIVAL GATE] LIMIAR_VIDA={rede.survival_gate.LIMIAR_VIDA} | PESO_MAXIMO={rede.survival_gate.PESO_MAXIMO}")
-    print(f"[SURVIVAL GATE] Q-values: {[round(v,1) for v in q[0].tolist()]}")
-    print(f"[SURVIVAL GATE] Acao escolhida: {acao_escolhida} ({nomes_acoes[acao_escolhida]})")
     gate_ok = acao_escolhida in [3, 5, 7]  # dir, cima-dir, baixo-dir
-    print(f"[SURVIVAL GATE] Status: {'OK — APOLO PRIORIZA VIDA!' if gate_ok else 'ATENCAO: verificar indices de features'}")
 
     # Teste 2: vida critica (20%) + orbe PERTO (bonus de oportunidade ativo)
     t2 = torch.zeros(1, INPUT_SIZE, device=device)
@@ -758,12 +744,16 @@ def verificar_compatibilidade():
     with torch.no_grad():
         q2 = rede(t2)
     acao2 = int(q2.argmax(dim=1).item())
-    print(f"")
-    print(f"[SURVIVAL GATE] Teste 2: vida=20%, orbe perto (bonus oportunidade)")
-    print(f"[SURVIVAL GATE] Q-values: {[round(v,1) for v in q2[0].tolist()]}")
-    print(f"[SURVIVAL GATE] Acao escolhida: {acao2} ({nomes_acoes[acao2]}) — deve ser dir/baixo-dir")
     gate_ok2 = acao2 in [3, 5, 7]
-    print(f"[SURVIVAL GATE] Bonus oportunidade: {'ATIVO — urgencia amplificada!' if gate_ok2 else 'VERIFICAR'}") 
+    return {
+        "hidden": cfg["hidden"],
+        "params": n,
+        "device": str(device),
+        "shape_in": tuple(t.shape),
+        "shape_out": tuple(q.shape),
+        "gate_ok": gate_ok,
+        "gate_ok2": gate_ok2,
+    }
 
 # =============================================================================
 # WORKER ASSÍNCRONO PARA GAME5
@@ -778,6 +768,10 @@ def motor_cognitivo_worker(fila_in, fila_out, evento_salvar):
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     import queue
     import torch
+    from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
+
+    instalar_captura_global()
+    instalar_filtro_prints()
 
     # Garante que o worker use apenas 1 thread de CPU para evitar throttling
     torch.set_num_threads(1)
@@ -785,15 +779,12 @@ def motor_cognitivo_worker(fila_in, fila_out, evento_salvar):
     device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
     agente = ApoloAgent(device=device, batch_size=64, taxa_exploracao=0.50)
     
-    print(f"[MOTOR COGNITIVO] Iniciado no device: {device} | Arq: {agente.arq_cfg['hidden']}")
-
     while True:
         try:
             # Se o evento de salvamento foi acionado, salva os pesos
             if evento_salvar.is_set():
                 agente.salvar_pesos()
                 evento_salvar.clear()
-                print("[MOTOR COGNITIVO] Pesos salvos com sucesso.")
 
             try:
                 # Timeout curto para não travar o evento de salvar
@@ -830,12 +821,9 @@ def motor_cognitivo_worker(fila_in, fila_out, evento_salvar):
                 pass
 
         except KeyboardInterrupt:
-            print("[MOTOR COGNITIVO] Encerrando...")
             break
         except Exception as e:
-            import traceback
-            print(f"[MOTOR COGNITIVO] Erro: {e}")
-            traceback.print_exc()
+            registrar_erro("Motor cognitivo: erro no worker", e)
 
 if __name__ == "__main__":
     verificar_compatibilidade()

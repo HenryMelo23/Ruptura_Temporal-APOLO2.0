@@ -9,6 +9,10 @@ tornando incompatível com a memória antiga.
 import os
 import shutil
 from datetime import datetime
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+os.chdir(PROJECT_ROOT)
 
 def main():
     arquivo_memoria = "saves/apolo_memoria_dqn.pt"

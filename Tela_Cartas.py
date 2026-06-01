@@ -3,6 +3,7 @@ import sys
 import random
 import math
 import os
+import ui_helpers
 from Variaveis import *
 
 def carregar_fonte(caminho, tamanho, fallback_name=None):
@@ -31,6 +32,8 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
                   tempo_cooldown_dash, vida_maxima, Petro_active, Resistencia, vida_petro, vida_maxima_petro, dano_petro, xp_petro, petro_evolucao, Resistencia_petro, Chance_Sorte, Poison_Active, Dano_Veneno_Acumulado, Executa_inimigo, Ultimo_Estalo, mostrar_info, Mercenaria_Active, Valor_Bonus, dispositivo_ativo, Tempo_cura,
                   porcentagem_cura, cartas_compradas, pontuacao_exib, max_cartas_compraveis=1, inimigos_eliminados=0):
     
+    cartas_compradas.setdefault("Mercenaria", 0)
+
     Rolagens_possiveis = 3
     Rolagens_Dadas = 0
     compras_restantes = max_cartas_compraveis
@@ -48,6 +51,8 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
         
     tela = obter_tela_loja()
     largura_tela, altura_tela = tela.get_size()
+    pygame.event.set_grab(False)
+    pygame.mouse.set_visible(False)
         
     pygame.display.set_caption('Ruptura Temporal - Cards Shop')
     
@@ -106,10 +111,13 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
          "descricao": "Aumente suas chances de obter cartas raras com 0.6% de sorte adicional. A sorte agora esta ao seu favor!"},
          
         {"nome": "Poison", "Nick": "Toxina Temporal", 
-         "descricao": "Infunde seus ataques com veneno, causando dano continuo ao longo do tempo aos inimigos atingidos."},
+         "descricao": "Infunde seus ataques com veneno, causando dano continuo de 2% da vida max. Acumular aumenta o dano (+0.5%) e a duracao (+0.1s)."},
          
         {"nome": "Coletora", "Nick": "Foice do Tempo", 
-         "descricao": "Coleta a energia vital de inimigos enfraquecidos, executando-os instantaneamente quando sua vida esta baixa."}
+         "descricao": f"Executa inimigos quando a vida deles cai para {Executa_inimigo * 100:.1f}% ou menos. Comprar aumenta o limite para {(Executa_inimigo + 0.005) * 100:.1f}%."},
+
+        {"nome": "Mercenaria", "Nick": "Contrato de Guerra",
+         "descricao": f"Ativa a contagem de combo de pontos. A cada 5 abates, aumenta o bonus da sequencia em +{Valor_Bonus + 25} pontos."}
     ]
 
     cartas_disponiveis = [
@@ -125,7 +133,8 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
         pygame.image.load('Sprites/Deck/carta_defesa1.png'),
         pygame.image.load('Sprites/Deck/carta_sorte1.png'),
         pygame.image.load('Sprites/Deck/carta_poison1.png'),
-        pygame.image.load('Sprites/Deck/carta_estalo1.png')
+        pygame.image.load('Sprites/Deck/carta_estalo1.png'),
+        pygame.image.load('Sprites/Deck/carta_mercenaria1.png')
     ]
 
     frames_cartas = [
@@ -141,7 +150,8 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
         [pygame.image.load('Sprites/Deck/carta_defesa1.png'), pygame.image.load('Sprites/Deck/carta_defesa2.png')],
         [pygame.image.load('Sprites/Deck/carta_sorte1.png'), pygame.image.load('Sprites/Deck/carta_sorte2.png')],
         [pygame.image.load('Sprites/Deck/carta_poison1.png'), pygame.image.load('Sprites/Deck/carta_poison2.png')],
-        [pygame.image.load('Sprites/Deck/carta_estalo1.png'), pygame.image.load('Sprites/Deck/carta_estalo2.png')]
+        [pygame.image.load('Sprites/Deck/carta_estalo1.png'), pygame.image.load('Sprites/Deck/carta_estalo2.png')],
+        [pygame.image.load('Sprites/Deck/carta_mercenaria1.png'), pygame.image.load('Sprites/Deck/carta_mercenaria2.png')]
     ]
 
     CARD_THEMES = {
@@ -157,7 +167,8 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
         "Defesa":            {"cor_tema": (192, 192, 192), "bg_tema": (24, 24, 28),  "categoria": "RESISTÊNCIA FÁSICA",      "lore": "Aumente a densidade do seu campo de forca contra impactos nocivos."},
         "Sorte":             {"cor_tema": (255, 182, 193), "bg_tema": (32, 16, 24),  "categoria": "PROBABILIDADE FAVORÁVEL", "lore": "Altere as probabilidades de eventos quanticos a seu favor."},
         "Poison":            {"cor_tema": (173, 255, 47),  "bg_tema": (16, 32, 12),  "categoria": "TOXINA DE ALTA ESCALA",    "lore": "Uma toxina que envelhece aceleradamente as celulas de quem a toca."},
-        "Coletora":          {"cor_tema": (220, 20, 60),   "bg_tema": (36, 8, 16),   "categoria": "CEIFADOR E EXECUÇÃO",     "lore": "O ceifador nao espera por aqueles que ja estao a beira do abismo."}
+        "Coletora":          {"cor_tema": (220, 20, 60),   "bg_tema": (36, 8, 16),   "categoria": "CEIFADOR E EXECUÇÃO",     "lore": "O ceifador nao espera por aqueles que ja estao a beira do abismo."},
+        "Mercenaria":        {"cor_tema": (255, 180, 40),  "bg_tema": (34, 22, 8),   "categoria": "COMBO E PONTUAÇÃO",       "lore": "Toda queda vira contrato. Todo contrato bem cumprido paga mais caro."}
     }
 
     largura_carta = 150
@@ -172,7 +183,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
         cartas.append(carta)
 
     def obter_cartas_disponiveis(cartas, cartas_compradas, qtd=3):
-        rare_names = {"Trembo", "Petro", "Poison", "Coletora"}
+        rare_names = {"Trembo", "Petro", "Poison", "Coletora", "Mercenaria"}
         
         # pool preference for unbought cards
         pool_nao_compradas = [c for c in cartas if cartas_compradas.get(c["nome"], 0) == 0]
@@ -249,6 +260,28 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
     carta_animada = None
     pos_inicial_animacao = (0, 0)
     escala_inicial_animacao = 1.0
+    modo_interacao = "teclado" if dispositivo_ativo == "teclado" else "mouse"
+
+    def obter_rect_carta(indice):
+        curr_scale = card_scale[indice]
+        w_scaled = int(largura_carta * curr_scale)
+        h_scaled = int(altura_carta * curr_scale)
+        x_pos = int(card_x[indice] - w_scaled // 2)
+        y_pos = int(altura_tela // 2.5 + card_y_offset[indice] - h_scaled // 2)
+        return pygame.Rect(x_pos, y_pos, w_scaled, h_scaled)
+
+    def iniciar_animacao_compra(indice, agora_evento):
+        nonlocal animando_compra, tempo_inicio_animacao, carta_animada
+        nonlocal pos_inicial_animacao, escala_inicial_animacao, carta_selecionada_index
+        if animando_compra or not (0 <= indice < len(cartas_selecionadas)):
+            return
+        carta_selecionada_index = indice
+        animando_compra = True
+        tempo_inicio_animacao = agora_evento
+        carta_animada = cartas_selecionadas[carta_selecionada_index]
+        rect_carta = obter_rect_carta(carta_selecionada_index)
+        pos_inicial_animacao = rect_carta.center
+        escala_inicial_animacao = card_scale[carta_selecionada_index]
 
     def aplicar_carta(carta_sel):
         nonlocal velocidade_personagem, intervalo_disparo, vida, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida
@@ -328,7 +361,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
             cartas_compradas["Sorte"] += 1
         elif nome == "Poison":
             Poison_Active = True
-            Dano_Veneno_Acumulado += 0.05
+            Dano_Veneno_Acumulado += 0.005
             cartas_compradas["Poison"] += 1
         elif nome == "Coletora":
             Executa_inimigo += 0.005
@@ -337,7 +370,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
         elif nome == "Mercenaria":
             Mercenaria_Active = True
             Valor_Bonus += 25
-            cartas_compradas["Coletora"] += 1
+            cartas_compradas["Mercenaria"] += 1
 
         compras_restantes -= 1
         if compras_restantes > 0:
@@ -345,6 +378,10 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
 
     while compras_restantes > 0:
         agora = pygame.time.get_ticks()
+        mx, my = ui_helpers.obter_pos_mouse_superficie(tela)
+        rects_cartas = [obter_rect_carta(i) for i in range(len(cartas_selecionadas))]
+        btn_reroll_rect = pygame.Rect(largura_tela // 2 - 240, altura_tela - 76, 130, 30)
+        btn_sair_rect = pygame.Rect(largura_tela // 2 + 110, altura_tela - 76, 130, 30)
         
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
@@ -355,26 +392,22 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
                 continue
 
             elif evento.type == pygame.KEYDOWN:
+                modo_interacao = "teclado"
+                if evento.key == pygame.K_ESCAPE:
+                    if som_tick:
+                        som_tick.play()
+                    compras_restantes = 0
+                    break
+
                 anterior = carta_selecionada_index
                 if evento.key in [pygame.K_a, pygame.K_LEFT]:
-                    carta_selecionada_index = (carta_selecionada_index - 1) % 3
+                    carta_selecionada_index = (carta_selecionada_index - 1) % len(cartas_selecionadas)
                 elif evento.key in [pygame.K_d, pygame.K_RIGHT]:
-                    carta_selecionada_index = (carta_selecionada_index + 1) % 3
+                    carta_selecionada_index = (carta_selecionada_index + 1) % len(cartas_selecionadas)
                 elif evento.key in [pygame.K_SPACE, pygame.K_RETURN]:
                     if som_tick:
                         som_tick.play()
-                    # Trigger bracelet animation
-                    animando_compra = True
-                    tempo_inicio_animacao = agora
-                    carta_animada = cartas_selecionadas[carta_selecionada_index]
-                    
-                    curr_scale = card_scale[carta_selecionada_index]
-                    w_scaled = int(largura_carta * curr_scale)
-                    h_scaled = int(altura_carta * curr_scale)
-                    x_pos = int(card_x[carta_selecionada_index] - w_scaled // 2)
-                    y_pos = int(altura_tela // 2.5 + card_y_offset[carta_selecionada_index] - h_scaled // 2)
-                    pos_inicial_animacao = (x_pos + w_scaled // 2, y_pos + h_scaled // 2)
-                    escala_inicial_animacao = curr_scale
+                    iniciar_animacao_compra(carta_selecionada_index, agora)
                     
                 elif Rolagens_possiveis > Rolagens_Dadas and evento.key == pygame.K_q:
                     if som_tick:
@@ -386,40 +419,57 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
                     som_tick.play()
                     
             elif evento.type == pygame.JOYAXISMOTION:
+                modo_interacao = "teclado"
                 if evento.axis == 0:
                     if agora - ultima_mudanca_de_carta >= DELAY_ENTRE_CARTAS:
                         anterior = carta_selecionada_index
                         if evento.value < -0.5:
-                            carta_selecionada_index = (carta_selecionada_index - 1) % 3
+                            carta_selecionada_index = (carta_selecionada_index - 1) % len(cartas_selecionadas)
                             ultima_mudanca_de_carta = agora
                         elif evento.value > 0.5:
-                            carta_selecionada_index = (carta_selecionada_index + 1) % 3
+                            carta_selecionada_index = (carta_selecionada_index + 1) % len(cartas_selecionadas)
                             ultima_mudanca_de_carta = agora
                         if carta_selecionada_index != anterior and som_tick:
                             som_tick.play()
                             
             elif evento.type == pygame.JOYBUTTONDOWN:
+                modo_interacao = "teclado"
                 if evento.button == 0:  # Xbox Button A
                     if som_tick:
                         som_tick.play()
-                    # Trigger bracelet animation
-                    animando_compra = True
-                    tempo_inicio_animacao = agora
-                    carta_animada = cartas_selecionadas[carta_selecionada_index]
-                    
-                    curr_scale = card_scale[carta_selecionada_index]
-                    w_scaled = int(largura_carta * curr_scale)
-                    h_scaled = int(altura_carta * curr_scale)
-                    x_pos = int(card_x[carta_selecionada_index] - w_scaled // 2)
-                    y_pos = int(altura_tela // 2.5 + card_y_offset[carta_selecionada_index] - h_scaled // 2)
-                    pos_inicial_animacao = (x_pos + w_scaled // 2, y_pos + h_scaled // 2)
-                    escala_inicial_animacao = curr_scale
+                    iniciar_animacao_compra(carta_selecionada_index, agora)
                     
                 elif Rolagens_possiveis > Rolagens_Dadas and evento.button == 3:  # Xbox Button Y (Reroll)
                     if som_tick:
                         som_tick.play()
                     Rolagens_Dadas += 1
                     cartas_selecionadas = obter_cartas_disponiveis(cartas, cartas_compradas, 3)
+            elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                modo_interacao = "mouse"
+                pos_evento = ui_helpers.converter_pos_mouse_jogo(evento.pos)
+                if btn_sair_rect.collidepoint(pos_evento):
+                    if som_tick:
+                        som_tick.play()
+                    compras_restantes = 0
+                    break
+                if btn_reroll_rect.collidepoint(pos_evento) and Rolagens_possiveis > Rolagens_Dadas:
+                    if som_tick:
+                        som_tick.play()
+                    Rolagens_Dadas += 1
+                    cartas_selecionadas = obter_cartas_disponiveis(cartas, cartas_compradas, 3)
+                    carta_selecionada_index = 0
+                    break
+                for i, rect_carta in enumerate(rects_cartas):
+                    if rect_carta.collidepoint(pos_evento):
+                        if som_tick:
+                            som_tick.play()
+                        if i == carta_selecionada_index:
+                            iniciar_animacao_compra(i, agora)
+                        elif i > carta_selecionada_index:
+                            carta_selecionada_index = min(carta_selecionada_index + 1, len(cartas_selecionadas) - 1)
+                        else:
+                            carta_selecionada_index = max(carta_selecionada_index - 1, 0)
+                        break
 
         # Update animation progress
         if animando_compra:
@@ -707,7 +757,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
                 tela.blit(surf_anim_alpha, (int(current_x - surf_anim_alpha.get_width() // 2), int(current_y - surf_anim_alpha.get_height() // 2)))
 
         # 10. Instruction Footer Bar
-        texto_instr = "A / D ou SETAS para navegar | ESPACO para selecionar | Q para Reroll"
+        texto_instr = "Clique nas laterais para navegar | Clique na carta central para comprar | A/D, Q e ESC funcionam"
         render_instr_text = fonte_instrucao.render(texto_instr, True, cor_accent)
         largura_instr = render_instr_text.get_width() + 40
         altura_instr = 30
@@ -719,6 +769,23 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
         
         tela.blit(surf_instr, (largura_tela // 2 - largura_instr // 2, altura_tela - 40))
 
+        for rect_btn, label, ativo in [
+            (btn_reroll_rect, f"REROLL {Rolagens_possiveis - Rolagens_Dadas}", Rolagens_possiveis > Rolagens_Dadas),
+            (btn_sair_rect, "SAIR", True),
+        ]:
+            hover = modo_interacao == "mouse" and rect_btn.collidepoint(mx, my) and ativo
+            cor_base = (18, 18, 26) if ativo else (45, 45, 52)
+            cor_borda = cor_accent if hover else (80, 80, 90)
+            cor_texto = (255, 255, 255) if ativo else (120, 120, 130)
+            pygame.draw.rect(tela, cor_base, rect_btn, border_radius=6)
+            pygame.draw.rect(tela, cor_borda, rect_btn, width=2 if hover else 1, border_radius=6)
+            texto_btn = fonte_instrucao.render(label, True, cor_texto)
+            tela.blit(texto_btn, (
+                rect_btn.centerx - texto_btn.get_width() // 2,
+                rect_btn.centery - texto_btn.get_height() // 2
+            ))
+
+        ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()
         clock.tick(60)
 

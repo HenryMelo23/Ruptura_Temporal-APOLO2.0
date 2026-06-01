@@ -17,8 +17,7 @@ ADAPTACAO_UMBRA_ATIVA = True
 DEBUG_ADAPTACAO_UMBRA = False
 
 def _log_adapt(msg):
-    if DEBUG_ADAPTACAO_UMBRA:
-        print(f"[UMBRA_ADAPT] {msg}")
+    pass
 
 def _tem_mod(estado_ia, mod_id):
     """Retorna intensidade do modificador se ativo, 0.0 caso contrário."""

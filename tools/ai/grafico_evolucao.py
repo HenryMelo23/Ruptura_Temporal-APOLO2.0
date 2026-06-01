@@ -3,6 +3,10 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import os
 from matplotlib.lines import Line2D
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+os.chdir(PROJECT_ROOT)
 
 arquivo_historico = "saves/historico_batalhas.json"
 

@@ -5,8 +5,13 @@ Remove toda a lógica do Apolo AI e do Flask, adaptando o jogo para controle man
 
 import sys
 import os
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 def build_player():
+    os.chdir(PROJECT_ROOT)
     if not os.path.exists("GAME5.py"):
         print("Erro: GAME5.py não encontrado no diretório atual.")
         sys.exit(1)

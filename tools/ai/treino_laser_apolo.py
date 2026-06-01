@@ -12,11 +12,11 @@ v3 - Correções para superar a Rodada 2+:
   - Mantém toda a arquitetura DQN v2 (replay buffer, target net, Bellman)
 
 Uso:
-    python treino_laser_apolo.py                      # 500 ep, todas rodadas
-    python treino_laser_apolo.py --curriculum          # 1500 ep com currículo
-    python treino_laser_apolo.py --visual              # Com pygame
-    python treino_laser_apolo.py --geracoes 2000
-    python treino_laser_apolo.py --verificar
+    python tools/ai/treino_laser_apolo.py                      # 500 ep, todas rodadas
+    python tools/ai/treino_laser_apolo.py --curriculum          # 1500 ep com currículo
+    python tools/ai/treino_laser_apolo.py --visual              # Com pygame
+    python tools/ai/treino_laser_apolo.py --geracoes 2000
+    python tools/ai/treino_laser_apolo.py --verificar
 """
 
 import math
@@ -26,6 +26,12 @@ import os
 import time
 import argparse
 import collections
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+os.chdir(PROJECT_ROOT)
 
 import torch
 import torch.nn as nn
@@ -917,7 +923,7 @@ def treinar(num_geracoes: int = 500, visual: bool = False,
     print(f"  Taxa sv completa:   {taxa_f:.1f}%  (ult. 100)")
     print(f"  Rod 1 sv:  {sv_r_f[1]:.1f}%  | Rod 2 sv: {sv_r_f[2]:.1f}%")
     print(f"  Rod 3 sv:  {sv_r_f[3]:.1f}%  | Rod 4 sv: {sv_r_f[4]:.1f}%")
-    print(f"  Pesos salvos em:    apolo_memoria_dqn.pt")
+    print(f"  Pesos salvos em:    saves/apolo_memoria_dqn.pt")
     print("=" * 60)
 
 

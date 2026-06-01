@@ -4,6 +4,7 @@ import socket
 import json
 import time
 import requests
+from qa_logger import registrar_erro
 
 RENDER_SERVER = "https://servidor-matchmaking-gsmh.onrender.com"
 
@@ -149,7 +150,6 @@ def descobrir_host_udp(porta_udp=5051, timeout=5):
             msg = data.decode()
             if msg.startswith("RupturaTemporalHost:"):
                 ip_host = msg.split(":")[1]
-                print(f"[Descoberto Host] {ip_host}")
                 return ip_host
         except socket.timeout:
             continue
@@ -171,10 +171,10 @@ def registrar_ip_host_online(ip_local, porta=5050):
         if resp.status_code == 200:
             return resp.json().get("token")
         else:
-            print("Erro ao registrar host:", resp.text)
+            registrar_erro(f"Rede: erro ao registrar host: {resp.text}")
             return None
     except Exception as e:
-        print("Erro de conexão com servidor:", e)
+        registrar_erro("Rede: erro de conexao com servidor ao registrar host", e)
         return None
 
 
@@ -186,8 +186,8 @@ def obter_ip_host_online(token):
             data = resp.json()
             return data.get("ip"), data.get("porta")
         else:
-            print("Erro ao obter IP:", resp.text)
+            registrar_erro(f"Rede: erro ao obter IP: {resp.text}")
             return None, None
     except Exception as e:
-        print("Erro de conexão com servidor:", e)
+        registrar_erro("Rede: erro de conexao com servidor ao obter IP", e)
         return None, None

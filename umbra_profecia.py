@@ -12,8 +12,7 @@ import random
 DEBUG_PROFECIA_UMBRA = False
 
 def _log_prof(msg):
-    if DEBUG_PROFECIA_UMBRA:
-        print(f"[PROFECIA] {msg}")
+    pass
 
 
 TIPOS_PROFECIA = [

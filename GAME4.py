@@ -9,13 +9,27 @@ from Tela_Cartas import tela_de_pausa
 import subprocess
 import sys
 import json
+from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from Variaveis import *
 from habilidades_personagem import processar_habilidade_onda, atualizar_e_desenhar_correntes
 import Variaveis
 from utils import *
-from ui_helpers import desenhar_hud_fase, obter_pos_mouse_jogo
+from ui_helpers import (
+    desenhar_hud_fase,
+    obter_pos_mouse_jogo,
+    tela_transicao_dimensional,
+    desenhar_efeitos_vanguarda,
+    desenhar_efeito_racional_dilatacao,
+    fator_movimento_racional,
+    fator_mundo_racional,
+    intervalo_disparo_racional,
+)
 from audio_manager import carregar_config_audio, aplicar_volume_som
 from Tela_Upgrade_Aureas import tela_upgrade_aureas
+
+instalar_captura_global()
+instalar_filtro_prints()
+
 dt = 1.0
 
 # Forward declarations (atribuídos no loop principal)
@@ -26,6 +40,7 @@ gerar_fragmentos_morte = None
 escudo_devota_ativo = True
 duracao_incendio_vanguarda = 5000
 intervalo_escudo = 30000
+racional_dilatacao_fim = 0
 
 # Inicializar o Pygame
 pygame.init()
@@ -282,6 +297,7 @@ def atualizar_posicao_personagem(keys, joystick):
     global vida_inimigo_maxima, Resistencia_petro, dano_inimigo_perto, vida_maxima_petro, dano_petro, dano_inimigo_longe
     global inimigos_eliminados, pontuacao, pontuacao_exib, eliminacoes_consecutivas, bonus_pontuacao, boss_vivo4
     global vida_boss4, vida_maxima_boss4, Valor_Bonus
+    global racional_dilatacao_fim
 
     # Se o personagem estiver imóvel, não atualize a posição
     if personagem_imovel:
@@ -289,6 +305,7 @@ def atualizar_posicao_personagem(keys, joystick):
 
     direcao_atual = 'stop'
     dx, dy = 0, 0
+    velocidade_movimento = velocidade_personagem * fator_movimento_racional(aurea, racional_dilatacao_fim)
 
     # ---- TECLADO ----
     if Variaveis.verificar_input("Mover para direita"): dx, ultima_tecla_movimento = 1, 'right'
@@ -323,15 +340,21 @@ def atualizar_posicao_personagem(keys, joystick):
                 
             fator_normalizacao = 0.7071
             pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
-                                         pos_x_personagem + dx * velocidade_personagem * fator_normalizacao * dt))
+                                         pos_x_personagem + dx * velocidade_movimento * fator_normalizacao * dt))
             pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
-                                         pos_y_personagem + dy * velocidade_personagem * fator_normalizacao * dt))
+                                         pos_y_personagem + dy * velocidade_movimento * fator_normalizacao * dt))
         else:
             angulo_inclinacao_personagem = 0
             pos_x_personagem = max(0, min(largura_mapa - largura_personagem, 
-                                         pos_x_personagem + dx * velocidade_personagem * dt))
+                                         pos_x_personagem + dx * velocidade_movimento * dt))
             pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
-                                         pos_y_personagem + dy * velocidade_personagem * dt))
+                                         pos_y_personagem + dy * velocidade_movimento * dt))
+        
+        pos_x_personagem, pos_y_personagem = Variaveis.resolver_colisao_player_com_inimigos(
+            pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, inimigos_comum
+        )
+        pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem))
+        pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem))
     else:
         angulo_inclinacao_personagem = 0
         if botao_mouse[0]:
@@ -375,6 +398,8 @@ def atualizar_posicao_personagem(keys, joystick):
 
         cooldown_dash = True
         tempo_ultimo_dash = pygame.time.get_ticks()
+        if aurea == "Racional":
+            racional_dilatacao_fim = tempo_ultimo_dash + 3000
 
         # Onda de choque no destino do teletransporte
         cx_t = pos_x_personagem + largura_personagem // 2
@@ -1080,7 +1105,7 @@ def executar_jogo(game_manager=None):
                                 vida_boss4 = snap["vida_boss"]
                         Variaveis.snapshot_para_carregar = None
                 except Exception as e:
-                    print(f"Aviso: Nao foi possivel carregar atributos ({e}). Usando padrao.")
+                    registrar_erro("Fase 4: erro ao carregar atributos; usando padrao", e)
                 Variaveis.limpar_cartas_no_chao()
                 carregar_atributos_na_fase=False
 
@@ -1127,7 +1152,7 @@ def executar_jogo(game_manager=None):
                         retomar_cronometro()
                         pygame.event.set_grab(True)  # Travar mouse de novo
                         pygame.mouse.set_visible(False)  # Esconder cursor do sistema
-                elif botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo:  # Botão esquerdo do mouse
+                elif botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual):  # Botão esquerdo do mouse
                     pos_mouse = obter_pos_mouse_jogo()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
@@ -1173,7 +1198,7 @@ def executar_jogo(game_manager=None):
                 try:
                     salvar_atributos()
                 except Exception as e:
-                    print(f"Erro ao salvar atributos para pausa: {e}")
+                    registrar_erro("Fase 4: erro ao salvar atributos para pausa", e)
                 from Tela_Pause import exibir_tela_pause
                 ret_pause = exibir_tela_pause(tela, cartas_compradas, joy)
                 if isinstance(ret_pause, dict):
@@ -1255,14 +1280,7 @@ def executar_jogo(game_manager=None):
                         inimigo["vida"] -= dano
                         disparos.remove(disparo)  # Remover o disparo após colisão
                         if Poison_Active:
-                            inimigo["veneno"] = {
-                                "dano_por_tick": inimigo["vida_maxima"] * Dano_Veneno_Acumulado,  # 0.5% da vida máxima
-                                "tempo_inicio": pygame.time.get_ticks(),
-                                "duracao": 4000,  # 4 segundos
-                                "ultimo_tick": pygame.time.get_ticks(),  # Tempo do último tick
-                                "posicao_texto": (inimigo["rect"].x, inimigo["rect"].y - 20),  # Posição inicial do texto
-                                "tempo_texto_dano": pygame.time.get_ticks()  # Tempo de exibição do texto
-                                }
+                            aplicar_veneno(inimigo, tempo_atual, cartas_compradas.get("Poison", 0))
 
 
                         if quantidade_roubo_vida > 0:
@@ -1335,13 +1353,13 @@ def executar_jogo(game_manager=None):
                             break  # importante
                 if "veneno" in inimigo:
                     # Verifique se é hora de aplicar dano
-                    if tempo_atual - inimigo["veneno"]["ultimo_tick"] >= 500:
+                    if tempo_atual - inimigo["veneno"]["ultimo_tick"] >= INTERVALO_TICK_VENENO:
                         inimigo["vida"] -= inimigo["veneno"]["dano_por_tick"]
                         inimigo["veneno"]["ultimo_tick"] = tempo_atual  # Atualiza o tempo do último tick
                         inimigo["veneno"]["tempo_texto_dano"] = tempo_atual  # Atualiza o tempo de exibição do texto
 
                     # Exibe o texto apenas por 1.5 segundos após o dano
-                    if tempo_atual - inimigo["veneno"]["tempo_texto_dano"] <= 250:
+                    if tempo_atual - inimigo["veneno"]["tempo_texto_dano"] <= 1500:
                         dano_veneno_texto = "-" + str(int(inimigo["veneno"]["dano_por_tick"]))
 
                         # Renderize o texto do dano com borda preta
@@ -1728,6 +1746,7 @@ def executar_jogo(game_manager=None):
                             except:
                                 pass
                             pausar_cronometro()
+                            tela_transicao_dimensional(tela, 5)
                             if game_manager:
                                 from game_manager import EstadoJogo
                                 game_manager.mudar_estado(EstadoJogo.JOGO_FASE_5)
@@ -1774,12 +1793,18 @@ def executar_jogo(game_manager=None):
                 if "pos_y" not in inimigo:
                     inimigo["pos_y"] = float(inimigo["rect"].y)
                     
-                inimigo["pos_x"] += (dx / dist) * velocidade_inimigo2
-                inimigo["pos_y"] += (dy / dist) * velocidade_inimigo2
+                vel_inimigo_frame = velocidade_inimigo2 * fator_mundo_racional(aurea, racional_dilatacao_fim, tempo_atual)
+                inimigo["pos_x"] += (dx / dist) * vel_inimigo_frame
+                inimigo["pos_y"] += (dy / dist) * vel_inimigo_frame
                 inimigo["rect"].x = int(inimigo["pos_x"])
                 inimigo["rect"].y = int(inimigo["pos_y"])
 
             # Resolve colisões e separações entre inimigos e jogador
+            pos_x_personagem, pos_y_personagem = Variaveis.resolver_colisao_player_com_inimigos(
+                pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, inimigos_comum
+            )
+            pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem))
+            pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem))
             Variaveis.resolver_colisoes_e_separacao(inimigos_comum, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
 
             for inimigo in inimigos_comum:
@@ -1795,7 +1820,7 @@ def executar_jogo(game_manager=None):
                 # Desenhar sombra do inimigo
                 desenhar_sombra(tela, inimigo["rect"].x, inimigo["rect"].y, largura_inimigo, altura_inimigo)
                 tela.blit(inimigo["image"], inimigo["rect"])
-                desenhar_barra_de_vida(tela, inimigo["rect"].x, inimigo["rect"].y - 10, largura_inimigo, 5, inimigo["vida"], inimigo["vida_maxima"], inimigo.get("eletrocutado", False))
+                desenhar_barra_de_vida(tela, inimigo["rect"].x, inimigo["rect"].y - 10, largura_inimigo, 5, inimigo["vida"], inimigo["vida_maxima"], inimigo.get("eletrocutado", False), Executa_inimigo if Ultimo_Estalo else None)
 
                 tempo_atual = pygame.time.get_ticks()
                 if tempo_atual - tempo_ultimo_disparo_inimigo >= intervalo_disparo_inimigo and random.random() <= 0.008:  #frequencia do disparo do sinimigos
@@ -1935,11 +1960,35 @@ def executar_jogo(game_manager=None):
                     Tempo_cura = min(2500, int(Tempo_cura * 1.5))
                     pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem)
                 else:
+                    from utils import executar_animacao_morte_personagem
+                    frame_para_desenhar_morte = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
+                    executar_animacao_morte_personagem(
+                        tela=tela,
+                        pos_x_personagem=pos_x_personagem,
+                        pos_y_personagem=pos_y_personagem,
+                        largura_personagem=largura_personagem,
+                        altura_personagem=altura_personagem,
+                        frame_para_desenhar=frame_para_desenhar_morte,
+                        angulo_inclinacao_personagem=angulo_inclinacao_personagem,
+                        desenhar_hud_callback=lambda s: desenhar_hud_fase(
+                        s, 0, vida_maxima, pontuacao_exib, custo_carta_atual,
+                        pontuacao_magia, cooldowns, dispositivo_ativo,
+                        eliminacoes_consecutivas, bonus_pontuacao, aurea,
+                        escudo_devota_ativo, pos_x_personagem, pos_y_personagem,
+                        largura_personagem, altura_personagem
+                    ),
+                        exibir_cronometro_callback=lambda s: exibir_cronometro(s),
+                        cursor_imagem=cursor_imagem,
+                        mouse_pos=(mouse_x, mouse_y),
+                        config_graficos=config_graficos,
+                        som_morte=locals().get('Dano_person', globals().get('Dano_person', None))
+                    )
 
-                    pygame.time.delay(2000)
                     Musica_tema_fases.stop()
                     Som_tema_fases.stop()
-                    moedas_totais = tela_upgrade_aureas(tela, fonte, moedas_totais)
+                    if moedas_totais > 0:
+                        moedas_totais = tela_upgrade_aureas(tela, fonte, moedas_totais)
+                    pygame.event.clear()
 
                     limpar_salvamento()
                     if game_manager:
@@ -1948,7 +1997,7 @@ def executar_jogo(game_manager=None):
                         raise CleanExit()
                     else:
                         pygame.quit()
-                        subprocess.run([python, "Game_Over.py"])
+                        subprocess.run([sys.executable, "Game_Over.py"])
                         sys.exit()
 
             # Adicione esta verificação para controlar o piscar da barra de vida
@@ -2161,7 +2210,9 @@ def executar_jogo(game_manager=None):
                         # Ativar veneno no Boss com 50% de chance, se ainda não estiver envenenado
                         if random.random() < 0.5 and not boss_envenenado and Poison_Active:
                             boss_envenenado = True
-                            dano_por_tick_veneno_boss = vida_boss4 * (Dano_Veneno_Acumulado/100)  # Exemplo: 0.5% da vida máxima
+                            global duracao_veneno_boss
+                            dano_por_tick_veneno_boss = vida_maxima_boss4 * Dano_Veneno_Acumulado
+                            duracao_veneno_boss = 8000 + cartas_compradas.get("Poison", 0) * 100
                             tempo_inicio_veneno_boss = pygame.time.get_ticks()
                             ultimo_tick_veneno_boss = pygame.time.get_ticks()
 
@@ -2181,12 +2232,12 @@ def executar_jogo(game_manager=None):
                     tempo_atual = pygame.time.get_ticks()
 
                     # Aplicar dano a cada 500 ms
-                    if tempo_atual - ultimo_tick_veneno_boss >= 500:
+                    if tempo_atual - ultimo_tick_veneno_boss >= INTERVALO_TICK_VENENO:
                         vida_boss4 -= dano_por_tick_veneno_boss
                         ultimo_tick_veneno_boss = tempo_atual
 
                     # Exibir texto do dano de veneno (1.5 segundos)
-                    if tempo_atual - ultimo_tick_veneno_boss <= 250:
+                    if tempo_atual - ultimo_tick_veneno_boss <= 1500:
                         dano_veneno_texto = "-" + str(int(dano_por_tick_veneno_boss))
                         texto_dano_veneno = fonte_veneno.render(dano_veneno_texto, True, (0, 255, 0))
                         texto_dano_veneno_borda = fonte_veneno.render(dano_veneno_texto, True, (0, 0, 0))
@@ -2270,7 +2321,7 @@ def executar_jogo(game_manager=None):
 
 
             cooldowns = {
-                "disparo": max(0.0, (intervalo_disparo - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
+                "disparo": max(0.0, (intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual) - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
                 "teleporte": max(0.0, (tempo_cooldown_dash - (pygame.time.get_ticks() - tempo_ultimo_dash)) / 1000.0),
                 "onda": max(0.0, (cooldown_habilidade - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
                 "loja": 1 if pontuacao_exib >= custo_carta_atual else 0, 
@@ -2334,19 +2385,20 @@ def executar_jogo(game_manager=None):
                 ):
                     # Desenhar habilidades na tela
                     desenhar_habilidades(tela, cooldowns,dispositivo_ativo)
-                if eliminacoes_consecutivas > 0:
+                if Mercenaria_Active:
                     fonte_combo = pygame.font.Font(None, 36)  # Tamanho maior para o combo
                     fonte_bonus = pygame.font.Font(None, 28)  # Tamanho menor para o bônus
 
                     # Texto do combo
-                    texto_combo = f"Combo: {eliminacoes_consecutivas}"
-                    posicao_combo = (largura_mapa - 200, 50)  
-                    desenhar_texto_com_contorno(tela, texto_combo, fonte_combo, (255, 255, 255), (0, 0, 0), posicao_combo)
+                    texto_combo = f"Mercenaria: {eliminacoes_consecutivas} abates"
+                    posicao_combo = (largura_mapa - 330, 50)
+                    desenhar_texto_com_contorno(tela, texto_combo, fonte_combo, (255, 220, 80), (0, 0, 0), posicao_combo)
 
                     # Texto do bônus
-                    texto_bonus = f"Bônus: +{bonus_pontuacao}"
+                    faltam_bonus = 5 - (eliminacoes_consecutivas % 5)
+                    texto_bonus = f"Bonus: +{bonus_pontuacao} | prox +{Valor_Bonus} em {faltam_bonus}"
                     posicao_combo_y = 90  # Just standard
-                    desenhar_texto_com_contorno(tela, texto_bonus, fonte_bonus, (255, 255, 255), (0, 0, 0), (largura_mapa - 200, posicao_combo_y))
+                    desenhar_texto_com_contorno(tela, texto_bonus, fonte_bonus, (255, 245, 190), (0, 0, 0), (largura_mapa - 330, posicao_combo_y))
             if texto_dano is not None:
                 tela.blit(texto_dano, pos_texto)
             for inimigo in inimigos_comum:
@@ -2377,6 +2429,28 @@ def executar_jogo(game_manager=None):
                                 inimigos_em_chamas.pop(i_id, None)
                     else:
                         inimigos_em_chamas.pop(i_id, None)
+            desenhar_efeitos_vanguarda(
+                tela,
+                pos_x_personagem,
+                pos_y_personagem,
+                largura_personagem,
+                altura_personagem,
+                inimigos_comum,
+                inimigos_em_chamas,
+                duracao_incendio_vanguarda,
+                aurea,
+                config_graficos,
+            )
+            desenhar_efeito_racional_dilatacao(
+                tela,
+                pos_x_personagem,
+                pos_y_personagem,
+                largura_personagem,
+                altura_personagem,
+                racional_dilatacao_fim,
+                aurea,
+                config_graficos,
+            )
             atualizar_e_desenhar_fragmentos(tela)
             atualizar_e_desenhar_particulas_pontos(tela)
 

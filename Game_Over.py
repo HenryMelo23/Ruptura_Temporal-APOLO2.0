@@ -5,6 +5,11 @@ import random
 import math
 from Variaveis import largura_tela, altura_tela
 from sons_procedurais import tocar_hover, tocar_selecionar, tocar_game_over, parar_tudo
+from ui_helpers import obter_superficie_palco
+from qa_logger import instalar_captura_global, instalar_filtro_prints
+
+instalar_captura_global()
+instalar_filtro_prints()
 
 # Inicializar Pygame
 pygame.init()
@@ -98,7 +103,7 @@ def executar_game_over(game_manager=None):
     tocar_game_over()
 
     # Configuração da janela
-    window = pygame.display.get_surface() or pygame.display.set_mode((largura_tela, altura_tela))
+    window = obter_superficie_palco() or pygame.display.set_mode((largura_tela, altura_tela))
     largura, altura = window.get_size()
     pygame.display.set_caption("Linha do Tempo Rompida")
     

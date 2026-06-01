@@ -1,4 +1,4 @@
-import Caminhos
+﻿import Caminhos
 import pygame
 import sys
 import math
@@ -6,16 +6,16 @@ import os
 import json
 from sons_procedurais import tocar_hover, tocar_selecionar
 
-# Atributos e descrições para todas as cartas
+# Atributos e descricoes para todas as cartas
 atributos_todas_cartas = {
     "Speed Boost": {
         "Nick": "Vento Celeste",
-        "descricao": "Aumente sua velocidade em +10%. Corra como o vento e fuja de qualquer situação perigosa.",
+        "descricao": "Aumente sua velocidade em +10%. Corra como o vento e fuja de qualquer situacao perigosa.",
         "imagem_path": "Sprites/Deck/Speed_boost1.png"
     },
     "Porção": {
         "Nick": "Elixir Vital",
-        "descricao": "Recupere 25% da sua vida máxima e ganhe mais vida máxima permanentemente.",
+        "descricao": "Recupere 25% da sua vida maxima e ganhe mais vida maxima permanentemente.",
         "imagem_path": "Sprites/Deck/carta_por1.png"
     },
     "Disparo crescente": {
@@ -25,53 +25,58 @@ atributos_todas_cartas = {
     },
     "Tempestade": {
         "Nick": "Tempestade Crescente",
-        "descricao": "Aumente sua chance crítica em 2% e triplique o dano causado. Transforme cada acerto em uma tempestade!",
+        "descricao": "Aumente sua chance critica em 2% e triplique o dano causado. Transforme cada acerto em uma tempestade!",
         "imagem_path": "Sprites/Deck/Carta_tempestade_crescente1.png"
     },
     "Cura": {
         "Nick": "Mordida Sombria",
-        "descricao": "Restaure 3% da sua vida a cada hit e 4% a cada ativação. Recupere sua saúde enquanto luta!",
+        "descricao": "Restaure 3% da sua vida a cada hit e 4% a cada ativacao. Recupere sua saude enquanto luta!",
         "imagem_path": "Sprites/Deck/Carta_roubo_vida1.png"
     },
     "Trembo": {
-        "Nick": "Reversão Temporal",
-        "descricao": "Quando a morte se aproxima, o tempo volta. Recupere toda a sua saúde e reapareça em outro local!",
+        "Nick": "Reversao Temporal",
+        "descricao": "Quando a morte se aproxima, o tempo volta. Recupere toda a sua saude e reapareca em outro local!",
         "imagem_path": "Sprites/Deck/carta_trem1.png"
     },
     "Speed Atack": {
         "Nick": "Fluidez Letal",
-        "descricao": "Aumente a velocidade de ataque em 5%, tornando seus tiros rápidos e letais.",
+        "descricao": "Aumente a velocidade de ataque em 5%, tornando seus tiros rapidos e letais.",
         "imagem_path": "Sprites/Deck/carta_onda.png"
     },
     "Teleporte": {
         "Nick": "Salto Espacial",
-        "descricao": "Reduza o cooldown do teleporte em 3%, permitindo que você se mova rapidamente entre os campos de batalha.",
+        "descricao": "Reduza o cooldown do teleporte em 3%, permitindo que voce se mova rapidamente entre os campos de batalha.",
         "imagem_path": "Sprites/Deck/carta_teleporte1.png"
     },
     "Petro": {
         "Nick": "Sentinela Leal",
-        "descricao": "Desencadeie o poder de um pequeno guardião. Alimente-o para ver seu poder crescer e proteger você!",
+        "descricao": "Desencadeie o poder de um pequeno guardiao. Alimente-o para ver seu poder crescer e proteger voce!",
         "imagem_path": "Sprites/Deck/carta_petro1.png"
     },
     "Defesa": {
-        "Nick": "Escudo Fásico",
-        "descricao": "Aumente sua resistência em +5 e mitigue os danos dos inimigos.",
+        "Nick": "Escudo Fasico",
+        "descricao": "Aumente sua resistencia em +5 e mitigue os danos dos inimigos.",
         "imagem_path": "Sprites/Deck/carta_defesa1.png"
     },
     "Sorte": {
-        "Nick": "Anomalia Favorável",
+        "Nick": "Anomalia Favoravel",
         "descricao": "Aumente suas chances de obter cartas raras com 0.6% de sorte adicional.",
         "imagem_path": "Sprites/Deck/carta_sorte1.png"
     },
     "Poison": {
         "Nick": "Toxina Temporal",
-        "descricao": "Infunde seus ataques com veneno, causando dano contínuo ao longo do tempo aos inimigos atingidos.",
+        "descricao": "Infunde seus ataques com veneno, causando dano continuo ao longo do tempo aos inimigos atingidos.",
         "imagem_path": "Sprites/Deck/carta_poison1.png"
     },
     "Coletora": {
         "Nick": "Foice do Tempo",
-        "descricao": "Coleta a energia vital de inimigos enfraquecidos, executando-os instantaneamente quando sua vida está baixa.",
+        "descricao": "Coleta a energia vital de inimigos enfraquecidos, executando-os instantaneamente quando sua vida esta baixa.",
         "imagem_path": "Sprites/Deck/carta_estalo1.png"
+    },
+    "Mercenaria": {
+        "Nick": "Contrato de Guerra",
+        "descricao": "Ativa a contagem de combo de pontos. Abates consecutivos aumentam o bonus de pontuacao.",
+        "imagem_path": "Sprites/Deck/carta_mercenaria1.png"
     }
 }
 
@@ -109,6 +114,72 @@ def wrap_text(texto, fonte, largura_maxima):
         linhas.append(linha_atual)
     return linhas
 
+def _snapshot_config(config):
+    return json.dumps(config, sort_keys=True, ensure_ascii=False)
+
+def _tem_alteracoes_pendentes(config, config_salva):
+    return _snapshot_config(config) != _snapshot_config(config_salva)
+
+def _confirmar_saida_alteracoes_pause(tela, fontes):
+    largura_tela, altura_tela = tela.get_size()
+    fonte_titulo = fontes["titulo"](34)
+    fonte_texto = fontes["texto"](24)
+    opcoes = [("Salvar e sair", "salvar"), ("Sair sem salvar", "descartar"), ("Cancelar", "cancelar")]
+    selecionado = 0
+    clock = pygame.time.Clock()
+
+    while True:
+        overlay = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 190))
+        tela.blit(overlay, (0, 0))
+
+        caixa = pygame.Rect(largura_tela // 2 - 320, altura_tela // 2 - 130, 640, 260)
+        pygame.draw.rect(tela, (12, 10, 24), caixa, border_radius=10)
+        pygame.draw.rect(tela, (0, 255, 204), caixa, 2, border_radius=10)
+
+        titulo = fonte_titulo.render("ALTERACOES NAO SALVAS", True, (255, 230, 120))
+        tela.blit(titulo, titulo.get_rect(center=(caixa.centerx, caixa.y + 48)))
+        msg = fonte_texto.render("Salvar alteracoes antes de sair?", True, (220, 220, 230))
+        tela.blit(msg, msg.get_rect(center=(caixa.centerx, caixa.y + 90)))
+
+        mx, my = pygame.mouse.get_pos()
+        for i, (label, _) in enumerate(opcoes):
+            rect = pygame.Rect(caixa.x + 95, caixa.y + 120 + i * 42, caixa.w - 190, 34)
+            if rect.collidepoint(mx, my):
+                selecionado = i
+            pygame.draw.rect(tela, (0, 180, 200, 55) if i == selecionado else (20, 18, 32), rect, border_radius=6)
+            pygame.draw.rect(tela, (0, 255, 204) if i == selecionado else (90, 100, 120), rect, 1, border_radius=6)
+            txt = fonte_texto.render(label, True, (255, 255, 255) if i == selecionado else (180, 185, 200))
+            tela.blit(txt, txt.get_rect(center=rect.center))
+
+        pygame.display.flip()
+
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if evento.type == pygame.KEYDOWN:
+                if evento.key in [pygame.K_UP, pygame.K_w]:
+                    selecionado = (selecionado - 1) % len(opcoes)
+                    tocar_hover()
+                elif evento.key in [pygame.K_DOWN, pygame.K_s]:
+                    selecionado = (selecionado + 1) % len(opcoes)
+                    tocar_hover()
+                elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    tocar_selecionar()
+                    return opcoes[selecionado][1]
+                elif evento.key == pygame.K_ESCAPE:
+                    tocar_selecionar()
+                    return "cancelar"
+            elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                for i, (_, acao) in enumerate(opcoes):
+                    rect = pygame.Rect(caixa.x + 95, caixa.y + 120 + i * 42, caixa.w - 190, 34)
+                    if rect.collidepoint(mx, my):
+                        tocar_selecionar()
+                        return acao
+
+        clock.tick(60)
+
 def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
     try:
         with open("saves/config_graficos.json", "r") as f:
@@ -117,18 +188,21 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
         config = {
             "sombras_ativas": "dinamicas",
             "qualidade_grafica": "alta",
+            "nivel_detalhes": "alto",
             "particulas_ativas": True,
             "efeitos_visuais": True,
             "fps_limite": 60
         }
     config.setdefault("fps_limite", 60)
+    config.setdefault("nivel_detalhes", "alto")
     config.setdefault("particulas_ativas", True)
     config.setdefault("efeitos_visuais", True)
     
     opcoes_config = [
-        {"nome": "Sombras", "chave": "sombras_ativas", "valores": ["desativadas", "simples", "dinamicas"], "labels": ["Desativadas", "Simples", "Dinâmicas"]},
-        {"nome": "Qualidade Gráfica", "chave": "qualidade_grafica", "valores": ["alta", "media", "baixa"], "labels": ["Alta", "Média", "Baixa"]},
-        {"nome": "Partículas", "chave": "particulas_ativas", "valores": [True, False], "labels": ["Ativadas", "Desativadas"]},
+        {"nome": "Sombras", "chave": "sombras_ativas", "valores": ["desativadas", "simples", "dinamicas"], "labels": ["Desativadas", "Simples", "Dinamicas"]},
+        {"nome": "Qualidade Grafica", "chave": "qualidade_grafica", "valores": ["alta", "media", "baixa"], "labels": ["Alta", "Media", "Baixa"]},
+        {"nome": "Detalhes dos Efeitos", "chave": "nivel_detalhes", "valores": ["alto", "medio", "baixo"], "labels": ["Alto", "Medio", "Baixo"]},
+        {"nome": "Particulas", "chave": "particulas_ativas", "valores": [True, False], "labels": ["Ativadas", "Desativadas"]},
         {"nome": "Efeitos Visuais", "chave": "efeitos_visuais", "valores": [True, False], "labels": ["Ativados", "Desativados"]},
         {"nome": "Limite de FPS", "chave": "fps_limite", "valores": [30, 60, 120, 0], "labels": ["30 FPS", "60 FPS", "120 FPS", "Ilimitado"]},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
@@ -137,27 +211,32 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
     descricoes_valores = {
         "sombras_ativas": {
             "desativadas": "Desliga sombras. Melhora muito o desempenho em PCs fracos.",
-            "simples": "Sombras básicas estáticas. Bom equilíbrio de performance.",
-            "dinamicas": "Sombras realistas em tempo real. Exige mais da placa de vídeo."
+            "simples": "Sombras basicas estaticas. Bom equilibrio de performance.",
+            "dinamicas": "Sombras realistas em tempo real. Exige mais da placa de video."
         },
         "qualidade_grafica": {
-            "alta": "Texturas e renderização máxima. Para placas de vídeo modernas.",
-            "media": "Qualidade padrão equilibrada para a maioria dos computadores.",
-            "baixa": "Reduz resolução de efeitos para rodar liso em qualquer máquina."
+            "alta": "Texturas e renderizacao maxima. Para placas de video modernas.",
+            "media": "Qualidade padrao equilibrada para a maioria dos computadores.",
+            "baixa": "Reduz resolucao de efeitos para rodar liso em qualquer maquina."
+        },
+        "nivel_detalhes": {
+            "alto": "Mais fragmentos, brilho e solidificacao detalhada na HUD.",
+            "medio": "Equilibrio entre efeitos visuais e desempenho.",
+            "baixo": "Efeitos essenciais com menos particulas e brilho."
         },
         "particulas_ativas": {
-            True: "Partículas visuais de explosões e faíscas ligadas.",
-            False: "Remove partículas para maior clareza visual e desempenho."
+            True: "Particulas visuais de explosoes e faiscas ligadas.",
+            False: "Remove particulas para maior clareza visual e desempenho."
         },
         "efeitos_visuais": {
-            True: "Ativa brilhos, distorções de tempo e glows premium.",
-            False: "Desativa pós-processamento pesado para evitar lentidão."
+            True: "Ativa brilhos, distorcoes de tempo e glows premium.",
+            False: "Desativa pos-processamento pesado para evitar lentidao."
         },
         "fps_limite": {
             30: "Limita a 30 FPS. Reduz consumo de energia e aquecimento.",
-            60: "Padrão recomendado para jogabilidade fluida e estável.",
-            120: "Para monitores de alta taxa de atualização (120Hz ou mais).",
-            0: "Ilimitado. Roda o mais rápido possível (uso máximo de hardware)."
+            60: "Padrao recomendado para jogabilidade fluida e estavel.",
+            120: "Para monitores de alta taxa de atualizacao (120Hz ou mais).",
+            0: "Ilimitado. Roda o mais rapido possivel (uso maximo de hardware)."
         }
     }
     
@@ -291,7 +370,7 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
         
         opt_sel = opcoes_config[selecionado]
         if opt_sel["chave"] is None:
-            texto_desc_str = "Retornar ao menu de configurações anterior."
+            texto_desc_str = "Retornar ao menu de configuracoes anterior."
         else:
             val_sel = config[opt_sel["chave"]]
             texto_desc_str = descricoes_valores[opt_sel["chave"]].get(val_sel, "")
@@ -328,13 +407,13 @@ def abrir_configuracoes_audio(tela, fontes, fundo_pausa=None):
     fonte_instrucao = fontes["texto"](20)
     
     opcoes = ["volume_master", "volume_musica", "volume_efeitos", "voltar"]
-    labels = ["Volume Master", "Volume Música", "Volume Efeitos", "Voltar"]
+    labels = ["Volume Master", "Volume Musica", "Volume Efeitos", "Voltar"]
     
     descricoes_audio = {
-        "volume_master": "Volume geral. Ajusta a música e os efeitos sonoros proporcionalmente.",
-        "volume_musica": "Trilha sonora. Ajusta o volume da música de fundo e ambiente.",
-        "volume_efeitos": "Efeitos sonoros. Ajusta o volume de tiros, explosões e impactos.",
-        "voltar": "Retornar ao menu de configurações anterior."
+        "volume_master": "Volume geral. Ajusta a musica e os efeitos sonoros proporcionalmente.",
+        "volume_musica": "Trilha sonora. Ajusta o volume da musica de fundo e ambiente.",
+        "volume_efeitos": "Efeitos sonoros. Ajusta o volume de tiros, explosoes e impactos.",
+        "voltar": "Retornar ao menu de configuracoes anterior."
     }
     
     rodando = True
@@ -700,8 +779,8 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
 
 def abrir_analise_atributos(tela, fontes, fundo_pausa=None):
     """
-    Exibe a tela de Análise de Atributos do jogador, mostrando
-    dados estatísticos detalhados com legibilidade máxima (fundos escuros, sombras).
+    Exibe a tela de Analise de Atributos do jogador, mostrando
+    dados estatisticos detalhados com legibilidade maxima (fundos escuros, sombras).
     """
     try:
         with open("saves/atributos.json", "r") as f:
@@ -718,7 +797,7 @@ def abrir_analise_atributos(tela, fontes, fundo_pausa=None):
     fonte_valor = fontes["texto"](22)
     fonte_instrucao = fontes["texto"](20)
     
-    # Valores extraídos com fallbacks seguros
+    # Valores extraidos com fallbacks seguros
     vida_atual = attrs.get("vida_atual_personagem", 100)
     vida_max = attrs.get("vida_maxima_personagem", 100)
     dano_base = attrs.get("dano_person_hit", 1.0)
@@ -738,12 +817,12 @@ def abrir_analise_atributos(tela, fontes, fundo_pausa=None):
     petro_dano = attrs.get("dano_petro", 10)
     petro_res = attrs.get("resistencia_petro", 0)
     
-    # Organização das colunas
+    # Organizacao das colunas
     col_ofensiva = [
         ("Dano do Disparo", f"{dano_base:.2f}"),
         ("Intervalo de Tiro", f"{vel_ataque_ms} ms"),
-        ("Chance Crítica", f"{chance_crit * 100:.2f}%"),
-        ("Multiplicador Crítico", "3.00x (300%)"),
+        ("Chance Critica", f"{chance_crit * 100:.2f}%"),
+        ("Multiplicador Critico", "3.00x (300%)"),
         ("Roubo de Vida", f"{attrs.get('quantidade_roubo_vida', 0.0) * 100:.2f}% perd." if attrs.get('quantidade_roubo_vida', 0.0) > 0 else "Inativo"),
         ("Ataque Venenoso", "Ativo" if poison else "Inativo"),
         ("Foice do Tempo (Executar)", "Ativo" if executa else "Inativo")
@@ -751,19 +830,19 @@ def abrir_analise_atributos(tela, fontes, fundo_pausa=None):
     
     col_defensiva = [
         ("Vida do Jogador", f"{int(vida_atual)} / {int(vida_max)}"),
-        ("Resistência Corporal", f"+{resistencia}"),
+        ("Resistencia Corporal", f"+{resistencia}"),
         ("Tempo Recarga Dash", f"{dash_cd / 1000:.2f}s"),
         ("Sorte (Drop Raro)", f"{sorte * 100:.2f}%"),
-        ("Ganho Mercenária", "Ativo (+Bonus)" if mercenaria else "Inativo"),
-        ("Tempo de Regeneração", f"{attrs.get('Tempo_cura', 2500)/1000:.2f}s"),
-        ("Taxa de Regeneração", f"{attrs.get('porcentagem_cura', 0.02) * 100:.2f}%")
+        ("Ganho Mercenaria", "Ativo (+Bonus)" if mercenaria else "Inativo"),
+        ("Tempo de Regeneracao", f"{attrs.get('Tempo_cura', 2500)/1000:.2f}s"),
+        ("Taxa de Regeneracao", f"{attrs.get('porcentagem_cura', 0.02) * 100:.2f}%")
     ]
     
     col_petro = [
         ("Petro (Sentinela)", "Ativo" if petro_ativo else "Inativo"),
-        ("Nível de Petro", f"Nív. {petro_nivel}"),
+        ("Nivel de Petro", f"Niv. {petro_nivel}"),
         ("Dano Petro", f"{float(petro_dano):.2f}" if isinstance(petro_dano, (int, float)) else str(petro_dano)),
-        ("Resistência Petro", f"+{float(petro_res):.2f}" if isinstance(petro_res, (int, float)) else str(petro_res)),
+        ("Resistencia Petro", f"+{float(petro_res):.2f}" if isinstance(petro_res, (int, float)) else str(petro_res)),
         ("Moedas Acumuladas", f"{moedas} moedas")
     ]
     
@@ -777,20 +856,20 @@ def abrir_analise_atributos(tela, fontes, fundo_pausa=None):
         overlay = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
         overlay.fill((8, 5, 15, 235)) # Fundo escuro com opacidade alta para total legibilidade
         
-        # Linhas cibernéticas sutis de fundo
+        # Linhas ciberneticas sutis de fundo
         for y in range(0, altura_tela, 8):
             pygame.draw.line(overlay, (0, 255, 204, 8), (0, y), (largura_tela, y))
             
         tela.blit(overlay, (0, 0))
         
-        # Título principal com sombra para alto contraste
+        # Titulo principal com sombra para alto contraste
         texto_titulo = fonte_titulo_tela.render("ANALISE DE ATRIBUTOS", True, (0, 255, 204))
         ret_tit = texto_titulo.get_rect(center=(largura_tela // 2, 60))
         titulo_sombra = fonte_titulo_tela.render("ANALISE DE ATRIBUTOS", True, (0, 0, 0))
         tela.blit(titulo_sombra, (ret_tit.x + 3, ret_tit.y + 3))
         tela.blit(texto_titulo, ret_tit)
         
-        # Configuração do Grid
+        # Configuracao do Grid
         margem_x = (largura_tela - 1100) // 2
         col_w = 340
         col_h = 440
@@ -913,7 +992,7 @@ def abrir_analise_atributos(tela, fontes, fundo_pausa=None):
             tela.blit(txt_lbl, (x_pet + 20, item_y))
             
             cor_val = (255, 180, 0)
-            if "Inativo" in val or "Não" in val:
+            if "Inativo" in val or "Nao" in val:
                 cor_val = (160, 160, 160)
             elif "Ativo" in val:
                 cor_val = (0, 255, 150)
@@ -923,7 +1002,7 @@ def abrir_analise_atributos(tela, fontes, fundo_pausa=None):
             tela.blit(txt_v, (x_pet + col_w - 20 - txt_v.get_width(), item_y))
             item_y += 45
             
-        # Botão Voltar
+        # Botao Voltar
         back_rect = pygame.Rect(largura_tela // 2 - 100, altura_tela - 75, 200, 40)
         is_hover_back = back_rect.collidepoint(mx, my)
         pygame.draw.rect(tela, (0, 180, 200, 75) if is_hover_back else (15, 12, 35, 230), back_rect, border_radius=6)
@@ -937,16 +1016,18 @@ def abrir_analise_atributos(tela, fontes, fundo_pausa=None):
 def exibir_tela_pause(tela, cartas_compradas, joystick=None):
     pygame.init()
     clock = pygame.time.Clock()
+    pygame.event.set_grab(False)
+    pygame.mouse.set_visible(True)
     largura_tela, altura_tela = tela.get_size()
     fontes = carregar_fontes()
     fundo_pausa = tela.copy()
     
     opcoes_pause = [
         "Continuar",
-        "Análise de Atributos",
+        "Analise de Atributos",
         "Ajustar Controles",
-        "Ajustar Áudio",
-        "Ajustar Gráficos",
+        "Ajustar Audio",
+        "Ajustar Graficos",
         "Ajustar Jogabilidade",
         "Ver Anomalias",
         "Sair ao Menu"
@@ -954,11 +1035,11 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
     
     descricoes_pause = {
         "Continuar": "Retornar ao combate e retomar a jornada.",
-        "Análise de Atributos": "Visualizar suas estatísticas detalhadas de combate e sobrevivência.",
-        "Ajustar Controles": "Configurar teclas do teclado e botões do mouse.",
-        "Ajustar Áudio": "Ajustar volumes de música, efeitos e som geral.",
-        "Ajustar Gráficos": "Modificar configurações de sombra, partículas e FPS.",
-        "Ajustar Jogabilidade": "Configurar preferências de tutorial, teleporte e cartas.",
+        "Analise de Atributos": "Visualizar estatisticas detalhadas de combate e sobrevivencia.",
+        "Ajustar Controles": "Configurar teclas do teclado e botoes do mouse.",
+        "Ajustar Audio": "Ajustar volumes de musica, efeitos e som geral.",
+        "Ajustar Graficos": "Modificar configuracoes de sombra, particulas e FPS.",
+        "Ajustar Jogabilidade": "Configurar preferencias de tutorial, teleporte e cartas.",
         "Ver Anomalias": "Visualizar a lista de anomalias adquiridas nesta jornada.",
         "Sair ao Menu": "Encerrar a corrida atual e retornar ao menu principal."
     }
@@ -991,7 +1072,7 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                 img.blit(letra, (75 - letra.get_width()//2, 100 - letra.get_height()//2))
  
             cartas_adquiridas.append({
-                "nome": nome,
+                "nome": "Porcao" if nome == "Porção" else nome,
                 "Nick": dados["Nick"],
                 "descricao": dados["descricao"],
                 "imagem": img,
@@ -1041,15 +1122,15 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                         opcao_sel = opcoes_pause[selecionado]
                         if opcao_sel == "Continuar":
                             return "continuar"
-                        elif opcao_sel == "Análise de Atributos":
+                        elif opcao_sel == "Analise de Atributos":
                             abrir_analise_atributos(tela, fontes, fundo_pausa=fundo_pausa)
                         elif opcao_sel == "Ajustar Controles":
                             from Config_Teclas import tela_de_controles, carregar_config_teclas
                             cfg = carregar_config_teclas()
                             tela_de_controles(tela, cfg, largura_tela, altura_tela, fundo_pausa=fundo_pausa)
-                        elif opcao_sel == "Ajustar Áudio":
+                        elif opcao_sel == "Ajustar Audio":
                             abrir_configuracoes_audio(tela, fontes, fundo_pausa=fundo_pausa)
-                        elif opcao_sel == "Ajustar Gráficos":
+                        elif opcao_sel == "Ajustar Graficos":
                             abrir_configuracoes_graficas(tela, fontes, fundo_pausa=fundo_pausa)
                         elif opcao_sel == "Ajustar Jogabilidade":
                             abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=fundo_pausa)
@@ -1081,15 +1162,15 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                                 opcao_sel = opcoes_pause[selecionado]
                                 if opcao_sel == "Continuar":
                                     return "continuar"
-                                elif opcao_sel == "Análise de Atributos":
+                                elif opcao_sel == "Analise de Atributos":
                                     abrir_analise_atributos(tela, fontes, fundo_pausa=fundo_pausa)
                                 elif opcao_sel == "Ajustar Controles":
                                     from Config_Teclas import tela_de_controles, carregar_config_teclas
                                     cfg = carregar_config_teclas()
                                     tela_de_controles(tela, cfg, largura_tela, altura_tela, fundo_pausa=fundo_pausa)
-                                elif opcao_sel == "Ajustar Áudio":
+                                elif opcao_sel == "Ajustar Audio":
                                     abrir_configuracoes_audio(tela, fontes, fundo_pausa=fundo_pausa)
-                                elif opcao_sel == "Ajustar Gráficos":
+                                elif opcao_sel == "Ajustar Graficos":
                                     abrir_configuracoes_graficas(tela, fontes, fundo_pausa=fundo_pausa)
                                 elif opcao_sel == "Ajustar Jogabilidade":
                                     abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=fundo_pausa)
@@ -1114,15 +1195,15 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                         opcao_sel = opcoes_pause[selecionado]
                         if opcao_sel == "Continuar":
                             return "continuar"
-                        elif opcao_sel == "Análise de Atributos":
+                        elif opcao_sel == "Analise de Atributos":
                             abrir_analise_atributos(tela, fontes, fundo_pausa=fundo_pausa)
                         elif opcao_sel == "Ajustar Controles":
                             from Config_Teclas import tela_de_controles, carregar_config_teclas
                             cfg = carregar_config_teclas()
                             tela_de_controles(tela, cfg, largura_tela, altura_tela, fundo_pausa=fundo_pausa)
-                        elif opcao_sel == "Ajustar Áudio":
+                        elif opcao_sel == "Ajustar Audio":
                             abrir_configuracoes_audio(tela, fontes, fundo_pausa=fundo_pausa)
-                        elif opcao_sel == "Ajustar Gráficos":
+                        elif opcao_sel == "Ajustar Graficos":
                             abrir_configuracoes_graficas(tela, fontes, fundo_pausa=fundo_pausa)
                         elif opcao_sel == "Ajustar Jogabilidade":
                             abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=fundo_pausa)

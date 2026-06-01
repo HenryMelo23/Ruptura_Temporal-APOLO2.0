@@ -18,8 +18,7 @@ DEBUG_DOSSIE = False
 ARQUIVO_DOSSIE = "memoria_predatoria_umbra.json"
 
 def _log(msg):
-    if DEBUG_DOSSIE:
-        print(f"[DOSSIE] {msg}")
+    pass
 
 
 # Arquétipos reconhecidos pelo classificador
@@ -665,21 +664,7 @@ class DossieUmbra:
             return
 
         r = self.obter_resumo_predatorio()
-        print("\n" + "=" * 55)
-        print("  DOSSIÊ PREDATÓRIO DA UMBRA — PERFIL DO JOGADOR")
-        print("=" * 55)
-        print(f"  Arquétipo Principal : {r['arquetipo_principal']}")
-        print(f"  Arquétipo Secundário: {r['arquetipo_secundario']}")
-        print(f"  Confiança           : {r['confianca']:.3f}")
-        print("-" * 55)
-        print(f"  Medo              : {r['medo']:.3f}")
-        print(f"  Agressividade     : {r['agressividade']:.3f}")
-        print(f"  Dep. Dash         : {r['dependencia_dash']:.3f}")
-        print(f"  Dep. Orbe         : {r['dependencia_orbe']:.3f}")
-        print(f"  Previsibilidade   : {r['previsibilidade']:.3f}")
-        print(f"  Tend. Canto       : {r['tendencia_canto']:.3f}")
-        print(f"  Adaptabilidade    : {r['adaptabilidade']:.3f}")
-        print("=" * 55 + "\n")
+        return r
 
     # =================================================================
     # MODIFICADORES ADAPTATIVOS PARA A UMBRA

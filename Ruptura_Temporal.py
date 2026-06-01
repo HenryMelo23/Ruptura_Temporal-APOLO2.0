@@ -1,6 +1,6 @@
 
-#Este projeto está licenciado sob a Creative Commons Attribution-NonCommercial-ShareAlike 4.0.
-#Uso comercial é estritamente proibido. Modificações e redistribuições são permitidas sob as mesmas condições.
+#Este projeto estÃ¡ licenciado sob a Creative Commons Attribution-NonCommercial-ShareAlike 4.0.
+#Uso comercial Ã© estritamente proibido. ModificaÃ§Ãµes e redistribuiÃ§Ãµes sÃ£o permitidas sob as mesmas condiÃ§Ãµes.
 
 
 
@@ -12,15 +12,82 @@ import os
 import json
 import uuid
 import pyperclip
+from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from Config_Teclas import tela_de_controles,carregar_config_teclas
 from Variaveis import largura_tela, altura_tela, python
 from rede import descobrir_host_udp, conectar_ao_host
 from audio_manager import carregar_config_audio, aplicar_volume_musica, aplicar_volume_som
 from utils import configurar_tela, tocar_trailer_se_necessario, redimensionar_cover, carregar_upgrade_aureas
 from sons_procedurais import tocar_hover, tocar_selecionar
+import ui_helpers
+
+instalar_captura_global()
+instalar_filtro_prints()
 
 
-# --- Declaração de Variáveis Globais (Inicialização Adiada para Evitar Telas Pretas por Dupla Importação) ---
+def _normalizar_texto_render(texto):
+    if not isinstance(texto, str):
+        return texto
+
+    def _bytes_mojibake(valor):
+        dados = bytearray()
+        for char in valor:
+            codigo = ord(char)
+            if codigo <= 255:
+                dados.append(codigo)
+                continue
+            try:
+                dados.extend(char.encode("cp1252"))
+            except UnicodeEncodeError:
+                return None
+        return bytes(dados)
+
+    texto = texto.replace("\ufeff", "")
+    marcadores = ("Ã", "Â", "â", "�")
+    for _ in range(4):
+        if not any(m in texto for m in marcadores):
+            break
+        dados = _bytes_mojibake(texto)
+        if not dados:
+            break
+        try:
+            novo = dados.decode("utf-8")
+        except UnicodeError:
+            break
+        if novo == texto:
+            break
+        texto = novo
+
+    return texto.replace("•", "-").replace("\xa0", " ")
+
+
+class _FonteTextoSeguro:
+    def __init__(self, fonte_real):
+        self._fonte_real = fonte_real
+
+    def render(self, texto, *args, **kwargs):
+        return self._fonte_real.render(_normalizar_texto_render(texto), *args, **kwargs)
+
+    def size(self, texto):
+        return self._fonte_real.size(_normalizar_texto_render(texto))
+
+    def metrics(self, texto):
+        return self._fonte_real.metrics(_normalizar_texto_render(texto))
+
+    def __getattr__(self, nome):
+        return getattr(self._fonte_real, nome)
+
+
+if not hasattr(pygame.font, "_rt_font_original"):
+    pygame.font._rt_font_original = pygame.font.Font
+
+    def _font_segura(*args, **kwargs):
+        return _FonteTextoSeguro(pygame.font._rt_font_original(*args, **kwargs))
+
+    pygame.font.Font = _font_segura
+
+
+# --- DeclaraÃ§Ã£o de VariÃ¡veis Globais (InicializaÃ§Ã£o Adiada para Evitar Telas Pretas por Dupla ImportaÃ§Ã£o) ---
 tela = None
 fundo_menu1 = None
 fundo_menu2 = None
@@ -56,7 +123,7 @@ titulo_jogo = "Ruptura Temporal (2.0)"
 posicao_titulo = (largura_tela // 2, altura_tela // 8)
 ajuste_vertical = int(altura_tela * 0.12)
 
-opcoes = ["Iniciar Jornada", "Configuração", "Sair"]
+opcoes = ["Iniciar Jornada", "Catalogo", "ConfiguraÃ§Ã£o", "Sair"]
 indice_selecionado = 0
 DELAY_ENTRE_OPCOES = 100
 ultima_mudanca_de_opcao = 0
@@ -72,14 +139,15 @@ analogo_movido = False
 def render_glitch_text_with_fallback(texto, fonte_glitch, fonte_fallback, cor):
     """
     Rendeiriza texto caractere por caractere. Usa a fonte_fallback se o caractere for acentuado
-    ou especial, pois a fonte Doctor Glitch/Top_Menu não possui suporte a estes glifos.
+    ou especial, pois a fonte Doctor Glitch/Top_Menu nÃ£o possui suporte a estes glifos.
     """
+    texto = _normalizar_texto_render(texto)
     surfaces = []
     largura_total = 0
     altura_max = 0
     
     for char in texto:
-        # Verifica se o caractere precisa de fallback (acentos latinos, Ç, etc.)
+        # Verifica se o caractere precisa de fallback (acentos latinos, Ã‡, etc.)
         ord_char = ord(char)
         if ord_char > 127 or char in "ÇçÃãÕõÉéÍíÓóÚúÂâÊêÔôÀà":
             char_surf = fonte_fallback.render(char, True, cor)
@@ -112,7 +180,7 @@ def inicializar_menu():
             tela = None
         
     pygame.init()
-    pygame.mouse.set_visible(True)
+    pygame.mouse.set_visible(False)
     centro_tela = (largura_tela // 2, altura_tela // 2)
     pygame.mouse.set_pos(centro_tela)
     
@@ -210,7 +278,7 @@ def mostrar_erro_lan(tela, font_titulo, font_desc):
     while pygame.time.get_ticks() - inicio < duracao:
         tela.fill((15, 12, 20))
         
-        # Grade cibernética sutil
+        # Grade cibernÃ©tica sutil
         for gx in range(40, largura, 80):
             for gy in range(40, altura, 80):
                 pygame.draw.circle(tela, (255, 80, 80, 12), (gx, gy), 1)
@@ -237,9 +305,10 @@ def mostrar_erro_lan(tela, font_titulo, font_desc):
 def tela_escolha_modo():
     import socket, pyperclip, random
     from rede import descobrir_host_udp
+    from ui_helpers import obter_superficie_palco
     pygame.init()
     largura, altura = largura_tela, altura_tela
-    tela = pygame.display.get_surface() or pygame.display.set_mode((largura, altura))
+    tela = obter_superficie_palco() or pygame.display.set_mode((largura, altura))
     pygame.display.set_caption("Escolher Modo de Jogo")
     
     # Carregar fontes com fallback seguro
@@ -269,8 +338,9 @@ def tela_escolha_modo():
     fase_tela = "principal"
     selecionado_principal = 0  # 0: Jogar Solo, 1: Cooperativo
     selecionado_sub = 0        # 0: Criar, 1: Entrar, 2: Voltar
+    modo_interacao = "teclado"
     
-    # Partículas sutis ao fundo
+    # PartÃ­culas sutis ao fundo
     particulas = []
     for _ in range(25):
         particulas.append({
@@ -289,12 +359,12 @@ def tela_escolha_modo():
         # Desenhar Fundo Escuro Sci-Fi
         tela.fill((10, 8, 16))
         
-        # Desenhar Grade Tecnológica de Pontos
+        # Desenhar Grade TecnolÃ³gica de Pontos
         for gx in range(40, largura, 80):
             for gy in range(40, altura, 80):
                 pygame.draw.circle(tela, (0, 255, 204, 10), (gx, gy), 1)
                 
-        # Atualizar e Desenhar Partículas
+        # Atualizar e Desenhar PartÃ­culas
         for p in particulas:
             p["y"] += p["vy"]
             if p["y"] < 0:
@@ -305,15 +375,15 @@ def tela_escolha_modo():
             pygame.draw.circle(p_surf, (0, 255, 204, p["alpha"]), (int(p["size"]), int(p["size"])), int(p["size"]))
             tela.blit(p_surf, (int(p["x"]), int(p["y"])))
             
-        # Título
+        # TÃ­tulo
         txt_titulo = font_titulo.render("MODO DE JOGO", True, (255, 255, 255))
         tela.blit(txt_titulo, (largura // 2 - txt_titulo.get_width() // 2, 70))
         
-        mx, my = pygame.mouse.get_pos()
+        mx, my = ui_helpers.obter_pos_mouse_superficie(tela)
         clicado = False
         
-        # Botão Voltar no Canto Superior Esquerdo
-        is_hover_back = btn_back_rect.collidepoint(mx, my)
+        # BotÃ£o Voltar no Canto Superior Esquerdo
+        is_hover_back = modo_interacao == "mouse" and btn_back_rect.collidepoint(mx, my)
         color_back = (180, 100, 255) if is_hover_back else (100, 100, 110)
         bg_back = (25, 20, 38, 200) if is_hover_back else (12, 10, 18, 120)
         
@@ -330,8 +400,10 @@ def tela_escolha_modo():
                 return None, None
             elif evento.type == pygame.MOUSEBUTTONDOWN:
                 if evento.button == 1:
+                    modo_interacao = "mouse"
                     clicado = True
-                    if btn_back_rect.collidepoint(evento.pos):
+                    pos_evento = ui_helpers.converter_pos_mouse_jogo(evento.pos)
+                    if btn_back_rect.collidepoint(pos_evento):
                         tocar_selecionar()
                         if fase_tela == "coop_sub":
                             fase_tela = "principal"
@@ -339,6 +411,7 @@ def tela_escolha_modo():
                         else:
                             return None, None
             elif evento.type == pygame.KEYDOWN:
+                modo_interacao = "teclado"
                 if evento.key == pygame.K_ESCAPE:
                     tocar_selecionar()
                     if fase_tela == "coop_sub":
@@ -381,7 +454,7 @@ def tela_escolha_modo():
             
             # Suporte a Controle / Gamepad
             elif evento.type == pygame.JOYBUTTONDOWN and controle is not None:
-                if evento.button == 0:  # Botão A
+                if evento.button == 0:  # BotÃ£o A
                     tocar_selecionar()
                     if fase_tela == "principal":
                         if selecionado_principal == 0:
@@ -401,7 +474,7 @@ def tela_escolha_modo():
                         elif selecionado_sub == 2:
                             fase_tela = "principal"
                             selecionado_sub = 0
-                elif evento.button == 1:  # Botão B
+                elif evento.button == 1:  # BotÃ£o B
                     tocar_selecionar()
                     if fase_tela == "coop_sub":
                         fase_tela = "principal"
@@ -418,7 +491,7 @@ def tela_escolha_modo():
             # --- CARD ESQUERDO: JOGAR SOLO ---
             card_l_x = largura // 2 - 295
             rect_solo = pygame.Rect(card_l_x, card_y, card_w, card_h)
-            is_hover_solo = rect_solo.collidepoint(mx, my)
+            is_hover_solo = modo_interacao == "mouse" and rect_solo.collidepoint(mx, my)
             if is_hover_solo:
                 if selecionado_principal != 0:
                     selecionado_principal = 0
@@ -458,7 +531,7 @@ def tela_escolha_modo():
             # --- CARD DIREITO: COOPERATIVO ---
             card_r_x = largura // 2 + 30
             rect_coop = pygame.Rect(card_r_x, card_y, card_w, card_h)
-            is_hover_coop = rect_coop.collidepoint(mx, my)
+            is_hover_coop = modo_interacao == "mouse" and rect_coop.collidepoint(mx, my)
             if is_hover_coop:
                 if selecionado_principal != 1:
                     selecionado_principal = 1
@@ -496,7 +569,7 @@ def tela_escolha_modo():
                 txt_line = font_card_desc.render(l_txt, True, (215, 220, 230) if is_sel_coop else (130, 130, 140))
                 tela.blit(txt_line, (card_r_x + card_w // 2 - txt_line.get_width() // 2, card_y + 95 + li * 24))
                 
-        # Renderizar Subfase: Opções Multiplayer LAN
+        # Renderizar Subfase: OpÃ§Ãµes Multiplayer LAN
         elif fase_tela == "coop_sub":
             sub_y = altura // 2 - 50
             btn_w = 340
@@ -508,7 +581,7 @@ def tela_escolha_modo():
                 ("Voltar", "voltar")
             ]
             
-            txt_subtitle = font_card_desc.render("CONEXÃO DE MULTIJOGADOR EM REDE LOCAL", True, (180, 100, 255))
+            txt_subtitle = font_card_desc.render("CONEXÃƒO DE MULTIJOGADOR EM REDE LOCAL", True, (180, 100, 255))
             tela.blit(txt_subtitle, (largura // 2 - txt_subtitle.get_width() // 2, 125))
             
             for idx, (label, mode) in enumerate(opcoes_sub):
@@ -516,7 +589,7 @@ def tela_escolha_modo():
                 item_y = sub_y + idx * 70
                 rect_btn = pygame.Rect(btn_x, item_y, btn_w, btn_h)
                 
-                is_hover = rect_btn.collidepoint(mx, my)
+                is_hover = modo_interacao == "mouse" and rect_btn.collidepoint(mx, my)
                 if is_hover:
                     if selecionado_sub != idx:
                         selecionado_sub = idx
@@ -548,12 +621,14 @@ def tela_escolha_modo():
                 txt_lbl = font_btn.render(label, True, (255, 255, 255) if is_sel else (175, 175, 185))
                 tela.blit(txt_lbl, (btn_x + btn_w // 2 - txt_lbl.get_width() // 2, item_y + btn_h // 2 - txt_lbl.get_height() // 2))
                 
+        ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()
         clock.tick(60)
 
 
 
 def tela_selecao_aurea(tela, fonte):
+    pygame.mouse.set_visible(False)
     # Carregar som do tick
     try:
         som_tick = aplicar_volume_som(pygame.mixer.Sound("Sounds/Estalo.mp3"))
@@ -565,16 +640,16 @@ def tela_selecao_aurea(tela, fonte):
             "nome": "Racional",
             "imagem": "Sprites/aurea_cientista.png",
             "ativa": True,
-            "cor_tema": (0, 191, 255),       # Azul Elétrico / Ciano
+            "cor_tema": (0, 191, 255),       # Azul ElÃ©trico / Ciano
             "bg_tema": (8, 20, 42),          # Fundo Deep Blue
-            "categoria": "ANÁLISE E PRECISÃO TEMPORAL",
-            "efeito": "Aumenta drasticamente a probabilidade de acerto crítico e melhora a cadência de disparos.",
+            "categoria": "ANÃLISE E PRECISÃƒO TEMPORAL",
+            "efeito": "Fique imÃ³vel por 5 segundos para gerar pontos bÃ´nus. A aura continua concedendo pontos a cada novo ciclo parado.",
             "atributos": [
-                "• Chance de Crítico: +15%",
-                "• Cadência de Tiro: +10% de velocidade de ataque",
-                "• Ideal para jogabilidade focada em DPS e precisão."
+                "â€¢ Gatilho: ficar 5s sem mover Apolo.",
+                "â€¢ Efeito: pontuaÃ§Ã£o bÃ´nus automÃ¡tica por ciclo.",
+                "â€¢ EvoluÃ§Ã£o: aumenta os pontos recebidos."
             ],
-            "lore": "A mente fria calcula trajetórias e enxerga padrões em meio ao caos da ruptura temporal."
+            "lore": "A mente fria calcula trajetÃ³rias e enxerga padrÃµes em meio ao caos da ruptura temporal."
         },
         {
             "nome": "Impulsiva",
@@ -583,13 +658,13 @@ def tela_selecao_aurea(tela, fonte):
             "cor_tema": (255, 99, 71),       # Vermelho Coral / Laranja
             "bg_tema": (42, 14, 8),          # Fundo Deep Red/Orange
             "categoria": "COMBATE VELOZ E AGRESSIVO",
-            "efeito": "Concede bônus de dano ou velocidade de movimento temporário após realizar eliminações rápidas.",
+            "efeito": "Elimine 5 inimigos seguidos sem sofrer dano para ativar um buff temporÃ¡rio aleatÃ³rio de dano ou velocidade.",
             "atributos": [
-                "• Buff após Eliminação: +30% de Dano ou +20% de Velocidade",
-                "• Duração do Buff: 3s (+0.5s por Nível)",
-                "• Ideal para jogadores dinâmicos que gostam de velocidade."
+                "â€¢ Gatilho: 5 abates consecutivos sem dano.",
+                "â€¢ Efeito: dano fÃ­sico ou velocidade por poucos segundos.",
+                "â€¢ Sofrer dano zera a sequÃªncia."
             ],
-            "lore": "Ação imediata. O instinto puro reage antes que o próprio tempo possa processar."
+            "lore": "AÃ§Ã£o imediata. O instinto puro reage antes que o prÃ³prio tempo possa processar."
         },
         {
             "nome": "Devota",
@@ -597,14 +672,14 @@ def tela_selecao_aurea(tela, fonte):
             "ativa": True,
             "cor_tema": (255, 215, 0),       # Dourado Divino
             "bg_tema": (36, 30, 8),          # Fundo Deep Gold
-            "categoria": "SOBREVIVÊNCIA E PROTEÇÃO SAGRADA",
-            "efeito": "Manifesta um escudo sagrado automático que absorve completamente um golpe sofrido.",
+            "categoria": "SOBREVIVÃŠNCIA E PROTEÃ‡ÃƒO SAGRADA",
+            "efeito": "Cria um escudo automÃ¡tico. Enquanto ativo, ele anula completamente o prÃ³ximo dano recebido.",
             "atributos": [
-                "• Escudo Protetor: Absorve 1 hit fatal ou dano",
-                "• Cooldown do Escudo: 30s (-3s por Nível, mínimo 10s)",
-                "• Excelente para garantir segurança contra ataques inesperados."
+                "â€¢ Gatilho: escudo nasce ativo e volta sozinho.",
+                "â€¢ Efeito: bloqueia 1 colisÃ£o, tiro ou golpe.",
+                "â€¢ EvoluÃ§Ã£o: reduz a recarga do escudo."
             ],
-            "lore": "A fé inabalável manifesta-se como uma barreira divina que desafia a própria causalidade."
+            "lore": "A fÃ© inabalÃ¡vel manifesta-se como uma barreira divina que desafia a prÃ³pria causalidade."
         },
         {
             "nome": "Vanguarda",
@@ -612,48 +687,49 @@ def tela_selecao_aurea(tela, fonte):
             "ativa": True,
             "cor_tema": (230, 0, 120),       # Magenta / Carmesim
             "bg_tema": (36, 8, 28),          # Fundo Deep Purple/Magenta
-            "categoria": "DANO EM ÁREA E INCÊNDIO CONTÍNUO",
-            "efeito": "Deixa um rastro de chamas purificadoras por onde passa, causando dano aos inimigos.",
+            "categoria": "DANO EM ÃREA E INCÃŠNDIO CONTÃNUO",
+            "efeito": "Aproxime-se ou encoste nos inimigos para incendiÃ¡-los. Alvos em chamas recebem dano contÃ­nuo.",
             "atributos": [
-                "• Duração do Rastro de Fogo: 5s (+1s por Nível)",
-                "• Dano de Incêndio: Causa dano contínuo a inimigos que tocarem o rastro",
-                "• Ideal para controle de hordas e movimentação tática."
+                "â€¢ Gatilho: contato ou proximidade com inimigos.",
+                "â€¢ Efeito: queimadura por segundo baseada na vida mÃ¡xima.",
+                "â€¢ EvoluÃ§Ã£o: aumenta duraÃ§Ã£o e dano da chama."
             ],
-            "lore": "Liderando o avanço, o pioneiro incendeia o solo para que nada o siga no fluxo temporal."
+            "lore": "Liderando o avanÃ§o, o pioneiro incendeia o solo para que nada o siga no fluxo temporal."
         },
         {
-            "nome": "Aleatória",
+            "nome": "AleatÃ³ria",
             "imagem": "Sprites/aurea_misteriosa.png",
             "ativa": True,
             "cor_tema": (0, 255, 180),       # Verde Esmeralda / Neon
             "bg_tema": (8, 32, 24),          # Fundo Deep Green
             "categoria": "SURPRESA E DESTINO INCERTO",
-            "efeito": "Escolhe uma das quatro áureas ativas aleatoriamente ao iniciar a jornada.",
+            "efeito": "Escolhe uma das quatro Ã¡ureas ativas ao iniciar a jornada, mudando a estratÃ©gia da partida.",
             "atributos": [
-                "• Racional, Impulsiva, Devota ou Vanguarda",
-                "• Uma nova estratégia a cada tentativa.",
-                "• Destinado aos jogadores que buscam adaptação constante."
+                "â€¢ Pode vir Racional, Impulsiva, Devota ou Vanguarda.",
+                "â€¢ A escolha Ã© definida ao confirmar.",
+                "â€¢ Boa para partidas de adaptaÃ§Ã£o."
             ],
-            "lore": "O destino é incerto, e o tempo se desdobra em infinitas possibilidades."
+            "lore": "O destino Ã© incerto, e o tempo se desdobra em infinitas possibilidades."
         }
     ]
 
     upgrades = carregar_upgrade_aureas("saves/aureas_upgrade.json")
-
+    
     selecionado = 0
     clock = pygame.time.Clock()
     largura, altura = tela.get_size()
 
-    # Fontes específicas
+    # Fontes especÃ­ficas
     import random
     caminho_fonte_aureas = "Texto/rainyhearts.ttf"
-    fonte_nome = pygame.font.Font(caminho_fonte_aureas, 36)
-    fonte_desc = pygame.font.Font(caminho_fonte_aureas, 22)
-    fonte_status = pygame.font.Font(caminho_fonte_aureas, 14)
-    fonte_instrucao = pygame.font.Font(caminho_fonte_aureas, 20)
-    fonte_categoria = pygame.font.Font(caminho_fonte_aureas, 18)
+    fonte_nome = pygame.font.Font(caminho_fonte_aureas, 34)
+    fonte_desc = pygame.font.Font(caminho_fonte_aureas, 18)
+    fonte_status = pygame.font.Font(caminho_fonte_aureas, 16)
+    fonte_lore = pygame.font.Font(caminho_fonte_aureas, 13)
+    fonte_instrucao = pygame.font.Font(caminho_fonte_aureas, 18)
+    fonte_categoria = pygame.font.Font(caminho_fonte_aureas, 16)
 
-    # Variáveis de animação (Interpolação LERP)
+    # VariÃ¡veis de animaÃ§Ã£o (InterpolaÃ§Ã£o LERP)
     cor_fundo_atual = list(aureas[selecionado]["bg_tema"])
     
     # Propriedades dos cards
@@ -662,7 +738,7 @@ def tela_selecao_aurea(tela, fonte):
     card_y_offset = [20 for _ in aureas]
     card_alpha = [100 for _ in aureas]
 
-    # Carregar imagens das áureas antecipadamente
+    # Carregar imagens das Ã¡ureas antecipadamente
     imagens_aureas = []
     for item in aureas:
         try:
@@ -674,7 +750,7 @@ def tela_selecao_aurea(tela, fonte):
             pygame.draw.line(img, (100, 100, 100), (180, 0), (0, 240), 2)
         imagens_aureas.append(img)
 
-    # Sistema de Partículas Celestiais
+    # Sistema de PartÃ­culas Celestiais
     particulas = []
     for _ in range(50):
         particulas.append({
@@ -687,13 +763,48 @@ def tela_selecao_aurea(tela, fonte):
             "breathe_dir": 1
         })
 
-    # Controle de repetição do analógico
+    # Controle de repetiÃ§Ã£o do analÃ³gico
     analogo_movido = False
+    modo_interacao = "teclado"
     btn_back_rect = pygame.Rect(40, 40, 120, 36)
+
+    def mover_selecao(direcao):
+        nonlocal selecionado
+        selecionado = (selecionado + direcao) % len(aureas)
+        while not aureas[selecionado]["ativa"]:
+            selecionado = (selecionado + direcao) % len(aureas)
+
+    def desenhar_texto_wrap_local(superficie, texto, rect, fonte_usada, cor, line_gap=0):
+        palavras = texto.split(" ")
+        linhas = []
+        linha_atual = []
+        for palavra in palavras:
+            teste = " ".join(linha_atual + [palavra])
+            if fonte_usada.size(teste)[0] <= rect.width:
+                linha_atual.append(palavra)
+            else:
+                if linha_atual:
+                    linhas.append(" ".join(linha_atual))
+                linha_atual = [palavra]
+        if linha_atual:
+            linhas.append(" ".join(linha_atual))
+
+        y_txt = rect.top
+        altura_linha = fonte_usada.get_linesize() + line_gap
+        for i_linha, linha in enumerate(linhas):
+            if y_txt + altura_linha > rect.bottom:
+                break
+            if y_txt + 2 * altura_linha > rect.bottom and i_linha < len(linhas) - 1:
+                linha = linha + "..."
+                while len(linha) > 3 and fonte_usada.size(linha)[0] > rect.width:
+                    linha = linha[:-4] + "..."
+            render = fonte_usada.render(linha, True, cor)
+            superficie.blit(render, (rect.left, y_txt))
+            y_txt += altura_linha
     
     while True:
         agora = pygame.time.get_ticks()
-        mx, my = pygame.mouse.get_pos()
+        mx, my = ui_helpers.obter_pos_mouse_superficie(tela)
         clicado = False
         
         # 1. Processamento de Eventos
@@ -703,28 +814,27 @@ def tela_selecao_aurea(tela, fonte):
                 exit()
             elif evento.type == pygame.MOUSEBUTTONDOWN:
                 if evento.button == 1:
+                    modo_interacao = "mouse"
                     clicado = True
-                    if btn_back_rect.collidepoint(evento.pos):
+                    pos_evento = ui_helpers.converter_pos_mouse_jogo(evento.pos)
+                    if btn_back_rect.collidepoint(pos_evento):
                         tocar_selecionar()
                         return "voltar"
             elif evento.type == pygame.KEYDOWN:
+                modo_interacao = "teclado"
                 anterior = selecionado
                 if evento.key == pygame.K_ESCAPE:
                     tocar_selecionar()
                     return "voltar"
                 elif evento.key in [pygame.K_RIGHT, pygame.K_d]:
-                    selecionado = (selecionado + 1) % len(aureas)
-                    while not aureas[selecionado]["ativa"]:
-                        selecionado = (selecionado + 1) % len(aureas)
+                    mover_selecao(1)
                 elif evento.key in [pygame.K_LEFT, pygame.K_a]:
-                    selecionado = (selecionado - 1) % len(aureas)
-                    while not aureas[selecionado]["ativa"]:
-                        selecionado = (selecionado - 1) % len(aureas)
+                    mover_selecao(-1)
                 elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
                     if aureas[selecionado]["ativa"]:
                         tocar_selecionar()
                         nome_aurea = aureas[selecionado]["nome"]
-                        if nome_aurea == "Aleatória":
+                        if nome_aurea == "AleatÃ³ria":
                             nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda"])
                         
                         # Salva a escolha
@@ -738,54 +848,49 @@ def tela_selecao_aurea(tela, fonte):
             
             # Suporte a Controle / Gamepad
             elif evento.type == pygame.JOYAXISMOTION and controle is not None:
-                if evento.axis == 0:  # Analógico Horizontal
+                modo_interacao = "teclado"
+                if evento.axis == 0:  # AnalÃ³gico Horizontal
                     anterior = selecionado
                     if evento.value > 0.5 and not analogo_movido:
-                        selecionado = (selecionado + 1) % len(aureas)
-                        while not aureas[selecionado]["ativa"]:
-                            selecionado = (selecionado + 1) % len(aureas)
+                        mover_selecao(1)
                         analogo_movido = True
                         tocar_hover()
                     elif evento.value < -0.5 and not analogo_movido:
-                        selecionado = (selecionado - 1) % len(aureas)
-                        while not aureas[selecionado]["ativa"]:
-                            selecionado = (selecionado - 1) % len(aureas)
+                        mover_selecao(-1)
                         analogo_movido = True
                         tocar_hover()
                     elif abs(evento.value) < 0.3:
                         analogo_movido = False
             
             elif evento.type == pygame.JOYHATMOTION and controle is not None:
+                modo_interacao = "teclado"
                 anterior = selecionado
                 # D-Pad
                 dx, dy = evento.value
                 if dx > 0:
-                    selecionado = (selecionado + 1) % len(aureas)
-                    while not aureas[selecionado]["ativa"]:
-                        selecionado = (selecionado + 1) % len(aureas)
+                    mover_selecao(1)
                     tocar_hover()
                 elif dx < 0:
-                    selecionado = (selecionado - 1) % len(aureas)
-                    while not aureas[selecionado]["ativa"]:
-                        selecionado = (selecionado - 1) % len(aureas)
+                    mover_selecao(-1)
                     tocar_hover()
             
             elif evento.type == pygame.JOYBUTTONDOWN and controle is not None:
-                if evento.button == 0:  # Botão A do controle para confirmar
+                modo_interacao = "teclado"
+                if evento.button == 0:  # BotÃ£o A do controle para confirmar
                     if aureas[selecionado]["ativa"]:
                         tocar_selecionar()
                         nome_aurea = aureas[selecionado]["nome"]
-                        if nome_aurea == "Aleatória":
+                        if nome_aurea == "AleatÃ³ria":
                             nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda"])
                         os.makedirs("saves", exist_ok=True)
                         with open("saves/aurea_selecionada.json", "w") as file:
                             json.dump({"aurea": nome_aurea}, file)
                         return "confirmar"
-                elif evento.button == 1:  # Botão B do controle para voltar
+                elif evento.button == 1:  # BotÃ£o B do controle para voltar
                     tocar_selecionar()
                     return "voltar"
 
-        # Detecção de hover e cliques do mouse nas áureas
+        # DetecÃ§Ã£o de hover e cliques do mouse nas Ã¡ureas
         largura_quadro = 160
         altura_quadro = 220
         for i, aurea in enumerate(aureas):
@@ -798,14 +903,14 @@ def tela_selecao_aurea(tela, fonte):
             y_pos = int(altura // 3.3 + card_y_offset[i])
             rect_card = pygame.Rect(x_pos, y_pos, w_scaled, h_scaled)
             
-            if rect_card.collidepoint(mx, my):
+            if clicado and rect_card.collidepoint(mx, my):
                 if selecionado != i:
-                    selecionado = i
+                    mover_selecao(1 if i > selecionado else -1)
                     tocar_hover()
-                if clicado:
+                else:
                     tocar_selecionar()
                     nome_aurea = aurea["nome"]
-                    if nome_aurea == "Aleatória":
+                    if nome_aurea == "AleatÃ³ria":
                         nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda"])
                     
                     os.makedirs("saves", exist_ok=True)
@@ -813,13 +918,13 @@ def tela_selecao_aurea(tela, fonte):
                         json.dump({"aurea": nome_aurea}, file)
                     return "confirmar"
 
-        # 2. Interpolação de Fundo
+        # 2. InterpolaÃ§Ã£o de Fundo
         bg_alvo = aureas[selecionado]["bg_tema"]
         for c in range(3):
             cor_fundo_atual[c] += (bg_alvo[c] - cor_fundo_atual[c]) * 0.08
         tela.fill((int(cor_fundo_atual[0]), int(cor_fundo_atual[1]), int(cor_fundo_atual[2])))
 
-        # 3. Desenhar Partículas Dinâmicas
+        # 3. Desenhar PartÃ­culas DinÃ¢micas
         cor_accent = aureas[selecionado]["cor_tema"]
         for p in particulas:
             # Move para cima
@@ -828,7 +933,7 @@ def tela_selecao_aurea(tela, fonte):
                 p["y"] = altura + 10
                 p["x"] = random.randint(0, largura)
             
-            # Animação de brilho respiratório
+            # AnimaÃ§Ã£o de brilho respiratÃ³rio
             p["alpha"] += p["breathe_dir"] * p["breathe_speed"] * 50
             if p["alpha"] >= 255:
                 p["alpha"] = 255
@@ -843,11 +948,11 @@ def tela_selecao_aurea(tela, fonte):
             pygame.draw.circle(surf_p, cor_part, (int(p["tamanho"]), int(p["tamanho"])), int(p["tamanho"]))
             tela.blit(surf_p, (int(p["x"] - p["tamanho"]), int(p["y"] - p["tamanho"])))
 
-        # 4. Renderizar Título Geral (Sem acento para evitar falhas com a fonte Doctor Glitch)
+        # 4. Renderizar TÃ­tulo Geral (Sem acento para evitar falhas com a fonte Doctor Glitch)
         render_titulo = render_glitch_text_with_fallback("ESCOLHA DE AUREA", fonte_titulo, fonte_letra1, (255, 255, 255))
         tela.blit(render_titulo, (largura // 2 - render_titulo.get_width() // 2, altura // 14))
 
-        # 5. Cálculo das Posições e Escalas dos Cards (Animação Fluida)
+        # 5. CÃ¡lculo das PosiÃ§Ãµes e Escalas dos Cards (AnimaÃ§Ã£o Fluida)
         largura_quadro = 160
         altura_quadro = 220
         espacamento_cards = 180
@@ -866,7 +971,7 @@ def tela_selecao_aurea(tela, fonte):
                 target_y_offset = 15
                 target_alpha = 100
             
-            # Interpolação suave
+            # InterpolaÃ§Ã£o suave
             card_x[i] += (target_x - card_x[i]) * 0.1
             card_scale[i] += (target_scale - card_scale[i]) * 0.1
             card_y_offset[i] += (target_y_offset - card_y_offset[i]) * 0.1
@@ -880,17 +985,17 @@ def tela_selecao_aurea(tela, fonte):
             x_pos = int(card_x[i] - w_scaled // 2)
             y_pos = int(altura // 3.3 + card_y_offset[i])
 
-            # Superfície temporária para o card com canal alpha
+            # SuperfÃ­cie temporÃ¡ria para o card com canal alpha
             surf_card = pygame.Surface((w_scaled, h_scaled), pygame.SRCALPHA)
             
             # Fundo glassmorphic do card
             alpha_fundo = int(50 + (card_alpha[i] / 255.0) * 110)
             pygame.draw.rect(surf_card, (20, 20, 25, alpha_fundo), (0, 0, w_scaled, h_scaled), border_radius=12)
 
-            # Imagem da Áurea
+            # Imagem da Ãurea
             img_scaled = pygame.transform.scale(imagens_aureas[i], (w_scaled - 12, h_scaled - 12))
             
-            # Aplicar transparência à imagem da Áurea
+            # Aplicar transparÃªncia Ã  imagem da Ãurea
             surf_img_alpha = pygame.Surface(img_scaled.get_size(), pygame.SRCALPHA)
             surf_img_alpha.blit(img_scaled, (0, 0))
             # Aplica canal alpha geral da imagem
@@ -902,7 +1007,7 @@ def tela_selecao_aurea(tela, fonte):
             largura_linha = 3 if i == selecionado else 1
             pygame.draw.rect(surf_card, cor_borda, (0, 0, w_scaled, h_scaled), width=largura_linha, border_radius=12)
 
-            # Efeito Glow Concêntrico se estiver selecionado
+            # Efeito Glow ConcÃªntrico se estiver selecionado
             if i == selecionado:
                 for g in range(1, 5):
                     glow_alpha = int((1.0 - g/5.0) * 80)
@@ -914,9 +1019,9 @@ def tela_selecao_aurea(tela, fonte):
             # Blitar card final na tela
             tela.blit(surf_card, (x_pos, y_pos))
 
-            # Badge do Nível (se aplicável)
+            # Badge do NÃ­vel (se aplicÃ¡vel)
             nome_aurea = aurea["nome"]
-            if nome_aurea != "?" and nome_aurea != "Aleatória" and aurea["ativa"]:
+            if nome_aurea != "?" and nome_aurea != "AleatÃ³ria" and aurea["ativa"]:
                 nivel = upgrades.get(nome_aurea, 0)
                 if nivel > 0:
                     badge_texto = f"Nv. {nivel}"
@@ -937,72 +1042,57 @@ def tela_selecao_aurea(tela, fonte):
         aurea_sel = aureas[selecionado]
         
         largura_painel = largura - 160
-        altura_painel = 180
+        altura_painel = 215
         x_painel = 80
         y_painel = altura - altura_painel - 70
 
         surf_painel = pygame.Surface((largura_painel, altura_painel), pygame.SRCALPHA)
         # Fundo do painel
         pygame.draw.rect(surf_painel, (10, 10, 15, 210), (0, 0, largura_painel, altura_painel), border_radius=16)
-        # Borda brilhante combinando com o tema da áurea
+        # Borda brilhante combinando com o tema da Ã¡urea
         cor_borda_p = aurea_sel["cor_tema"] + (180,)
         pygame.draw.rect(surf_painel, cor_borda_p, (0, 0, largura_painel, altura_painel), width=2, border_radius=16)
 
-        # Desenhar Conteúdo do Painel
-        # Título da Áurea
+        # Desenhar ConteÃºdo do Painel
+        # TÃ­tulo da Ãurea
         nome_display = aurea_sel["nome"].upper()
-        if nome_display not in ["?", "ALEATÓRIA"] and upgrades.get(aurea_sel["nome"], 0) > 0:
-            nome_display += f" (NÍVEL {upgrades[aurea_sel['nome']]})"
+        if nome_display not in ["?", "ALEATÃ“RIA"] and upgrades.get(aurea_sel["nome"], 0) > 0:
+            nome_display += f" (NÃVEL {upgrades[aurea_sel['nome']]})"
         
         render_nome = fonte_nome.render(nome_display, True, aurea_sel["cor_tema"])
         surf_painel.blit(render_nome, (24, 16))
 
-        # Subtítulo / Categoria
+        # SubtÃ­tulo / Categoria
         render_cat = fonte_categoria.render(aurea_sel["categoria"], True, (150, 150, 150))
         surf_painel.blit(render_cat, (26, 48))
 
-        # Linha Divisória Vertical
+        # Linha DivisÃ³ria Vertical
         x_divisor = largura_painel // 2
         pygame.draw.line(surf_painel, (50, 50, 60, 150), (x_divisor, 16), (x_divisor, altura_painel - 16), 1)
 
-        # Descrição principal com auto-quebra de linha dinâmica (máx largura_limite)
-        palavras = aurea_sel["efeito"].split(' ')
-        linhas_desc = []
-        linha_atual = []
-        largura_limite = x_divisor - 48
-        for palavra in palavras:
-            test_linha = ' '.join(linha_atual + [palavra])
-            if fonte_desc.size(test_linha)[0] <= largura_limite:
-                linha_atual.append(palavra)
-            else:
-                linhas_desc.append(' '.join(linha_atual))
-                linha_atual = [palavra]
-        if linha_atual:
-            linhas_desc.append(' '.join(linha_atual))
-
-        y_desc = 76
-        for linha in linhas_desc:
-            render_linha = fonte_desc.render(linha, True, (230, 230, 230))
-            surf_painel.blit(render_linha, (24, y_desc))
-            y_desc += 22
+        # DescriÃ§Ã£o principal
+        desc_rect = pygame.Rect(24, 76, x_divisor - 48, 82)
+        desenhar_texto_wrap_local(surf_painel, aurea_sel["efeito"], desc_rect, fonte_desc, (230, 230, 230), 1)
 
         # Atributos (Lado Direito)
-        y_attr = 20
+        y_attr = 18
+        render_func = fonte_categoria.render("FUNCIONAMENTO", True, aurea_sel["cor_tema"])
+        surf_painel.blit(render_func, (x_divisor + 24, y_attr))
+        y_attr += 30
         for attr in aurea_sel["atributos"]:
-            render_attr = fonte_status.render(attr, True, (190, 190, 200))
-            surf_painel.blit(render_attr, (x_divisor + 24, y_attr))
-            y_attr += 24
+            attr_rect = pygame.Rect(x_divisor + 24, y_attr, largura_painel - x_divisor - 48, 42)
+            desenhar_texto_wrap_local(surf_painel, attr, attr_rect, fonte_status, (190, 190, 200), 0)
+            y_attr += 48
 
-        # Lore/Flavor text (Dinamicamente abaixo das linhas da descrição)
-        render_lore = fonte_status.render(f'"{aurea_sel["lore"]}"', True, (120, 120, 130))
-        y_lore = max(124, y_desc + 10)
-        surf_painel.blit(render_lore, (24, y_lore))
+        # Lore/Flavor text
+        lore_rect = pygame.Rect(24, 165, x_divisor - 48, 40)
+        desenhar_texto_wrap_local(surf_painel, f'"{aurea_sel["lore"]}"', lore_rect, fonte_lore, (120, 120, 130), 0)
 
         # Renderiza o painel final na tela
         tela.blit(surf_painel, (x_painel, y_painel))
 
-        # 8. Barra de instrução no rodapé
-        texto_instr = "A / D ou SETAS: Navegar | ESPAÇO/ENTER: Selecionar | ESC: Voltar"
+        # 8. Barra de instruÃ§Ã£o no rodapÃ©
+        texto_instr = "A / D ou SETAS: Navegar | ESPAÃ‡O/ENTER: Selecionar | ESC: Voltar"
         render_instr_text = fonte_instrucao.render(texto_instr, True, (0, 255, 230))
         largura_instr = render_instr_text.get_width() + 40
         altura_instr = 32
@@ -1014,8 +1104,8 @@ def tela_selecao_aurea(tela, fonte):
         
         tela.blit(surf_instr, (largura // 2 - largura_instr // 2, altura - 42))
 
-        # 9. Botão Voltar no Canto Superior Esquerdo (Desenhado dinamicamente com a cor do tema da Áurea)
-        is_hover_back = btn_back_rect.collidepoint(mx, my)
+        # 9. BotÃ£o Voltar no Canto Superior Esquerdo (Desenhado dinamicamente com a cor do tema da Ãurea)
+        is_hover_back = modo_interacao == "mouse" and btn_back_rect.collidepoint(mx, my)
         color_back = cor_accent if is_hover_back else (140, 140, 150)
         bg_back = (int(cor_accent[0]*0.15), int(cor_accent[1]*0.15), int(cor_accent[2]*0.15), 200) if is_hover_back else (15, 15, 20, 120)
         
@@ -1027,11 +1117,12 @@ def tela_selecao_aurea(tela, fonte):
         surf_back.blit(txt_back, (60 - txt_back.get_width() // 2, 18 - txt_back.get_height() // 2))
         tela.blit(surf_back, (btn_back_rect.x, btn_back_rect.y))
 
+        ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()
         clock.tick(60)
 
 def tela_decisao_tutorial(tela, fonte):
-    opcoes = ["Sim", "Não"]
+    opcoes = ["Sim", "NÃ£o"]
     selecionado = 0
     clock = pygame.time.Clock()
 
@@ -1040,7 +1131,7 @@ def tela_decisao_tutorial(tela, fonte):
         texto_titulo = fonte.render("Deseja jogar o tutorial?", True, (255, 255, 255))
         tela.blit(texto_titulo, (largura_tela // 2 - texto_titulo.get_width() // 2, altura_tela // 4))
 
-        mx, my = pygame.mouse.get_pos()
+        mx, my = ui_helpers.obter_pos_mouse_superficie(tela)
         clicado = False
 
         for evento in pygame.event.get():
@@ -1067,7 +1158,7 @@ def tela_decisao_tutorial(tela, fonte):
             rx = largura_tela // 2 - 100 + i * 150
             ry = altura_tela // 2
             
-            # Caixa de colisão para a opção
+            # Caixa de colisÃ£o para a opÃ§Ã£o
             rect_opcao = pygame.Rect(rx - 10, ry - 5, 80, 40)
             if rect_opcao.collidepoint(mx, my):
                 if selecionado != i:
@@ -1083,13 +1174,131 @@ def tela_decisao_tutorial(tela, fonte):
             render = fonte.render(texto, True, cor)
             tela.blit(render, (rx, ry))
 
+        ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()
         clock.tick(60)
 
+def _snapshot_config(config):
+    return json.dumps(config, sort_keys=True, ensure_ascii=False)
+
+
+def _tem_alteracoes_pendentes(config, config_salva):
+    return _snapshot_config(config) != _snapshot_config(config_salva)
+
+
+def _confirmar_saida_alteracoes(tela, fonte_titulo_dialogo, fonte_texto_dialogo):
+    opcoes_dialogo = [
+        ("Salvar e sair", "salvar"),
+        ("Sair sem salvar", "descartar"),
+        ("Cancelar", "cancelar"),
+    ]
+    selecionado_dialogo = 0
+    clock = pygame.time.Clock()
+
+    while True:
+        overlay = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 185))
+        tela.blit(overlay, (0, 0))
+
+        caixa = pygame.Rect(largura_tela // 2 - 330, altura_tela // 2 - 135, 660, 270)
+        pygame.draw.rect(tela, (12, 10, 24), caixa, border_radius=10)
+        pygame.draw.rect(tela, (0, 255, 204), caixa, width=2, border_radius=10)
+
+        titulo = fonte_titulo_dialogo.render("ALTERACOES NAO SALVAS", True, (255, 230, 120))
+        tela.blit(titulo, titulo.get_rect(center=(caixa.centerx, caixa.y + 48)))
+
+        mensagem = fonte_texto_dialogo.render("Voce alterou configuracoes. O que deseja fazer?", True, (220, 220, 230))
+        tela.blit(mensagem, mensagem.get_rect(center=(caixa.centerx, caixa.y + 92)))
+
+        mx, my = ui_helpers.obter_pos_mouse_superficie(tela)
+        for i, (label, _) in enumerate(opcoes_dialogo):
+            botao = pygame.Rect(caixa.x + 90, caixa.y + 125 + i * 42, caixa.w - 180, 34)
+            hover = botao.collidepoint(mx, my)
+            if hover and selecionado_dialogo != i:
+                selecionado_dialogo = i
+            cor_borda = (0, 255, 204) if i == selecionado_dialogo else (90, 100, 120)
+            cor_texto = (255, 255, 255) if i == selecionado_dialogo else (175, 180, 195)
+            pygame.draw.rect(tela, (0, 180, 200, 55) if i == selecionado_dialogo else (20, 18, 32), botao, border_radius=6)
+            pygame.draw.rect(tela, cor_borda, botao, width=1, border_radius=6)
+            texto = fonte_texto_dialogo.render(label, True, cor_texto)
+            tela.blit(texto, texto.get_rect(center=botao.center))
+
+        ui_helpers.desenhar_cursor_personalizado(tela)
+        pygame.display.flip()
+
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+            if evento.type == pygame.KEYDOWN:
+                if evento.key in [pygame.K_UP, pygame.K_w]:
+                    selecionado_dialogo = (selecionado_dialogo - 1) % len(opcoes_dialogo)
+                    tocar_hover()
+                elif evento.key in [pygame.K_DOWN, pygame.K_s]:
+                    selecionado_dialogo = (selecionado_dialogo + 1) % len(opcoes_dialogo)
+                    tocar_hover()
+                elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    tocar_selecionar()
+                    return opcoes_dialogo[selecionado_dialogo][1]
+                elif evento.key == pygame.K_ESCAPE:
+                    tocar_selecionar()
+                    return "cancelar"
+            elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                for i, (_, acao) in enumerate(opcoes_dialogo):
+                    botao = pygame.Rect(caixa.x + 90, caixa.y + 125 + i * 42, caixa.w - 180, 34)
+                    if botao.collidepoint(mx, my):
+                        tocar_selecionar()
+                        return acao
+
+        clock.tick(60)
+
+
+def _desenhar_status_aplicacao(tela, fonte_status, config, config_salva, y_pos):
+    if _tem_alteracoes_pendentes(config, config_salva):
+        texto_status = "Alteracoes pendentes - use Aplicar Alteracoes para salvar."
+        cor_status = (255, 205, 90)
+    else:
+        texto_status = "Configuracoes aplicadas."
+        cor_status = (0, 255, 170)
+
+    texto = fonte_status.render(texto_status, True, cor_status)
+    tela.blit(texto, texto.get_rect(center=(largura_tela // 2, y_pos)))
+
+
+def _quebrar_texto_largura(texto, fonte, largura_max):
+    palavras = str(texto).split()
+    linhas = []
+    linha = ""
+    for palavra in palavras:
+        teste = palavra if not linha else f"{linha} {palavra}"
+        if fonte.size(teste)[0] <= largura_max:
+            linha = teste
+        else:
+            if linha:
+                linhas.append(linha)
+            linha = palavra
+    if linha:
+        linhas.append(linha)
+    return linhas or [""]
+
+
+def _desenhar_caixa_descricao(tela, fonte_texto, texto, y_pos, largura=720):
+    largura = min(largura, largura_tela - 80)
+    linhas = _quebrar_texto_largura(texto, fonte_texto, largura - 32)[:2]
+    altura = 34 + (len(linhas) - 1) * 22
+    rect_desc = pygame.Rect(largura_tela // 2 - largura // 2, y_pos, largura, altura)
+    pygame.draw.rect(tela, (15, 10, 30, 210), rect_desc, border_radius=8)
+    pygame.draw.rect(tela, (0, 255, 230, 90), rect_desc, width=1, border_radius=8)
+    y_texto = rect_desc.centery - ((len(linhas) - 1) * 11)
+    for idx, linha in enumerate(linhas):
+        surf = fonte_texto.render(linha, True, (215, 215, 230))
+        tela.blit(surf, surf.get_rect(center=(rect_desc.centerx, y_texto + idx * 22)))
+
+
 def tela_configuracoes_graficas(tela, fonte):
-    """Tela de configurações gráficas"""
+    """Tela de configuracoes graficas."""
     global ultima_troca, exibindo_fundo1, indice_fundo
-    # Carregar configurações atuais
+    # Carregar configuraÃ§Ãµes atuais
     try:
         with open("saves/config_graficos.json", "r") as f:
             config = json.load(f)
@@ -1104,48 +1313,61 @@ def tela_configuracoes_graficas(tela, fonte):
         }
     # Garante que chaves novas existam em configs antigas
     config.setdefault("fps_limite", 60)
+    config.setdefault("nivel_detalhes", "alto")
     config.setdefault("particulas_ativas", True)
     config.setdefault("efeitos_visuais", True)
     config.setdefault("tela_cheia", False)
+    config["__aplicar__"] = "aplicar"
+    config_salva = json.loads(json.dumps(config))
     
     opcoes_config = [
         {"nome": "Tela Cheia", "chave": "tela_cheia", "valores": [False, True], "labels": ["Janela", "Tela Cheia"]},
-        {"nome": "Sombras", "chave": "sombras_ativas", "valores": ["desativadas", "simples", "dinamicas"], "labels": ["Desativadas", "Simples", "Dinâmicas"]},
-        {"nome": "Qualidade Gráfica", "chave": "qualidade_grafica", "valores": ["alta", "media", "baixa"], "labels": ["Alta", "Média", "Baixa"]},
-        {"nome": "Partículas", "chave": "particulas_ativas", "valores": [True, False], "labels": ["Ativadas", "Desativadas"]},
+        {"nome": "Sombras", "chave": "sombras_ativas", "valores": ["desativadas", "simples", "dinamicas"], "labels": ["Desativadas", "Simples", "Dinamicas"]},
+        {"nome": "Qualidade Grafica", "chave": "qualidade_grafica", "valores": ["alta", "media", "baixa"], "labels": ["Alta", "Media", "Baixa"]},
+        {"nome": "Detalhes dos Efeitos", "chave": "nivel_detalhes", "valores": ["alto", "medio", "baixo"], "labels": ["Alto", "Medio", "Baixo"]},
+        {"nome": "Particulas", "chave": "particulas_ativas", "valores": [True, False], "labels": ["Ativadas", "Desativadas"]},
         {"nome": "Efeitos Visuais", "chave": "efeitos_visuais", "valores": [True, False], "labels": ["Ativados", "Desativados"]},
         {"nome": "Limite de FPS", "chave": "fps_limite", "valores": [30, 60, 120, 0], "labels": ["30 FPS", "60 FPS", "120 FPS", "Ilimitado"]},
+        {"nome": "Aplicar Alteracoes", "chave": "__aplicar__", "valores": None, "labels": None},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
     ]
     
     descricoes_valores = {
+        "__aplicar__": {
+            "aplicar": "Salva e aplica as alteracoes feitas nesta tela."
+        },
         "tela_cheia": {
             False: "Modo janela. Mantem barras e habilidades sobre a tela do jogo.",
             True: "Tela cheia. Centraliza o jogo e move HUD para molduras laterais."
         },
         "sombras_ativas": {
             "desativadas": "Desliga sombras. Melhora muito o desempenho em PCs fracos.",
-            "simples": "Sombras básicas estáticas. Bom equilíbrio de performance.",
-            "dinamicas": "Sombras realistas em tempo real. Exige mais da placa de vídeo."
+            "simples": "Sombras basicas estaticas. Bom equilibrio de performance.",
+            "dinamicas": "Sombras realistas em tempo real. Exige mais da placa de video."
         },
         "qualidade_grafica": {
-            "alta": "Texturas e renderização máxima. Para placas de vídeo modernas.",
-            "media": "Qualidade padrão equilibrada para a maioria dos computadores.",
-            "baixa": "Reduz resolução de efeitos para rodar liso em qualquer máquina."
+            "alta": "Texturas e renderizacao maxima. Para placas de video modernas.",
+            "media": "Qualidade padrao equilibrada para a maioria dos computadores.",
+            "baixa": "Reduz resolucao de efeitos para rodar liso em qualquer maquina."
+        },
+        "nivel_detalhes": {
+            "alto": "Mais fragmentos, brilho e solidificacao detalhada na HUD.",
+            "medio": "Equilibrio entre efeitos visuais e desempenho.",
+            "baixo": "Efeitos essenciais com menos particulas e brilho."
         },
         "particulas_ativas": {
-            True: "Partículas visuais de explosões e faíscas ligadas.",
-            False: "Remove partículas para maior clareza visual e desempenho."
+            True: "Particulas visuais de explosoes e faiscas ligadas.",
+            False: "Remove particulas para maior clareza visual e desempenho."
         },
         "efeitos_visuais": {
-            True: "Ativa brilhos, distorções de tempo e glows premium.",
-            False: "Desativa pós-processamento pesado para evitar lentidão."
+            True: "Ativa brilhos, distorcoes de tempo e glows premium.",
+            False: "Desativa pos-processamento pesado para evitar lentidao."
         },
         "fps_limite": {
             30: "Limita a 30 FPS. Reduz consumo de energia e aquecimento.",
-            60: "Padrão recomendado para jogabilidade fluida e estável.",
-            120: "Para monitores de alta taxa de atualização (120Hz ou mais).",
-            0: "Ilimitado. Roda o mais rápido possível (uso máximo de hardware)."
+            60: "Padrao recomendado para jogabilidade fluida e estavel.",
+            120: "Para monitores de alta taxa de atualizacao (120Hz ou mais).",
+            0: "Ilimitado. Roda o mais rapido possivel (uso maximo de hardware)."
         }
     }
     
@@ -1154,11 +1376,30 @@ def tela_configuracoes_graficas(tela, fonte):
     fonte_titulo_tela = pygame.font.Font(caminho_fonte_titulo, 48)
     fonte_opcao_tela = pygame.font.Font(caminho_fonte_letra1, 24)
     fonte_valor_tela = pygame.font.Font(caminho_fonte_letras, 20)
+
+    def aplicar_config():
+        nonlocal config_salva, tela
+        dados_para_salvar = {k: v for k, v in config.items() if not k.startswith("__")}
+        with open("saves/config_graficos.json", "w") as f:
+            json.dump(dados_para_salvar, f, indent=4)
+        tela = configurar_tela(largura_tela, altura_tela)
+        config_salva = json.loads(json.dumps(config))
+
+    def tentar_sair():
+        if not _tem_alteracoes_pendentes(config, config_salva):
+            return True
+        acao = _confirmar_saida_alteracoes(tela, fonte_opcao_tela, fonte_valor_tela)
+        if acao == "salvar":
+            aplicar_config()
+            return True
+        if acao == "descartar":
+            return True
+        return False
     
     while True:
         agora = pygame.time.get_ticks()
         
-        # Atualiza e desenha o fundo dinâmico
+        # Atualiza e desenha o fundo dinÃ¢mico
         if exibindo_fundo1:
             tela.blit(fundo_menu1, (0, 0))
             if agora - ultima_troca > tempo_exibicao_fundo1:
@@ -1176,22 +1417,21 @@ def tela_configuracoes_graficas(tela, fonte):
         overlay.fill((0, 0, 0, 185))
         tela.blit(overlay, (0, 0))
         
-        # Título resiliente com Ç, G, Á, etc.
-        texto_titulo = render_glitch_text_with_fallback("CONFIGURAÇÕES GRÁFICAS", fonte_titulo_tela, fonte_fallback_config, (0, 255, 204))
+        texto_titulo = render_glitch_text_with_fallback("CONFIGURACOES GRAFICAS", fonte_titulo_tela, fonte_fallback_config, (0, 255, 204))
         retangulo_titulo = texto_titulo.get_rect(center=(largura_tela // 2, altura_tela // 8))
         
         # Sombra
-        texto_titulo_sombra = render_glitch_text_with_fallback("CONFIGURAÇÕES GRÁFICAS", fonte_titulo_tela, fonte_fallback_config, (15, 5, 25))
+        texto_titulo_sombra = render_glitch_text_with_fallback("CONFIGURACOES GRAFICAS", fonte_titulo_tela, fonte_fallback_config, (15, 5, 25))
         tela.blit(texto_titulo_sombra, (retangulo_titulo.left + 4, retangulo_titulo.top + 4))
         
         # Contorno
         for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-            texto_titulo_contorno = render_glitch_text_with_fallback("CONFIGURAÇÕES GRÁFICAS", fonte_titulo_tela, fonte_fallback_config, contorno_rosa)
+            texto_titulo_contorno = render_glitch_text_with_fallback("CONFIGURACOES GRAFICAS", fonte_titulo_tela, fonte_fallback_config, contorno_rosa)
             tela.blit(texto_titulo_contorno, (retangulo_titulo.left + dx, retangulo_titulo.top + dy))
             
         tela.blit(texto_titulo, retangulo_titulo)
         
-        mx, my = pygame.mouse.get_pos()
+        mx, my = ui_helpers.obter_pos_mouse_superficie(tela)
         clicado = False
         
         for evento in pygame.event.get():
@@ -1209,7 +1449,7 @@ def tela_configuracoes_graficas(tela, fonte):
                     selecionado = (selecionado + 1) % len(opcoes_config)
                     tocar_hover()
                 elif evento.key in [pygame.K_LEFT, pygame.K_a, pygame.K_RIGHT, pygame.K_d]:
-                    if opcoes_config[selecionado]["chave"]:
+                    if opcoes_config[selecionado]["chave"] and opcoes_config[selecionado]["chave"] != "__aplicar__":
                         tocar_hover()
                         chave = opcoes_config[selecionado]["chave"]
                         valores = opcoes_config[selecionado]["valores"]
@@ -1223,19 +1463,18 @@ def tela_configuracoes_graficas(tela, fonte):
                         
                         config[chave] = valores[novo_indice]
                         
-                        # Salvar imediatamente
-                        with open("saves/config_graficos.json", "w") as f:
-                            json.dump(config, f, indent=4)
-                
                 elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
                     tocar_selecionar()
-                    if opcoes_config[selecionado]["nome"] == "Voltar":
+                    if opcoes_config[selecionado]["chave"] == "__aplicar__":
+                        aplicar_config()
+                    elif opcoes_config[selecionado]["nome"] == "Voltar" and tentar_sair():
                         return
                 elif evento.key == pygame.K_ESCAPE:
                     tocar_selecionar()
-                    return
+                    if tentar_sair():
+                        return
         
-        # Desenhar opções
+        # Desenhar opÃ§Ãµes
         y_inicial = altura_tela // 4
         espacamento = 46
         
@@ -1243,14 +1482,16 @@ def tela_configuracoes_graficas(tela, fonte):
             y_pos = y_inicial + i * espacamento
             rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 42)
             
-            # Detecção de hover e cliques do mouse
+            # DetecÃ§Ã£o de hover e cliques do mouse
             if rect_bg.collidepoint(mx, my):
                 if selecionado != i:
                     selecionado = i
                     tocar_hover()
                 if clicado:
                     tocar_selecionar()
-                    if opcao["nome"] == "Voltar":
+                    if opcao["chave"] == "__aplicar__":
+                        aplicar_config()
+                    elif opcao["nome"] == "Voltar" and tentar_sair():
                         return
                     elif opcao["chave"]:
                         chave = opcao["chave"]
@@ -1270,10 +1511,8 @@ def tela_configuracoes_graficas(tela, fonte):
                             novo_indice = (indice_atual + 1) % len(valores)
                             
                         config[chave] = valores[novo_indice]
-                        with open("saves/config_graficos.json", "w") as f:
-                            json.dump(config, f, indent=4)
             
-            # Caixa glassy para a opção selecionada
+            # Caixa glassy para a opÃ§Ã£o selecionada
             if i == selecionado:
                 pygame.draw.rect(tela, (0, 180, 200, 65), rect_bg, border_radius=6)
                 pygame.draw.rect(tela, (0, 255, 230), rect_bg, width=2, border_radius=6)
@@ -1281,12 +1520,12 @@ def tela_configuracoes_graficas(tela, fonte):
             else:
                 cor_nome = (120, 120, 120)
             
-            # Nome da opção
+            # Nome da opÃ§Ã£o
             texto_nome = fonte_opcao_tela.render(opcao["nome"], True, cor_nome)
             tela.blit(texto_nome, (largura_tela // 4, y_pos))
             
-            # Valor atual (se não for "Voltar")
-            if opcao["chave"]:
+            # Valor atual (se nÃ£o for "Voltar")
+            if opcao["chave"] and opcao["chave"] != "__aplicar__":
                 valor_atual = config[opcao["chave"]]
                 indice_valor = opcao["valores"].index(valor_atual)
                 label_valor = opcao["labels"][indice_valor]
@@ -1295,33 +1534,26 @@ def tela_configuracoes_graficas(tela, fonte):
                 texto_valor = fonte_valor_tela.render(label_valor, True, cor_valor)
                 tela.blit(texto_valor, (largura_tela // 2 + 50, y_pos + 4))
                 
-                # Setas de navegação se selecionado
+                # Setas de navegaÃ§Ã£o se selecionado
                 if i == selecionado:
                     seta_esq = fonte_valor_tela.render("<", True, (255, 255, 255))
                     seta_dir = fonte_valor_tela.render(">", True, (255, 255, 255))
                     tela.blit(seta_esq, (largura_tela // 2 + 20, y_pos + 4))
                     tela.blit(seta_dir, (largura_tela // 2 + 230, y_pos + 4))
         
-        # Caixa de Descrição Dinâmica
-        rect_desc = pygame.Rect(largura_tela // 2 - 360, 535, 720, 50)
-        pygame.draw.rect(tela, (15, 10, 30, 200), rect_desc, border_radius=8)
-        pygame.draw.rect(tela, (0, 255, 230, 80), rect_desc, width=1, border_radius=8)
-        
         opt_sel = opcoes_config[selecionado]
         if opt_sel["chave"] is None:
-            texto_desc_str = "Retornar ao menu de configurações anterior."
+            texto_desc_str = "Retornar ao menu de configuracoes anterior."
         else:
             val_sel = config[opt_sel["chave"]]
             texto_desc_str = descricoes_valores[opt_sel["chave"]][val_sel]
-            
-        surf_desc_texto = fonte_valor_tela.render(texto_desc_str, True, (200, 200, 220))
-        rect_desc_texto = surf_desc_texto.get_rect(center=rect_desc.center)
-        tela.blit(surf_desc_texto, rect_desc_texto)
+        y_desc = min(altura_tela - 128, y_inicial + len(opcoes_config) * espacamento + 10)
+        _desenhar_caixa_descricao(tela, fonte_valor_tela, texto_desc_str, y_desc)
         
-        # Instruções no rodapé
+        # InstruÃ§Ãµes no rodapÃ©
         instrucoes = [
             "W/S: Navegar | A/D: Alterar valor",
-            "ENTER/ESPAÇO: Confirmar | ESC: Voltar"
+            "ENTER/ESPACO: Confirmar | ESC: Voltar"
         ]
         
         y_instrucao = altura_tela - 55
@@ -1330,14 +1562,15 @@ def tela_configuracoes_graficas(tela, fonte):
             tela.blit(texto_inst, (largura_tela // 2 - texto_inst.get_width() // 2, y_instrucao))
             y_instrucao += 20
         
+        ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()
         clock.tick(60)
 
 
 def tela_configuracoes_audio(tela, fonte):
-    """Tela de configurações de áudio"""
+    """Tela de configuracoes de audio."""
     global ultima_troca, exibindo_fundo1, indice_fundo
-    # Carregar configurações atuais
+    # Carregar configuraÃ§Ãµes atuais
     try:
         with open("saves/config_audio.json", "r") as f:
             config = json.load(f)
@@ -1347,6 +1580,7 @@ def tela_configuracoes_audio(tela, fonte):
             "volume_efeitos": 0.5,
             "volume_master": 1.0
         }
+    config_salva = json.loads(json.dumps(config))
     
     selecionado = 0
     clock = pygame.time.Clock()
@@ -1354,20 +1588,39 @@ def tela_configuracoes_audio(tela, fonte):
     fonte_opcao_tela = pygame.font.Font(caminho_fonte_letra1, 24)
     fonte_valor_tela = pygame.font.Font(caminho_fonte_letras, 20)
     
-    opcoes = ["volume_master", "volume_musica", "volume_efeitos", "voltar"]
-    labels = ["Volume Master", "Volume Música", "Volume Efeitos", "Voltar"]
-    
+    opcoes = ["volume_master", "volume_musica", "volume_efeitos", "aplicar", "voltar"]
+    labels = ["Volume Master", "Volume Musica", "Volume Efeitos", "Aplicar Alteracoes", "Voltar"]
+
     descricoes_audio = {
-        "volume_master": "Volume geral. Ajusta a música e os efeitos sonoros proporcionalmente.",
-        "volume_musica": "Trilha sonora. Ajusta o volume da música de fundo e ambiente.",
-        "volume_efeitos": "Efeitos sonoros. Ajusta o volume de tiros, explosões e impactos.",
-        "voltar": "Retornar ao menu de configurações anterior."
+        "volume_master": "Volume geral. Ajusta a musica e os efeitos sonoros proporcionalmente.",
+        "volume_musica": "Trilha sonora. Ajusta o volume da musica de fundo e ambiente.",
+        "volume_efeitos": "Efeitos sonoros. Ajusta o volume de tiros, explosoes e impactos.",
+        "voltar": "Retornar ao menu de configuracoes anterior."
     }
+    descricoes_audio["aplicar"] = "Salva e aplica as alteracoes de audio agora."
+
+    def aplicar_config():
+        nonlocal config_salva
+        with open("saves/config_audio.json", "w") as f:
+            json.dump(config, f, indent=4)
+        aplicar_volumes_audio(config)
+        config_salva = json.loads(json.dumps(config))
+
+    def tentar_sair():
+        if not _tem_alteracoes_pendentes(config, config_salva):
+            return True
+        acao = _confirmar_saida_alteracoes(tela, fonte_opcao_tela, fonte_valor_tela)
+        if acao == "salvar":
+            aplicar_config()
+            return True
+        if acao == "descartar":
+            return True
+        return False
     
     while True:
         agora = pygame.time.get_ticks()
         
-        # Atualiza e desenha o fundo dinâmico
+        # Atualiza e desenha o fundo dinÃ¢mico
         if exibindo_fundo1:
             tela.blit(fundo_menu1, (0, 0))
             if agora - ultima_troca > tempo_exibicao_fundo1:
@@ -1385,22 +1638,21 @@ def tela_configuracoes_audio(tela, fonte):
         overlay.fill((0, 0, 0, 185))
         tela.blit(overlay, (0, 0))
         
-        # Título de configurações de áudio
-        texto_titulo = render_glitch_text_with_fallback("CONFIGURAÇÕES DE ÁUDIO", fonte_titulo_tela, fonte_fallback_config, (0, 255, 204))
+        texto_titulo = render_glitch_text_with_fallback("CONFIGURACOES DE AUDIO", fonte_titulo_tela, fonte_fallback_config, (0, 255, 204))
         retangulo_titulo = texto_titulo.get_rect(center=(largura_tela // 2, altura_tela // 8))
         
         # Sombra
-        texto_titulo_sombra = render_glitch_text_with_fallback("CONFIGURAÇÕES DE ÁUDIO", fonte_titulo_tela, fonte_fallback_config, (15, 5, 25))
+        texto_titulo_sombra = render_glitch_text_with_fallback("CONFIGURACOES DE AUDIO", fonte_titulo_tela, fonte_fallback_config, (15, 5, 25))
         tela.blit(texto_titulo_sombra, (retangulo_titulo.left + 4, retangulo_titulo.top + 4))
         
         # Contorno
         for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-            texto_titulo_contorno = render_glitch_text_with_fallback("CONFIGURAÇÕES DE ÁUDIO", fonte_titulo_tela, fonte_fallback_config, contorno_rosa)
+            texto_titulo_contorno = render_glitch_text_with_fallback("CONFIGURACOES DE AUDIO", fonte_titulo_tela, fonte_fallback_config, contorno_rosa)
             tela.blit(texto_titulo_contorno, (retangulo_titulo.left + dx, retangulo_titulo.top + dy))
             
         tela.blit(texto_titulo, retangulo_titulo)
         
-        mx, my = pygame.mouse.get_pos()
+        mx, my = ui_helpers.obter_pos_mouse_superficie(tela)
         clicado = False
         mouse_pressionado = pygame.mouse.get_pressed()[0]
         
@@ -1419,36 +1671,29 @@ def tela_configuracoes_audio(tela, fonte):
                     selecionado = (selecionado + 1) % len(opcoes)
                     tocar_hover()
                 elif evento.key in [pygame.K_LEFT, pygame.K_a]:
-                    if opcoes[selecionado] != "voltar":
+                    if opcoes[selecionado] not in ["voltar", "aplicar"]:
                         tocar_hover()
                         chave = opcoes[selecionado]
                         config[chave] = max(0.0, config[chave] - 0.1)
                         
-                        # Salvar e aplicar
-                        with open("saves/config_audio.json", "w") as f:
-                            json.dump(config, f, indent=4)
-                        aplicar_volumes_audio(config)
-                
                 elif evento.key in [pygame.K_RIGHT, pygame.K_d]:
-                    if opcoes[selecionado] != "voltar":
+                    if opcoes[selecionado] not in ["voltar", "aplicar"]:
                         tocar_hover()
                         chave = opcoes[selecionado]
                         config[chave] = min(1.0, config[chave] + 0.1)
                         
-                        # Salvar e aplicar
-                        with open("saves/config_audio.json", "w") as f:
-                            json.dump(config, f, indent=4)
-                        aplicar_volumes_audio(config)
-                
                 elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
                     tocar_selecionar()
-                    if opcoes[selecionado] == "voltar":
+                    if opcoes[selecionado] == "aplicar":
+                        aplicar_config()
+                    elif opcoes[selecionado] == "voltar" and tentar_sair():
                         return
                 elif evento.key == pygame.K_ESCAPE:
                     tocar_selecionar()
-                    return
+                    if tentar_sair():
+                        return
         
-        # Desenhar opções
+        # Desenhar opÃ§Ãµes
         y_inicial = altura_tela // 4 + 40
         espacamento = 65
         
@@ -1456,31 +1701,30 @@ def tela_configuracoes_audio(tela, fonte):
             y_pos = y_inicial + i * espacamento
             rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 48)
             
-            # Detecção de hover e cliques do mouse
+            # DetecÃ§Ã£o de hover e cliques do mouse
             if rect_bg.collidepoint(mx, my):
                 if selecionado != i:
                     selecionado = i
                     tocar_hover()
                 if clicado:
                     tocar_selecionar()
-                    if opcao == "voltar":
+                    if opcao == "aplicar":
+                        aplicar_config()
+                    elif opcao == "voltar" and tentar_sair():
                         return
                 
                 # Se arrastar ou clicar nos volumes, ajustar dinamicamente
-                if mouse_pressionado and opcao != "voltar":
+                if mouse_pressionado and opcao not in ["voltar", "aplicar"]:
                     barra_x = largura_tela // 2 - 20
                     barra_largura = 200
-                    # Calcula novo volume de forma contínua
+                    # Calcula novo volume de forma contÃ­nua
                     novo_val = (mx - barra_x) / barra_largura
                     novo_val = max(0.0, min(1.0, novo_val))
                     novo_val = round(novo_val, 2)
                     if config[opcao] != novo_val:
                         config[opcao] = novo_val
-                        with open("saves/config_audio.json", "w") as f:
-                            json.dump(config, f, indent=4)
-                        aplicar_volumes_audio(config)
 
-            # Caixa glassy para a opção selecionada
+            # Caixa glassy para a opÃ§Ã£o selecionada
             if i == selecionado:
                 pygame.draw.rect(tela, (0, 180, 200, 65), rect_bg, border_radius=6)
                 pygame.draw.rect(tela, (0, 255, 230), rect_bg, width=2, border_radius=6)
@@ -1488,12 +1732,12 @@ def tela_configuracoes_audio(tela, fonte):
             else:
                 cor_nome = (120, 120, 120)
             
-            # Nome da opção
+            # Nome da opÃ§Ã£o
             texto_nome = fonte_opcao_tela.render(labels[i], True, cor_nome)
             tela.blit(texto_nome, (largura_tela // 4, y_pos))
             
-            # Barra de volume (se não for "Voltar")
-            if opcao != "voltar":
+            # Barra de volume (se nÃ£o for "Voltar")
+            if opcao not in ["voltar", "aplicar"]:
                 valor = config[opcao]
                 
                 # Barra de fundo
@@ -1517,29 +1761,22 @@ def tela_configuracoes_audio(tela, fonte):
                 texto_porcentagem = fonte_valor_tela.render(f"{porcentagem}%", True, cor_nome)
                 tela.blit(texto_porcentagem, (barra_x + barra_largura + 15, y_pos + 5))
                 
-                # Setas de navegação se selecionado
+                # Setas de navegaÃ§Ã£o se selecionado
                 if i == selecionado:
                     seta_esq = fonte_valor_tela.render("<", True, (255, 255, 255))
                     seta_dir = fonte_valor_tela.render(">", True, (255, 255, 255))
                     tela.blit(seta_esq, (barra_x - 25, y_pos + 5))
                     tela.blit(seta_dir, (barra_x + barra_largura + 50, y_pos + 5))
         
-        # Caixa de Descrição Dinâmica
-        rect_desc = pygame.Rect(largura_tela // 2 - 360, 480, 720, 50)
-        pygame.draw.rect(tela, (15, 10, 30, 200), rect_desc, border_radius=8)
-        pygame.draw.rect(tela, (0, 255, 230, 80), rect_desc, width=1, border_radius=8)
-        
         opt_sel = opcoes[selecionado]
         texto_desc_str = descricoes_audio[opt_sel]
-            
-        surf_desc_texto = fonte_valor_tela.render(texto_desc_str, True, (200, 200, 220))
-        rect_desc_texto = surf_desc_texto.get_rect(center=rect_desc.center)
-        tela.blit(surf_desc_texto, rect_desc_texto)
+        y_desc = min(altura_tela - 128, y_inicial + len(opcoes) * espacamento + 10)
+        _desenhar_caixa_descricao(tela, fonte_valor_tela, texto_desc_str, y_desc)
         
-        # Instruções no rodapé
+        # InstruÃ§Ãµes no rodapÃ©
         instrucoes = [
             "W/S: Navegar | A/D: Ajustar volume",
-            "ENTER/ESPAÇO: Confirmar | ESC: Voltar"
+            "ENTER/ESPACO: Confirmar | ESC: Voltar"
         ]
         
         y_instrucao = altura_tela - 55
@@ -1548,12 +1785,13 @@ def tela_configuracoes_audio(tela, fonte):
             tela.blit(texto_inst, (largura_tela // 2 - texto_inst.get_width() // 2, y_instrucao))
             y_instrucao += 20
         
+        ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()
         clock.tick(60)
 
 
 def tela_configuracoes_jogabilidade(tela, fonte):
-    """Tela de configurações de jogabilidade"""
+    """Tela de configuracoes de jogabilidade."""
     global ultima_troca, exibindo_fundo1, indice_fundo
     
     # Carregar tutorial config
@@ -1582,17 +1820,20 @@ def tela_configuracoes_jogabilidade(tela, fonte):
         "modo_teleporte": modo_teleporte,
         "modo_cartas": modo_cartas
     }
+    config["__aplicar__"] = "aplicar"
+    config_salva = json.loads(json.dumps(config))
     
     opcoes_config = [
         {"nome": "Tutorial", "chave": "mostrar_tutorial", "valores": [True, False], "labels": ["Ativado", "Desativado"]},
         {"nome": "Modo de Teleporte", "chave": "modo_teleporte", "valores": ["fixo", "mouse"], "labels": ["Fixo", "Mouse Target"]},
-        {"nome": "Sistema de Cartas", "chave": "modo_cartas", "valores": ["loja", "drops"], "labels": ["Loja (Padrão)", "Drops de Inimigos"]},
+        {"nome": "Sistema de Cartas", "chave": "modo_cartas", "valores": ["loja", "drops"], "labels": ["Loja (Padrao)", "Drops de Inimigos"]},
+        {"nome": "Aplicar Alteracoes", "chave": "__aplicar__", "valores": None, "labels": None},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
     ]
     
     descricoes_valores = {
         "mostrar_tutorial": {
-            True: "Exibe balões explicativos e dicas ao longo das fases para iniciantes.",
+            True: "Exibe baloes explicativos e dicas ao longo das fases para iniciantes.",
             False: "Desativa tutoriais de jogabilidade. Recomendado para jogadores experientes."
         },
         "modo_teleporte": {
@@ -1605,16 +1846,43 @@ def tela_configuracoes_jogabilidade(tela, fonte):
         }
     }
     
+    descricoes_valores["__aplicar__"] = {"aplicar": "Salva e aplica as alteracoes de jogabilidade."}
     selecionado = 0
     clock = pygame.time.Clock()
     fonte_titulo_tela = pygame.font.Font(caminho_fonte_titulo, 48)
     fonte_opcao_tela = pygame.font.Font(caminho_fonte_letra1, 24)
     fonte_valor_tela = pygame.font.Font(caminho_fonte_letras, 20)
     
+    def aplicar_config():
+        nonlocal config_salva
+        with open("saves/tutorial_config.json", "w") as f:
+            json.dump({"mostrar_tutorial": config["mostrar_tutorial"]}, f)
+        with open("saves/config_teleporte.json", "w") as f:
+            json.dump({"modo": config["modo_teleporte"]}, f)
+        with open("saves/config_cartas.json", "w") as f:
+            json.dump({"modo_cartas": config["modo_cartas"]}, f)
+        try:
+            import Variaveis
+            Variaveis.obter_modo_teleporte(forcar_recarregar=True)
+        except Exception:
+            pass
+        config_salva = json.loads(json.dumps(config))
+
+    def tentar_sair():
+        if not _tem_alteracoes_pendentes(config, config_salva):
+            return True
+        acao = _confirmar_saida_alteracoes(tela, fonte_opcao_tela, fonte_valor_tela)
+        if acao == "salvar":
+            aplicar_config()
+            return True
+        if acao == "descartar":
+            return True
+        return False
+
     while True:
         agora = pygame.time.get_ticks()
         
-        # Fundo dinâmico
+        # Fundo dinÃ¢mico
         if exibindo_fundo1:
             tela.blit(fundo_menu1, (0, 0))
             if agora - ultima_troca > tempo_exibicao_fundo1:
@@ -1632,22 +1900,21 @@ def tela_configuracoes_jogabilidade(tela, fonte):
         overlay.fill((0, 0, 0, 185))
         tela.blit(overlay, (0, 0))
         
-        # Título
-        texto_titulo = render_glitch_text_with_fallback("CONFIGURAÇÕES DE JOGABILIDADE", fonte_titulo_tela, fonte_fallback_config, (0, 255, 204))
+        texto_titulo = render_glitch_text_with_fallback("CONFIGURACOES DE JOGABILIDADE", fonte_titulo_tela, fonte_fallback_config, (0, 255, 204))
         retangulo_titulo = texto_titulo.get_rect(center=(largura_tela // 2, altura_tela // 8))
         
         # Sombra
-        texto_titulo_sombra = render_glitch_text_with_fallback("CONFIGURAÇÕES DE JOGABILIDADE", fonte_titulo_tela, fonte_fallback_config, (15, 5, 25))
+        texto_titulo_sombra = render_glitch_text_with_fallback("CONFIGURACOES DE JOGABILIDADE", fonte_titulo_tela, fonte_fallback_config, (15, 5, 25))
         tela.blit(texto_titulo_sombra, (retangulo_titulo.left + 4, retangulo_titulo.top + 4))
         
         # Contorno
         for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-            texto_titulo_contorno = render_glitch_text_with_fallback("CONFIGURAÇÕES DE JOGABILIDADE", fonte_titulo_tela, fonte_fallback_config, contorno_rosa)
+            texto_titulo_contorno = render_glitch_text_with_fallback("CONFIGURACOES DE JOGABILIDADE", fonte_titulo_tela, fonte_fallback_config, contorno_rosa)
             tela.blit(texto_titulo_contorno, (retangulo_titulo.left + dx, retangulo_titulo.top + dy))
             
         tela.blit(texto_titulo, retangulo_titulo)
         
-        mx, my = pygame.mouse.get_pos()
+        mx, my = ui_helpers.obter_pos_mouse_superficie(tela)
         clicado = False
         
         for evento in pygame.event.get():
@@ -1665,7 +1932,7 @@ def tela_configuracoes_jogabilidade(tela, fonte):
                     selecionado = (selecionado + 1) % len(opcoes_config)
                     tocar_hover()
                 elif evento.key in [pygame.K_LEFT, pygame.K_a, pygame.K_RIGHT, pygame.K_d]:
-                    if opcoes_config[selecionado]["chave"]:
+                    if opcoes_config[selecionado]["chave"] and opcoes_config[selecionado]["chave"] != "__aplicar__":
                         tocar_hover()
                         chave = opcoes_config[selecionado]["chave"]
                         valores = opcoes_config[selecionado]["valores"]
@@ -1679,26 +1946,18 @@ def tela_configuracoes_jogabilidade(tela, fonte):
                         
                         config[chave] = valores[novo_indice]
                         
-                        # Salvar imediatamente
-                        if chave == "mostrar_tutorial":
-                            with open("saves/tutorial_config.json", "w") as f:
-                                json.dump({"mostrar_tutorial": config[chave]}, f)
-                        elif chave == "modo_teleporte":
-                            with open("saves/config_teleporte.json", "w") as f:
-                                json.dump({"modo": config[chave]}, f)
-                        elif chave == "modo_cartas":
-                            with open("saves/config_cartas.json", "w") as f:
-                                json.dump({"modo_cartas": config[chave]}, f)
-                                
                 elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
                     tocar_selecionar()
-                    if opcoes_config[selecionado]["nome"] == "Voltar":
+                    if opcoes_config[selecionado]["chave"] == "__aplicar__":
+                        aplicar_config()
+                    elif opcoes_config[selecionado]["nome"] == "Voltar" and tentar_sair():
                         return
                 elif evento.key == pygame.K_ESCAPE:
                     tocar_selecionar()
-                    return
+                    if tentar_sair():
+                        return
                     
-        # Desenhar opções
+        # Desenhar opÃ§Ãµes
         y_inicial = altura_tela // 3 + 20
         espacamento = 70
         
@@ -1706,14 +1965,16 @@ def tela_configuracoes_jogabilidade(tela, fonte):
             y_pos = y_inicial + i * espacamento
             rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 48)
             
-            # Detecção de hover e cliques do mouse
+            # DetecÃ§Ã£o de hover e cliques do mouse
             if rect_bg.collidepoint(mx, my):
                 if selecionado != i:
                     selecionado = i
                     tocar_hover()
                 if clicado:
                     tocar_selecionar()
-                    if opcao["nome"] == "Voltar":
+                    if opcao["chave"] == "__aplicar__":
+                        aplicar_config()
+                    elif opcao["nome"] == "Voltar" and tentar_sair():
                         return
                     elif opcao["chave"]:
                         chave = opcao["chave"]
@@ -1734,18 +1995,8 @@ def tela_configuracoes_jogabilidade(tela, fonte):
                             
                         config[chave] = valores[novo_indice]
                         
-                        # Salvar imediatamente
-                        if chave == "mostrar_tutorial":
-                            with open("saves/tutorial_config.json", "w") as f:
-                                json.dump({"mostrar_tutorial": config[chave]}, f)
-                        elif chave == "modo_teleporte":
-                            with open("saves/config_teleporte.json", "w") as f:
-                                json.dump({"modo": config[chave]}, f)
-                        elif chave == "modo_cartas":
-                            with open("saves/config_cartas.json", "w") as f:
-                                json.dump({"modo_cartas": config[chave]}, f)
             
-            # Caixa glassy para a opção selecionada
+            # Caixa glassy para a opÃ§Ã£o selecionada
             if i == selecionado:
                 pygame.draw.rect(tela, (0, 180, 200, 65), rect_bg, border_radius=6)
                 pygame.draw.rect(tela, (0, 255, 230), rect_bg, width=2, border_radius=6)
@@ -1753,12 +2004,12 @@ def tela_configuracoes_jogabilidade(tela, fonte):
             else:
                 cor_nome = (120, 120, 120)
                 
-            # Nome da opção
+            # Nome da opÃ§Ã£o
             texto_nome = fonte_opcao_tela.render(opcao["nome"], True, cor_nome)
             tela.blit(texto_nome, (largura_tela // 4, y_pos))
             
             # Valor atual
-            if opcao["chave"]:
+            if opcao["chave"] and opcao["chave"] != "__aplicar__":
                 valor_atual = config[opcao["chave"]]
                 indice_valor = opcao["valores"].index(valor_atual)
                 label_valor = opcao["labels"][indice_valor]
@@ -1773,26 +2024,19 @@ def tela_configuracoes_jogabilidade(tela, fonte):
                     tela.blit(seta_esq, (largura_tela // 2 + 20, y_pos + 4))
                     tela.blit(seta_dir, (largura_tela // 2 + 230, y_pos + 4))
                     
-        # Caixa de Descrição Dinâmica
-        rect_desc = pygame.Rect(largura_tela // 2 - 360, 520, 720, 50)
-        pygame.draw.rect(tela, (15, 10, 30, 200), rect_desc, border_radius=8)
-        pygame.draw.rect(tela, (0, 255, 230, 80), rect_desc, width=1, border_radius=8)
-        
         opt_sel = opcoes_config[selecionado]
         if opt_sel["chave"] is None:
-            texto_desc_str = "Retornar ao menu de configurações anterior."
+            texto_desc_str = "Retornar ao menu de configuracoes anterior."
         else:
             val_sel = config[opt_sel["chave"]]
             texto_desc_str = descricoes_valores[opt_sel["chave"]][val_sel]
-            
-        surf_desc_texto = fonte_valor_tela.render(texto_desc_str, True, (200, 200, 220))
-        rect_desc_texto = surf_desc_texto.get_rect(center=rect_desc.center)
-        tela.blit(surf_desc_texto, rect_desc_texto)
+        y_desc = min(altura_tela - 128, y_inicial + len(opcoes_config) * espacamento + 10)
+        _desenhar_caixa_descricao(tela, fonte_valor_tela, texto_desc_str, y_desc)
         
-        # Instruções no rodapé
+        # InstruÃ§Ãµes no rodapÃ©
         instrucoes = [
             "W/S: Navegar | A/D: Alterar valor",
-            "ENTER/ESPAÇO: Confirmar | ESC: Voltar"
+            "ENTER/ESPACO: Confirmar | ESC: Voltar"
         ]
         
         y_instrucao = altura_tela - 55
@@ -1801,21 +2045,315 @@ def tela_configuracoes_jogabilidade(tela, fonte):
             tela.blit(texto_inst, (largura_tela // 2 - texto_inst.get_width() // 2, y_instrucao))
             y_instrucao += 20
             
+        ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()
         clock.tick(60)
 
 
 def aplicar_volumes_audio(config):
-    """Aplica as configurações de volume a todos os sons e músicas"""
+    """Aplica as configuraÃ§Ãµes de volume a todos os sons e mÃºsicas"""
     volume_master = config.get("volume_master", 1.0)
     volume_musica = config.get("volume_musica", 0.5)
     
-    # Aplicar volume da música
+    # Aplicar volume da mÃºsica
     pygame.mixer.music.set_volume(volume_musica * volume_master)
     
-    # Salvar configuração
+    # Salvar configuraÃ§Ã£o
     with open("saves/config_audio.json", "w") as f:
         json.dump(config, f, indent=4)
+
+
+def _dados_catalogo_temporal():
+    return {
+        "Inimigos": [
+            {"nome": "Errante Temporal", "imagem": "Sprites/Inimig1.png", "funcionamento": "Persegue o jogador em linha direta, pressiona espaco e serve como base para o escalonamento das fases.", "historia": "Fragmentos de pessoas e criaturas presos no primeiro pulso da ruptura. Eles nao pensam em vencer, apenas em voltar para uma linha do tempo que ja nao existe."},
+            {"nome": "Atirador", "imagem": "Sprites/inimigo_direita2-1.png", "funcionamento": "Mantem distancia e cria projeteis para quebrar rotas seguras. Fica mais perigoso quando o jogador para de se mover.", "historia": "Uma variante que aprendeu a usar a propria instabilidade como municao. Cada disparo e uma pequena tentativa de fixar Apolo no tempo."},
+            {"nome": "Kamikaze", "imagem": "Sprites/inimigo_esquerda2-1.png", "funcionamento": "Avanca para explodir perto do jogador, causando dano e efeitos de controle quando alcanca alcance curto.", "historia": "Nasceu de ecos congelados da segunda fase. Sua forma e instavel demais para sobreviver, entao transforma o proprio colapso em arma."},
+            {"nome": "Aglomerador", "imagem": "Sprites/Inimig2.png", "funcionamento": "Ao morrer, pode se partir em inimigos menores ou favorecer grupos densos. Exige controle de area.", "historia": "Varias linhas temporais falharam no mesmo ponto e se colaram em um unico corpo. Quando ele cai, as partes ainda tentam continuar."},
+            {"nome": "Espreitador", "imagem": "Sprites/Inimig1.png", "funcionamento": "Mesmo corpo-base do Errante Temporal, mas com furtividade: oscila transparencia, pode ficar quase invisivel e usa arrancadas curtas para se aproximar.", "historia": "No livro, ele nao e outra especie: e o proprio errante aprendendo a falhar entre os frames da realidade. A ameaca vem do desaparecimento, nao de uma silhueta nova."},
+            {"nome": "Cristalizador", "imagem": "Sprites/Inimig1.png", "funcionamento": "Mesmo corpo-base do Errante Temporal com efeito cristalizador. No jogo, funciona como suporte defensivo: reduz dano em inimigos proximos e vira alvo prioritario.", "historia": "A ruptura endurece o errante por dentro, cobrindo sua forma comum com uma logica de cristal. Ele nao persegue apenas para matar; persegue para fixar a batalha em favor da horda."},
+            {"nome": "Projetador", "imagem": "Sprites/Inimig1.png", "funcionamento": "Mesmo corpo-base do Errante Temporal, mas ataca de longe. Ele para em distancia segura, projeta disparos e obriga reposicionamento constante.", "historia": "E um errante que aprendeu a estender o proprio colapso pelo espaco. No livro, sua diferenca nao esta no corpo, mas na capacidade de transformar distancia em pressao."},
+            {"nome": "Elite", "imagem": "Sprites/Inimig1.png", "funcionamento": "Mesmo corpo-base do Errante Temporal, so que maior, com vida multiplicada e presenca mais punitiva. No jogo, pune dano baixo e falta de mobilidade.", "historia": "Quando um errante sobrevive tempo demais, ganha peso temporal. A Elite e o mesmo monstro comum, ampliado pela memoria das vezes em que quase venceu."},
+        ],
+        "Chefes": [
+            {"nome": "BOSS 1: Caranguejo do Nulo", "imagem": "Sprites/Boss1.png", "funcionamento": "A Entropia Temporal. No jogo, e o primeiro teste grande de leitura de ataques, teleporte, dano sustentado e controle de invocacoes. Suas janelas de perigo representam bolhas, impacto e pressao de lacaios corrompidos.", "historia": "Localizacao: Dimensao Roxa, castelo em ruinas e deserto roxo. Crustaceo biomecanico colossal fundido a rocha, com bracos desproporcionais, olhos roxos flamejantes e um relogio caotico de bronze no torax. A vitoria abre a fenda dimensional que arranca Geovana para o proximo mundo."},
+            {"nome": "BOSS 2: Colosso Pinguim", "imagem": "Sprites/Boss2_1.png", "funcionamento": "O Guardiao do Gelo. No jogo, domina a arena com gelo, avisos de area, lancas/cristais e punicoes de mobilidade. A luta exige deslocamento constante e leitura rapida para evitar empalamento.", "historia": "Localizacao: Deserto Branco e Gelado. Criatura pinguim monstruosa e colossal, com olhos vermelhos cortando a neblina congelante. Sua criocinese transforma o campo em um teste de sobrevivencia pura logo apos a queda pela fenda dimensional."},
+            {"nome": "BOSS 3: Pai-Rato", "imagem": "Sprites/Boss3_1.png", "funcionamento": "O Falso Profeta. No jogo, combina pressao de arena, invocacoes/ameacas menores e disparos canalizados, traduzindo as hordas cultistas e os feixes de luz corrompida do livro.", "historia": "Localizacao: Catedral do Ninho, reino dos ratos. Rato humanoide encurvado, inchado, em mantos vermelhos esfarrapados, sentado sobre trono de queijo derretido e velas de gordura. Um olho e um buraco negro queimado. Seu simbolo sagrado distorcido canaliza energia ate ser quebrado pela Ressonancia de Minkowski."},
+            {"nome": "BOSS 4: O Capitao", "imagem": "Sprites/Boss4_1.png", "funcionamento": "O Vigia Milenar. No jogo, representa pressao pesada de arena, ataques diretos e sequencias que exigem build madura, defesa, dano continuo e bom reposicionamento.", "historia": "Localizacao: Salao do Trono, Cupula do Poder, quarta fase. Hibrido titanico de sapo e gorila, quatro metros, pele verde-oliva rugosa e armadura espacial preta com placas foscas e ouro. Manipula gravidade pesada, empunha lamina de energia antiga e comanda subordinados nas sombras."},
+            {"nome": "BOSS 5: ?", "imagem": None, "funcionamento": "Arquivo bloqueado. O jogo reserva este encontro para punir padroes repetidos, leitura previsivel e abuso de poder acumulado.", "historia": "SUSPENSE. O catalogo registra apenas uma assinatura: UMBRA. O restante permanece oculto para preservar o impacto narrativo da quinta ruptura."},
+        ],
+        "Fases": [
+            {"nome": "Fase 1 - Primeiro Rasgo", "imagem": "Sprites/Fase1.png", "funcionamento": "Apresenta o ciclo principal: mover, atirar, coletar moedas, escolher fragmentos dimensionais e sobreviver ao primeiro boss.", "historia": "O mundo ainda parece reconhecivel, mas a primeira ruptura ja contaminou seus habitantes e suas leis fisicas."},
+            {"nome": "Fase 2 - Nevasca de Memorias", "imagem": "Sprites/Fase2.png", "funcionamento": "Introduz gelo, controle de area e inimigos com comportamento mais variado.", "historia": "As memorias rejeitadas congelam antes de desaparecer. A fase e um arquivo vivo de tentativas fracassadas."},
+            {"nome": "Fase 3 - Geometria Instavel", "imagem": "Sprites/Fase3.png", "funcionamento": "Aumenta a densidade de projeteis, efeitos e decisoes de posicionamento.", "historia": "A ruptura deixa de ser acidente e vira padrao. Tudo tenta se organizar em formas hostis."},
+            {"nome": "Fase 4 - Nucleo Temporal", "imagem": "Sprites/Fase4.png", "funcionamento": "Teste de build madura, escalonamento alto e sobrevivencia sob pressao constante.", "historia": "Aqui o tempo nao flui: ele pulsa. Cada passo empurra Apolo para mais perto do centro da anomalia."},
+            {"nome": "Fase 5 - Confronto de Ecos", "imagem": "Sprites/Fase5-1.png", "funcionamento": "Fase de confronto avancado, com sistemas de IA e punicoes para repeticao de padroes.", "historia": "Quando a ruptura entende Apolo, ela cria uma resposta. A quinta fase e menos um lugar e mais um julgamento."},
+        ],
+        "Anatomia": [
+            {"nome": "Disparo Temporal", "imagem": "Sprites/Geo_Disp1.png", "funcionamento": "Ataque primario da personagem. Dispara energia temporal em linha reta, escala com dano, velocidade de ataque, critico, veneno e efeitos dos fragmentos dimensionais.", "historia": "Geovana comprime instantes em projeteis. Cada tiro e uma pequena ordem dada a um futuro instavel."},
+            {"nome": "Teleporte", "imagem": "Sprites/Deck/carta_teleporte1.png", "funcionamento": "Habilidade de reposicionamento. Pode operar em modo fixo, seguindo a direcao de movimento, ou em modo de mira pelo mouse conforme configuracao.", "historia": "Nao e velocidade. E uma costura curta entre dois pontos que deveriam estar distantes."},
+            {"nome": "Onda de Choque", "imagem": "Sprites/Onda_Boss2.png", "funcionamento": "Segunda habilidade ativa da personagem. Libera uma explosao de area ao redor de Geovana para afastar grupos, abrir espaco e causar dano quando a arena fecha.", "historia": "Um pulso de recusa: por um momento, Geovana empurra a ruptura para fora da propria volta."},
+        ],
+        "Aureas": [
+            {"nome": "Aurea Racional", "imagem": "Sprites/aurea_cientista.png", "funcionamento": "Recompensa controle e leitura fria da arena. Ficar parado por tempo suficiente gera bonus de pontuacao, e evolucoes aumentam esse ganho.", "historia": "A mente fria calcula trajetorias e enxerga padroes em meio ao caos da ruptura temporal."},
+            {"nome": "Aurea Impulsiva", "imagem": "Sprites/aurea_impulsiva.png", "funcionamento": "Recompensa agressao sem erro. Abates consecutivos sem sofrer dano ativam um buff temporario de dano ou velocidade.", "historia": "Acao imediata. O instinto reage antes que o proprio tempo possa processar."},
+            {"nome": "Aurea Devota", "imagem": "Sprites/aurea_devota.png", "funcionamento": "Cria um escudo automatico que bloqueia o proximo dano recebido. Evoluir a aurea reduz a recarga da protecao.", "historia": "A fe inabalavel manifesta uma barreira divina que desafia a propria causalidade."},
+            {"nome": "Aurea Vanguarda", "imagem": "Sprites/aurea_vanguarda.png", "funcionamento": "Transforma proximidade em pressao ofensiva. Inimigos proximos ou tocados podem incendiar e sofrer dano continuo.", "historia": "Liderando o avanco, a pioneira incendeia o solo para que nada a siga no fluxo temporal."},
+            {"nome": "Aurea Aleatoria", "imagem": "Sprites/aurea_misteriosa.png", "funcionamento": "Seleciona uma das aureas ativas ao iniciar a jornada, mudando a estrategia da partida sem revelar totalmente o destino antes da escolha.", "historia": "O destino e incerto, e o tempo se desdobra em infinitas possibilidades."},
+        ],
+        "Fragmentos": [
+            {"nome": "Speed Boost", "imagem": "Sprites/Deck/Speed_boost1.png", "funcionamento": "Fragmento dimensional que aumenta velocidade de movimento.", "historia": "Um fragmento para quem prefere vencer a ruptura antes que ela feche o cerco."},
+            {"nome": "Porcao", "imagem": "Sprites/Deck/carta_por1.png", "funcionamento": "Fragmento vital que recupera vida e pode aumentar vida maxima.", "historia": "Elixir extraido de linhas temporais estaveis, raro o bastante para parecer milagre."},
+            {"nome": "Disparo crescente", "imagem": "Sprites/Deck/carta_odio1.png", "funcionamento": "Fragmento ofensivo que aumenta o dano do disparo principal.", "historia": "Cada tiro carrega um pouco mais da raiva acumulada contra a fratura."},
+            {"nome": "Tempestade", "imagem": "Sprites/Deck/Carta_tempestade_crescente1.png", "funcionamento": "Fragmento de instabilidade que aumenta chance critica e explosao de dano.", "historia": "Probabilidade violenta, dobrada ate virar clima."},
+            {"nome": "Cura", "imagem": "Sprites/Deck/Carta_roubo_vida1.png", "funcionamento": "Fragmento de sifao que permite recuperar vida ao causar dano.", "historia": "A ruptura tira; este fragmento ensina Geovana a tomar de volta."},
+            {"nome": "Reviver Temporal", "imagem": "Sprites/Deck/carta_trem1.png", "funcionamento": "Fragmento de retorno apos morte. Funciona como segunda chance limitada e deixa penalidades progressivas.", "historia": "Voltar no tempo nunca e gratis. Cada retorno deixa uma marca que a ruptura aprende a cobrar."},
+            {"nome": "Speed Atack", "imagem": "Sprites/Deck/carta_onda.png", "funcionamento": "Fragmento de cadencia que reduz intervalo entre disparos.", "historia": "A cadencia fica tao alta que o tempo parece tropecar entre os tiros."},
+            {"nome": "Teleporte", "imagem": "Sprites/Deck/carta_teleporte1.png", "funcionamento": "Fragmento que reduz cooldown do teleporte.", "historia": "Dobre o espaco, corte a perseguicao, sobreviva ao impossivel."},
+            {"nome": "Petro", "imagem": "Sprites/Deck/carta_petro1.png", "funcionamento": "Fragmento-companheiro que ativa ou evolui Petro, a sentinela que ataca inimigos proximos.", "historia": "Um pacto simples: Geovana protege o caminho, Petro protege Geovana."},
+            {"nome": "Defesa", "imagem": "Sprites/Deck/carta_defesa1.png", "funcionamento": "Fragmento de resistencia que reduz dano recebido.", "historia": "Uma camada de realidade endurecida ao redor do corpo."},
+            {"nome": "Sorte", "imagem": "Sprites/Deck/carta_sorte1.png", "funcionamento": "Fragmento probabilistico que aumenta chance de raridade e melhora drops no modo sem loja.", "historia": "Nao muda o destino. Apenas inclina a moeda antes que ela caia."},
+            {"nome": "Poison", "imagem": "Sprites/Deck/carta_poison1.png", "funcionamento": "Fragmento toxico que aplica veneno nos ataques e escala dano continuo.", "historia": "Uma toxina que envelhece o alvo por dentro."},
+            {"nome": "Coletora", "imagem": "Sprites/Deck/carta_estalo1.png", "funcionamento": "Fragmento de execucao que elimina inimigos enfraquecidos.", "historia": "Quando a vida ja esta por um fio, a Coletora corta o resto."},
+            {"nome": "Mercenaria", "imagem": "Sprites/Deck/carta_mercenaria1.png", "funcionamento": "Fragmento de recompensa que aumenta pontuacao por sequencias e abates constantes.", "historia": "Nao luta por honra. Luta por resultado."},
+        ],
+    }
+
+
+def _catalogo_carregar_imagem(caminho, limite=(190, 190)):
+    if not caminho or not os.path.exists(caminho):
+        return None
+    try:
+        img = pygame.image.load(caminho).convert_alpha()
+        w, h = img.get_size()
+        escala = min(limite[0] / max(1, w), limite[1] / max(1, h))
+        novo_tamanho = (max(1, int(w * escala)), max(1, int(h * escala)))
+        return pygame.transform.smoothscale(img, novo_tamanho)
+    except Exception as e:
+        registrar_erro(f"Erro ao carregar imagem do catalogo: {caminho}", e)
+        return None
+
+
+def _catalogo_texto_elipsado(texto, fonte_local, largura_maxima):
+    texto = str(texto)
+    if fonte_local.size(texto)[0] <= largura_maxima:
+        return texto
+    sufixo = "..."
+    texto_base = texto
+    while texto_base and fonte_local.size(texto_base + sufixo)[0] > largura_maxima:
+        texto_base = texto_base[:-1]
+    return (texto_base.rstrip() + sufixo) if texto_base else sufixo
+
+
+def _catalogo_texto_wrap(superficie, texto, fonte_local, cor, rect, espacamento=4):
+    palavras = texto.split()
+    linhas = []
+    linha = ""
+    for palavra in palavras:
+        tentativa = palavra if not linha else f"{linha} {palavra}"
+        if fonte_local.size(tentativa)[0] <= rect.width:
+            linha = tentativa
+        else:
+            if linha:
+                linhas.append(linha)
+            linha = palavra
+    if linha:
+        linhas.append(linha)
+
+    y = rect.top
+    altura_linha = fonte_local.get_height() + espacamento
+    for linha in linhas:
+        if y + altura_linha > rect.bottom:
+            break
+        render = fonte_local.render(linha, True, cor)
+        superficie.blit(render, (rect.left, y))
+        y += altura_linha
+    return y
+
+
+def tela_catalogo_temporal():
+    pygame.event.set_grab(False)
+    pygame.mouse.set_visible(False)
+    clock = pygame.time.Clock()
+    dados = _dados_catalogo_temporal()
+    categorias = list(dados.keys())
+    categoria_idx = 0
+    item_idx = 0
+    scroll_lista = 0
+    imagens_cache = {}
+
+    fonte_titulo_local = pygame.font.Font(caminho_fonte_titulo, 44)
+    fonte_cat = pygame.font.Font(caminho_fonte_letra1, 22)
+    fonte_item = pygame.font.Font(caminho_fonte_letra1, 20)
+    fonte_nome = pygame.font.Font(caminho_fonte_letra1, 32)
+    fonte_texto = pygame.font.Font(caminho_fonte_letra1, 21)
+    fonte_pequena = pygame.font.Font(caminho_fonte_letra1, 18)
+
+    def obter_imagem(caminho):
+        if caminho not in imagens_cache:
+            imagens_cache[caminho] = _catalogo_carregar_imagem(caminho)
+        return imagens_cache[caminho]
+
+    rodando_catalogo = True
+    while rodando_catalogo:
+        mx, my = ui_helpers.obter_pos_mouse_superficie(tela)
+        itens = dados[categorias[categoria_idx]]
+        item_idx = max(0, min(item_idx, len(itens) - 1))
+
+        tab_rects = []
+        tab_w = 148
+        tab_h = 38
+        tab_gap = 10
+        tab_total_w = len(categorias) * tab_w + (len(categorias) - 1) * tab_gap
+        tab_x0 = max(30, (largura_tela - tab_total_w) // 2)
+        tab_y = 106
+        for i, cat in enumerate(categorias):
+            tab_rects.append((i, pygame.Rect(tab_x0 + i * (tab_w + tab_gap), tab_y, tab_w, tab_h)))
+
+        lista_rect = pygame.Rect(60, 170, 330, altura_tela - 255)
+        detalhe_rect = pygame.Rect(430, 170, largura_tela - 490, altura_tela - 255)
+        btn_voltar = pygame.Rect(60, altura_tela - 60, 140, 36)
+        item_h = 46
+        visiveis = max(1, lista_rect.height // item_h)
+        scroll_lista = max(0, min(scroll_lista, max(0, len(itens) - visiveis)))
+        if item_idx < scroll_lista:
+            scroll_lista = item_idx
+        elif item_idx >= scroll_lista + visiveis:
+            scroll_lista = item_idx - visiveis + 1
+
+        item_rects = []
+        for slot, idx_real in enumerate(range(scroll_lista, min(len(itens), scroll_lista + visiveis))):
+            item_rects.append((idx_real, pygame.Rect(lista_rect.left + 8, lista_rect.top + 8 + slot * item_h, lista_rect.width - 16, item_h - 8)))
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    rodando_catalogo = False
+                elif event.key in [pygame.K_a, pygame.K_LEFT]:
+                    categoria_idx = (categoria_idx - 1) % len(categorias)
+                    item_idx = 0
+                    scroll_lista = 0
+                    tocar_hover()
+                elif event.key in [pygame.K_d, pygame.K_RIGHT]:
+                    categoria_idx = (categoria_idx + 1) % len(categorias)
+                    item_idx = 0
+                    scroll_lista = 0
+                    tocar_hover()
+                elif event.key in [pygame.K_w, pygame.K_UP]:
+                    item_idx = (item_idx - 1) % len(itens)
+                    tocar_hover()
+                elif event.key in [pygame.K_s, pygame.K_DOWN]:
+                    item_idx = (item_idx + 1) % len(itens)
+                    tocar_hover()
+            elif event.type == pygame.MOUSEWHEEL:
+                if lista_rect.collidepoint(mx, my):
+                    scroll_lista -= event.y
+                    scroll_lista = max(0, min(scroll_lista, max(0, len(itens) - visiveis)))
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if btn_voltar.collidepoint(event.pos):
+                    tocar_selecionar()
+                    rodando_catalogo = False
+                for i, rect_tab in tab_rects:
+                    if rect_tab.collidepoint(event.pos):
+                        categoria_idx = i
+                        item_idx = 0
+                        scroll_lista = 0
+                        tocar_selecionar()
+                        break
+                for idx_real, rect_item in item_rects:
+                    if rect_item.collidepoint(event.pos):
+                        item_idx = idx_real
+                        tocar_selecionar()
+                        break
+
+        for idx_real, rect_item in item_rects:
+            if rect_item.collidepoint(mx, my) and item_idx != idx_real:
+                item_idx = idx_real
+                tocar_hover()
+                break
+
+        tela.blit(fundo_menu1, (0, 0))
+        overlay = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 205))
+        tela.blit(overlay, (0, 0))
+
+        titulo = render_glitch_text_with_fallback("CATALOGO TEMPORAL", fonte_titulo_local, fonte_letra1, (0, 255, 204))
+        titulo_rect = titulo.get_rect(center=(largura_tela // 2, 58))
+        tela.blit(titulo, titulo_rect)
+
+        for i, rect_tab in tab_rects:
+            ativo = i == categoria_idx
+            hover = rect_tab.collidepoint(mx, my)
+            cor_bg = (0, 150, 170, 115) if ativo else (18, 18, 28, 185)
+            cor_borda = (0, 255, 230) if ativo or hover else (90, 90, 120)
+            pygame.draw.rect(tela, cor_bg, rect_tab, border_radius=8)
+            pygame.draw.rect(tela, cor_borda, rect_tab, width=2 if ativo or hover else 1, border_radius=8)
+            txt = fonte_cat.render(categorias[i].upper(), True, (255, 255, 255) if ativo else (190, 200, 215))
+            tela.blit(txt, (rect_tab.centerx - txt.get_width() // 2, rect_tab.centery - txt.get_height() // 2))
+
+        pygame.draw.rect(tela, (10, 10, 18, 210), lista_rect, border_radius=10)
+        pygame.draw.rect(tela, (0, 255, 230, 120), lista_rect, width=1, border_radius=10)
+
+        for idx_real, rect_item in item_rects:
+            ativo = idx_real == item_idx
+            hover = rect_item.collidepoint(mx, my)
+            pygame.draw.rect(tela, (0, 180, 200, 95) if ativo else (24, 24, 36, 170), rect_item, border_radius=6)
+            pygame.draw.rect(tela, (0, 255, 230) if ativo or hover else (70, 70, 90), rect_item, width=1, border_radius=6)
+            txt = fonte_item.render(itens[idx_real]["nome"], True, (255, 255, 255) if ativo else (195, 200, 215))
+            tela.blit(txt, (rect_item.left + 12, rect_item.centery - txt.get_height() // 2))
+
+        if len(itens) > visiveis:
+            barra_h = max(28, int(lista_rect.height * (visiveis / len(itens))))
+            barra_y = lista_rect.top + int((lista_rect.height - barra_h) * (scroll_lista / max(1, len(itens) - visiveis)))
+            pygame.draw.rect(tela, (0, 255, 230, 160), (lista_rect.right - 7, barra_y, 4, barra_h), border_radius=3)
+
+        item = itens[item_idx]
+        pygame.draw.rect(tela, (12, 12, 20, 220), detalhe_rect, border_radius=12)
+        pygame.draw.rect(tela, (0, 255, 230, 130), detalhe_rect, width=1, border_radius=12)
+
+        img = obter_imagem(item.get("imagem"))
+        img_area = pygame.Rect(detalhe_rect.right - 230, detalhe_rect.top + 32, 190, 190)
+        pygame.draw.rect(tela, (20, 20, 30, 180), img_area, border_radius=10)
+        pygame.draw.rect(tela, (90, 90, 130), img_area, width=1, border_radius=10)
+        if img:
+            tela.blit(img, (img_area.centerx - img.get_width() // 2, img_area.centery - img.get_height() // 2))
+        else:
+            sem_img = fonte_pequena.render("SEM IMAGEM", True, (140, 140, 160))
+            tela.blit(sem_img, (img_area.centerx - sem_img.get_width() // 2, img_area.centery - sem_img.get_height() // 2))
+
+        x_texto = detalhe_rect.left + 28
+        largura_lateral = max(260, img_area.left - x_texto - 22)
+        nome_seguro = _catalogo_texto_elipsado(item["nome"], fonte_nome, largura_lateral)
+        nome = fonte_nome.render(nome_seguro, True, (0, 255, 204))
+        tela.blit(nome, (x_texto, detalhe_rect.top + 24))
+
+        y_texto = detalhe_rect.top + 82
+        lbl_func = fonte_cat.render("FUNCIONAMENTO", True, (255, 255, 255))
+        tela.blit(lbl_func, (x_texto, y_texto))
+        y_texto += 32
+        y_texto = _catalogo_texto_wrap(tela, item["funcionamento"], fonte_texto, (210, 220, 230), pygame.Rect(x_texto, y_texto, largura_lateral, 150))
+
+        y_texto = max(y_texto + 22, img_area.bottom + 18)
+        lbl_hist = fonte_cat.render("HISTORIA E CONTEXTO", True, (255, 255, 255))
+        tela.blit(lbl_hist, (x_texto, y_texto))
+        y_texto += 32
+        _catalogo_texto_wrap(tela, item["historia"], fonte_texto, (190, 195, 210), pygame.Rect(x_texto, y_texto, detalhe_rect.width - 56, detalhe_rect.bottom - y_texto - 26))
+
+        hover_voltar = btn_voltar.collidepoint(mx, my)
+        pygame.draw.rect(tela, (18, 18, 28), btn_voltar, border_radius=8)
+        pygame.draw.rect(tela, (0, 255, 230) if hover_voltar else (90, 90, 120), btn_voltar, width=2 if hover_voltar else 1, border_radius=8)
+        txt_voltar = fonte_item.render("VOLTAR", True, (255, 255, 255))
+        tela.blit(txt_voltar, (btn_voltar.centerx - txt_voltar.get_width() // 2, btn_voltar.centery - txt_voltar.get_height() // 2))
+
+        instr = fonte_pequena.render("Mouse: abas e itens | A/D troca categoria | W/S navega | ESC volta", True, (140, 150, 165))
+        tela.blit(instr, (largura_tela - instr.get_width() - 30, altura_tela - 48))
+
+        ui_helpers.desenhar_cursor_personalizado(tela)
+        pygame.display.flip()
+        clock.tick(60)
 
 
 def executar_menu_principal(game_manager=None):
@@ -1823,16 +2361,16 @@ def executar_menu_principal(game_manager=None):
     Executa o menu principal do jogo
     
     Args:
-        game_manager: Instância do GameManager para controlar transições de estado
+        game_manager: InstÃ¢ncia do GameManager para controlar transiÃ§Ãµes de estado
         
     Returns:
-        str: Próximo estado ('jogo', 'sair', etc.) ou None se usar game_manager
+        str: PrÃ³ximo estado ('jogo', 'sair', etc.) ou None se usar game_manager
     """
     inicializar_menu()
-    global indice_selecionado, ultima_mudanca_de_opcao, analogo_movido
+    global tela, indice_selecionado, ultima_mudanca_de_opcao, analogo_movido
     global indice_fundo, exibindo_fundo1, ultima_troca
     
-    # Reinicia música se não estiver tocando
+    # Reinicia mÃºsica se nÃ£o estiver tocando
     if not pygame.mixer.music.get_busy():
         pygame.mixer.music.load("Sounds/Menu.mp3")
         config_audio = carregar_config_audio()
@@ -1845,6 +2383,7 @@ def executar_menu_principal(game_manager=None):
     opcao_confirmada = None
     tempo_confirmacao = 0
     particulas_eclosao = []
+    modo_interacao = "teclado"
     
     while rodando:
         agora = pygame.time.get_ticks()
@@ -1862,6 +2401,7 @@ def executar_menu_principal(game_manager=None):
                     
             if opcao_confirmada is None:
                 if event.type == pygame.KEYDOWN:
+                    modo_interacao = "teclado"
                     if event.key == pygame.K_w and agora - ultima_mudanca_de_opcao >= DELAY_ENTRE_OPCOES:
                         indice_selecionado = (indice_selecionado - 1) % len(opcoes)
                         ultima_mudanca_de_opcao = agora
@@ -1890,7 +2430,7 @@ def executar_menu_principal(game_manager=None):
                                 'vida': 1.0
                             })
                     elif event.key == pygame.K_ESCAPE:
-                        opcao_confirmada = 2  # Sair
+                        opcao_confirmada = len(opcoes) - 1
                         tempo_confirmacao = agora
                         tocar_selecionar()
                         
@@ -1909,6 +2449,7 @@ def executar_menu_principal(game_manager=None):
                                 'vida': 1.0
                             })
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    modo_interacao = "mouse"
                     mx, my = event.pos
                     for i, opcao in enumerate(opcoes):
                         x_botao = 60
@@ -1935,6 +2476,7 @@ def executar_menu_principal(game_manager=None):
                                 })
                             
                 elif event.type == pygame.JOYAXISMOTION and controle is not None:
+                    modo_interacao = "teclado"
                     if event.axis == 1 and abs(controle.get_axis(0)) < 0.2:
                         if not analogo_movido:
                             if event.value > 0.5:
@@ -1949,7 +2491,8 @@ def executar_menu_principal(game_manager=None):
                         analogo_movido = False
                         
                 elif event.type == pygame.JOYBUTTONDOWN and controle is not None:
-                    if event.button == 0:  # Botão A
+                    modo_interacao = "teclado"
+                    if event.button == 0:  # BotÃ£o A
                         opcao_confirmada = indice_selecionado
                         tempo_confirmacao = agora
                         tocar_selecionar()
@@ -1969,18 +2512,18 @@ def executar_menu_principal(game_manager=None):
                                 'vida': 1.0
                             })
 
-        # Detecção de hover pelo mouse
-        mx, my = pygame.mouse.get_pos()
+        # DetecÃ§Ã£o de hover pelo mouse
+        mx, my = ui_helpers.obter_pos_mouse_superficie(tela)
         for i, opcao in enumerate(opcoes):
             x_botao = 60
             y_botao = altura_tela // 2 - 20 + i * 70
             rect_botao = pygame.Rect(x_botao, y_botao, 320, 50)
-            if rect_botao.collidepoint(mx, my) and opcao_confirmada is None:
+            if modo_interacao == "mouse" and rect_botao.collidepoint(mx, my) and opcao_confirmada is None:
                 if indice_selecionado != i:
                     indice_selecionado = i
                     tocar_hover()
 
-        # Lógica de troca de imagem de fundo
+        # LÃ³gica de troca de imagem de fundo
         agora = pygame.time.get_ticks()
         
         if exibindo_fundo1:
@@ -1999,7 +2542,7 @@ def executar_menu_principal(game_manager=None):
                     exibindo_fundo1 = True
                     indice_fundo = 0
 
-        # Renderizar opções do menu (AAA Premium Sci-Fi)
+        # Renderizar opÃ§Ãµes do menu (AAA Premium Sci-Fi)
         for i, opcao in enumerate(opcoes):
             x_botao = 60
             y_botao = altura_tela // 2 - 20 + i * 70
@@ -2023,7 +2566,7 @@ def executar_menu_principal(game_manager=None):
                 y_ecl = y_botao - (nova_altura - altura_b) // 2
                 tela.blit(surf_eclosao, (x_ecl, y_ecl))
                 
-                # Botão principal brilha em branco
+                # BotÃ£o principal brilha em branco
                 pygame.draw.rect(surf_botao, (255, 255, 255, 200), (0, 0, largura_b, altura_b), border_radius=8)
                 texto_surf = fonte_letra1.render(opcao, True, (0, 0, 0))
                 ret_texto = texto_surf.get_rect(center=(largura_b // 2 + 10, altura_b // 2))
@@ -2067,18 +2610,18 @@ def executar_menu_principal(game_manager=None):
                 
             tela.blit(surf_botao, (x_botao, y_botao))
             
-        # Texto de instrução
-        texto_instrucao = "Use W ou S para alternar e Espaço ou Enter para selecionar"
+        # Texto de instruÃ§Ã£o
+        texto_instrucao = "Use W ou S para alternar e EspaÃ§o ou Enter para selecionar"
         
 
         
-        # Renderização do título
+        # RenderizaÃ§Ã£o do tÃ­tulo
         texto_titulo = fonte_titulo.render(titulo_jogo, True, cor_letra)
         retangulo_titulo = texto_titulo.get_rect(center=posicao_titulo)
         
 
         
-        # Sombra e Contorno do Título (AAA volumetric effect)
+        # Sombra e Contorno do TÃ­tulo (AAA volumetric effect)
         texto_titulo_sombra = fonte_titulo.render(titulo_jogo, True, (15, 5, 25))
         tela.blit(texto_titulo_sombra, (retangulo_titulo.left + 4, retangulo_titulo.top + 4))
         
@@ -2089,7 +2632,7 @@ def executar_menu_principal(game_manager=None):
         tela.blit(texto_titulo, retangulo_titulo)
 
         
-        # Barra glassy de instrução no rodapé
+        # Barra glassy de instruÃ§Ã£o no rodapÃ©
         render_instrucao_aaa = fonte_instrucao.render(texto_instrucao, True, (0, 255, 230))
         largura_instr = render_instrucao_aaa.get_width() + 40
         altura_instr = 40
@@ -2101,7 +2644,7 @@ def executar_menu_principal(game_manager=None):
         surf_instr.blit(render_instrucao_aaa, (20, (altura_instr - render_instrucao_aaa.get_height()) // 2))
         tela.blit(surf_instr, (largura_tela - largura_instr - 20, altura_tela - altura_instr - 20))
         
-        # Desenhar e atualizar partículas de eclosão
+        # Desenhar e atualizar partÃ­culas de eclosÃ£o
         if particulas_eclosao:
             for part in particulas_eclosao[:]:
                 part['x'] += part['dx']
@@ -2121,10 +2664,11 @@ def executar_menu_principal(game_manager=None):
                     pygame.draw.circle(surf_part, cor_alpha, (raio_atual, raio_atual), raio_atual)
                     tela.blit(surf_part, (int(part['x'] - raio_atual), int(part['y'] - raio_atual)))
 
+        ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()
         clock.tick(60)
         
-        # Lógica de confirmação após 200ms de eclosão (Transições de Tela)
+        # LÃ³gica de confirmaÃ§Ã£o apÃ³s 200ms de eclosÃ£o (TransiÃ§Ãµes de Tela)
         if opcao_confirmada is not None and agora - tempo_confirmacao >= 200:
             escolha = opcao_confirmada
             opcao_confirmada = None
@@ -2146,22 +2690,22 @@ def executar_menu_principal(game_manager=None):
                     with open("saves/tutorial_config.json", "r") as f:
                         mostrar_tutorial = json.load(f)["mostrar_tutorial"]
 
-                estado_jornada = "aurea"
+                estado_jornada = "modo"
                 retornar_ao_menu = False
                 modo, ip = None, None
                 
                 while True:
-                    if estado_jornada == "aurea":
-                        res_aurea = tela_selecao_aurea(tela, fonte)
-                        if res_aurea == "voltar":
+                    if estado_jornada == "modo":
+                        modo, ip = tela_escolha_modo()
+                        if modo is None:
                             retornar_ao_menu = True
                             break
                         else:
-                            estado_jornada = "modo"
-                    elif estado_jornada == "modo":
-                        modo, ip = tela_escolha_modo()
-                        if modo is None:
                             estado_jornada = "aurea"
+                    elif estado_jornada == "aurea":
+                        res_aurea = tela_selecao_aurea(tela, fonte)
+                        if res_aurea == "voltar":
+                            estado_jornada = "modo"
                         else:
                             break
                 
@@ -2170,14 +2714,14 @@ def executar_menu_principal(game_manager=None):
 
                 pygame.mixer.music.stop()
 
-                # Começar partida limpa ao iniciar a partir do menu
+                # ComeÃ§ar partida limpa ao iniciar a partir do menu
                 import Variaveis
                 Variaveis.limpar_historico_rewind()
                 if os.path.exists("saves/atributos.json"):
                     try:
                         os.remove("saves/atributos.json")
                     except Exception as e:
-                        print("Aviso ao remover atributos antigos:", e)
+                        registrar_erro("Erro ao remover atributos antigos ao iniciar jornada", e)
 
                 with open("saves/modo_jogo.json", "w") as f:
                     json.dump({"modo": modo, "ip": ip}, f)
@@ -2198,7 +2742,11 @@ def executar_menu_principal(game_manager=None):
                         GAMERE.main()
                     return
 
-            elif escolha == 1:  # Configuração
+            elif escolha == 1:  # Catalogo
+                tela_catalogo_temporal()
+                continue
+
+            elif escolha == 2:  # ConfiguraÃ§Ã£o
                 indice_config = 0
                 
                 opcao_conf_confirmada = None
@@ -2209,9 +2757,9 @@ def executar_menu_principal(game_manager=None):
                 while config_rodando:
                     agora_conf = pygame.time.get_ticks()
                     
-                    opcoes_config = ["Controles", "Gráficos", "Áudio", "Jogabilidade", "Voltar"]
+                    opcoes_config = ["Controles", "Graficos", "Audio", "Jogabilidade", "Voltar"]
                     
-                    # Atualiza e desenha o fundo dinâmico do menu
+                    # Atualiza e desenha o fundo dinÃ¢mico do menu
                     if exibindo_fundo1:
                         tela.blit(fundo_menu1, (0, 0))
                         if agora_conf - ultima_troca > tempo_exibicao_fundo1:
@@ -2229,17 +2777,16 @@ def executar_menu_principal(game_manager=None):
                     overlay.fill((0, 0, 0, 185))
                     tela.blit(overlay, (0, 0))
                     
-                    # Renderização do título de configurações com volumetric neon contorno
-                    texto_config = render_glitch_text_with_fallback("CONFIGURAÇÕES", fonte_config, fonte_fallback_config, (0, 255, 204))
+                    texto_config = render_glitch_text_with_fallback("CONFIGURACOES", fonte_config, fonte_fallback_config, (0, 255, 204))
                     retangulo_config = texto_config.get_rect(center=(largura_tela // 2, altura_tela // 6))
                     
                     # Sombra
-                    texto_config_sombra = render_glitch_text_with_fallback("CONFIGURAÇÕES", fonte_config, fonte_fallback_config, (15, 5, 25))
+                    texto_config_sombra = render_glitch_text_with_fallback("CONFIGURACOES", fonte_config, fonte_fallback_config, (15, 5, 25))
                     tela.blit(texto_config_sombra, (retangulo_config.left + 4, retangulo_config.top + 4))
                     
                     # Contorno
                     for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                        texto_config_contorno = render_glitch_text_with_fallback("CONFIGURAÇÕES", fonte_config, fonte_fallback_config, contorno_rosa)
+                        texto_config_contorno = render_glitch_text_with_fallback("CONFIGURACOES", fonte_config, fonte_fallback_config, contorno_rosa)
                         tela.blit(texto_config_contorno, (retangulo_config.left + dx, retangulo_config.top + dy))
                         
                     tela.blit(texto_config, retangulo_config)
@@ -2308,8 +2855,8 @@ def executar_menu_principal(game_manager=None):
                                             })
                                         break
 
-                    # Detecção de hover pelo mouse no submenu de configurações
-                    mx_conf, my_conf = pygame.mouse.get_pos()
+                    # DetecÃ§Ã£o de hover pelo mouse no submenu de configuraÃ§Ãµes
+                    mx_conf, my_conf = ui_helpers.obter_pos_mouse_superficie(tela)
                     for i, opcao in enumerate(opcoes_config):
                         x_botao = largura_tela // 2 - 160
                         y_botao = int(altura_tela // 4.5 + i * 65)
@@ -2322,7 +2869,7 @@ def executar_menu_principal(game_manager=None):
                     if not config_rodando:
                         break
                     
-                    # Desenhar botões premium glassy no submenu
+                    # Desenhar botÃµes premium glassy no submenu
                     for i, opcao in enumerate(opcoes_config):
                         x_botao = largura_tela // 2 - 160
                         y_botao = int(altura_tela // 4.5 + i * 65)
@@ -2346,7 +2893,7 @@ def executar_menu_principal(game_manager=None):
                             y_ecl = y_botao - (nova_altura - altura_b) // 2
                             tela.blit(surf_eclosao, (x_ecl, y_ecl))
                             
-                            # Botão brilha em branco
+                            # BotÃ£o brilha em branco
                             pygame.draw.rect(surf_botao, (255, 255, 255, 200), (0, 0, largura_b, altura_b), border_radius=8)
                             texto_surf = fonte_letra1.render(opcao, True, (0, 0, 0))
                             ret_texto = texto_surf.get_rect(center=(largura_b // 2, altura_b // 2))
@@ -2396,7 +2943,7 @@ def executar_menu_principal(game_manager=None):
                             
                         tela.blit(surf_botao, (x_botao, y_botao))
                         
-                    # Desenhar e atualizar partículas de eclosão do submenu de config
+                    # Desenhar e atualizar partÃ­culas de eclosÃ£o do submenu de config
                     if particulas_conf_eclosao:
                         for part in particulas_conf_eclosao[:]:
                             part['x'] += part['dx']
@@ -2416,10 +2963,11 @@ def executar_menu_principal(game_manager=None):
                                 pygame.draw.circle(surf_part, cor_alpha, (raio_atual, raio_atual), raio_atual)
                                 tela.blit(surf_part, (int(part['x'] - raio_atual), int(part['y'] - raio_atual)))
                                 
+                    ui_helpers.desenhar_cursor_personalizado(tela)
                     pygame.display.flip()
                     clock.tick(60)
                     
-                    # Lógica de confirmação após 200ms de eclosão do submenu
+                    # LÃ³gica de confirmaÃ§Ã£o apÃ³s 200ms de eclosÃ£o do submenu
                     if opcao_conf_confirmada is not None and agora_conf - tempo_conf_confirmacao >= 200:
                         escolha_config = opcao_conf_confirmada
                         opcao_conf_confirmada = None
@@ -2428,16 +2976,20 @@ def executar_menu_principal(game_manager=None):
                         if escolha_config == 0:  # Controles
                             config_teclas = carregar_config_teclas()
                             tela_de_controles(tela, config_teclas, largura_tela, altura_tela)
-                        elif escolha_config == 1:  # Gráficos
+                            tela = ui_helpers.obter_superficie_palco()
+                        elif escolha_config == 1:  # GrÃ¡ficos
                             tela_configuracoes_graficas(tela, fonte)
-                        elif escolha_config == 2:  # Áudio
+                            tela = ui_helpers.obter_superficie_palco()
+                        elif escolha_config == 2:  # Ãudio
                             tela_configuracoes_audio(tela, fonte)
+                            tela = ui_helpers.obter_superficie_palco()
                         elif escolha_config == 3:  # Jogabilidade
                             tela_configuracoes_jogabilidade(tela, fonte)
+                            tela = ui_helpers.obter_superficie_palco()
                         elif escolha_config == 4:  # Voltar
                             config_rodando = False
 
-            elif escolha == 2:  # Sair
+            elif escolha == 3:  # Sair
                 if game_manager:
                     from game_manager import EstadoJogo
                     game_manager.mudar_estado(EstadoJogo.SAIR)
@@ -2448,9 +3000,9 @@ def executar_menu_principal(game_manager=None):
                     sys.exit()
 
 
-# Código principal - mantém compatibilidade com execução direta
+# CÃ³digo principal - mantÃ©m compatibilidade com execuÃ§Ã£o direta
 if __name__ == "__main__":
-    # Tenta usar o GameManager se disponível
+    # Tenta usar o GameManager se disponÃ­vel
     try:
         from game_manager import obter_game_manager, EstadoJogo
         manager = obter_game_manager()
