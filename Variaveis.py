@@ -1083,7 +1083,7 @@ personagem_paths = {
 
     'stop': ["Sprites/Geo1.png", "Sprites/Geo2.png"],
 
-    'disp' :["Sprites/Geo_Disp1.png", "Sprites/Geo_Disp2.png"]
+    'disp' :["Sprites/Geo_Disp1.png", "Sprites/Geo_Disp2.png", "Sprites/Geo_Disp3.png"]
 
 }
 

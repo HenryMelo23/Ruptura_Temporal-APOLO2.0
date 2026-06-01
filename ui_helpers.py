@@ -453,6 +453,15 @@ def racional_dilatacao_ativa(aurea, fim_ms, agora_ms=None):
     agora_ms = pygame.time.get_ticks() if agora_ms is None else agora_ms
     return agora_ms < fim_ms
 
+RACIONAL_DILATACAO_DURACAO_MS = 8000
+RACIONAL_DILATACAO_COOLDOWN_MS = 30000
+
+def tentar_ativar_dilatacao_racional(aurea, agora_ms, proximo_uso_ms=0):
+    if str(aurea).strip().lower() != "racional" or agora_ms < proximo_uso_ms:
+        return None, proximo_uso_ms
+    fim_ms = agora_ms + RACIONAL_DILATACAO_DURACAO_MS
+    return fim_ms, fim_ms + RACIONAL_DILATACAO_COOLDOWN_MS
+
 def fator_movimento_racional(aurea, fim_ms, agora_ms=None):
     return 1.35 if racional_dilatacao_ativa(aurea, fim_ms, agora_ms) else 1.0
 
@@ -473,6 +482,8 @@ def desenhar_efeito_racional_dilatacao(
     fim_ms,
     aurea=None,
     config_graficos=None,
+    movendo=False,
+    direcao_movimento=None,
 ):
     if surface is None or not racional_dilatacao_ativa(aurea, fim_ms):
         return
@@ -489,12 +500,12 @@ def desenhar_efeito_racional_dilatacao(
         raios_borda, rastros = 15, 11
 
     agora = pygame.time.get_ticks()
-    restante = max(0.0, min(1.0, (fim_ms - agora) / 3000.0))
+    restante = max(0.0, min(1.0, (fim_ms - agora) / float(RACIONAL_DILATACAO_DURACAO_MS)))
     tempo = agora / 1000.0
     largura, altura = surface.get_size()
 
     overlay = pygame.Surface((largura, altura), pygame.SRCALPHA)
-    overlay.fill((0, 50, 115, int(18 + 20 * restante)))
+    overlay.fill((0, 34, 82, int(8 + 12 * restante)))
 
     for i in range(raios_borda):
         lado = i % 4
@@ -538,17 +549,48 @@ def desenhar_efeito_racional_dilatacao(
     if pw > 0 and ph > 0:
         cx = px + pw // 2
         cy = py + ph // 2
+        direcoes = {
+            "up": (0, 1),
+            "down": (0, -1),
+            "left": (1, 0),
+            "right": (-1, 0),
+        }
+        rastro_dx, rastro_dy = direcoes.get(str(direcao_movimento).lower(), (0, 0))
+        if not movendo:
+            rastro_dx = rastro_dy = 0
+
         for i in range(rastros):
             ang = tempo * (8.0 + i * 0.23) + i * math.tau / max(1, rastros)
             raio_x = max(18, int(pw * (0.45 + (i % 3) * 0.06)))
             raio_y = max(24, int(ph * (0.48 + (i % 2) * 0.08)))
-            x1 = cx + math.cos(ang) * raio_x
-            y1 = cy + math.sin(ang) * raio_y
-            x2 = x1 - math.cos(ang + 0.6) * (14 + i % 4 * 3)
-            y2 = y1 - math.sin(ang + 0.6) * (14 + i % 4 * 3)
+            desloc_rastro = 20 + (i % 5) * 7 if movendo else 0
+            x1 = cx + math.cos(ang) * raio_x + rastro_dx * desloc_rastro
+            y1 = cy + math.sin(ang) * raio_y + rastro_dy * desloc_rastro
+            x2 = x1 - math.cos(ang + 0.6) * (14 + i % 4 * 3) + rastro_dx * (10 + i % 3 * 5)
+            y2 = y1 - math.sin(ang + 0.6) * (14 + i % 4 * 3) + rastro_dy * (10 + i % 3 * 5)
             alpha = int((100 + 70 * math.sin(tempo * 10.0 + i) ** 2) * restante)
             pygame.draw.line(overlay, (0, 130, 255, alpha), (int(x1), int(y1)), (int(x2), int(y2)), 2)
             pygame.draw.line(overlay, (190, 255, 255, min(220, alpha + 45)), (int(x1), int(y1)), (int((x1 + x2) / 2), int((y1 + y2) / 2)), 1)
+
+        particulas_raio = rastros * (3 if movendo else 2)
+        for i in range(particulas_raio):
+            fase = (tempo * (2.8 + i * 0.13) + i * 0.37) % 1.0
+            lado = -1 if i % 2 else 1
+            base_ang = tempo * 9.0 + i * 1.81
+            corpo_x = math.cos(base_ang) * pw * random.uniform(0.24, 0.56)
+            corpo_y = math.sin(base_ang * 1.17) * ph * random.uniform(0.18, 0.43)
+            distancia = (18 + fase * 34) * (1.4 if movendo else 0.82)
+            fora_x = math.cos(base_ang + lado * 0.4) * distancia + rastro_dx * (18 + fase * 42)
+            fora_y = math.sin(base_ang + lado * 0.4) * distancia + rastro_dy * (18 + fase * 42)
+            inicio = (int(cx + corpo_x), int(cy + corpo_y))
+            meio = (int(cx + corpo_x * 0.65 + fora_x * 0.55 + math.sin(base_ang * 2.0) * 7), int(cy + corpo_y * 0.65 + fora_y * 0.55 + math.cos(base_ang * 1.7) * 7))
+            fim = (int(cx + fora_x), int(cy + fora_y))
+            alpha = int((190 - fase * 105) * restante)
+            largura_raio = 2 if i % 4 == 0 else 1
+            pygame.draw.lines(overlay, (255, 246, 170, alpha), False, [inicio, meio, fim], largura_raio)
+            pygame.draw.lines(overlay, (85, 210, 255, min(210, alpha + 35)), False, [inicio, meio], 1)
+            if i % 3 == 0:
+                pygame.draw.circle(overlay, (255, 255, 230, min(210, alpha + 25)), fim, 2 if movendo else 1)
 
     surface.blit(overlay, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
 

@@ -12,6 +12,7 @@ from Tela_Cartas import tela_de_pausa
 from Variaveis import *
 from utils import *
 from ui_helpers import tela_transicao_dimensional, desenhar_efeitos_vanguarda
+from onda_recoil import criar_estado_coice_onda, aplicar_coice_onda, atualizar_coice_onda
 from audio_manager import carregar_config_audio, aplicar_volume_som
 
 instalar_captura_global()
@@ -758,6 +759,12 @@ def executar_jogo(game_manager=None):
         tempo_parado_person = pygame.time.get_ticks()  
         boss_atingido_por_onda = pygame.time.get_ticks()
         tempo_ultimo_disparo = pygame.time.get_ticks()
+        disparo_preparando = False
+        disparo_frame_atual = 0
+        tempo_ultimo_frame_preparo_disparo = 0
+        angulo_disparo_preparado = 0.0
+        DISPARO_PREPARO_FRAME_MS = 85
+        coice_onda = criar_estado_coice_onda()
         tempo_ultimo_escudo = pygame.time.get_ticks()
 
         Som_tema_fases.play(loops=-1)
@@ -827,17 +834,14 @@ def executar_jogo(game_manager=None):
                         retomar_cronometro()
                         pygame.event.set_grab(True)  # Travar mouse de novo
                         pygame.mouse.set_visible(False)  # Esconder cursor do sistema
-                elif botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo:  # Botão esquerdo do mouse
+                elif botao_mouse[0] and not disparo_preparando and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo:  # Botão esquerdo do mouse
                     pos_mouse = pygame.mouse.get_pos()
-                    angulo = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
-                    Disparo_Geo.play()
-                    # Crie o disparo com direção baseada no ângulo
-                    novo_disparo = {
-                        "rect": pygame.Rect(pos_x_personagem, pos_y_personagem, largura_disparo, altura_disparo),
-                        "angulo": angulo
-                    }
-                    disparos.append(novo_disparo)
-                    tempo_ultimo_disparo = tempo_atual  # Atualizar o tempo do último disparo
+                    angulo_disparo_preparado = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
+                    disparo_preparando = True
+                    disparo_frame_atual = 0
+                    tempo_ultimo_frame_preparo_disparo = tempo_atual
+                    direcao_atual = 'disp'
+                    frame_atual = 0
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3 and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade:  # Botão direito do mouse
                     pos_mouse = pygame.mouse.get_pos()
                     angulo = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
@@ -851,6 +855,7 @@ def executar_jogo(game_manager=None):
                         "frames": frames_onda_cinetica  # Certifique-se de ter os frames para animação da onda
                     }
                     ondas.append(nova_onda)
+                    aplicar_coice_onda(coice_onda, angulo)
                     tempo_ultimo_uso_habilidade = tempo_atual
 
             # Verificar eventos de teclado
@@ -890,6 +895,16 @@ def executar_jogo(game_manager=None):
             ultimo_x = pos_x_personagem
             ultimo_y = pos_y_personagem
             atualizar_posicao_personagem(keys,joystick)
+            if disparo_preparando:
+                direcao_atual = 'disp'
+                frame_atual = disparo_frame_atual
+            pos_x_personagem, pos_y_personagem = atualizar_coice_onda(
+                pos_x_personagem, pos_y_personagem,
+                largura_personagem, altura_personagem,
+                largura_mapa, altura_mapa,
+                coice_onda,
+                globals().get("dt", 1.0),
+            )
 
 
             novos_inimigos = []
@@ -961,6 +976,23 @@ def executar_jogo(game_manager=None):
                 if tempo_passado >= tempo_animacao_no_stop:
                     tempo_passado = 0
                     frame_atual = (frame_atual + 1) % len(frames_animacao[direcao_atual])
+
+            if disparo_preparando:
+                direcao_atual = 'disp'
+                if tempo_atual - tempo_ultimo_frame_preparo_disparo >= DISPARO_PREPARO_FRAME_MS:
+                    tempo_ultimo_frame_preparo_disparo = tempo_atual
+                    disparo_frame_atual += 1
+                disparo_frame_atual = min(disparo_frame_atual, len(frames_animacao['disp']) - 1)
+                frame_atual = disparo_frame_atual
+                if disparo_frame_atual >= len(frames_animacao['disp']) - 1:
+                    Disparo_Geo.play()
+                    disparos.append({
+                        "rect": pygame.Rect(pos_x_personagem, pos_y_personagem, largura_disparo, altura_disparo),
+                        "angulo": angulo_disparo_preparado
+                    })
+                    tempo_ultimo_disparo = tempo_atual
+                    disparo_preparando = False
+                    disparo_frame_atual = 0
 
 
             tela.fill((255, 255, 255))
@@ -2093,12 +2125,6 @@ def executar_jogo(game_manager=None):
                 # ====== FASE 4: Atirar no inimigo ======
                 elif tutorial_fase == 4:
                     _draw_msg("Clique com o botão esquerdo do mouse para atirar!", y_msg)
-                    fonte_sub = pygame.font.Font(None, 32)
-                    t_sub = "Elimine o inimigo para continuar"
-                    sub_b = fonte_sub.render(t_sub, True, (0, 0, 0))
-                    sub = fonte_sub.render(t_sub, True, (220, 220, 220))
-                    tela.blit(sub_b, (cx - sub.get_width() // 2 + 1, y_msg + 46))
-                    tela.blit(sub, (cx - sub.get_width() // 2, y_msg + 45))
 
                     # Desenhar ícone do mouse pulsando
                     pulso = abs(pygame.time.get_ticks() % 1200 - 600) / 600.0
@@ -2189,7 +2215,7 @@ def executar_jogo(game_manager=None):
 
                     # Quando o jogador comprar (apertou_q fica True), o tutorial acaba
                     if apertou_q:
-                        tutorial_fase = 6  # Tutorial completo
+                        tutorial_fase = 7  # Tutorial completo
                         mostrar_tutorial = False
             tempo_atual = pygame.time.get_ticks()
             for inimigo in inimigos_comum:

@@ -22,7 +22,8 @@ from habilidades_personagem import (
     criar_particulas_explosao_onda as criar_particulas_explosao,
     desenhar_onda
 )
-from ui_helpers import desenhar_efeitos_vanguarda, desenhar_efeito_racional_dilatacao, fator_movimento_racional, intervalo_disparo_racional
+from ui_helpers import desenhar_efeitos_vanguarda, desenhar_efeito_racional_dilatacao, fator_movimento_racional, intervalo_disparo_racional, tentar_ativar_dilatacao_racional
+from post_boss_pressure import criar_estado_pressao_pos_boss, calcular_pressao_spawn_pos_boss
 lock_inimigos = threading.Lock()
 from Tela_Upgrade_Aureas import tela_upgrade_aureas
 joystick = None
@@ -44,6 +45,8 @@ escudo_devota_ativo = True
 duracao_incendio_vanguarda = 5000
 intervalo_escudo = 30000
 racional_dilatacao_fim = 0
+racional_dilatacao_proximo_uso = 0
+pressao_pos_boss_spawn = criar_estado_pressao_pos_boss()
 
 with open("saves/modo_jogo.json", "r") as f:
     dados = json.load(f)
@@ -614,7 +617,7 @@ def determinar_frames_petro(posicao_petro, posicao_inimigo):
 def atualizar_posicao_personagem(keys, joystick):
     global pos_x_personagem, pos_y_personagem, direcao_atual, ultima_tecla_movimento
     global movimento_pressionado, cooldown_dash, distancia_dash, tempo_ultimo_dash, teleporte_duration
-    global racional_dilatacao_fim
+    global racional_dilatacao_fim, racional_dilatacao_proximo_uso
 
     direcao_atual = 'stop'  # Por padrão, definimos a direção como 'stop'
 
@@ -662,8 +665,13 @@ def atualizar_posicao_personagem(keys, joystick):
 
         cooldown_dash = True
         tempo_ultimo_dash = pygame.time.get_ticks()
-        if aurea == "Racional":
-            racional_dilatacao_fim = tempo_ultimo_dash + 3000
+        novo_fim_racional, racional_dilatacao_proximo_uso = tentar_ativar_dilatacao_racional(
+            aurea,
+            tempo_ultimo_dash,
+            racional_dilatacao_proximo_uso,
+        )
+        if novo_fim_racional is not None:
+            racional_dilatacao_fim = novo_fim_racional
         aplicar_shockwave_teleporte()
 
     elif Variaveis.verificar_input("Mover para direita"):
@@ -760,10 +768,11 @@ def criar_inimigo(x, y, tipo=1):
     return {"rect": rect, "image": image, "tipo": tipo, "vida": vida_inimigo_maxima, "vida_maxima": vida_inimigo_maxima}
 
 
-def gerar_inimigo():
+def gerar_inimigo(limite_inimigos=None):
     global inimigos_comum
     
-    if len(inimigos_comum) < max_inimigos:
+    limite_inimigos = max_inimigos if limite_inimigos is None else limite_inimigos
+    if len(inimigos_comum) < limite_inimigos:
         # Escolhe aleatoriamente uma borda para gerar o inimigo
         
         borda = random.choice(['esquerda', 'direita', 'superior', 'inferior'])
@@ -1214,6 +1223,20 @@ def executar_jogo(game_manager=None):
         running = True
         while running:
             tempo_atual = pygame.time.get_ticks()
+            if modo == "host":
+                pressao_spawn = calcular_pressao_spawn_pos_boss(
+                    pressao_pos_boss_spawn,
+                    tempo_atual,
+                    r_press and not boss_vivo1,
+                    len(inimigos_comum),
+                    inimigos_eliminados,
+                    max_inimigos,
+                )
+                if tempo_atual - tempo_ultimo_inimigo >= pressao_spawn["intervalo_ms"] and pressao_spawn["lote"] > 0 and not boss_vivo1:
+                    with lock_inimigos:
+                        for _ in range(pressao_spawn["lote"]):
+                            gerar_inimigo(pressao_spawn["limite"])
+                    tempo_ultimo_inimigo = tempo_atual
 
             # Registrar snapshot para o sistema de rewind
             if vida > 0:
@@ -2826,6 +2849,8 @@ def executar_jogo(game_manager=None):
                 racional_dilatacao_fim,
                 aurea,
                 config_graficos,
+                movimento_pressionado,
+                ultima_tecla_movimento,
             )
             for moeda in moedas_soltadas:
                 tela.blit(moeda["image"], moeda["rect"])

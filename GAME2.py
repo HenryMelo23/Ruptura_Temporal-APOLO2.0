@@ -23,7 +23,10 @@ from ui_helpers import (
     fator_movimento_racional,
     fator_mundo_racional,
     intervalo_disparo_racional,
+    tentar_ativar_dilatacao_racional,
 )
+from post_boss_pressure import criar_estado_pressao_pos_boss, calcular_pressao_spawn_pos_boss
+from onda_recoil import criar_estado_coice_onda, aplicar_coice_onda, atualizar_coice_onda
 from audio_manager import carregar_config_audio, aplicar_volume_som
 from Tela_Upgrade_Aureas import tela_upgrade_aureas
 
@@ -41,6 +44,8 @@ escudo_devota_ativo = True
 duracao_incendio_vanguarda = 5000
 intervalo_escudo = 30000
 racional_dilatacao_fim = 0
+racional_dilatacao_proximo_uso = 0
+pressao_pos_boss_spawn = criar_estado_pressao_pos_boss()
 
 # Inicializar o Pygame
 pygame.init()
@@ -276,7 +281,7 @@ def atualizar_posicao_personagem(keys, joystick):
     global vida_inimigo_maxima, Resistencia_petro, dano_inimigo_perto, vida_maxima_petro, dano_petro, dano_boss2, dano_inimigo_longe
     global inimigos_eliminados, pontuacao, pontuacao_exib, eliminacoes_consecutivas, bonus_pontuacao, vida_boss2, Valor_Bonus
     global jogador_desacelerado, blizzard_ativo
-    global racional_dilatacao_fim
+    global racional_dilatacao_fim, racional_dilatacao_proximo_uso
 
     # Se o personagem estiver imóvel, não atualize a posição
     if personagem_imovel:
@@ -383,8 +388,13 @@ def atualizar_posicao_personagem(keys, joystick):
 
         cooldown_dash = True
         tempo_ultimo_dash = pygame.time.get_ticks()
-        if aurea == "Racional":
-            racional_dilatacao_fim = tempo_ultimo_dash + 3000
+        novo_fim_racional, racional_dilatacao_proximo_uso = tentar_ativar_dilatacao_racional(
+            aurea,
+            tempo_ultimo_dash,
+            racional_dilatacao_proximo_uso,
+        )
+        if novo_fim_racional is not None:
+            racional_dilatacao_fim = novo_fim_racional
 
         # Onda de choque no destino do teletransporte
         cx_t = pos_x_personagem + largura_personagem // 2
@@ -690,12 +700,13 @@ def desenhar_sombra(tela, x, y, largura, altura, offset_y=5):
         pos_y = y + altura - 15 - int(altura // 6)
         tela.blit(sombra_surface, (pos_x, pos_y))
 
-def gerar_inimigo():
+def gerar_inimigo(limite_inimigos=None):
     global inimigos_comum, r_press
-    if r_press:
+    if r_press and boss_vivo2:
         return
 
-    if len(inimigos_comum) < max_inimigos2:
+    limite_inimigos = max_inimigos2 if limite_inimigos is None else limite_inimigos
+    if len(inimigos_comum) < limite_inimigos:
         is_elite = random.random() <= 0.20
         # Adicione uma chance de 40% de gerar o inimigo na borda esquerda
         if random.random() <= 0.4:
@@ -800,6 +811,7 @@ y = 0
 
 def executar_jogo(game_manager=None):
     global dt
+    global direcao_atual
     global joystick, inimigos_comum, ondas_choque, gerar_fragmentos_morte, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss2, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, ataque_horizontal_ativo, ataque_vertical_ativo, bonus_pontuacao, boss_envenenado, carregar_atributos_na_fase, cartas_compradas, cartas_visiveis, chance_critico, dano, dano_boss2, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, disparos, disparos_inimigos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, escudo_devota_ativo, fonte, frame_atual, frame_atual_chefe, frame_atual_disparo, frame_porcentagem, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, largura_disparo, max_inimigos2, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, musica_boss2, nivel_ameaca, ondas, personagem_imovel, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_personagem, pos_x_petro, pos_y_personagem, pos_y_petro, posicao_ataque_horizontal, posicao_ataque_vertical, quantidade_roubo_vida, r_press, rect_boss, roubo_de_vida, running, sprite_moeda, teleportado, tempo_anterior_petro, tempo_atual, tempo_cooldown_dash, tempo_inicio_ataque_horizontal, tempo_inicio_buff_impulsiva, tempo_inicio_dano_horizontal, tempo_inicio_veneno_boss, tempo_passado, tempo_passado_animacao_chefe2, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_regeneracao, tempo_ultimo_atingido, tempo_ultimo_dano_horizontal, tempo_ultimo_dano_vertical, tempo_ultimo_disparo_inimigo, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, texto_dano, tipo_buff_impulsiva, toque, trembo, ultima_direcao_animacao, ultimo_tick_veneno_boss, upgrades, velocidade_ataque_horizontal, velocidade_ataque_vertical, velocidade_inimigo2, velocidade_personagem, vida, vida_boss, vida_boss2, vida_boss3, vida_boss4, vida_inimigo_maxima, vida_maxima, vida_maxima_boss2, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, x, xp_petro, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
     global jogador_desacelerado, blizzard_ativo, zonas_lentidao, velocidade_disparo_inimigo, ataque_vertical_aviso, ataque_horizontal_aviso, tempo_inicio_aviso_vertical, tempo_inicio_aviso_horizontal, vida_inimigo, tempo_ultimo_blizzard, tempo_inicio_blizzard, intervalo_blizzard, duracao_blizzard, duracao_aviso, boss_entrada_ativa, boss_entrada_tempo_inicio, tempo_boss_entrada_fim, boss_impacto_feito, screen_shake, ice_shards, ataque_avalanche_aviso, ataque_avalanche_ativo, tempo_inicio_aviso_avalanche, avalanche_posicoes, avalanche_projeteis, tempo_inicio_ataque, boss_sopro_aviso, boss_sopro_ativo, tempo_inicio_sopro, sopro_dir, sopro_particulas, tempo_ultimo_sopro_disparo, boss_escudo_ativo, tempo_inicio_escudo, escudo_cristais_angulo, tempo_ultimo_disparo_escudo, avalanche_particulas_vento, pos_x_chefe2, pos_y_chefe2, ondas_nevasca, ondas_nevasca_preparadas, rastros_neve, ice_blocks_particles
     class CleanExit(BaseException):
@@ -841,6 +853,12 @@ def executar_jogo(game_manager=None):
         tempo_ultimo_escudo = pygame.time.get_ticks()
         tempo_parado_person = pygame.time.get_ticks()  
         tempo_ultimo_disparo = pygame.time.get_ticks()
+        disparo_preparando = False
+        disparo_frame_atual = 0
+        tempo_ultimo_frame_preparo_disparo = 0
+        angulo_disparo_preparado = 0.0
+        DISPARO_PREPARO_FRAME_MS = 85
+        coice_onda = criar_estado_coice_onda()
         boss_atingido_por_onda = pygame.time.get_ticks()
         Musica_tema_fases.play(loops=-1)
         Som_tema_fases.play(loops=-1)
@@ -1300,19 +1318,16 @@ def executar_jogo(game_manager=None):
                         retomar_cronometro()
                         pygame.event.set_grab(True)  # Travar mouse de novo
                         pygame.mouse.set_visible(False)  # Esconder cursor do sistema
-                elif botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual):  # Botão esquerdo do mouse
+                elif botao_mouse[0] and not disparo_preparando and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual):  # Botão esquerdo do mouse
                     pos_mouse = obter_pos_mouse_jogo()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
-                    angulo = calcular_angulo_disparo((px_centro, py_centro), pos_mouse)
-
-                    # Crie o disparo com direção baseada no ângulo
-                    novo_disparo = {
-                        "rect": pygame.Rect(px_centro - largura_disparo // 2, py_centro - altura_disparo // 2, largura_disparo, altura_disparo),
-                        "angulo": angulo
-                    }
-                    disparos.append(novo_disparo)
-                    tempo_ultimo_disparo = tempo_atual  # Atualizar o tempo do último disparo
+                    angulo_disparo_preparado = calcular_angulo_disparo((px_centro, py_centro), pos_mouse)
+                    disparo_preparando = True
+                    disparo_frame_atual = 0
+                    tempo_ultimo_frame_preparo_disparo = tempo_atual
+                    direcao_atual = 'disp'
+                    frame_atual = 0
                 elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade:
                     pos_mouse = obter_pos_mouse_jogo()
                     px_centro = pos_x_personagem + largura_personagem // 2
@@ -1328,6 +1343,7 @@ def executar_jogo(game_manager=None):
                         "frames": frames_onda_cinetica  # Certifique-se de ter os frames para animação da onda
                     }
                     ondas.append(nova_onda)
+                    aplicar_coice_onda(coice_onda, angulo)
                     tempo_ultimo_uso_habilidade = tempo_atual
 
 
@@ -1386,6 +1402,16 @@ def executar_jogo(game_manager=None):
             ultimo_x = pos_x_personagem
             ultimo_y = pos_y_personagem
             atualizar_posicao_personagem(keys,joystick)
+            if disparo_preparando:
+                direcao_atual = 'disp'
+                frame_atual = disparo_frame_atual
+            pos_x_personagem, pos_y_personagem = atualizar_coice_onda(
+                pos_x_personagem, pos_y_personagem,
+                largura_personagem, altura_personagem,
+                largura_mapa, altura_mapa,
+                coice_onda,
+                dt,
+            )
 
 
 
@@ -1597,8 +1623,17 @@ def executar_jogo(game_manager=None):
 
              # Adicionar inimigos a cada 10 segundos
             tempo_atual = pygame.time.get_ticks()
-            if tempo_atual - tempo_ultimo_inimigo >= 1000 and len(inimigos_comum) < max_inimigos2 and spawn_inimigo:
-                gerar_inimigo()
+            pressao_spawn = calcular_pressao_spawn_pos_boss(
+                pressao_pos_boss_spawn,
+                tempo_atual,
+                r_press and not boss_vivo2,
+                len(inimigos_comum),
+                inimigos_eliminados,
+                max_inimigos2,
+            )
+            if tempo_atual - tempo_ultimo_inimigo >= pressao_spawn["intervalo_ms"] and pressao_spawn["lote"] > 0 and (spawn_inimigo or not boss_vivo2):
+                for _ in range(pressao_spawn["lote"]):
+                    gerar_inimigo(pressao_spawn["limite"])
                 tempo_ultimo_inimigo = tempo_atual  # Atualizar o tempo do último inimigo adicionado
             nivel_racional = upgrades.get("Racional", 0)    
             #LUGAR AONDE COLOCAMOS AS AUREAS
@@ -1660,6 +1695,24 @@ def executar_jogo(game_manager=None):
                 if tempo_passado >= tempo_animacao_no_stop:
                     tempo_passado = 0
                     frame_atual = (frame_atual + 1) % len(frames_animacao[direcao_atual])
+
+            if disparo_preparando:
+                direcao_atual = 'disp'
+                if tempo_atual - tempo_ultimo_frame_preparo_disparo >= DISPARO_PREPARO_FRAME_MS:
+                    tempo_ultimo_frame_preparo_disparo = tempo_atual
+                    disparo_frame_atual += 1
+                disparo_frame_atual = min(disparo_frame_atual, len(frames_animacao['disp']) - 1)
+                frame_atual = disparo_frame_atual
+                if disparo_frame_atual >= len(frames_animacao['disp']) - 1:
+                    px_centro = pos_x_personagem + largura_personagem // 2
+                    py_centro = pos_y_personagem + altura_personagem // 2
+                    disparos.append({
+                        "rect": pygame.Rect(px_centro - largura_disparo // 2, py_centro - altura_disparo // 2, largura_disparo, altura_disparo),
+                        "angulo": angulo_disparo_preparado
+                    })
+                    tempo_ultimo_disparo = tempo_atual
+                    disparo_preparando = False
+                    disparo_frame_atual = 0
 
             # Screen shake update
             if screen_shake > 0:
@@ -3463,6 +3516,8 @@ def executar_jogo(game_manager=None):
                 racional_dilatacao_fim,
                 aurea,
                 config_graficos,
+                movimento_pressionado,
+                ultima_tecla_movimento,
             )
             atualizar_e_desenhar_fragmentos(tela)
             atualizar_e_desenhar_particulas_pontos(tela)

@@ -25,7 +25,9 @@ from ui_helpers import (
     desenhar_efeito_racional_dilatacao,
     fator_movimento_racional,
     intervalo_disparo_racional,
+    tentar_ativar_dilatacao_racional,
 )
+from onda_recoil import criar_estado_coice_onda, aplicar_coice_onda, atualizar_coice_onda
 dt = 1.0
 import habilidade_boss as hb
 import collections
@@ -61,11 +63,12 @@ teleporte_sprites = []
 teleporte_index = 0
 teleporte_timer = 0
 racional_dilatacao_fim = 0
+racional_dilatacao_proximo_uso = 0
 
 
 def executar_jogo(game_manager=None):
     global dt
-    global carregar_atributos_na_fase, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, _VORTICE_SURF_CACHE, _fonte_bonus_cached, _fonte_combo_cached, altura_boss, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apolo, bonus_cura_sifon, bonus_pontuacao, boss_envenenado, cartas_compradas_apolo_global, chance_critico, cooldown_dash, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_boss, disparos, distancia_dash, duracao_frame_onda, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_transicao_mapa, erros_player_contagem, escudo_devota_ativo, esferas_energia_umbra, espacamento, estado_atual_ia, frame_boss, gerenciador_ratos, hitbox_boss5, impulsiva_ativa, inicio_transicao_mapa, inimigos_eliminados, intervalo_disparo, largura_boss, largura_disparo, largura_personagem, linha, mapa_antigo, mapa_novo, modo_ia_treino, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, multiplicador_chamas, multiplicador_dano_umbra, ondas, particulas_fogo_player, petro_evolucao, player_em_chamas, pontuacao, pontuacao_exib, porcentagem_cura, pos_x_personagem, pos_x_petro, pos_x_umbra, pos_y_personagem, pos_y_petro, pos_y_umbra, projeteis_boss, quantidade_roubo_vida, racional_dilatacao_fim, reducao_cooldown_umbra, relogio, resistencia_umbra, roubo_de_vida, running, surf, teleporte_duration, teleporte_index, teleporte_timer, tempo_atual, tempo_boss_entrada_fim, tempo_cooldown_dash, tempo_fim_chamas, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado_boss, tempo_ultima_esfera_umbra, tempo_ultima_regeneracao, tempo_ultimo_dash, tempo_ultimo_disparo, tempo_ultimo_uso_habilidade, tipo_buff_impulsiva, trauma_umbra_acumulado, trembo, ultima_direcao_animacao, ultima_tecla_movimento, ultimo_tick_chamas, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_maxima, vida_maxima_petro, vida_maxima_umbra, vida_petro, vida_umbra, xp_petro, duracao_incendio_vanguarda, intervalo_escudo
+    global carregar_atributos_na_fase, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, _VORTICE_SURF_CACHE, _fonte_bonus_cached, _fonte_combo_cached, altura_boss, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apolo, bonus_cura_sifon, bonus_pontuacao, boss_envenenado, cartas_compradas_apolo_global, chance_critico, cooldown_dash, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_boss, disparos, distancia_dash, duracao_frame_onda, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_transicao_mapa, erros_player_contagem, escudo_devota_ativo, esferas_energia_umbra, espacamento, estado_atual_ia, frame_boss, gerenciador_ratos, hitbox_boss5, impulsiva_ativa, inicio_transicao_mapa, inimigos_eliminados, intervalo_disparo, largura_boss, largura_disparo, largura_personagem, linha, mapa_antigo, mapa_novo, modo_ia_treino, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, multiplicador_chamas, multiplicador_dano_umbra, ondas, particulas_fogo_player, petro_evolucao, player_em_chamas, pontuacao, pontuacao_exib, porcentagem_cura, pos_x_personagem, pos_x_petro, pos_x_umbra, pos_y_personagem, pos_y_petro, pos_y_umbra, projeteis_boss, quantidade_roubo_vida, racional_dilatacao_fim, racional_dilatacao_proximo_uso, reducao_cooldown_umbra, relogio, resistencia_umbra, roubo_de_vida, running, surf, teleporte_duration, teleporte_index, teleporte_timer, tempo_atual, tempo_boss_entrada_fim, tempo_cooldown_dash, tempo_fim_chamas, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado_boss, tempo_ultima_esfera_umbra, tempo_ultima_regeneracao, tempo_ultimo_dash, tempo_ultimo_disparo, tempo_ultimo_uso_habilidade, tipo_buff_impulsiva, trauma_umbra_acumulado, trembo, ultima_direcao_animacao, ultima_tecla_movimento, ultimo_tick_chamas, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_maxima, vida_maxima_petro, vida_maxima_umbra, vida_petro, vida_umbra, xp_petro, duracao_incendio_vanguarda, intervalo_escudo
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -691,8 +694,13 @@ def executar_jogo(game_manager=None):
 
                 cooldown_dash = True
                 tempo_ultimo_dash = pygame.time.get_ticks()
-                if aurea == "Racional":
-                    racional_dilatacao_fim = tempo_ultimo_dash + 3000
+                novo_fim_racional, racional_dilatacao_proximo_uso = tentar_ativar_dilatacao_racional(
+                    aurea,
+                    tempo_ultimo_dash,
+                    racional_dilatacao_proximo_uso,
+                )
+                if novo_fim_racional is not None:
+                    racional_dilatacao_fim = novo_fim_racional
                 aplicar_shockwave_teleporte()
 
             if cooldown_dash and pygame.time.get_ticks() - tempo_ultimo_dash > tempo_cooldown_dash:
@@ -782,6 +790,12 @@ def executar_jogo(game_manager=None):
         tempo_parado_person = pygame.time.get_ticks()  
         boss_atingido_por_onda = pygame.time.get_ticks()
         tempo_ultimo_disparo = pygame.time.get_ticks()
+        disparo_preparando = False
+        disparo_frame_atual = 0
+        tempo_ultimo_frame_preparo_disparo = 0
+        angulo_disparo_preparado = 0.0
+        DISPARO_PREPARO_FRAME_MS = 85
+        coice_onda = criar_estado_coice_onda()
         tempo_ultimo_escudo = pygame.time.get_ticks()
 
         Som_tema_fases.play(loops=-1)
@@ -2569,18 +2583,16 @@ def executar_jogo(game_manager=None):
                             break
                     pygame.event.set_grab(True)
                     pygame.mouse.set_visible(False)
-                elif botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual) and tempo_atual >= tempo_fim_stun:
+                elif botao_mouse[0] and not disparo_preparando and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual) and tempo_atual >= tempo_fim_stun:
                     pos_mouse = obter_pos_mouse_jogo()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
-                    angulo = calcular_angulo_disparo((px_centro, py_centro), pos_mouse)
-                    Disparo_Geo.play()
-                    novo_disparo = {
-                        "rect": pygame.Rect(px_centro - largura_disparo // 2, py_centro - altura_disparo // 2, largura_disparo, altura_disparo),
-                        "angulo": angulo
-                    }
-                    disparos.append(novo_disparo)
-                    tempo_ultimo_disparo = tempo_atual  
+                    angulo_disparo_preparado = calcular_angulo_disparo((px_centro, py_centro), pos_mouse)
+                    disparo_preparando = True
+                    disparo_frame_atual = 0
+                    tempo_ultimo_frame_preparo_disparo = tempo_atual
+                    direcao_atual = 'disp'
+                    frame_atual = 0
                 elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade and tempo_atual >= tempo_fim_stun:  
                     pos_mouse = obter_pos_mouse_jogo()
                     px_centro = pos_x_personagem + largura_personagem // 2
@@ -2594,6 +2606,7 @@ def executar_jogo(game_manager=None):
                         "frames": frames_onda_cinetica  
                     }
                     ondas.append(nova_onda)
+                    aplicar_coice_onda(coice_onda, angulo)
                     tempo_ultimo_uso_habilidade = tempo_atual
 
             # Verificar eventos de teclado
@@ -2614,6 +2627,16 @@ def executar_jogo(game_manager=None):
             delta_time_ms = tempo_atual - tempo_ultimo_frame
             tempo_ultimo_frame = tempo_atual
             atualizar_posicao_personagem(keys,joystick)
+            if disparo_preparando:
+                direcao_atual = 'disp'
+                frame_atual = disparo_frame_atual
+            pos_x_personagem, pos_y_personagem = atualizar_coice_onda(
+                pos_x_personagem, pos_y_personagem,
+                largura_personagem, altura_personagem,
+                largura_mapa, altura_mapa,
+                coice_onda,
+                dt,
+            )
 
 
 
@@ -2706,6 +2729,25 @@ def executar_jogo(game_manager=None):
                 if tempo_passado >= tempo_animacao_no_stop:
                     tempo_passado = 0
                     frame_atual = (frame_atual + 1) % len(frames_animacao[direcao_atual])
+
+            if disparo_preparando:
+                direcao_atual = 'disp'
+                if tempo_atual - tempo_ultimo_frame_preparo_disparo >= DISPARO_PREPARO_FRAME_MS:
+                    tempo_ultimo_frame_preparo_disparo = tempo_atual
+                    disparo_frame_atual += 1
+                disparo_frame_atual = min(disparo_frame_atual, len(frames_animacao['disp']) - 1)
+                frame_atual = disparo_frame_atual
+                if disparo_frame_atual >= len(frames_animacao['disp']) - 1:
+                    px_centro = pos_x_personagem + largura_personagem // 2
+                    py_centro = pos_y_personagem + altura_personagem // 2
+                    Disparo_Geo.play()
+                    disparos.append({
+                        "rect": pygame.Rect(px_centro - largura_disparo // 2, py_centro - altura_disparo // 2, largura_disparo, altura_disparo),
+                        "angulo": angulo_disparo_preparado
+                    })
+                    tempo_ultimo_disparo = tempo_atual
+                    disparo_preparando = False
+                    disparo_frame_atual = 0
 
 
             tela.fill((255, 255, 255))
@@ -4035,6 +4077,8 @@ def executar_jogo(game_manager=None):
                 racional_dilatacao_fim,
                 aurea,
                 config_graficos,
+                movimento_pressionado,
+                ultima_tecla_movimento,
             )
 
             # Se a IA ainda não foi processada neste frame, garantimos que o estado exista

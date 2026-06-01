@@ -23,7 +23,10 @@ from ui_helpers import (
     fator_movimento_racional,
     fator_mundo_racional,
     intervalo_disparo_racional,
+    tentar_ativar_dilatacao_racional,
 )
+from post_boss_pressure import criar_estado_pressao_pos_boss, calcular_pressao_spawn_pos_boss
+from onda_recoil import criar_estado_coice_onda, aplicar_coice_onda, atualizar_coice_onda
 from audio_manager import carregar_config_audio, aplicar_volume_som
 from Tela_Upgrade_Aureas import tela_upgrade_aureas
 from Boss1_Ataques import gerenciador_ataques_boss1
@@ -68,6 +71,8 @@ knockback_y = 0.0
 tempo_boss_entrada_fim = 0
 boss_empurrou_jogador = False
 racional_dilatacao_fim = 0
+racional_dilatacao_proximo_uso = 0
+pressao_pos_boss_spawn = criar_estado_pressao_pos_boss()
 
 pygame.init()
 
@@ -524,11 +529,22 @@ def executar_jogo(game_manager=None):
         tempo_passado = 0
         frame_atual = 0
         frame_atual_disparo = 0
+        disparo_preparando = False
+        disparo_frame_atual = 0
+        tempo_ultimo_frame_preparo_disparo = 0
+        angulo_disparo_preparado = 0.0
+        DISPARO_PREPARO_FRAME_MS = 85
+        coice_onda = criar_estado_coice_onda()
         
         # VARIÁVEIS PARA VARIANTES DE INIMIGOS (AREIA CÓSMICA)
         TESTAR_VARIANTES_RAPIDO = True  # Mude para False para tempo padrão (8-10min)
         disparos_inimigos = []
         tempo_ultimo_cheque_fusao = 0
+        TIPO_CURATER = "curater"
+        CURATER_CHANCE_SPAWN = 0.30
+        CURATER_INTERVALO_CURA = 8000
+        CURATER_RAIO_CURA = 210
+        pulsos_cura_curater = []
         
         # Announcement Banner variables
         aviso_evento_texto = ""
@@ -541,12 +557,68 @@ def executar_jogo(game_manager=None):
         def obter_mitigacao_dano(inimigo):
             if inimigo.get("tipo", 1) == 4: # Cristalizador doesn't shield itself
                 return 1.0
+            if inimigo.get("tipo", 1) == TIPO_CURATER:
+                margem_canto = 180
+                perto_canto_x = inimigo["rect"].centerx < margem_canto or inimigo["rect"].centerx > largura_mapa - margem_canto
+                perto_canto_y = inimigo["rect"].centery < margem_canto or inimigo["rect"].centery > altura_mapa - margem_canto
+                if perto_canto_x and perto_canto_y:
+                    return 0.72
             for c in inimigos_comum:
                 if c.get("tipo", 1) == 4 and c != inimigo:
                     dist = math.hypot(inimigo["rect"].centerx - c["rect"].centerx, inimigo["rect"].centery - c["rect"].centery)
                     if dist <= 120:
                         return 0.5 # 50% damage reduction
             return 1.0
+
+        def atualizar_curater(inimigo, agora_ms):
+            if agora_ms - inimigo.get("ultima_cura", 0) < CURATER_INTERVALO_CURA:
+                return
+            inimigo["ultima_cura"] = agora_ms
+            alvos_curados = 0
+            for alvo in inimigos_comum:
+                if alvo is inimigo or alvo.get("vida", 0) <= 0:
+                    continue
+                dist = math.hypot(alvo["rect"].centerx - inimigo["rect"].centerx, alvo["rect"].centery - inimigo["rect"].centery)
+                if dist <= CURATER_RAIO_CURA and alvo["vida"] < alvo["vida_maxima"]:
+                    faltante = alvo["vida_maxima"] - alvo["vida"]
+                    cura = max(1, faltante * 0.10)
+                    alvo["vida"] = min(alvo["vida_maxima"], alvo["vida"] + cura)
+                    alvos_curados += 1
+                    efeitos_texto.append({
+                        "texto": f"+{int(cura)}",
+                        "x": alvo["rect"].x,
+                        "y": alvo["rect"].y - 32,
+                        "tempo_inicio": agora_ms,
+                        "cor": (98, 255, 120)
+                    })
+                    pulsos_cura_curater.append({
+                        "origem": inimigo["rect"].center,
+                        "alvo": alvo["rect"].center,
+                        "inicio": agora_ms,
+                    })
+            if alvos_curados:
+                efeitos_texto.append({
+                    "texto": "CURA!",
+                    "x": inimigo["rect"].x,
+                    "y": inimigo["rect"].y - 44,
+                    "tempo_inicio": agora_ms,
+                    "cor": (120, 255, 120)
+                })
+
+        def desenhar_plantinhas_curater(tela, inimigo, desenhar_x, desenhar_y, l_vis, a_vis):
+            agora_ms = pygame.time.get_ticks()
+            base_y = desenhar_y + a_vis - 8
+            centro_x = desenhar_x + l_vis // 2
+            for i in range(7):
+                fase = agora_ms * 0.002 + i * 0.9
+                px = centro_x + int(math.cos(i * 1.7) * (l_vis * 0.42)) + int(math.sin(fase) * 2)
+                py = base_y + int(math.sin(i * 1.3) * 8)
+                caule_h = 8 + (i % 3) * 3
+                pygame.draw.line(tela, (45, 150, 58), (px, py), (px, py - caule_h), 2)
+                pygame.draw.ellipse(tela, (72, 214, 92), (px - 5, py - caule_h - 3, 7, 5))
+                pygame.draw.ellipse(tela, (104, 245, 132), (px, py - caule_h - 2, 7, 5))
+            pulso = int(18 + 5 * math.sin(agora_ms * 0.004))
+            pygame.draw.circle(tela, (70, 230, 105), inimigo["rect"].center, pulso, 1)
             
         def processar_morte_inimigo(inimigo):
             posicao_inimigo = inimigo["rect"].center
@@ -660,7 +732,7 @@ def executar_jogo(game_manager=None):
             global eliminacoes_consecutivas_impulsiva, eliminacoes_consecutivas, pontuacao_exib, bonus_pontuacao, vida_boss
             global vida_maxima_boss1, vida_boss2, vida_maxima_boss2, vida_boss3, vida_maxima_boss3, vida_boss4, vida_maxima_boss4
             global tempo_stun_jogador_fim, knockback_x, knockback_y
-            global racional_dilatacao_fim
+            global racional_dilatacao_fim, racional_dilatacao_proximo_uso
             nonlocal vida_inimigo_maxima, fator_lentidao_boss
 
             tempo_atual = pygame.time.get_ticks()
@@ -800,8 +872,13 @@ def executar_jogo(game_manager=None):
 
                 cooldown_dash = True
                 tempo_ultimo_dash = pygame.time.get_ticks()
-                if aurea == "Racional":
-                    racional_dilatacao_fim = tempo_ultimo_dash + 3000
+                novo_fim_racional, racional_dilatacao_proximo_uso = tentar_ativar_dilatacao_racional(
+                    aurea,
+                    tempo_ultimo_dash,
+                    racional_dilatacao_proximo_uso,
+                )
+                if novo_fim_racional is not None:
+                    racional_dilatacao_fim = novo_fim_racional
 
                 # Onda de choque no destino do teletransporte
                 cx_t = pos_x_personagem + largura_personagem // 2
@@ -941,6 +1018,9 @@ def executar_jogo(game_manager=None):
             elif tipo == 5:  # Projetador
                 hp = vida_inimigo_maxima * 1.2
                 vel = Velocidade_Inimigos_1 * 0.8
+            elif tipo == TIPO_CURATER:
+                hp = vida_inimigo_maxima * 1.15
+                vel = Velocidade_Inimigos_1 * 0.45
                 
             # Ajustar a hitbox para ser menor que a imagem original
             largura_hitbox = int(l_inimigo * 0.8)  # Reduz a largura da hitbox
@@ -973,6 +1053,9 @@ def executar_jogo(game_manager=None):
             elif tipo == 5: # Projetador
                 enemy_dict["ultimo_disparo"] = 0
                 enemy_dict["parado"] = False
+            elif tipo == TIPO_CURATER:
+                enemy_dict["ultima_cura"] = pygame.time.get_ticks() + random.randint(1200, 3600)
+                enemy_dict["parado"] = True
                 
             return enemy_dict
 
@@ -1018,10 +1101,11 @@ def executar_jogo(game_manager=None):
                 tela.blit(sombra_surface, (pos_x, pos_y))
 
 
-        def gerar_inimigo():
+        def gerar_inimigo(limite_inimigos=None):
             global inimigos_comum
 
-            if len(inimigos_comum) < max_inimigos:
+            limite_inimigos = max_inimigos if limite_inimigos is None else limite_inimigos
+            if len(inimigos_comum) < limite_inimigos:
                 # Determina o tipo com base no tempo decorrido
                 tempo_decorrido = Variaveis.obter_tempo_decorrido()
                 threshold_t1 = 15 if TESTAR_VARIANTES_RAPIDO else 480
@@ -1030,39 +1114,36 @@ def executar_jogo(game_manager=None):
                 tipo_escolhido = 1
                 if tempo_decorrido >= threshold_t2:
                     # Tier 2 active: Standard (60%), Espreitador (15%), Projetador (15%), Cristalizador (10%)
-                    choices = [1, 3, 5, 4]
-                    weights = [0.60, 0.15, 0.15, 0.10]
+                    choices = [TIPO_CURATER, 1, 3, 5, 4]
+                    weights = [CURATER_CHANCE_SPAWN, 0.42, 0.105, 0.105, 0.07]
                     tipo_escolhido = random.choices(choices, weights=weights)[0]
                 elif tempo_decorrido >= threshold_t1:
                     # Tier 1 active: Standard (75%), Espreitador (25%)
                     # (Aglomerador is created via fusion of standard enemies, not direct spawn!)
-                    choices = [1, 3]
-                    weights = [0.75, 0.25]
+                    choices = [TIPO_CURATER, 1, 3]
+                    weights = [CURATER_CHANCE_SPAWN, 0.525, 0.175]
                     tipo_escolhido = random.choices(choices, weights=weights)[0]
+                elif random.random() < CURATER_CHANCE_SPAWN:
+                    tipo_escolhido = TIPO_CURATER
                     
                 # Regra: Limite de 1 Cristalizador por vez
                 if tipo_escolhido == 4:
                     if any(ini.get("tipo", 1) == 4 for ini in inimigos_comum):
                         tipo_escolhido = 1
 
-                borda = random.choice(['esquerda', 'direita', 'superior', 'inferior'])
-                if borda == 'esquerda':
-                    novo_inimigo = criar_inimigo(0, random.randint(0, int(altura_mapa) - int(altura_inimigo)), tipo=tipo_escolhido)
-                elif borda == 'direita':
-                    novo_inimigo = criar_inimigo(int(largura_mapa) - int(largura_inimigo), random.randint(0, int(altura_mapa) - int(altura_inimigo)), tipo=tipo_escolhido)
-                elif borda == 'superior':
-                    novo_inimigo = criar_inimigo(random.randint(0, int(largura_mapa) - int(largura_inimigo)), 0, tipo=tipo_escolhido)
-                elif borda == 'inferior':
-                    novo_inimigo = criar_inimigo(random.randint(0, int(largura_mapa) - int(largura_inimigo)), int(altura_mapa) - int(altura_inimigo), tipo=tipo_escolhido)
-
-                # Verifica se o novo inimigo está muito próximo de algum inimigo existente
-                distancia_minima_alcancada = any(
-                    math.sqrt((novo_inimigo["rect"].x - inimigo["rect"].x) ** 2 + (novo_inimigo["rect"].y - inimigo["rect"].y) ** 2) < distancia_minima_inimigos
-                    for inimigo in inimigos_comum
-                )
-
-                # Ajusta a posição do novo inimigo se estiver muito próximo
-                while distancia_minima_alcancada:
+                if tipo_escolhido == TIPO_CURATER:
+                    margem = 28
+                    cantos = [
+                        (margem, margem),
+                        (int(largura_mapa) - int(largura_inimigo) - margem, margem),
+                        (margem, int(altura_mapa) - int(altura_inimigo) - margem),
+                        (int(largura_mapa) - int(largura_inimigo) - margem, int(altura_mapa) - int(altura_inimigo) - margem),
+                    ]
+                    sx, sy = random.choice(cantos)
+                    sx += random.randint(-12, 36)
+                    sy += random.randint(-12, 36)
+                    novo_inimigo = criar_inimigo(max(0, min(int(largura_mapa) - int(largura_inimigo), sx)), max(0, min(int(altura_mapa) - int(altura_inimigo), sy)), tipo=tipo_escolhido)
+                else:
                     borda = random.choice(['esquerda', 'direita', 'superior', 'inferior'])
                     if borda == 'esquerda':
                         novo_inimigo = criar_inimigo(0, random.randint(0, int(altura_mapa) - int(altura_inimigo)), tipo=tipo_escolhido)
@@ -1072,6 +1153,39 @@ def executar_jogo(game_manager=None):
                         novo_inimigo = criar_inimigo(random.randint(0, int(largura_mapa) - int(largura_inimigo)), 0, tipo=tipo_escolhido)
                     elif borda == 'inferior':
                         novo_inimigo = criar_inimigo(random.randint(0, int(largura_mapa) - int(largura_inimigo)), int(altura_mapa) - int(altura_inimigo), tipo=tipo_escolhido)
+
+                # Verifica se o novo inimigo está muito próximo de algum inimigo existente
+                distancia_minima_alcancada = any(
+                    math.sqrt((novo_inimigo["rect"].x - inimigo["rect"].x) ** 2 + (novo_inimigo["rect"].y - inimigo["rect"].y) ** 2) < distancia_minima_inimigos
+                    for inimigo in inimigos_comum
+                )
+
+                # Ajusta a posição do novo inimigo se estiver muito próximo
+                tentativas_spawn = 0
+                while distancia_minima_alcancada and tentativas_spawn < 12:
+                    tentativas_spawn += 1
+                    if tipo_escolhido == TIPO_CURATER:
+                        margem = 28
+                        cantos = [
+                            (margem, margem),
+                            (int(largura_mapa) - int(largura_inimigo) - margem, margem),
+                            (margem, int(altura_mapa) - int(altura_inimigo) - margem),
+                            (int(largura_mapa) - int(largura_inimigo) - margem, int(altura_mapa) - int(altura_inimigo) - margem),
+                        ]
+                        sx, sy = random.choice(cantos)
+                        sx += random.randint(-12, 36)
+                        sy += random.randint(-12, 36)
+                        novo_inimigo = criar_inimigo(max(0, min(int(largura_mapa) - int(largura_inimigo), sx)), max(0, min(int(altura_mapa) - int(altura_inimigo), sy)), tipo=tipo_escolhido)
+                    else:
+                        borda = random.choice(['esquerda', 'direita', 'superior', 'inferior'])
+                        if borda == 'esquerda':
+                            novo_inimigo = criar_inimigo(0, random.randint(0, int(altura_mapa) - int(altura_inimigo)), tipo=tipo_escolhido)
+                        elif borda == 'direita':
+                            novo_inimigo = criar_inimigo(int(largura_mapa) - int(largura_inimigo), random.randint(0, int(altura_mapa) - int(altura_inimigo)), tipo=tipo_escolhido)
+                        elif borda == 'superior':
+                            novo_inimigo = criar_inimigo(random.randint(0, int(largura_mapa) - int(largura_inimigo)), 0, tipo=tipo_escolhido)
+                        elif borda == 'inferior':
+                            novo_inimigo = criar_inimigo(random.randint(0, int(largura_mapa) - int(largura_inimigo)), int(altura_mapa) - int(altura_inimigo), tipo=tipo_escolhido)
 
                     distancia_minima_alcancada = any(
                         math.sqrt((novo_inimigo["rect"].x - inimigo["rect"].x) ** 2 + (novo_inimigo["rect"].y - inimigo["rect"].y) ** 2) < distancia_minima_inimigos
@@ -1603,30 +1717,16 @@ def executar_jogo(game_manager=None):
                             retomar_cronometro()
                             pygame.event.set_grab(True)  # Travar mouse de novo
                             pygame.mouse.set_visible(False)  # Esconder cursor do sistema
-                    elif mostrar_tutorial and tutorial_fase == 6:
-                        if event.key in [pygame.K_RETURN, pygame.K_SPACE, pygame.K_r]:
-                            if event.key == pygame.K_r:
-                                r_press = True
-                            tutorial_fase = 7
-                            mostrar_tutorial = False
-                            try:
-                                with open("saves/tutorial_config.json", "w") as f:
-                                    json.dump({"mostrar_tutorial": False}, f)
-                            except:
-                                pass
-                elif botao_mouse[0] and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual) and tempo_atual >= tempo_stun_jogador_fim:  # Botão esquerdo do mouse
+                elif botao_mouse[0] and not disparo_preparando and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual) and tempo_atual >= tempo_stun_jogador_fim:  # Botão esquerdo do mouse
                     pos_mouse = obter_pos_mouse_jogo()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
-                    angulo = calcular_angulo_disparo((px_centro, py_centro), pos_mouse)
-                    Disparo_Geo.play()
-                    # Crie o disparo com direção baseada no ângulo
-                    novo_disparo = {
-                        "rect": pygame.Rect(px_centro - largura_disparo // 2, py_centro - altura_disparo // 2, largura_disparo, altura_disparo),
-                        "angulo": angulo
-                    }
-                    disparos.append(novo_disparo)
-                    tempo_ultimo_disparo = tempo_atual  # Atualizar o tempo do último disparo
+                    angulo_disparo_preparado = calcular_angulo_disparo((px_centro, py_centro), pos_mouse)
+                    disparo_preparando = True
+                    disparo_frame_atual = 0
+                    tempo_ultimo_frame_preparo_disparo = tempo_atual
+                    direcao_atual = 'disp'
+                    frame_atual = 0
                 elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade and tempo_atual >= tempo_stun_jogador_fim:
                     pos_mouse = obter_pos_mouse_jogo()
                     px_centro = pos_x_personagem + largura_personagem // 2
@@ -1642,6 +1742,7 @@ def executar_jogo(game_manager=None):
                         "frames": frames_onda_cinetica  # Certifique-se de ter os frames para animação da onda
                     }
                     ondas.append(nova_onda)
+                    aplicar_coice_onda(coice_onda, angulo)
                     tempo_ultimo_uso_habilidade = tempo_atual
 
             # Verificar eventos de teclado
@@ -1699,6 +1800,16 @@ def executar_jogo(game_manager=None):
             ultimo_x = pos_x_personagem
             ultimo_y = pos_y_personagem
             atualizar_posicao_personagem(keys,joystick)
+            if disparo_preparando:
+                direcao_atual = 'disp'
+                frame_atual = disparo_frame_atual
+            pos_x_personagem, pos_y_personagem = atualizar_coice_onda(
+                pos_x_personagem, pos_y_personagem,
+                largura_personagem, altura_personagem,
+                largura_mapa, altura_mapa,
+                coice_onda,
+                dt,
+            )
 
 
             novos_inimigos = []
@@ -1713,8 +1824,17 @@ def executar_jogo(game_manager=None):
             if mostrar_tutorial:
                 pass  # Nenhum inimigo comum durante o tutorial
             else:
-                if tempo_atual - tempo_ultimo_inimigo >= 1000 and len(inimigos_comum) < max_inimigos and not boss_vivo1:
-                    gerar_inimigo()
+                pressao_spawn = calcular_pressao_spawn_pos_boss(
+                    pressao_pos_boss_spawn,
+                    tempo_atual,
+                    r_press and not boss_vivo1,
+                    len(inimigos_comum),
+                    inimigos_eliminados,
+                    max_inimigos,
+                )
+                if tempo_atual - tempo_ultimo_inimigo >= pressao_spawn["intervalo_ms"] and pressao_spawn["lote"] > 0 and not boss_vivo1:
+                    for _ in range(pressao_spawn["lote"]):
+                        gerar_inimigo(pressao_spawn["limite"])
                     tempo_ultimo_inimigo = tempo_atual  # Atualizar o tempo do último inimigo adicionado
             nivel_racional = upgrades.get("Racional", 0)
             #LUGAR AONDE COLOCAMOS AS AUREAS
@@ -1779,6 +1899,25 @@ def executar_jogo(game_manager=None):
                 if tempo_passado >= tempo_animacao_no_stop:
                     tempo_passado = 0
                     frame_atual = (frame_atual + 1) % len(frames_animacao[direcao_atual])
+
+            if disparo_preparando:
+                direcao_atual = 'disp'
+                if tempo_atual - tempo_ultimo_frame_preparo_disparo >= DISPARO_PREPARO_FRAME_MS:
+                    tempo_ultimo_frame_preparo_disparo = tempo_atual
+                    disparo_frame_atual += 1
+                disparo_frame_atual = min(disparo_frame_atual, len(frames_animacao['disp']) - 1)
+                frame_atual = disparo_frame_atual
+                if disparo_frame_atual >= len(frames_animacao['disp']) - 1:
+                    px_centro = pos_x_personagem + largura_personagem // 2
+                    py_centro = pos_y_personagem + altura_personagem // 2
+                    Disparo_Geo.play()
+                    disparos.append({
+                        "rect": pygame.Rect(px_centro - largura_disparo // 2, py_centro - altura_disparo // 2, largura_disparo, altura_disparo),
+                        "angulo": angulo_disparo_preparado
+                    })
+                    tempo_ultimo_disparo = tempo_atual
+                    disparo_preparando = False
+                    disparo_frame_atual = 0
 
 
             shake_x, shake_y = 0, 0
@@ -1896,6 +2035,8 @@ def executar_jogo(game_manager=None):
                     atualizar_espreitador(inimigo)
                 elif tipo == 5: # Projetador
                     atualizar_projetador(inimigo)
+                elif tipo == TIPO_CURATER:
+                    atualizar_curater(inimigo, tempo_atual)
                     
             # --- CHEQUE DE FUSÃO DO AGLOMERADOR (A cada 1 segundo) ---
             tempo_decorrido = Variaveis.obter_tempo_decorrido()
@@ -1939,16 +2080,17 @@ def executar_jogo(game_manager=None):
                     inimigos_comum.append(aglomerador)
                     
             # --- CONTROLE DOS AVISOS DOS EVENTOS ---
-            if tempo_decorrido >= threshold_t2 and not alerta_t2_mostrado:
-                alerta_t2_mostrado = True
-                aviso_evento_texto = "ANOMALIA DETECTADA: INIMIGOS CRISTALIZADOS!"
-                aviso_evento_cor = (255, 0, 128)
-                aviso_evento_inicio = tempo_atual
-            elif tempo_decorrido >= threshold_t1 and not alerta_t1_mostrado:
-                alerta_t1_mostrado = True
-                aviso_evento_texto = "ALERTA: A AREIA COSMICA SE ADAPTOU!"
-                aviso_evento_cor = (0, 255, 255)
-                aviso_evento_inicio = tempo_atual
+            if not mostrar_tutorial:
+                if tempo_decorrido >= threshold_t2 and not alerta_t2_mostrado:
+                    alerta_t2_mostrado = True
+                    aviso_evento_texto = "ANOMALIA DETECTADA: INIMIGOS CRISTALIZADOS!"
+                    aviso_evento_cor = (255, 0, 128)
+                    aviso_evento_inicio = tempo_atual
+                elif tempo_decorrido >= threshold_t1 and not alerta_t1_mostrado:
+                    alerta_t1_mostrado = True
+                    aviso_evento_texto = "ALERTA: A AREIA COSMICA SE ADAPTOU!"
+                    aviso_evento_cor = (0, 255, 255)
+                    aviso_evento_inicio = tempo_atual
 
             # --- ATUALIZAR E DESENHAR DISPAROS INIMIGOS (PROJETADORES) ---
             for disp in list(disparos_inimigos):
@@ -1982,6 +2124,18 @@ def executar_jogo(game_manager=None):
                     if disp in disparos_inimigos:
                         disparos_inimigos.remove(disp)
 
+            for pulso in list(pulsos_cura_curater):
+                idade = tempo_atual - pulso["inicio"]
+                if idade > 520:
+                    pulsos_cura_curater.remove(pulso)
+                    continue
+                progresso = idade / 520.0
+                cor_raio = (92, 255, 135)
+                pygame.draw.line(tela, cor_raio, pulso["origem"], pulso["alvo"], max(1, int(4 - progresso * 3)))
+                ax, ay = pulso["alvo"]
+                raio = int(8 + progresso * 18)
+                pygame.draw.circle(tela, (160, 255, 176), (ax, ay), raio, 2)
+
             # Desenhe os inimigos na tela
             for inimigo in inimigos_comum:
                 tipo = inimigo.get("tipo", 1)
@@ -2007,8 +2161,15 @@ def executar_jogo(game_manager=None):
                     alpha_surf.blit(img_render, (0, 0))
                     alpha_surf.fill((255, 255, 255, alpha), special_flags=pygame.BLEND_RGBA_MULT)
                     img_render = alpha_surf
+                elif tipo == TIPO_CURATER:
+                    curater_surf = pygame.Surface(img_render.get_size(), pygame.SRCALPHA)
+                    curater_surf.blit(img_render, (0, 0))
+                    curater_surf.fill((190, 255, 205, 255), special_flags=pygame.BLEND_RGBA_MULT)
+                    img_render = curater_surf
                 
                 desenhar_sombra(tela, desenhar_x, desenhar_y, l_vis, a_vis)
+                if tipo == TIPO_CURATER and inimigo.get("parado", False):
+                    desenhar_plantinhas_curater(tela, inimigo, desenhar_x, desenhar_y, l_vis, a_vis)
                 tela.blit(img_render, (desenhar_x, desenhar_y))
                 
                 # Efeitos visuais por tipo
@@ -2029,6 +2190,13 @@ def executar_jogo(game_manager=None):
                         h_rad = int(35 + pulsar_hex)
                         pts_hex.append((cx + int(math.cos(ang_h) * h_rad), cy + int(math.sin(ang_h) * h_rad)))
                     pygame.draw.polygon(tela, (0, 191, 255), pts_hex, width=2)
+                elif tipo == TIPO_CURATER:
+                    tempo_cura = pygame.time.get_ticks()
+                    restante_cura = max(0.0, min(1.0, (CURATER_INTERVALO_CURA - (tempo_cura - inimigo.get("ultima_cura", 0))) / CURATER_INTERVALO_CURA))
+                    cx, cy = inimigo["rect"].centerx, inimigo["rect"].centery
+                    raio_pulso = int(24 + 9 * (1.0 - restante_cura) + 3 * math.sin(tempo_cura * 0.006))
+                    pygame.draw.circle(tela, (76, 210, 98), (cx, cy), raio_pulso, 2)
+                    pygame.draw.circle(tela, (180, 255, 188), (cx, cy), 5, 0)
                     
                 desenhar_barra_de_vida(tela, desenhar_x, desenhar_y - 10, l_vis, 5, inimigo["vida"], inimigo["vida_maxima"], inimigo.get("eletrocutado", False), Executa_inimigo if Ultimo_Estalo else None)
 
@@ -3245,8 +3413,6 @@ def executar_jogo(game_manager=None):
                     w, h = 720, 190
                 elif tutorial_fase == 5:
                     w, h = 720, 160
-                elif tutorial_fase == 6:
-                    w, h = 720, 180
 
                 # Painel com efeito de vidro (glassmorphism) e brilho neon nas bordas
                 card_surf = pygame.Surface((w, h), pygame.SRCALPHA)
@@ -3426,12 +3592,6 @@ def executar_jogo(game_manager=None):
                 # ====== FASE 4: Atirar no inimigo ======
                 elif tutorial_fase == 4:
                     _draw_msg("Clique com o botão esquerdo do mouse para atirar!", y_msg)
-                    fonte_sub = pygame.font.Font(None, 32)
-                    t_sub = "Elimine o inimigo para continuar"
-                    sub_b = fonte_sub.render(t_sub, True, (0, 0, 0))
-                    sub = fonte_sub.render(t_sub, True, (170, 240, 255))
-                    tela.blit(sub_b, (cx - sub.get_width() // 2 + 1, y_msg + 46))
-                    tela.blit(sub, (cx - sub.get_width() // 2, y_msg + 45))
 
                     # Desenhar ícone do mouse pulsando
                     pulso = abs(pygame.time.get_ticks() % 1200 - 600) / 600.0
@@ -3523,44 +3683,15 @@ def executar_jogo(game_manager=None):
                     pygame.draw.rect(tela, cor_bd_q, (qx, qy, q_w, q_h), 2)
                     tela.blit(qt, (qx + q_w // 2 - qt.get_width() // 2, qy + q_h // 2 - qt.get_height() // 2))
 
-                    # Quando o jogador comprar (apertou_q fica True), o tutorial avança para o summon
+                    # Quando o jogador comprar (apertou_q fica True), o tutorial acaba
                     if apertou_q:
-                        tutorial_fase = 6
-                elif tutorial_fase == 6:
-                    _draw_msg("Aperte R para chamar o Boss quando achar pronto!", y_msg)
-                    fonte_sub = pygame.font.Font(None, 28)
-                    t1 = "Você pode chamar o Boss apertando R a qualquer momento."
-                    sub1_b = fonte_sub.render(t1, True, (0, 0, 0))
-                    sub1 = fonte_sub.render(t1, True, (170, 240, 255))
-                    tela.blit(sub1_b, (cx - sub1.get_width() // 2 + 1, y_msg + 46))
-                    tela.blit(sub1, (cx - sub1.get_width() // 2, y_msg + 45))
-
-                    t2 = "Recomendamos ficar forte com upgrades antes de invocar."
-                    sub2_b = fonte_sub.render(t2, True, (0, 0, 0))
-                    sub2 = fonte_sub.render(t2, True, (170, 240, 255))
-                    tela.blit(sub2_b, (cx - sub2.get_width() // 2 + 1, y_msg + 71))
-                    tela.blit(sub2, (cx - sub2.get_width() // 2, y_msg + 70))
-
-                    t3 = "Aperte ENTER/ESPAÇO para começar ou R para summonar agora."
-                    sub3_b = fonte_sub.render(t3, True, (0, 0, 0))
-                    sub3 = fonte_sub.render(t3, True, (170, 240, 255))
-                    tela.blit(sub3_b, (cx - sub3.get_width() // 2 + 1, y_msg + 96))
-                    tela.blit(sub3, (cx - sub3.get_width() // 2, y_msg + 95))
-
-                    # Desenhar tecla R pulsando
-                    pulso = abs(pygame.time.get_ticks() % 1200 - 600) / 600.0
-                    r_w, r_h = 40, 40
-                    rx = cx - r_w // 2
-                    ry = y_msg + 120
-                    alpha_r = int(100 + 60 * pulso)
-                    rs = pygame.Surface((r_w, r_h), pygame.SRCALPHA)
-                    rs.fill((20, 30, 50, alpha_r))
-                    tela.blit(rs, (rx, ry))
-                    cor_bd_r = (int(53 + 80 * pulso), int(100 + 60 * pulso), 200)
-                    pygame.draw.rect(tela, cor_bd_r, (rx, ry, r_w, r_h), 2)
-                    ft_r = pygame.font.Font(None, 28)
-                    rt = ft_r.render("R", True, (255, 255, 255))
-                    tela.blit(rt, (rx + r_w // 2 - rt.get_width() // 2, ry + r_h // 2 - rt.get_height() // 2))
+                        tutorial_fase = 7
+                        mostrar_tutorial = False
+                        try:
+                            with open("saves/tutorial_config.json", "w") as f:
+                                json.dump({"mostrar_tutorial": False}, f)
+                        except:
+                            pass
             tempo_atual = pygame.time.get_ticks()
             for inimigo in inimigos_comum:
                 i_id = id(inimigo)
@@ -3611,6 +3742,8 @@ def executar_jogo(game_manager=None):
                 racional_dilatacao_fim,
                 aurea,
                 config_graficos,
+                movimento_pressionado,
+                ultima_tecla_movimento,
             )
             atualizar_e_desenhar_fragmentos(tela)
             atualizar_e_desenhar_particulas_pontos(tela)
@@ -3698,19 +3831,21 @@ def executar_jogo(game_manager=None):
 
 
 
-            # A cada 1300 inimigos eliminados, avisa por 3s que R chama o Boss
-            if inimigos_eliminados > 0 and inimigos_eliminados % 1300 == 0:
-                if alerta_boss_mostrado_para != inimigos_eliminados:
+            # A cada 15 minutos de jogo, lembra que R chama o boss imediatamente.
+            tempo_jogo_segundos = int(Variaveis.obter_tempo_decorrido())
+            aviso_boss_periodo = tempo_jogo_segundos // 900
+            if not mostrar_tutorial and not r_press and aviso_boss_periodo > 0:
+                if alerta_boss_mostrado_para != aviso_boss_periodo:
                     alerta_boss_ativo = True
                     tempo_inicio_alerta_boss = pygame.time.get_ticks()
-                    alerta_boss_mostrado_para = inimigos_eliminados
+                    alerta_boss_mostrado_para = aviso_boss_periodo
 
             if alerta_boss_ativo:
-                if pygame.time.get_ticks() - tempo_inicio_alerta_boss >= 3000:
+                if pygame.time.get_ticks() - tempo_inicio_alerta_boss >= 4000:
                     alerta_boss_ativo = False
                 else:
-                    # Painel de notificação com efeito de vidro
-                    w_n, h_n = 700, 100
+                    # Painel de notificacao com efeito de vidro
+                    w_n, h_n = 820, 120
                     cx_n = largura_mapa // 2
                     cy_n = altura_mapa // 2
                     card_n = pygame.Surface((w_n, h_n), pygame.SRCALPHA)
@@ -3719,11 +3854,13 @@ def executar_jogo(game_manager=None):
                     tela.blit(card_n, (cx_n - w_n // 2, cy_n - h_n // 2))
                     
                     font_n = pygame.font.Font(None, 32)
-                    msg_line1 = font_n.render("Aperte R para chamar o Boss quando achar pronto!", True, (255, 230, 230))
-                    msg_line2 = font_n.render("Recomendável fazer isso quando estiver forte.", True, (255, 100, 100))
+                    msg_line1 = font_n.render("R CHAMA O BOSS IMEDIATAMENTE.", True, (255, 230, 230))
+                    msg_line2 = font_n.render("Se voce ainda esta fraco, NAO aperte R: farme cartas primeiro.", True, (255, 100, 100))
+                    msg_line3 = font_n.render("Quando estiver forte, aperte R para iniciar a luta.", True, (190, 255, 210))
                     
-                    tela.blit(msg_line1, (cx_n - msg_line1.get_width() // 2, cy_n - 30))
-                    tela.blit(msg_line2, (cx_n - msg_line2.get_width() // 2, cy_n + 5))
+                    tela.blit(msg_line1, (cx_n - msg_line1.get_width() // 2, cy_n - 42))
+                    tela.blit(msg_line2, (cx_n - msg_line2.get_width() // 2, cy_n - 8))
+                    tela.blit(msg_line3, (cx_n - msg_line3.get_width() // 2, cy_n + 26))
 
             # --- DESENHAR BANNER DE EVENTO (VARIANTES) ---
             if aviso_evento_texto and tempo_atual - aviso_evento_inicio <= 4000:
