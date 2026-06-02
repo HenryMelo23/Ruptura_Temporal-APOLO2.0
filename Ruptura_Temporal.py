@@ -11,6 +11,7 @@ import importlib
 import os
 import json
 import uuid
+import math
 import pyperclip
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from Config_Teclas import tela_de_controles,carregar_config_teclas
@@ -301,6 +302,355 @@ def mostrar_erro_lan(tela, font_titulo, font_desc):
                 sys.exit()
             elif event.type in [pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN]:
                 return # Pula o aviso com qualquer entrada
+
+
+def tela_escolha_dificuldade(tela, fonte, mostrar_tutorial=False):
+    import random
+
+    pygame.mouse.set_visible(False)
+    largura, altura = tela.get_size()
+    clock = pygame.time.Clock()
+    selecionado = 1  # Normal como padrao seguro.
+    modo_interacao = "teclado"
+    analogo_movido = False
+    aviso_texto = ""
+    aviso_fim = 0
+
+    def carregar_fonte(path, tamanho, fallback=None):
+        try:
+            return pygame.font.Font(path, tamanho)
+        except Exception:
+            return fallback or pygame.font.Font(None, tamanho)
+
+    font_titulo = carregar_fonte(caminho_fonte_titulo, 42, fonte)
+    font_botao = carregar_fonte(caminho_fonte_letra1, 34, fonte)
+    font_info = carregar_fonte(caminho_fonte_letras, 20, fonte)
+    font_peq = carregar_fonte(caminho_fonte_letras, 16, fonte)
+
+    opcoes_dificuldade = [
+        {
+            "nome": "Dificil",
+            "modo_cartas": "drops",
+            "tema": "inferno",
+            "bloqueado": bool(mostrar_tutorial),
+            "motivo": "Hard bloqueado com tutorial ativo.",
+        },
+        {
+            "nome": "Normal",
+            "modo_cartas": "loja",
+            "tema": "cosmo",
+            "bloqueado": False,
+            "motivo": "",
+        },
+    ]
+
+    btn_w, btn_h = 280, 82
+    gap = 58
+    total_w = btn_w * 2 + gap
+    y_botoes = altura // 2 - btn_h // 2 + 28
+    x_inicio = largura // 2 - total_w // 2
+    rects = [
+        pygame.Rect(x_inicio, y_botoes, btn_w, btn_h),
+        pygame.Rect(x_inicio + btn_w + gap, y_botoes, btn_w, btn_h),
+    ]
+    btn_voltar = pygame.Rect(largura - 166, 34, 126, 38)
+
+    estrelas = []
+    for _ in range(115):
+        estrelas.append({
+            "x": random.uniform(0, largura),
+            "y": random.uniform(0, altura),
+            "r": random.uniform(1.0, 3.2),
+            "alpha": random.randint(80, 230),
+            "pulso": random.uniform(0.002, 0.008),
+            "drift": random.uniform(-0.08, 0.12),
+        })
+
+    brasas = []
+    for _ in range(95):
+        brasas.append({
+            "x": random.uniform(0, largura),
+            "y": random.uniform(altura * 0.42, altura),
+            "r": random.uniform(1.6, 5.0),
+            "vy": random.uniform(0.8, 2.6),
+            "vx": random.uniform(-0.6, 0.6),
+            "alpha": random.randint(75, 210),
+        })
+
+    def mostrar_aviso(texto):
+        nonlocal aviso_texto, aviso_fim
+        aviso_texto = texto
+        aviso_fim = pygame.time.get_ticks() + 1900
+
+    def mover_selecao(delta):
+        nonlocal selecionado
+        selecionado = (selecionado + delta) % len(opcoes_dificuldade)
+        tocar_hover()
+
+    def confirmar_selecao():
+        opcao = opcoes_dificuldade[selecionado]
+        if opcao["bloqueado"]:
+            tocar_hover()
+            mostrar_aviso(opcao["motivo"])
+            return None
+        tocar_selecionar()
+        return opcao["modo_cartas"]
+
+    def desenhar_fundo_cosmo(agora):
+        for y in range(0, altura, 8):
+            t = y / max(1, altura)
+            cor = (
+                int(5 + 12 * t),
+                int(8 + 20 * t),
+                int(28 + 58 * t),
+            )
+            pygame.draw.rect(tela, cor, (0, y, largura, 8))
+
+        nebula = pygame.Surface((largura, altura), pygame.SRCALPHA)
+        pulso = (math.sin(agora * 0.0012) + 1.0) * 0.5
+        pygame.draw.circle(nebula, (30, 120, 255, int(34 + pulso * 28)), (int(largura * 0.25), int(altura * 0.58)), 230)
+        pygame.draw.circle(nebula, (170, 80, 255, 32), (int(largura * 0.76), int(altura * 0.34)), 190)
+        pygame.draw.circle(nebula, (0, 255, 204, 24), (int(largura * 0.52), int(altura * 0.82)), 260)
+        tela.blit(nebula, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+        for estrela in estrelas:
+            estrela["x"] += estrela["drift"]
+            if estrela["x"] < -6:
+                estrela["x"] = largura + 6
+            elif estrela["x"] > largura + 6:
+                estrela["x"] = -6
+            alpha = max(35, min(255, int(estrela["alpha"] + math.sin(agora * estrela["pulso"]) * 55)))
+            cor = (210, 240, 255, alpha)
+            surf = pygame.Surface((10, 10), pygame.SRCALPHA)
+            pygame.draw.circle(surf, cor, (5, 5), int(estrela["r"]))
+            tela.blit(surf, (int(estrela["x"]) - 5, int(estrela["y"]) - 5))
+
+        for i in range(8):
+            y = int((altura * 0.12 + i * 66 + math.sin(agora * 0.001 + i) * 14) % altura)
+            pygame.draw.line(tela, (0, 255, 204, 22), (0, y), (largura, y + 34), 1)
+
+    def desenhar_fundo_inferno(agora):
+        for y in range(0, altura, 7):
+            t = y / max(1, altura)
+            cor = (
+                int(8 + 48 * t),
+                int(2 + 12 * t),
+                int(4 + 4 * t),
+            )
+            pygame.draw.rect(tela, cor, (0, y, largura, 7))
+
+        ceu = pygame.Surface((largura, altura), pygame.SRCALPHA)
+        pygame.draw.circle(ceu, (140, 18, 0, 70), (int(largura * 0.66), int(altura * 0.28)), 250)
+        pygame.draw.circle(ceu, (255, 70, 0, 38), (int(largura * 0.31), int(altura * 0.38)), 190)
+        tela.blit(ceu, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+        chao_y = altura - 112
+        pygame.draw.rect(tela, (26, 8, 5), (0, chao_y, largura, altura - chao_y))
+        pygame.draw.rect(tela, (92, 18, 0), (0, chao_y, largura, 6))
+
+        for i in range(18):
+            x = int((i * 87 + math.sin(agora * 0.0017 + i) * 16) % largura)
+            y = chao_y + 24 + (i % 4) * 17
+            pygame.draw.line(tela, (255, 82, 0), (x - 24, y), (x + 50, y + 8), 2)
+            pygame.draw.line(tela, (255, 210, 70), (x - 8, y + 1), (x + 24, y + 5), 1)
+
+        fogo = pygame.Surface((largura, altura), pygame.SRCALPHA)
+        for i in range(42):
+            x = int(i * largura / 41)
+            oscilacao = math.sin(agora * 0.006 + i * 0.9)
+            h = int(50 + oscilacao * 18 + (i % 5) * 11)
+            base = chao_y + 12
+            pontos = [
+                (x - 24, base),
+                (x - 8, base - h // 2),
+                (x, base - h),
+                (x + 10, base - h // 3),
+                (x + 28, base),
+            ]
+            pygame.draw.polygon(fogo, (255, 52, 0, 130), pontos)
+            pontos2 = [(x - 11, base), (x, base - h + 24), (x + 12, base)]
+            pygame.draw.polygon(fogo, (255, 194, 45, 160), pontos2)
+        tela.blit(fogo, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+        for brasa in brasas:
+            brasa["y"] -= brasa["vy"]
+            brasa["x"] += brasa["vx"] + math.sin(agora * 0.002 + brasa["r"]) * 0.18
+            if brasa["y"] < -10:
+                brasa["y"] = random.uniform(chao_y, altura + 20)
+                brasa["x"] = random.uniform(0, largura)
+            if brasa["x"] < 0:
+                brasa["x"] = largura
+            elif brasa["x"] > largura:
+                brasa["x"] = 0
+            surf = pygame.Surface((14, 14), pygame.SRCALPHA)
+            pygame.draw.circle(surf, (255, 112, 24, brasa["alpha"]), (7, 7), int(brasa["r"]))
+            tela.blit(surf, (int(brasa["x"]) - 7, int(brasa["y"]) - 7), special_flags=pygame.BLEND_RGBA_ADD)
+
+    def desenhar_chamas_botao(rect, agora):
+        fogo = pygame.Surface((rect.w + 70, rect.h + 70), pygame.SRCALPHA)
+        for i in range(20):
+            x = 35 + int((i + 0.5) * rect.w / 20)
+            base = rect.h + 36
+            h = int(28 + 18 * math.sin(agora * 0.008 + i * 1.7))
+            pontos = [(x - 14, base), (x, base - h - (i % 3) * 8), (x + 16, base)]
+            pygame.draw.polygon(fogo, (255, 60, 0, 130), pontos)
+            pygame.draw.polygon(fogo, (255, 210, 50, 165), [(x - 6, base), (x, base - h + 12), (x + 7, base)])
+        tela.blit(fogo, (rect.x - 35, rect.y - 35), special_flags=pygame.BLEND_RGBA_ADD)
+
+    def desenhar_botao(opcao, rect, indice, agora):
+        ativo = indice == selecionado
+        bloqueado = opcao["bloqueado"]
+
+        if opcao["tema"] == "inferno" and ativo:
+            desenhar_chamas_botao(rect, agora)
+
+        surf = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
+        if opcao["tema"] == "inferno":
+            cor_base = (72, 12, 5, 228) if ativo else (28, 10, 8, 178)
+            cor_borda = (255, 92, 24) if ativo else (120, 42, 24)
+        else:
+            cor_base = (12, 28, 72, 220) if ativo else (9, 16, 36, 178)
+            cor_borda = (120, 220, 255) if ativo else (70, 96, 130)
+
+        if bloqueado:
+            cor_base = (30, 28, 32, 190)
+            cor_borda = (96, 86, 86) if not ativo else (255, 96, 48)
+
+        pygame.draw.rect(surf, cor_base, (0, 0, rect.w, rect.h), border_radius=8)
+        pygame.draw.rect(surf, cor_borda, (0, 0, rect.w, rect.h), width=2 if ativo else 1, border_radius=8)
+
+        if ativo:
+            glow_cor = (255, 80, 24, 38) if opcao["tema"] == "inferno" else (0, 230, 255, 34)
+            pygame.draw.rect(surf, glow_cor, (6, 6, rect.w - 12, rect.h - 12), border_radius=6)
+
+        if opcao["tema"] == "cosmo":
+            for n in range(9):
+                sx = int((n * 37 + agora * 0.02) % rect.w)
+                sy = 12 + (n * 17) % (rect.h - 24)
+                pygame.draw.circle(surf, (190, 240, 255, 80 if ativo else 36), (sx, sy), 1 + (n % 2))
+        elif ativo:
+            for n in range(7):
+                sx = 18 + (n * 41) % (rect.w - 36)
+                sy = rect.h - 10
+                h = 16 + int(math.sin(agora * 0.01 + n) * 7)
+                pygame.draw.polygon(surf, (255, 76, 0, 145), [(sx - 7, sy), (sx, sy - h), (sx + 8, sy)])
+
+        cor_texto = (130, 130, 135) if bloqueado else ((255, 246, 220) if opcao["tema"] == "inferno" else (230, 245, 255))
+        texto = font_botao.render(opcao["nome"].upper(), True, cor_texto)
+        surf.blit(texto, texto.get_rect(center=(rect.w // 2, rect.h // 2 - (9 if bloqueado else 0))))
+
+        if bloqueado:
+            aviso = font_peq.render("TRAVADO", True, (255, 120, 80) if ativo else (150, 130, 130))
+            surf.blit(aviso, aviso.get_rect(center=(rect.w // 2, rect.h // 2 + 24)))
+            for x in range(-rect.h, rect.w, 22):
+                pygame.draw.line(surf, (255, 255, 255, 24), (x, rect.h), (x + rect.h, 0), 1)
+
+        tela.blit(surf, rect.topleft)
+
+    while True:
+        agora = pygame.time.get_ticks()
+        mx, my = ui_helpers.obter_pos_mouse_superficie(tela)
+
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if evento.type == pygame.MOUSEMOTION:
+                modo_interacao = "mouse"
+            elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                modo_interacao = "mouse"
+                pos_evento = ui_helpers.converter_pos_mouse_jogo(evento.pos)
+                if btn_voltar.collidepoint(pos_evento):
+                    tocar_selecionar()
+                    return None
+                for i, rect in enumerate(rects):
+                    if rect.collidepoint(pos_evento):
+                        selecionado = i
+                        resultado = confirmar_selecao()
+                        if resultado is not None:
+                            return resultado
+            elif evento.type == pygame.KEYDOWN:
+                modo_interacao = "teclado"
+                if evento.key == pygame.K_ESCAPE:
+                    tocar_selecionar()
+                    return None
+                elif evento.key in [pygame.K_LEFT, pygame.K_a]:
+                    mover_selecao(-1)
+                elif evento.key in [pygame.K_RIGHT, pygame.K_d]:
+                    mover_selecao(1)
+                elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    resultado = confirmar_selecao()
+                    if resultado is not None:
+                        return resultado
+            elif evento.type == pygame.JOYAXISMOTION and controle is not None:
+                modo_interacao = "teclado"
+                if evento.axis == 0:
+                    if evento.value > 0.5 and not analogo_movido:
+                        mover_selecao(1)
+                        analogo_movido = True
+                    elif evento.value < -0.5 and not analogo_movido:
+                        mover_selecao(-1)
+                        analogo_movido = True
+                    elif abs(evento.value) < 0.3:
+                        analogo_movido = False
+            elif evento.type == pygame.JOYHATMOTION and controle is not None:
+                modo_interacao = "teclado"
+                dx, _ = evento.value
+                if dx > 0:
+                    mover_selecao(1)
+                elif dx < 0:
+                    mover_selecao(-1)
+            elif evento.type == pygame.JOYBUTTONDOWN and controle is not None:
+                modo_interacao = "teclado"
+                if evento.button == 0:
+                    resultado = confirmar_selecao()
+                    if resultado is not None:
+                        return resultado
+                elif evento.button == 1:
+                    tocar_selecionar()
+                    return None
+
+        if modo_interacao == "mouse":
+            for i, rect in enumerate(rects):
+                if rect.collidepoint(mx, my) and selecionado != i:
+                    selecionado = i
+                    tocar_hover()
+
+        if opcoes_dificuldade[selecionado]["tema"] == "inferno":
+            desenhar_fundo_inferno(agora)
+        else:
+            desenhar_fundo_cosmo(agora)
+
+        titulo = font_titulo.render("Selecione a dificuldade", True, (255, 255, 255))
+        sombra = font_titulo.render("Selecione a dificuldade", True, (12, 8, 18))
+        tela.blit(sombra, (38, 38))
+        tela.blit(titulo, (34, 34))
+
+        for i, opcao in enumerate(opcoes_dificuldade):
+            desenhar_botao(opcao, rects[i], i, agora)
+
+        hover_voltar = modo_interacao == "mouse" and btn_voltar.collidepoint(mx, my)
+        surf_voltar = pygame.Surface((btn_voltar.w, btn_voltar.h), pygame.SRCALPHA)
+        pygame.draw.rect(surf_voltar, (18, 12, 28, 210 if hover_voltar else 150), (0, 0, btn_voltar.w, btn_voltar.h), border_radius=7)
+        pygame.draw.rect(surf_voltar, (255, 180, 90) if hover_voltar else (120, 120, 135), (0, 0, btn_voltar.w, btn_voltar.h), width=1, border_radius=7)
+        texto_voltar = font_info.render("VOLTAR", True, (255, 230, 190) if hover_voltar else (170, 170, 182))
+        surf_voltar.blit(texto_voltar, texto_voltar.get_rect(center=(btn_voltar.w // 2, btn_voltar.h // 2)))
+        tela.blit(surf_voltar, btn_voltar.topleft)
+
+        if aviso_texto and agora < aviso_fim:
+            aviso = font_info.render(aviso_texto, True, (255, 180, 100))
+            painel = pygame.Surface((aviso.get_width() + 42, 42), pygame.SRCALPHA)
+            pygame.draw.rect(painel, (24, 10, 8, 220), painel.get_rect(), border_radius=7)
+            pygame.draw.rect(painel, (255, 92, 32, 120), painel.get_rect(), width=1, border_radius=7)
+            painel.blit(aviso, (21, 20 - aviso.get_height() // 2))
+            tela.blit(painel, (largura // 2 - painel.get_width() // 2, y_botoes + btn_h + 32))
+
+        instr = font_info.render("A/D ou SETAS: alternar | ENTER/ESPACO: selecionar | ESC: voltar", True, (205, 220, 230))
+        tela.blit(instr, instr.get_rect(center=(largura // 2, altura - 40)))
+
+        ui_helpers.desenhar_cursor_personalizado(tela)
+        pygame.display.flip()
+        clock.tick(60)
 
 def tela_escolha_modo():
     import socket, pyperclip, random
@@ -1808,17 +2158,9 @@ def tela_configuracoes_jogabilidade(tela, fonte):
     except:
         modo_teleporte = "fixo"
 
-    # Carregar cartas config
-    try:
-        with open("saves/config_cartas.json", "r") as f:
-            modo_cartas = json.load(f).get("modo_cartas", "loja")
-    except:
-        modo_cartas = "loja"
-        
     config = {
         "mostrar_tutorial": mostrar_tut,
-        "modo_teleporte": modo_teleporte,
-        "modo_cartas": modo_cartas
+        "modo_teleporte": modo_teleporte
     }
     config["__aplicar__"] = "aplicar"
     config_salva = json.loads(json.dumps(config))
@@ -1826,7 +2168,6 @@ def tela_configuracoes_jogabilidade(tela, fonte):
     opcoes_config = [
         {"nome": "Tutorial", "chave": "mostrar_tutorial", "valores": [True, False], "labels": ["Ativado", "Desativado"]},
         {"nome": "Modo de Teleporte", "chave": "modo_teleporte", "valores": ["fixo", "mouse"], "labels": ["Fixo", "Mouse Target"]},
-        {"nome": "Sistema de Cartas", "chave": "modo_cartas", "valores": ["loja", "drops"], "labels": ["Loja (Padrao)", "Drops de Inimigos"]},
         {"nome": "Aplicar Alteracoes", "chave": "__aplicar__", "valores": None, "labels": None},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
     ]
@@ -1839,10 +2180,6 @@ def tela_configuracoes_jogabilidade(tela, fonte):
         "modo_teleporte": {
             "fixo": "Modo Fixo: Teleporta na direcao do movimento. Rapido e instantaneo.",
             "mouse": "Modo Mouse: Segure a tecla para mirar na posicao do cursor e solte para teleportar."
-        },
-        "modo_cartas": {
-            "loja": "Adquira e escolha cartas na loja ao final de cada fase.",
-            "drops": "Cartas dropam aleatoriamente de inimigos e expiram em 4 segundos."
         }
     }
     
@@ -1859,8 +2196,6 @@ def tela_configuracoes_jogabilidade(tela, fonte):
             json.dump({"mostrar_tutorial": config["mostrar_tutorial"]}, f)
         with open("saves/config_teleporte.json", "w") as f:
             json.dump({"modo": config["modo_teleporte"]}, f)
-        with open("saves/config_cartas.json", "w") as f:
-            json.dump({"modo_cartas": config["modo_cartas"]}, f)
         try:
             import Variaveis
             Variaveis.obter_modo_teleporte(forcar_recarregar=True)
@@ -2074,6 +2409,7 @@ def _dados_catalogo_temporal():
             {"nome": "Cristalizador", "imagem": "Sprites/Inimig1.png", "funcionamento": "Mesmo corpo-base do Errante Temporal com efeito cristalizador. No jogo, funciona como suporte defensivo: reduz dano em inimigos proximos e vira alvo prioritario.", "historia": "A ruptura endurece o errante por dentro, cobrindo sua forma comum com uma logica de cristal. Ele nao persegue apenas para matar; persegue para fixar a batalha em favor da horda."},
             {"nome": "Projetador", "imagem": "Sprites/Inimig1.png", "funcionamento": "Mesmo corpo-base do Errante Temporal, mas ataca de longe. Ele para em distancia segura, projeta disparos e obriga reposicionamento constante.", "historia": "E um errante que aprendeu a estender o proprio colapso pelo espaco. No livro, sua diferenca nao esta no corpo, mas na capacidade de transformar distancia em pressao."},
             {"nome": "Elite", "imagem": "Sprites/Inimig1.png", "funcionamento": "Mesmo corpo-base do Errante Temporal, so que maior, com vida multiplicada e presenca mais punitiva. No jogo, pune dano baixo e falta de mobilidade.", "historia": "Quando um errante sobrevive tempo demais, ganha peso temporal. A Elite e o mesmo monstro comum, ampliado pela memoria das vezes em que quase venceu."},
+            {"nome": "Curater", "imagem": "Sprites/Inimig1.png", "visual": "curater", "funcionamento": "Anomalia de cura liberada mais tarde na primeira fase. Mantem distancia e cura globalmente aliados feridos de outras especies. Ele nao cura a si mesmo nem outros Curaters, entao eliminar essa anomalia corta a sustentacao do grupo.", "historia": "Nasceu quando a areia cosmica aprendeu a preservar seus proprios erros. Tem o mesmo corpo-base do Errante Temporal, mas cogumelos e brotos verdes denunciam a mutacao de suporte que o prende ao campo de batalha."},
         ],
         "Chefes": [
             {"nome": "BOSS 1: Caranguejo do Nulo", "imagem": "Sprites/Boss1.png", "funcionamento": "A Entropia Temporal. No jogo, e o primeiro teste grande de leitura de ataques, teleporte, dano sustentado e controle de invocacoes. Suas janelas de perigo representam bolhas, impacto e pressao de lacaios corrompidos.", "historia": "Localizacao: Dimensao Roxa, castelo em ruinas e deserto roxo. Crustaceo biomecanico colossal fundido a rocha, com bracos desproporcionais, olhos roxos flamejantes e um relogio caotico de bronze no torax. A vitoria abre a fenda dimensional que arranca Geovana para o proximo mundo."},
@@ -2120,7 +2456,39 @@ def _dados_catalogo_temporal():
     }
 
 
-def _catalogo_carregar_imagem(caminho, limite=(190, 190)):
+def _catalogo_aplicar_visual_curater(img):
+    base = pygame.Surface(img.get_size(), pygame.SRCALPHA)
+    base.blit(img, (0, 0))
+    base.fill((190, 255, 205, 255), special_flags=pygame.BLEND_RGBA_MULT)
+
+    w, h = base.get_size()
+    centro_x = w // 2
+    base_y = h - 12
+    for i in range(9):
+        fase = i * 0.83
+        px = centro_x + int(math.cos(fase) * w * 0.38)
+        py = base_y + int(math.sin(i * 1.27) * h * 0.08)
+        caule_h = int(h * (0.08 + (i % 3) * 0.025))
+        cor_caule = (42, 150, 58, 235)
+        cor_chapeu = (108, 238, 128, 245) if i % 2 else (74, 204, 92, 245)
+        pygame.draw.line(base, cor_caule, (px, py), (px, py - caule_h), max(2, w // 45))
+        pygame.draw.ellipse(base, cor_chapeu, (px - w // 22, py - caule_h - h // 30, w // 13, h // 23))
+        pygame.draw.ellipse(base, (210, 255, 216, 230), (px - w // 70, py - caule_h - h // 42, w // 42, h // 55))
+
+    for i in range(5):
+        ang = i * (math.pi * 2 / 5) + 0.35
+        x1 = centro_x + int(math.cos(ang) * w * 0.18)
+        y1 = int(h * 0.52) + int(math.sin(ang) * h * 0.12)
+        x2 = centro_x + int(math.cos(ang) * w * 0.32)
+        y2 = int(h * 0.52) + int(math.sin(ang) * h * 0.20)
+        pygame.draw.line(base, (88, 255, 120, 135), (x1, y1), (x2, y2), max(1, w // 70))
+        pygame.draw.circle(base, (170, 255, 190, 170), (x2, y2), max(2, w // 38))
+
+    pygame.draw.circle(base, (80, 230, 105, 120), (centro_x, int(h * 0.55)), int(min(w, h) * 0.43), max(1, w // 70))
+    return base
+
+
+def _catalogo_carregar_imagem(caminho, limite=(190, 190), visual=None):
     if not caminho or not os.path.exists(caminho):
         return None
     try:
@@ -2128,7 +2496,10 @@ def _catalogo_carregar_imagem(caminho, limite=(190, 190)):
         w, h = img.get_size()
         escala = min(limite[0] / max(1, w), limite[1] / max(1, h))
         novo_tamanho = (max(1, int(w * escala)), max(1, int(h * escala)))
-        return pygame.transform.smoothscale(img, novo_tamanho)
+        img = pygame.transform.smoothscale(img, novo_tamanho)
+        if visual == "curater":
+            img = _catalogo_aplicar_visual_curater(img)
+        return img
     except Exception as e:
         registrar_erro(f"Erro ao carregar imagem do catalogo: {caminho}", e)
         return None
@@ -2189,10 +2560,12 @@ def tela_catalogo_temporal():
     fonte_texto = pygame.font.Font(caminho_fonte_letra1, 21)
     fonte_pequena = pygame.font.Font(caminho_fonte_letra1, 18)
 
-    def obter_imagem(caminho):
-        if caminho not in imagens_cache:
-            imagens_cache[caminho] = _catalogo_carregar_imagem(caminho)
-        return imagens_cache[caminho]
+    def obter_imagem(item):
+        caminho = item.get("imagem")
+        chave_cache = (caminho, item.get("visual"))
+        if chave_cache not in imagens_cache:
+            imagens_cache[chave_cache] = _catalogo_carregar_imagem(caminho, visual=item.get("visual"))
+        return imagens_cache[chave_cache]
 
     rodando_catalogo = True
     while rodando_catalogo:
@@ -2314,7 +2687,7 @@ def tela_catalogo_temporal():
         pygame.draw.rect(tela, (12, 12, 20, 220), detalhe_rect, border_radius=12)
         pygame.draw.rect(tela, (0, 255, 230, 130), detalhe_rect, width=1, border_radius=12)
 
-        img = obter_imagem(item.get("imagem"))
+        img = obter_imagem(item)
         img_area = pygame.Rect(detalhe_rect.right - 230, detalhe_rect.top + 32, 190, 190)
         pygame.draw.rect(tela, (20, 20, 30, 180), img_area, border_radius=10)
         pygame.draw.rect(tela, (90, 90, 130), img_area, width=1, border_radius=10)
@@ -2693,6 +3066,7 @@ def executar_menu_principal(game_manager=None):
                 estado_jornada = "modo"
                 retornar_ao_menu = False
                 modo, ip = None, None
+                modo_cartas = "loja"
                 
                 while True:
                     if estado_jornada == "modo":
@@ -2701,11 +3075,22 @@ def executar_menu_principal(game_manager=None):
                             retornar_ao_menu = True
                             break
                         else:
+                            if modo == "offline":
+                                estado_jornada = "dificuldade"
+                            else:
+                                modo_cartas = "loja"
+                                estado_jornada = "aurea"
+                    elif estado_jornada == "dificuldade":
+                        modo_escolhido = tela_escolha_dificuldade(tela, fonte, mostrar_tutorial)
+                        if modo_escolhido is None:
+                            estado_jornada = "modo"
+                        else:
+                            modo_cartas = modo_escolhido
                             estado_jornada = "aurea"
                     elif estado_jornada == "aurea":
                         res_aurea = tela_selecao_aurea(tela, fonte)
                         if res_aurea == "voltar":
-                            estado_jornada = "modo"
+                            estado_jornada = "dificuldade" if modo == "offline" else "modo"
                         else:
                             break
                 
@@ -2725,6 +3110,8 @@ def executar_menu_principal(game_manager=None):
 
                 with open("saves/modo_jogo.json", "w") as f:
                     json.dump({"modo": modo, "ip": ip}, f)
+                with open("saves/config_cartas.json", "w") as f:
+                    json.dump({"modo_cartas": modo_cartas}, f)
 
                 if game_manager:
                     from game_manager import EstadoJogo
@@ -2869,7 +3256,7 @@ def executar_menu_principal(game_manager=None):
                     if not config_rodando:
                         break
                     
-                    # Desenhar botÃµes premium glassy no submenu
+                    # Desenhar botões premium glassy no submenu
                     for i, opcao in enumerate(opcoes_config):
                         x_botao = largura_tela // 2 - 160
                         y_botao = int(altura_tela // 4.5 + i * 65)

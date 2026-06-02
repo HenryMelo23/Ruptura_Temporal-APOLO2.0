@@ -5,6 +5,11 @@ import math
 import os
 import json
 from sons_procedurais import tocar_hover, tocar_selecionar
+import ui_helpers
+
+
+def _obter_pos_mouse_pause():
+    return ui_helpers.obter_pos_mouse_superficie()
 
 # Atributos e descricoes para todas as cartas
 atributos_todas_cartas = {
@@ -142,7 +147,7 @@ def _confirmar_saida_alteracoes_pause(tela, fontes):
         msg = fonte_texto.render("Salvar alteracoes antes de sair?", True, (220, 220, 230))
         tela.blit(msg, msg.get_rect(center=(caixa.centerx, caixa.y + 90)))
 
-        mx, my = pygame.mouse.get_pos()
+        mx, my = _obter_pos_mouse_pause()
         for i, (label, _) in enumerate(opcoes):
             rect = pygame.Rect(caixa.x + 95, caixa.y + 120 + i * 42, caixa.w - 190, 34)
             if rect.collidepoint(mx, my):
@@ -269,7 +274,7 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
         ret_tit = texto_titulo.get_rect(center=(largura_tela // 2, altura_tela // 8))
         tela.blit(texto_titulo, ret_tit)
         
-        mx, my = pygame.mouse.get_pos()
+        mx, my = _obter_pos_mouse_pause()
         
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
@@ -436,7 +441,7 @@ def abrir_configuracoes_audio(tela, fontes, fundo_pausa=None):
         ret_tit = texto_titulo.get_rect(center=(largura_tela // 2, altura_tela // 8))
         tela.blit(texto_titulo, ret_tit)
         
-        mx, my = pygame.mouse.get_pos()
+        mx, my = _obter_pos_mouse_pause()
         
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
@@ -563,22 +568,14 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
     except:
         modo_teleporte = "fixo"
 
-    try:
-        with open("saves/config_cartas.json", "r") as f:
-            modo_cartas = json.load(f).get("modo_cartas", "loja")
-    except:
-        modo_cartas = "loja"
-        
     config = {
         "mostrar_tutorial": mostrar_tut,
-        "modo_teleporte": modo_teleporte,
-        "modo_cartas": modo_cartas
+        "modo_teleporte": modo_teleporte
     }
     
     opcoes_config = [
         {"nome": "Tutorial", "chave": "mostrar_tutorial", "valores": [True, False], "labels": ["Ativado", "Desativado"]},
         {"nome": "Modo de Teleporte", "chave": "modo_teleporte", "valores": ["fixo", "mouse"], "labels": ["Fixo", "Mouse Target"]},
-        {"nome": "Sistema de Cartas", "chave": "modo_cartas", "valores": ["loja", "drops"], "labels": ["Loja (Padrao)", "Drops de Inimigos"]},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
     ]
     
@@ -590,10 +587,6 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
         "modo_teleporte": {
             "fixo": "Modo Fixo: Teleporta na direcao do movimento. Rapido e instantaneo.",
             "mouse": "Modo Mouse: Segure a tecla para mirar na posicao do cursor e solte para teleportar."
-        },
-        "modo_cartas": {
-            "loja": "Adquira e escolha cartas na loja ao final de cada fase.",
-            "drops": "Cartas dropam aleatoriamente de inimigos e expiram em 4 segundos."
         }
     }
     
@@ -618,10 +611,6 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
                 Variaveis.obter_modo_teleporte(forcar_recarregar=True)
             except:
                 pass
-        elif chave == "modo_cartas":
-            with open("saves/config_cartas.json", "w") as f:
-                json.dump({"modo_cartas": config[chave]}, f)
-                
     rodando = True
     while rodando:
         if fundo_pausa:
@@ -752,7 +741,7 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
         else:
             val_sel = config[opt_sel["chave"]]
             texto_desc_str = descricoes_valores[opt_sel["chave"]].get(val_sel, "")
-            if opt_sel["chave"] in ["mostrar_tutorial", "modo_cartas"]:
+            if opt_sel["chave"] == "mostrar_tutorial":
                 aviso_str = "AVISO: Esta alteracao so sera aplicada na proxima run/fase."
             else:
                 aviso_str = "Aplicado imediatamente."
@@ -875,7 +864,7 @@ def abrir_analise_atributos(tela, fontes, fundo_pausa=None):
         col_h = 440
         col_y = 120
         
-        mx, my = pygame.mouse.get_pos()
+        mx, my = _obter_pos_mouse_pause()
         
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
@@ -1039,7 +1028,7 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
         "Ajustar Controles": "Configurar teclas do teclado e botoes do mouse.",
         "Ajustar Audio": "Ajustar volumes de musica, efeitos e som geral.",
         "Ajustar Graficos": "Modificar configuracoes de sombra, particulas e FPS.",
-        "Ajustar Jogabilidade": "Configurar preferencias de tutorial, teleporte e cartas.",
+        "Ajustar Jogabilidade": "Configurar preferencias de tutorial e teleporte.",
         "Ver Anomalias": "Visualizar a lista de anomalias adquiridas nesta jornada.",
         "Sair ao Menu": "Encerrar a corrida atual e retornar ao menu principal."
     }
@@ -1099,7 +1088,7 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
     while rodando:
         agora = pygame.time.get_ticks()
         pulsar = (math.sin(agora * 0.005) + 1) / 2
-        mx, my = pygame.mouse.get_pos()
+        mx, my = _obter_pos_mouse_pause()
         
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
@@ -1151,7 +1140,7 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                             tocar_hover()
 
             elif evento.type == pygame.MOUSEBUTTONDOWN:
-                mx, my = evento.pos
+                mx, my = ui_helpers.converter_pos_mouse_jogo(evento.pos)
                 if estado_pause == "menu":
                     for i, opcao in enumerate(opcoes_pause):
                         y_pos = CARD_Y + 24 + i * 48

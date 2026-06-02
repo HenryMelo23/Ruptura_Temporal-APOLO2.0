@@ -11,6 +11,33 @@ import math
 import os
 import json
 
+from balanceamento import (
+    ANOMALIA_AGLOMERADOR_SEG,
+    ANOMALIA_CRISTALIZADOR_SEG,
+    ANOMALIA_CURATER_SEG,
+    ANOMALIA_ESPREITADOR_SEG,
+    ANOMALIA_PROJETADOR_SEG,
+    CARTAS_RARAS,
+    GANHO_VIDA_INIMIGO_HARD_MULTIPLICADOR,
+    VIDA_INIMIGO_HARD_MULTIPLICADOR,
+    bonus_limite_inimigos_sem_boss,
+    chance_carta_rara,
+    chance_com_sorte,
+    chance_drop_carta_por_tempo,
+    dano_boss_mitigado,
+    incremento_chance_carta_critico,
+    incremento_carta_dano,
+    incremento_dano_carta_critico,
+    incremento_sorte_carta,
+    limiar_execucao_boss,
+    vida_inicial_boss,
+    CURATER_CHANCE_SPAWN,
+    CURATER_CURA_PERCENTUAL_VIDA_PERDIDA,
+    CURATER_MULTIPLICADOR_VIDA,
+    CURATER_MITIGACAO_DANO,
+)
+
+
 from Config_Teclas import  carregar_config_teclas
 
 config_teclas = carregar_config_teclas()
@@ -139,7 +166,7 @@ espacamento = 100
 
 ########################################## BOSS 1
 
-vida_boss = 5000
+vida_boss = vida_inicial_boss(1, 5000)
 
 vida_maxima_boss1= vida_boss
 
@@ -291,7 +318,7 @@ frame_porcentagem=frames_chefe2_1
 
 boss_vivo2=True
 
-vida_boss2 = 8000
+vida_boss2 = vida_inicial_boss(2, 8000)
 
 vida_maxima_boss2= vida_boss2
 
@@ -421,7 +448,7 @@ intervalo_disparo_Boss_4 = 6000
 
 
 
-vida_boss4 = 10000
+vida_boss4 = vida_inicial_boss(4, 10000)
 
 vida_maxima_boss4 = vida_boss4
 
@@ -505,7 +532,7 @@ tempo_inicio_ataque_horizontal = 0
 
 ############################################ Boss 3
 
-vida_boss3 = 20000
+vida_boss3 = vida_inicial_boss(3, 20000)
 
 vida_maxima_boss3=vida_boss3
 
@@ -576,6 +603,8 @@ dano_por_tick_veneno_boss = 0
 tempo_inicio_veneno_boss = 0
 
 ultimo_tick_veneno_boss = 0
+
+INTERVALO_TICK_VENENO = 1000
 
 duracao_veneno_boss = 4000 
 
@@ -693,7 +722,7 @@ dimensoes_direcao_personagem = {
 
     'right': (52, 76), 
 
-    'disp': (54, 77)
+    'disp': (54, 80)
 
 }
 
@@ -1631,6 +1660,8 @@ cartas_compradas = {
 
     "Coletora":0,
 
+    "Mercenaria":0,
+
 }
 
 cartas_imagens = {
@@ -1660,6 +1691,8 @@ cartas_imagens = {
     "Poison": pygame.image.load('Sprites/Deck/carta_poison1.png'),
 
     "Coletora": pygame.image.load('Sprites/Deck/carta_estalo1.png'),
+
+    "Mercenaria": pygame.image.load('Sprites/Deck/carta_mercenaria1.png'),
 
 }
 
@@ -1691,7 +1724,17 @@ cartas_disponiveis_nomes = [
 
     "Coletora",
 
+    "Mercenaria",
+
 ]
+
+
+def normalizar_cartas_compradas(cartas):
+    if cartas is None:
+        cartas = {}
+    for nome in cartas_imagens.keys():
+        cartas.setdefault(nome, 0)
+    return cartas
 
 area_cartas = pygame.Rect(largura_tela // 4 - (len(cartas_compradas) * 100) // 2, altura_tela - 150, len(cartas_compradas) * 100, 100)
 
@@ -2302,6 +2345,25 @@ def calcular_posicao_prevista(pos_x, pos_y, direcao, velocidade, tempo_previsao)
 # ============ SISTEMA DE PARTÍCULAS DE VENENO PINGANDO ============
 
 particulas_veneno = []
+
+
+def aplicar_veneno(inimigo, tempo_atual, nivel_poison=0):
+    vida_base = max(1, inimigo.get("vida_maxima", inimigo.get("vida", 1)))
+    nivel = max(0, int(nivel_poison or 0))
+    dano_por_tick = max(1, vida_base * (0.02 + nivel * 0.005))
+    duracao = 8000 + nivel * 100
+
+    veneno_atual = inimigo.get("veneno")
+    if veneno_atual:
+        dano_por_tick = max(veneno_atual.get("dano_por_tick", 0), dano_por_tick)
+
+    inimigo["veneno"] = {
+        "dano_por_tick": dano_por_tick,
+        "tempo_inicio": tempo_atual,
+        "ultimo_tick": tempo_atual,
+        "tempo_texto_dano": tempo_atual,
+        "duracao": duracao,
+    }
 
 
 
@@ -3488,6 +3550,21 @@ def obter_modo_cartas():
 
 
 
+def _modo_hard_drops_ativo():
+    return obter_modo_cartas() == "drops"
+
+
+def vida_inimigo_comum_inicial(valor_base):
+    fator = VIDA_INIMIGO_HARD_MULTIPLICADOR if _modo_hard_drops_ativo() else 1.0
+    return max(1, float(valor_base) * fator)
+
+
+def ganho_vida_inimigo_comum(valor_base):
+    fator = GANHO_VIDA_INIMIGO_HARD_MULTIPLICADOR if _modo_hard_drops_ativo() else 1.0
+    return float(valor_base) * fator
+
+
+
 def limpar_cartas_no_chao():
 
     global cartas_no_chao
@@ -3502,75 +3579,50 @@ def tentar_soltar_carta(posicao, tempo_atual, chance_sorte_jogador, inimigos_eli
 
         return
 
-        
+    tempo_drop_ms = tempo_atual
+    try:
+        tempo_drop_ms = obter_tempo_decorrido() * 1000.0
+    except Exception:
+        pass
 
-    # Base chance starts at 0.5% (0.005) and scales slowly over time (10 min -> 5.0% base)
+    # A chance real por inimigo escala ate 40% em 2 horas; Sorte pode superar esse teto.
+    chance_drop = chance_drop_carta_por_tempo(tempo_drop_ms, chance_sorte_jogador)
 
-    chance_base = 0.005 + min(0.045, (tempo_atual / 600000.0) * 0.045)
+    if random.random() < chance_drop:
 
-    
+        all_cards = list(cartas_imagens.keys())
 
-    # First roll: base chance
+        rares = [c for c in all_cards if c in CARTAS_RARAS]
 
-    if random.random() < chance_base:
+        commons = [c for c in all_cards if c not in CARTAS_RARAS]
 
-        # Second roll: "chance on top of another chance"
+        chance_raridade = chance_carta_rara(chance_sorte_jogador, cartas_compradas)
 
-        # Scales with player luck (Chance_Sorte)
+        if random.random() < chance_raridade and rares:
 
-        chance_sorte_efetiva = 0.30 + chance_sorte_jogador
+            nome_carta = random.choice(rares)
 
-        if random.random() < chance_sorte_efetiva:
+        else:
 
-            rare_names = {"Trembo", "Petro", "Poison", "Coletora"}
+            nome_carta = random.choice(commons) if commons else random.choice(all_cards)
 
-            all_cards = list(cartas_imagens.keys())
+        img_original = cartas_imagens[nome_carta]
 
-            rares = [c for c in all_cards if c in rare_names]
+        img_pequena = pygame.transform.scale(img_original, (40, 60))
 
-            commons = [c for c in all_cards if c not in rare_names]
+        rect = img_pequena.get_rect(center=posicao)
 
-            
+        cartas_no_chao.append({
 
-            # Roll for rarity (same chance calculation as shop)
+            "nome": nome_carta,
 
-            # If player has 15+ Sorte cards, min rare chance is 10%
+            "rect": rect,
 
-            sorte_count = cartas_compradas.get("Sorte", 0)
+            "image": img_pequena,
 
-            chance_raridade = max(chance_sorte_jogador, 0.10) if sorte_count >= 15 else chance_sorte_jogador
+            "tempo_desaparecer": tempo_atual + 4000  # disappears after 4 seconds
 
-            
-
-            if random.random() < chance_raridade and rares:
-
-                nome_carta = random.choice(rares)
-
-            else:
-
-                nome_carta = random.choice(commons) if commons else random.choice(all_cards)
-
-                
-
-            img_original = cartas_imagens[nome_carta]
-
-            img_pequena = pygame.transform.scale(img_original, (40, 60))
-
-            rect = img_pequena.get_rect(center=posicao)
-
-            
-
-            cartas_no_chao.append({
-
-                "nome": nome_carta,
-
-                "rect": rect,
-
-                "image": img_pequena,
-
-                "tempo_desaparecer": tempo_atual + 4000  # disappears after 4 seconds
-
-            })
+        })
 
 
 
@@ -3596,9 +3648,7 @@ def atualizar_e_desenhar_cartas_no_chao(tela, tempo_atual):
 
         
 
-        rare_names = {"Trembo", "Petro", "Poison", "Coletora"}
-
-        cor_glow = (255, 215, 0) if c["nome"] in rare_names else (0, 255, 230)
+        cor_glow = (255, 215, 0) if c["nome"] in CARTAS_RARAS else (0, 255, 230)
 
         
 
@@ -3626,6 +3676,7 @@ def aplicar_carta_drop(nome, stats):
 
     """
 
+    stats["cartas_compradas"] = normalizar_cartas_compradas(stats.get("cartas_compradas", {}))
     ie = stats.get("inimigos_eliminados", 0)
 
     
@@ -3654,7 +3705,7 @@ def aplicar_carta_drop(nome, stats):
 
     elif nome == "Disparo crescente":
 
-        stats["dano_person_hit"] += 27 + (ie // 50) * 10
+        stats["dano_person_hit"] += incremento_carta_dano(ie)
 
         stats["cartas_compradas"]["Disparo crescente"] += 1
 
@@ -3678,9 +3729,9 @@ def aplicar_carta_drop(nome, stats):
 
     elif nome == "Tempestade":
 
-        stats["dano_person_hit"] += 10 + (ie // 50) * 4
+        stats["dano_person_hit"] += incremento_dano_carta_critico(ie)
 
-        stats["chance_critico"] += 0.02 + (ie // 100) * 0.005
+        stats["chance_critico"] += incremento_chance_carta_critico(ie)
 
         stats["cartas_compradas"]["Tempestade"] += 1
 
@@ -3766,7 +3817,7 @@ def aplicar_carta_drop(nome, stats):
 
     elif nome == "Sorte":
 
-        stats["Chance_Sorte"] += 0.006
+        stats["Chance_Sorte"] += incremento_sorte_carta()
 
         stats["cartas_compradas"]["Sorte"] += 1
 
@@ -3792,7 +3843,7 @@ def aplicar_carta_drop(nome, stats):
 
         stats["Valor_Bonus"] += 25
 
-        stats["cartas_compradas"]["Coletora"] += 1
+        stats["cartas_compradas"]["Mercenaria"] += 1
 
     
 
@@ -3836,7 +3887,7 @@ def coletar_cartas_no_chao(personagem_rect, stats, efeitos_texto_lista):
 
                 "y": carta["rect"].centery - 20,
 
-                "cor": (255, 215, 0) if nome in {"Tempestade", "Trembo", "Petro", "Poison", "Coletora"} else (0, 255, 230),
+                "cor": (255, 215, 0) if nome in CARTAS_RARAS else (0, 255, 230),
 
                 "tempo_inicio": tempo_agora
 
@@ -4246,6 +4297,8 @@ def reset_game_session():
 
         "Coletora": 0,
 
+        "Mercenaria": 0,
+
     }
 
     
@@ -4254,9 +4307,9 @@ def reset_game_session():
 
     boss_vivo1 = False
 
-    vida_boss = 5000
+    vida_boss = vida_inicial_boss(1, 5000)
 
-    vida_maxima_boss1 = 5000
+    vida_maxima_boss1 = vida_boss
 
     boss_morte_processada = False
 
@@ -4264,9 +4317,9 @@ def reset_game_session():
 
     Boss_vivo3 = False
 
-    vida_boss3 = 20000
+    vida_boss3 = vida_inicial_boss(3, 20000)
 
-    vida_maxima_boss3 = 20000
+    vida_maxima_boss3 = vida_boss3
 
     
 

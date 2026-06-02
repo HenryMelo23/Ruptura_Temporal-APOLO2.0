@@ -216,7 +216,7 @@ piscando_vida = False
 frames_inimigo = frames_inimigo_esquerda3 + frames_inimigo_direita3
 
 
-vida_inimigo_maxima=30
+vida_inimigo_maxima = vida_inimigo_comum_inicial(30)
 vida_inimigo= vida_inimigo_maxima
 carregar_atributos_na_fase=True
 imune_tempo_restante = 0  # Tempo restante de imunidade (em milissegundos)
@@ -272,6 +272,9 @@ def salvar_atributos():
 
 def carregar_atributos():
     global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, moedas_totais, Chance_Sorte, cartas_compradas
+    if not os.path.exists('saves/atributos.json'):
+        cartas_compradas = normalizar_cartas_compradas(cartas_compradas)
+        return
     with open('saves/atributos.json', 'r') as file:
         atributos = json.load(file)
         velocidade_personagem = atributos["velocidade_personagem"]
@@ -306,6 +309,7 @@ def carregar_atributos():
         Chance_Sorte = atributos.get("Chance_Sorte", 0.01)
         if "cartas_compradas" in atributos:
             cartas_compradas.update(atributos["cartas_compradas"])
+        cartas_compradas = normalizar_cartas_compradas(cartas_compradas)
 
 
 with open("saves/aurea_selecionada.json", "r") as file:
@@ -490,7 +494,7 @@ def atualizar_posicao_personagem(keys, joystick):
                 
                 # Escalonamento de elite (Fase 3)
                 mult = 1.0 + (nivel_ameaca * 0.15)
-                vida_inimigo_maxima += 0.8 * mult
+                vida_inimigo_maxima += ganho_vida_inimigo_comum(0.8 * mult)
                 Resistencia_petro += 0.02 * mult
                 dano_inimigo_perto += 0.08 * mult
                 dano_person_hit += 0.12 * mult
@@ -523,7 +527,7 @@ def atualizar_posicao_personagem(keys, joystick):
             by = pos_y_chefe3 + chefe_altura // 2
             dist_boss = math.hypot(bx - cx_t, by - cy_t)
             if dist_boss <= raio_choque:
-                vida_boss3 -= dano_choque
+                vida_boss3 -= dano_boss_mitigado(dano_choque, 3, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                 efeitos_texto.append({
                     "texto": f"-{int(dano_choque)}",
                     "x": pos_x_chefe3 + chefe_largura // 2,
@@ -1353,7 +1357,7 @@ def executar_jogo(game_manager=None):
                             # Multiplicador de Execução Superior (20%)
                             mult_ex = 1.0 + (nivel_ameaca * 0.20)
 
-                            vida_inimigo_maxima += 1.0 * mult_ex
+                            vida_inimigo_maxima += ganho_vida_inimigo_comum(1.0 * mult_ex)
                             Resistencia_petro += 0.03 * mult_ex
                             dano_inimigo_perto += 0.1 * mult_ex
                             dano_person_hit += 0.18 * mult_ex
@@ -1392,7 +1396,7 @@ def executar_jogo(game_manager=None):
                             # O multiplicador base da Fase 3 é mais alto (0.15)
                             mult = 1.0 + (nivel_ameaca * 0.15)
 
-                            vida_inimigo_maxima += 0.8 * mult
+                            vida_inimigo_maxima += ganho_vida_inimigo_comum(0.8 * mult)
                             Resistencia_petro += 0.02 * mult
                             dano_inimigo_perto += 0.08 * mult
                             dano_person_hit += 0.12 * mult
@@ -1713,7 +1717,7 @@ def executar_jogo(game_manager=None):
 
                             if inimigo_mais_proximo["vida"] <= 0:
                                 # Evolução por abate direto da Petro (Balanceado para 20 min)
-                                vida_inimigo_maxima += 0.7
+                                vida_inimigo_maxima += ganho_vida_inimigo_comum(0.7)
                                 Resistencia_petro += 0.04 # Crescimento de armadura robusto
                                 vida_maxima_petro += 1.5
                                 dano_person_hit += 0.1
@@ -1778,7 +1782,7 @@ def executar_jogo(game_manager=None):
                             # Aplica dano ao "boss"
                             vida_petro -= int(dano_inimigo_perto)
                             vida_petro += int(vida_maxima_petro - vida_petro) * quantidade_roubo_vida
-                            vida_boss3-= int(dano_person_hit*0.25)+300
+                            vida_boss3-= dano_boss_mitigado(int(dano_person_hit*0.25)+300, 3, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                             # Aqui você pode adicionar outras ações relacionadas ao dano ao "boss"
                             tempo_anterior_petro = tempo_atual_petro
 
@@ -1832,7 +1836,7 @@ def executar_jogo(game_manager=None):
                 ondas, correntes_eletricas, inimigos_comum, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda
             )
             if boss_info.get("hit_flag"):
-                vida_boss3 -= dano_person_hit * 3
+                vida_boss3 -= dano_boss_mitigado(dano_person_hit * 3, 3, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                 if "boss_atingido_por_onda" not in globals():
                     globals()["boss_atingido_por_onda"] = {}
                 globals()["boss_atingido_por_onda"]["boss"] = boss_info["atingido_por_onda"]
@@ -1874,7 +1878,7 @@ def executar_jogo(game_manager=None):
                     Variaveis.tentar_soltar_carta(morto["rect"].center, tempo_atual, Chance_Sorte, inimigos_eliminados)
                     inimigos_comum.remove(morto)
                     nivel_ameaca = min(inimigos_eliminados // 10, 100)
-                    vida_inimigo_maxima += 1.5 + nivel_ameaca * 1.2
+                    vida_inimigo_maxima += ganho_vida_inimigo_comum(1.5 + nivel_ameaca * 1.2)
                     Resistencia_petro += 0.4 + nivel_ameaca * 0.3
                     dano_inimigo_perto += 0.25 + nivel_ameaca * 0.15
                     dano_person_hit += 3 + nivel_ameaca * 1.2
@@ -2137,7 +2141,7 @@ def executar_jogo(game_manager=None):
                     piscando_vida = False
 
             tempo_atual = pygame.time.get_ticks()
-            if Ultimo_Estalo and vida_boss3 <= Executa_inimigo * vida_maxima_boss3:
+            if Ultimo_Estalo and vida_boss3 <= limiar_execucao_boss(Executa_inimigo) * vida_maxima_boss3:
                 Boss_vivo3=False
             elif vida_boss3 <=0:
                 Boss_vivo3=False
@@ -2207,6 +2211,7 @@ def executar_jogo(game_manager=None):
                             texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
                             pos_texto = (pos_x_chefe3 + chefe_largura3 // 2 - texto_dano.get_width() // 2, pos_y_chefe3 - 20)
                             tempo_texto_dano = pygame.time.get_ticks()
+                            dano = dano_boss_mitigado(dano, 3, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                             vida_boss3 -= dano
                             disparos.remove(disparo)
 
@@ -2220,7 +2225,7 @@ def executar_jogo(game_manager=None):
 
                         # Aplicar dano a cada 500 ms
                         if tempo_atual - ultimo_tick_veneno_boss >= INTERVALO_TICK_VENENO:
-                            vida_boss3 -= dano_por_tick_veneno_boss
+                            vida_boss3 -= dano_boss_mitigado(dano_por_tick_veneno_boss, 3, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0), tipo_dano="veneno")
                             ultimo_tick_veneno_boss = tempo_atual
 
                         # Exibir texto do dano de veneno (1.5 segundos)

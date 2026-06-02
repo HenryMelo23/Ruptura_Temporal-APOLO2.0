@@ -243,7 +243,8 @@ def tocar_trailer_se_necessario(tela):
     try:
         import vlc
     except Exception as e:
-        registrar_erro("Trailer: erro ao carregar python-vlc", e)
+        if "vlc" not in str(e).lower():
+            registrar_erro("Trailer: erro ao carregar python-vlc", e)
         return
 
     # 3. Executa a reproducao
@@ -373,7 +374,8 @@ def tocar_trailer_se_necessario(tela):
         pygame.display.flip()
         
     except Exception as e:
-        registrar_erro("Trailer: erro ao reproduzir", e)
+        if "vlc" not in str(e).lower():
+            registrar_erro("Trailer: erro ao reproduzir", e)
         
     # Salva nas configuracoes para nao repetir
     try:

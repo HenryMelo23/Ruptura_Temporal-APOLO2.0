@@ -138,7 +138,7 @@ mensagens_iniciais = [
     (3, "Use W, A, S e D para se mover"),
     (7, "Clique no botão esquerdo do mouse para atacar"),
     (11, "Use SHIFT para dar dash"),
-    (15, "Aperte Q para abrir a loja"),
+    (15, "Colete recursos para fortalecer sua linha temporal"),
     (19, "Junte pontos e melhore o personagem"),
     (23, "Você está sozinho. Mas está preparado."),
     
@@ -188,7 +188,7 @@ def thread_processar_pacotes():
             if modo == "host"  and "join_ready" in dados and dados["join_ready"]:
                 esperando_host = False
             if "abrir_loja" in dados:
-                if dados["abrir_loja"]:
+                if dados["abrir_loja"] and obter_modo_cartas() != "drops":
                     quantidade_cartas = dados.get("quantidade_cartas", 1)  # Define a quantidade de cartas disponíveis
                     loja_aberta = True  # Define que a loja deve ser aberta no cliente
             if "pong" in dados:
@@ -452,6 +452,9 @@ def salvar_atributos():
 
 def carregar_atributos():
     global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, Chance_Sorte, cartas_compradas
+    if not os.path.exists('saves/atributos.json'):
+        cartas_compradas = normalizar_cartas_compradas(cartas_compradas)
+        return
     with open('saves/atributos.json', 'r') as file:
         atributos = json.load(file)
         velocidade_personagem = atributos["velocidade_personagem"]
@@ -485,6 +488,7 @@ def carregar_atributos():
         Chance_Sorte = atributos.get("Chance_Sorte", 0.01)
         if "cartas_compradas" in atributos:
             cartas_compradas.update(atributos["cartas_compradas"])
+        cartas_compradas = normalizar_cartas_compradas(cartas_compradas)
         
 with open("saves/aurea_selecionada.json", "r") as file:
     aurea = json.load(file)["aurea"]
@@ -532,7 +536,7 @@ movimento_pressionado = False
 tempo_ultimo_hit_inimigo = pygame.time.get_ticks()
 
 piscando_vida = False
-vida_inimigo_maxima=30
+vida_inimigo_maxima = vida_inimigo_comum_inicial(30)
 vida_inimigo= vida_inimigo_maxima
 
 
@@ -841,7 +845,7 @@ def aplicar_crescimento_personalizado():
     global max_inimigos, tempo_revive
 
     # Crescimento dos atributos do inimigo
-    vida_inimigo_maxima += 1.2 + nivel_ameaca * 0.8
+    vida_inimigo_maxima += ganho_vida_inimigo_comum(1.2 + nivel_ameaca * 0.8)
     Resistencia_petro += 0.2 + nivel_ameaca * 0.1
     dano_inimigo_perto += 0.2 + nivel_ameaca * 0.1
     dano_person_hit += 0.15 + nivel_ameaca * 0.05
@@ -944,7 +948,7 @@ def aplicar_shockwave_teleporte():
         by = pos_y_chefe + chefe_altura // 2
         dist_boss = math.hypot(bx - cx_t, by - cy_t)
         if dist_boss <= raio_choque:
-            vida_boss -= dano_choque
+            vida_boss -= dano_boss_mitigado(dano_choque, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
             efeitos_texto.append({
                 "texto": f"-{int(dano_choque)}",
                 "x": pos_x_chefe + chefe_largura // 2,
@@ -1465,6 +1469,7 @@ def executar_jogo(game_manager=None):
                                 dano = dano_person_hit
                                 if random.random() <= chance_critico:
                                     dano *= 3
+                                dano = dano_boss_mitigado(dano, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                                 vida_boss -= dano
                                 if vida_boss <= 0:
                                     boss_vivo1 = False
@@ -1474,6 +1479,7 @@ def executar_jogo(game_manager=None):
                         if "hit_boss_especial" in dados:
                             if boss_vivo1 and vida_boss > 0:
                                 dano = dano_person_hit * 2
+                                dano = dano_boss_mitigado(dano, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                                 vida_boss -= dano
                                 if vida_boss <= 0:
                                     boss_vivo1 = False
@@ -1588,7 +1594,7 @@ def executar_jogo(game_manager=None):
                     # A. Colisão com o Boss
                     if boss_vivo1 and onda["rect"].colliderect(pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)):
                         if tempo_atual - boss_atingido_por_onda >= 500:
-                            vida_boss -= dano_person_hit * 5
+                            vida_boss -= dano_boss_mitigado(dano_person_hit * 5, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                             boss_atingido_por_onda = tempo_atual
                             if vida_boss <= 0:
                                 boss_vivo1 = False
@@ -2208,7 +2214,7 @@ def executar_jogo(game_manager=None):
 
                             # Verifica se o inimigo foi derrotado
                             if inimigo_mais_proximo["vida"] <= 0:
-                                vida_inimigo_maxima+=23
+                                vida_inimigo_maxima += ganho_vida_inimigo_comum(23)
                                 pontuacao += int(75 + inimigos_eliminados * 0.5)
                                 pontuacao_exib += int(75 + inimigos_eliminados * 0.5)
                                 Resistencia_petro+=24.5
@@ -2271,7 +2277,7 @@ def executar_jogo(game_manager=None):
                             # Aplica dano ao "boss"
                             vida_petro -= int(dano_boss)
                             vida_petro+= int(vida_maxima_petro-vida_petro)*quantidade_roubo_vida
-                            vida_boss-= int(dano_person_hit*0.15)+15
+                            vida_boss-= dano_boss_mitigado(int(dano_person_hit*0.15)+15, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                             tempo_anterior_petro = tempo_atual_petro
 
                 if comando_direção_petro:
@@ -2360,6 +2366,7 @@ def executar_jogo(game_manager=None):
                         # Aplica dano e roubo de vida
                         texto_dano = fonte_dano.render(f"-{int(dano)}", True, cor)
                         tela.blit(texto_dano, (pos_x_chefe + chefe_largura // 2, pos_y_chefe - 20))
+                        dano = dano_boss_mitigado(dano, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                         vida_boss -= dano
                         disparos.remove(disparo)
                         if quantidade_roubo_vida > 0:
@@ -2393,7 +2400,7 @@ def executar_jogo(game_manager=None):
                 if boss_envenenado:
                     tempo_atual = pygame.time.get_ticks()
                     if tempo_atual - ultimo_tick_veneno_boss >= INTERVALO_TICK_VENENO:
-                        vida_boss -= dano_por_tick_veneno_boss
+                        vida_boss -= dano_boss_mitigado(dano_por_tick_veneno_boss, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0), tipo_dano="veneno")
                         ultimo_tick_veneno_boss = tempo_atual
                     if tempo_atual - ultimo_tick_veneno_boss <= 1500:
                         dano_veneno_texto = "-" + str(int(dano_por_tick_veneno_boss))
@@ -2615,7 +2622,7 @@ def executar_jogo(game_manager=None):
             custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
             # Verifica se a pontuação atingiu 1500 e se o jogador pressionou 'Q'
             if modo == "host" :
-                if (not jogador_remoto_morto) and (pontuacao_exib >= custo_carta_atual) and (keys[config_teclas["Comprar na loja"]] or (joystick and joystick.get_button(3))):
+                if obter_modo_cartas() != "drops" and (not jogador_remoto_morto) and (pontuacao_exib >= custo_carta_atual) and (keys[config_teclas["Comprar na loja"]] or (joystick and joystick.get_button(3))):
                     # Calcula quantas cartas o jogador pode comprar
                     max_cartas = pontuacao_exib // custo_carta_atual
                     if max_cartas <= 0:

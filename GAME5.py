@@ -390,6 +390,9 @@ def executar_jogo(game_manager=None):
 
         def carregar_atributos():
             global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, moedas_totais, Chance_Sorte, cartas_compradas
+            if not os.path.exists('saves/atributos.json'):
+                cartas_compradas = normalizar_cartas_compradas(cartas_compradas)
+                return
             with open('saves/atributos.json', 'r') as file:
                 atributos = json.load(file)
                 velocidade_personagem = atributos["velocidade_personagem"]
@@ -424,6 +427,7 @@ def executar_jogo(game_manager=None):
                 Chance_Sorte = atributos.get("Chance_Sorte", 0.01)
                 if "cartas_compradas" in atributos:
                     cartas_compradas.update(atributos["cartas_compradas"])
+                cartas_compradas = normalizar_cartas_compradas(cartas_compradas)
 
 
         with open("saves/aurea_selecionada.json", "r") as file:
@@ -543,6 +547,7 @@ def executar_jogo(game_manager=None):
                                 estado_atual_ia['carga_atrito'] = 0
 
                     if vida_umbra > 0:
+                        dano_final = dano_boss_mitigado(dano_final, 5, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                         vida_umbra -= dano_final
                         estado_atual_ia['dano_recente'] = estado_atual_ia.get('dano_recente', 0) + dano_final
                         vfx_apolo.criar_impacto_fragmentado(bx, by)
@@ -2826,6 +2831,7 @@ def executar_jogo(game_manager=None):
                                 estado_atual_ia["carga_atrito"] = 0
                                 
                     if vida_umbra > 0:
+                        dano_final = dano_boss_mitigado(dano_final, 5, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                         vida_umbra -= dano_final
                         estado_atual_ia["dano_recente"] = estado_atual_ia.get("dano_recente", 0) + dano_final
                         
@@ -4200,6 +4206,7 @@ def executar_jogo(game_manager=None):
 
                         # Aplicação de Dano e Treino
                         if vida_umbra > 0:
+                            dano_final = dano_boss_mitigado(dano_final, 5, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                             vida_umbra -= dano_final
                             estado_atual_ia['dano_recente'] = estado_atual_ia.get('dano_recente', 0) + dano_final
 
@@ -4282,7 +4289,7 @@ def executar_jogo(game_manager=None):
                             if boss_envenenado:
                                 # Aplica o tick de dano a cada 500 milissegundos
                                 if agora - ultimo_tick_veneno_boss >= INTERVALO_TICK_VENENO:
-                                    vida_umbra -= dano_por_tick_veneno_boss
+                                    vida_umbra -= dano_boss_mitigado(dano_por_tick_veneno_boss, 5, inimigos_eliminados, agora, cartas_compradas.get("Coletora", 0), tipo_dano="veneno")
                                     ultimo_tick_veneno_boss = agora
 
                                     # Feedback Visual (Verde Tóxico integrado ao sistema de partículas)

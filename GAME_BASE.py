@@ -90,7 +90,7 @@ tempo_fim_mensagem = 0
 mensagens_iniciais = [
     (3, "Clique no botão esquerdo do mouse para atacar"),
     (7, "Use SHIFT para dar dash"),
-    (11, "Aperte Q para abrir a loja"),
+    (11, "Colete recursos para fortalecer sua linha temporal"),
     (15, "Junte pontos e melhore o personagem"),
     (19, "Você está sozinho. Mas está preparado."),
     
@@ -160,6 +160,8 @@ def salvar_atributos():
 
 def carregar_atributos():
     global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, moedas_totais
+    if not os.path.exists('saves/atributos.json'):
+        return
     with open('saves/atributos.json', 'r') as file:
         atributos = json.load(file)
         velocidade_personagem = atributos["velocidade_personagem"]
@@ -284,7 +286,7 @@ def executar_jogo(game_manager=None):
         tempo_ultimo_hit_inimigo = pygame.time.get_ticks()
 
         piscando_vida = False
-        vida_inimigo_maxima=30
+        vida_inimigo_maxima = vida_inimigo_comum_inicial(30)
         vida_inimigo= vida_inimigo_maxima
 
 
@@ -1057,7 +1059,7 @@ def executar_jogo(game_manager=None):
                             # Multiplicador que cresce suavemente para evitar o "Power Creep" imediato
                             mult = 1.0 + (nivel_ameaca * 0.1)
 
-                            vida_inimigo_maxima += 0.5 * mult
+                            vida_inimigo_maxima += ganho_vida_inimigo_comum(0.5 * mult)
                             Resistencia_petro += 0.05 * mult
                             dano_inimigo_perto += 0.04 * mult
                             dano_person_hit += 0.03 * mult
@@ -1097,7 +1099,7 @@ def executar_jogo(game_manager=None):
                     tempo_atual = pygame.time.get_ticks()
 
                     if tempo_atual - boss_atingido_por_onda >= 500: 
-                        vida_boss -= dano_person_hit * 5  
+                        vida_boss -= dano_boss_mitigado(dano_person_hit * 5, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
 
                         boss_atingido_por_onda = tempo_atual  # Atualiza o tempo do último dano
 
@@ -1368,7 +1370,7 @@ def executar_jogo(game_manager=None):
 
                             if inimigo_mais_proximo["vida"] <= 0:
                                 # Evolução harmônica por abate da Petro
-                                vida_inimigo_maxima += 0.5
+                                vida_inimigo_maxima += ganho_vida_inimigo_comum(0.5)
                                 Resistencia_petro += 0.08
                                 vida_maxima_petro += 0.25
                                 dano_person_hit += 0.05
@@ -1438,7 +1440,7 @@ def executar_jogo(game_manager=None):
                             # Aplica dano ao "boss"
                             vida_petro -= int(dano_boss)
                             vida_petro+= int(vida_maxima_petro-vida_petro)*quantidade_roubo_vida
-                            vida_boss-= int(dano_person_hit*0.15)+15
+                            vida_boss-= dano_boss_mitigado(int(dano_person_hit*0.15)+15, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                             # Aqui você pode adicionar outras ações relacionadas ao dano ao "boss"
                             tempo_anterior_petro = tempo_atual_petro
 
@@ -1544,7 +1546,7 @@ def executar_jogo(game_manager=None):
                     pygame.draw.rect(tela, vermelho, (pos_x_barra_boss, pos_y_barra_boss, largura_barra_boss, altura_barra_boss))
                     pygame.draw.rect(tela, (143,33,252), (pos_x_barra_boss, pos_y_barra_boss, largura_barra_boss, (vida_boss / vida_maxima_boss1) * altura_barra_boss))
                     pygame.draw.rect(tela, (255, 255, 255), (pos_x_barra_boss, pos_y_barra_boss, largura_barra_boss, altura_barra_boss), 2)
-                if Ultimo_Estalo and vida_boss <= Executa_inimigo * vida_maxima_boss1:
+                if Ultimo_Estalo and vida_boss <= limiar_execucao_boss(Executa_inimigo) * vida_maxima_boss1:
                     boss_vivo1=False
 
                 if vida_boss <= 0:
@@ -1584,6 +1586,7 @@ def executar_jogo(game_manager=None):
                         texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
                         pos_texto = (pos_x_chefe + chefe_largura // 2 - texto_dano.get_width() // 2, pos_y_chefe - 20)
                         tempo_texto_dano = pygame.time.get_ticks()
+                        dano = dano_boss_mitigado(dano, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                         vida_boss -= dano
                         disparos.remove(disparo)
 
@@ -1597,7 +1600,7 @@ def executar_jogo(game_manager=None):
 
                     # Aplicar dano a cada 500 ms
                     if tempo_atual - ultimo_tick_veneno_boss >= INTERVALO_TICK_VENENO:
-                        vida_boss -= dano_por_tick_veneno_boss
+                        vida_boss -= dano_boss_mitigado(dano_por_tick_veneno_boss, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0), tipo_dano="veneno")
                         ultimo_tick_veneno_boss = tempo_atual
 
                     # Exibir texto do dano de veneno (1.5 segundos)
@@ -1705,7 +1708,7 @@ def executar_jogo(game_manager=None):
                             inimigos_eliminados += 1
                             mult_exec = 1.0 + (nivel_ameaca * 0.12) # Execução dá 12% a mais de escala
 
-                            vida_inimigo_maxima += 0.6 * mult_exec
+                            vida_inimigo_maxima += ganho_vida_inimigo_comum(0.6 * mult_exec)
                             Resistencia_petro += 0.07 * mult_exec
                             dano_inimigo_perto += 0.05 * mult_exec
                             vida_maxima_petro += 0.3 * mult_exec
@@ -1744,7 +1747,7 @@ def executar_jogo(game_manager=None):
                             inimigos_comum.remove(inimigo)
 
                             # Crescimento proporcional por nível de ameaça
-                            vida_inimigo_maxima += 1.2 + nivel_ameaca * 0.8
+                            vida_inimigo_maxima += ganho_vida_inimigo_comum(1.2 + nivel_ameaca * 0.8)
                             Resistencia_petro += 0.2 + nivel_ameaca * 0.1
                             dano_inimigo_perto += 0.2 + nivel_ameaca * 0.1
                             dano_person_hit += 0.15 + nivel_ameaca * 0.05
@@ -1831,7 +1834,7 @@ def executar_jogo(game_manager=None):
             total_cartas_compradas = sum(cartas_compradas.values())
             custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
             # Verifica se a pontuação atingiu 1500 e se o jogador pressionou 'Q'
-            if pontuacao_exib >= custo_carta_atual and keys[config_teclas["Comprar na loja"]] or (joystick and joystick.get_button(3)):
+            if obter_modo_cartas() != "drops" and (pontuacao_exib >= custo_carta_atual) and (keys[config_teclas["Comprar na loja"]] or (joystick and joystick.get_button(3))):
                 pontuacao_exib -= custo_carta_atual
                 pontuacao_magia -= custo_carta_atual
                 apertou_q= True
@@ -2177,12 +2180,20 @@ def executar_jogo(game_manager=None):
                                 if tutorial_inimigo["vida"] <= 0:
                                     tutorial_inimigo_ativo = False
                                     tutorial_inimigo = None
-                                    tutorial_fase = 5
+                                    if obter_modo_cartas() == "drops":
+                                        tutorial_fase = 7
+                                        mostrar_tutorial = False
+                                    else:
+                                        tutorial_fase = 5
                                     tempo_fase_completa = time.time()
                                     break
 
                 # ====== FASE 5: Ensinar a loja (Q) ======
                 elif tutorial_fase == 5:
+                    if obter_modo_cartas() == "drops":
+                        tutorial_fase = 7
+                        mostrar_tutorial = False
+                        continue
                     # Garantir que o jogador tenha pontos suficientes para comprar
                     total_cartas_temp = sum(cartas_compradas.values())
                     custo_temp = custo_base_carta + (total_cartas_temp * custo_por_carta)

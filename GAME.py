@@ -142,7 +142,7 @@ tempo_fim_mensagem = 0
 mensagens_iniciais = [
     (3, "Clique no botão esquerdo do mouse para atacar"),
     (7, "Use SHIFT para dar dash"),
-    (11, "Aperte Q para abrir a loja"),
+    (11, "Colete recursos para fortalecer sua linha temporal"),
     (15, "Junte pontos e melhore o personagem"),
     (19, "Você está sozinho. Mas está preparado."),
     
@@ -214,6 +214,9 @@ def salvar_atributos():
 
 def carregar_atributos():
     global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, moedas_totais, Chance_Sorte, cartas_compradas
+    if not os.path.exists('saves/atributos.json'):
+        cartas_compradas = normalizar_cartas_compradas(cartas_compradas)
+        return
     with open('saves/atributos.json', 'r') as file:
         atributos = json.load(file)
         velocidade_personagem = atributos["velocidade_personagem"]
@@ -248,6 +251,7 @@ def carregar_atributos():
         Chance_Sorte = atributos.get("Chance_Sorte", 0.01)
         if "cartas_compradas" in atributos:
             cartas_compradas.update(atributos["cartas_compradas"])
+        cartas_compradas = normalizar_cartas_compradas(cartas_compradas)
 
         
 movimento_pressionado = False
@@ -537,13 +541,18 @@ def executar_jogo(game_manager=None):
         coice_onda = criar_estado_coice_onda()
         
         # VARIÁVEIS PARA VARIANTES DE INIMIGOS (AREIA CÓSMICA)
-        TESTAR_VARIANTES_RAPIDO = True  # Mude para False para tempo padrão (8-10min)
+        TESTAR_VARIANTES_RAPIDO = False
+        ANOMALIA_ESPREITADOR_TEMPO = 15 if TESTAR_VARIANTES_RAPIDO else ANOMALIA_ESPREITADOR_SEG
+        ANOMALIA_PROJETADOR_TEMPO = 30 if TESTAR_VARIANTES_RAPIDO else ANOMALIA_PROJETADOR_SEG
+        ANOMALIA_CRISTALIZADOR_TEMPO = 45 if TESTAR_VARIANTES_RAPIDO else ANOMALIA_CRISTALIZADOR_SEG
+        ANOMALIA_AGLOMERADOR_TEMPO = 60 if TESTAR_VARIANTES_RAPIDO else ANOMALIA_AGLOMERADOR_SEG
+        ANOMALIA_CURATER_TEMPO = 75 if TESTAR_VARIANTES_RAPIDO else ANOMALIA_CURATER_SEG
         disparos_inimigos = []
         tempo_ultimo_cheque_fusao = 0
         TIPO_CURATER = "curater"
-        CURATER_CHANCE_SPAWN = 0.30
-        CURATER_INTERVALO_CURA = 8000
-        CURATER_RAIO_CURA = 210
+        CURATER_CHANCE_SPAWN_LOCAL = CURATER_CHANCE_SPAWN
+        CURATER_INTERVALO_CURA = 1000
+        CURATER_PERCENTUAL_VIDA_PERDIDA = CURATER_CURA_PERCENTUAL_VIDA_PERDIDA
         pulsos_cura_curater = []
         
         # Announcement Banner variables
@@ -552,17 +561,16 @@ def executar_jogo(game_manager=None):
         aviso_evento_inicio = 0
         alerta_t1_mostrado = False
         alerta_t2_mostrado = False
+        alerta_t3_mostrado = False
+        alerta_t4_mostrado = False
+        alerta_t5_mostrado = False
         
         # Helper functions
         def obter_mitigacao_dano(inimigo):
             if inimigo.get("tipo", 1) == 4: # Cristalizador doesn't shield itself
                 return 1.0
             if inimigo.get("tipo", 1) == TIPO_CURATER:
-                margem_canto = 180
-                perto_canto_x = inimigo["rect"].centerx < margem_canto or inimigo["rect"].centerx > largura_mapa - margem_canto
-                perto_canto_y = inimigo["rect"].centery < margem_canto or inimigo["rect"].centery > altura_mapa - margem_canto
-                if perto_canto_x and perto_canto_y:
-                    return 0.72
+                return CURATER_MITIGACAO_DANO
             for c in inimigos_comum:
                 if c.get("tipo", 1) == 4 and c != inimigo:
                     dist = math.hypot(inimigo["rect"].centerx - c["rect"].centerx, inimigo["rect"].centery - c["rect"].centery)
@@ -571,32 +579,41 @@ def executar_jogo(game_manager=None):
             return 1.0
 
         def atualizar_curater(inimigo, agora_ms):
-            if agora_ms - inimigo.get("ultima_cura", 0) < CURATER_INTERVALO_CURA:
+            ultimo_tick = inimigo.get("ultimo_tick_cura_curater")
+            if ultimo_tick is not None and agora_ms - ultimo_tick < CURATER_INTERVALO_CURA:
                 return
-            inimigo["ultima_cura"] = agora_ms
+            inimigo["ultimo_tick_cura_curater"] = agora_ms
             alvos_curados = 0
             for alvo in inimigos_comum:
-                if alvo is inimigo or alvo.get("vida", 0) <= 0:
+                if alvo is inimigo or alvo.get("tipo", 1) == TIPO_CURATER or alvo.get("vida", 0) <= 0:
                     continue
-                dist = math.hypot(alvo["rect"].centerx - inimigo["rect"].centerx, alvo["rect"].centery - inimigo["rect"].centery)
-                if dist <= CURATER_RAIO_CURA and alvo["vida"] < alvo["vida_maxima"]:
-                    faltante = alvo["vida_maxima"] - alvo["vida"]
-                    cura = max(1, faltante * 0.10)
-                    alvo["vida"] = min(alvo["vida_maxima"], alvo["vida"] + cura)
-                    alvos_curados += 1
+                vida_maxima_alvo = alvo.get("vida_maxima", 0)
+                if vida_maxima_alvo <= 0 or alvo.get("vida", 0) >= vida_maxima_alvo:
+                    continue
+                vida_perdida = vida_maxima_alvo - alvo["vida"]
+                cura = vida_perdida * CURATER_PERCENTUAL_VIDA_PERDIDA
+                if cura <= 0:
+                    continue
+                alvo["vida"] = min(vida_maxima_alvo, alvo["vida"] + cura)
+                alvos_curados += 1
+
+                if cura >= 1 or agora_ms - alvo.get("ultimo_texto_cura_recebida", 0) >= 1500:
+                    alvo["ultimo_texto_cura_recebida"] = agora_ms
                     efeitos_texto.append({
-                        "texto": f"+{int(cura)}",
+                        "texto": f"+{max(1, int(cura))}",
                         "x": alvo["rect"].x,
                         "y": alvo["rect"].y - 32,
                         "tempo_inicio": agora_ms,
                         "cor": (98, 255, 120)
                     })
-                    pulsos_cura_curater.append({
-                        "origem": inimigo["rect"].center,
-                        "alvo": alvo["rect"].center,
-                        "inicio": agora_ms,
-                    })
-            if alvos_curados:
+                pulsos_cura_curater.append({
+                    "origem": inimigo["rect"].center,
+                    "alvo": alvo["rect"].center,
+                    "inicio": agora_ms,
+                })
+
+            if alvos_curados > 0 and agora_ms - inimigo.get("ultimo_texto_cura", 0) >= 900:
+                inimigo["ultimo_texto_cura"] = agora_ms
                 efeitos_texto.append({
                     "texto": "CURA!",
                     "x": inimigo["rect"].x,
@@ -699,7 +716,7 @@ def executar_jogo(game_manager=None):
         tempo_ultimo_hit_inimigo = pygame.time.get_ticks()
 
         piscando_vida = False
-        vida_inimigo_maxima=30
+        vida_inimigo_maxima = vida_inimigo_comum_inicial(30)
         vida_inimigo= vida_inimigo_maxima
 
 
@@ -920,7 +937,7 @@ def executar_jogo(game_manager=None):
                             inimigos_comum.remove(inimigo)
                         
                         # Escalonamento por nível de ameaça
-                        vida_inimigo_maxima += 1.2 + nivel_ameaca * 0.8
+                        vida_inimigo_maxima += ganho_vida_inimigo_comum(1.2 + nivel_ameaca * 0.8)
                         Resistencia_petro += 0.2 + nivel_ameaca * 0.1
                         dano_inimigo_perto += 0.2 + nivel_ameaca * 0.1
                         dano_person_hit += 0.15 + nivel_ameaca * 0.05
@@ -961,7 +978,7 @@ def executar_jogo(game_manager=None):
                     by = pos_y_chefe + chefe_altura // 2
                     dist_boss = math.hypot(bx - cx_t, by - cy_t)
                     if dist_boss <= raio_choque:
-                        vida_boss -= dano_choque
+                        vida_boss -= dano_boss_mitigado(dano_choque, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                         efeitos_texto.append({
                             "texto": f"-{int(dano_choque)}",
                             "x": pos_x_chefe + chefe_largura // 2,
@@ -1019,7 +1036,7 @@ def executar_jogo(game_manager=None):
                 hp = vida_inimigo_maxima * 1.2
                 vel = Velocidade_Inimigos_1 * 0.8
             elif tipo == TIPO_CURATER:
-                hp = vida_inimigo_maxima * 1.15
+                hp = vida_inimigo_maxima * CURATER_MULTIPLICADOR_VIDA
                 vel = Velocidade_Inimigos_1 * 0.45
                 
             # Ajustar a hitbox para ser menor que a imagem original
@@ -1054,7 +1071,7 @@ def executar_jogo(game_manager=None):
                 enemy_dict["ultimo_disparo"] = 0
                 enemy_dict["parado"] = False
             elif tipo == TIPO_CURATER:
-                enemy_dict["ultima_cura"] = pygame.time.get_ticks() + random.randint(1200, 3600)
+                enemy_dict["ultimo_tick_cura_curater"] = -CURATER_INTERVALO_CURA
                 enemy_dict["parado"] = True
                 
             return enemy_dict
@@ -1108,23 +1125,23 @@ def executar_jogo(game_manager=None):
             if len(inimigos_comum) < limite_inimigos:
                 # Determina o tipo com base no tempo decorrido
                 tempo_decorrido = Variaveis.obter_tempo_decorrido()
-                threshold_t1 = 15 if TESTAR_VARIANTES_RAPIDO else 480
-                threshold_t2 = 30 if TESTAR_VARIANTES_RAPIDO else 600
-                
                 tipo_escolhido = 1
-                if tempo_decorrido >= threshold_t2:
-                    # Tier 2 active: Standard (60%), Espreitador (15%), Projetador (15%), Cristalizador (10%)
+                if tempo_decorrido >= ANOMALIA_CURATER_TEMPO:
                     choices = [TIPO_CURATER, 1, 3, 5, 4]
-                    weights = [CURATER_CHANCE_SPAWN, 0.42, 0.105, 0.105, 0.07]
+                    weights = [CURATER_CHANCE_SPAWN_LOCAL, 0.45, 0.16, 0.14, 0.10]
                     tipo_escolhido = random.choices(choices, weights=weights)[0]
-                elif tempo_decorrido >= threshold_t1:
-                    # Tier 1 active: Standard (75%), Espreitador (25%)
-                    # (Aglomerador is created via fusion of standard enemies, not direct spawn!)
-                    choices = [TIPO_CURATER, 1, 3]
-                    weights = [CURATER_CHANCE_SPAWN, 0.525, 0.175]
+                elif tempo_decorrido >= ANOMALIA_CRISTALIZADOR_TEMPO:
+                    choices = [1, 3, 5, 4]
+                    weights = [0.58, 0.18, 0.15, 0.09]
                     tipo_escolhido = random.choices(choices, weights=weights)[0]
-                elif random.random() < CURATER_CHANCE_SPAWN:
-                    tipo_escolhido = TIPO_CURATER
+                elif tempo_decorrido >= ANOMALIA_PROJETADOR_TEMPO:
+                    choices = [1, 3, 5]
+                    weights = [0.66, 0.20, 0.14]
+                    tipo_escolhido = random.choices(choices, weights=weights)[0]
+                elif tempo_decorrido >= ANOMALIA_ESPREITADOR_TEMPO:
+                    choices = [1, 3]
+                    weights = [0.76, 0.24]
+                    tipo_escolhido = random.choices(choices, weights=weights)[0]
                     
                 # Regra: Limite de 1 Cristalizador por vez
                 if tipo_escolhido == 4:
@@ -1824,13 +1841,18 @@ def executar_jogo(game_manager=None):
             if mostrar_tutorial:
                 pass  # Nenhum inimigo comum durante o tutorial
             else:
+                tempo_decorrido_run = Variaveis.obter_tempo_decorrido()
+                limite_inimigos_run = max_inimigos + bonus_limite_inimigos_sem_boss(
+                    tempo_decorrido_run,
+                    r_press or boss_vivo1,
+                )
                 pressao_spawn = calcular_pressao_spawn_pos_boss(
                     pressao_pos_boss_spawn,
                     tempo_atual,
                     r_press and not boss_vivo1,
                     len(inimigos_comum),
                     inimigos_eliminados,
-                    max_inimigos,
+                    limite_inimigos_run,
                 )
                 if tempo_atual - tempo_ultimo_inimigo >= pressao_spawn["intervalo_ms"] and pressao_spawn["lote"] > 0 and not boss_vivo1:
                     for _ in range(pressao_spawn["lote"]):
@@ -1961,7 +1983,7 @@ def executar_jogo(game_manager=None):
                 ondas, correntes_eletricas, inimigos_comum, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda
             )
             if boss_info.get("hit_flag") and not boss_morte_processada:
-                vida_boss -= dano_person_hit * 5
+                vida_boss -= dano_boss_mitigado(dano_person_hit * 5, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                 boss_atingido_por_onda = boss_info["atingido_por_onda"]
 
             # Atualizar e desenhar correntes elétricas
@@ -1977,7 +1999,7 @@ def executar_jogo(game_manager=None):
                     
                     # --- ESCALONAMENTO POR NIVEL DE AMEAÇA ---
                     mult = 1.0 + (nivel_ameaca * 0.1)
-                    vida_inimigo_maxima += 0.5 * mult
+                    vida_inimigo_maxima += ganho_vida_inimigo_comum(0.5 * mult)
                     Resistencia_petro += 0.05 * mult
                     dano_inimigo_perto += 0.04 * mult
                     dano_person_hit += 0.03 * mult
@@ -2040,10 +2062,7 @@ def executar_jogo(game_manager=None):
                     
             # --- CHEQUE DE FUSÃO DO AGLOMERADOR (A cada 1 segundo) ---
             tempo_decorrido = Variaveis.obter_tempo_decorrido()
-            threshold_t1 = 15 if TESTAR_VARIANTES_RAPIDO else 480
-            threshold_t2 = 30 if TESTAR_VARIANTES_RAPIDO else 600
-            
-            if tempo_atual - tempo_ultimo_cheque_fusao >= 1000 and tempo_decorrido >= threshold_t1:
+            if tempo_atual - tempo_ultimo_cheque_fusao >= 1000 and tempo_decorrido >= ANOMALIA_AGLOMERADOR_TEMPO:
                 tempo_ultimo_cheque_fusao = tempo_atual
                 standard_enemies = [ini for ini in inimigos_comum if ini.get("tipo", 1) == 1]
                 clusters = []
@@ -2081,12 +2100,27 @@ def executar_jogo(game_manager=None):
                     
             # --- CONTROLE DOS AVISOS DOS EVENTOS ---
             if not mostrar_tutorial:
-                if tempo_decorrido >= threshold_t2 and not alerta_t2_mostrado:
-                    alerta_t2_mostrado = True
+                if tempo_decorrido >= ANOMALIA_CURATER_TEMPO and not alerta_t5_mostrado:
+                    alerta_t5_mostrado = True
+                    aviso_evento_texto = "ANOMALIA DE CURA DETECTADA: CURATER!"
+                    aviso_evento_cor = (120, 255, 140)
+                    aviso_evento_inicio = tempo_atual
+                elif tempo_decorrido >= ANOMALIA_AGLOMERADOR_TEMPO and not alerta_t4_mostrado:
+                    alerta_t4_mostrado = True
+                    aviso_evento_texto = "ANOMALIA DE FUSAO: AGLOMERADORES!"
+                    aviso_evento_cor = (255, 210, 80)
+                    aviso_evento_inicio = tempo_atual
+                elif tempo_decorrido >= ANOMALIA_CRISTALIZADOR_TEMPO and not alerta_t3_mostrado:
+                    alerta_t3_mostrado = True
                     aviso_evento_texto = "ANOMALIA DETECTADA: INIMIGOS CRISTALIZADOS!"
                     aviso_evento_cor = (255, 0, 128)
                     aviso_evento_inicio = tempo_atual
-                elif tempo_decorrido >= threshold_t1 and not alerta_t1_mostrado:
+                elif tempo_decorrido >= ANOMALIA_PROJETADOR_TEMPO and not alerta_t2_mostrado:
+                    alerta_t2_mostrado = True
+                    aviso_evento_texto = "ANOMALIA DETECTADA: PROJETADORES!"
+                    aviso_evento_cor = (255, 0, 128)
+                    aviso_evento_inicio = tempo_atual
+                elif tempo_decorrido >= ANOMALIA_ESPREITADOR_TEMPO and not alerta_t1_mostrado:
                     alerta_t1_mostrado = True
                     aviso_evento_texto = "ALERTA: A AREIA COSMICA SE ADAPTOU!"
                     aviso_evento_cor = (0, 255, 255)
@@ -2192,9 +2226,8 @@ def executar_jogo(game_manager=None):
                     pygame.draw.polygon(tela, (0, 191, 255), pts_hex, width=2)
                 elif tipo == TIPO_CURATER:
                     tempo_cura = pygame.time.get_ticks()
-                    restante_cura = max(0.0, min(1.0, (CURATER_INTERVALO_CURA - (tempo_cura - inimigo.get("ultima_cura", 0))) / CURATER_INTERVALO_CURA))
                     cx, cy = inimigo["rect"].centerx, inimigo["rect"].centery
-                    raio_pulso = int(24 + 9 * (1.0 - restante_cura) + 3 * math.sin(tempo_cura * 0.006))
+                    raio_pulso = int(28 + 5 * math.sin(tempo_cura * 0.006))
                     pygame.draw.circle(tela, (76, 210, 98), (cx, cy), raio_pulso, 2)
                     pygame.draw.circle(tela, (180, 255, 188), (cx, cy), 5, 0)
                     
@@ -2633,7 +2666,7 @@ def executar_jogo(game_manager=None):
 
                             if inimigo_mais_proximo["vida"] <= 0:
                                 # Evolução harmônica por abate da Petro
-                                vida_inimigo_maxima += 0.5
+                                vida_inimigo_maxima += ganho_vida_inimigo_comum(0.5)
                                 Resistencia_petro += 0.08
                                 vida_maxima_petro += 0.25
                                 dano_person_hit += 0.05
@@ -2705,7 +2738,7 @@ def executar_jogo(game_manager=None):
                             # Aplica dano ao "boss"
                             vida_petro -= int(dano_boss)
                             vida_petro+= int(vida_maxima_petro-vida_petro)*quantidade_roubo_vida
-                            vida_boss-= int(dano_person_hit*0.15)+15
+                            vida_boss-= dano_boss_mitigado(int(dano_person_hit*0.15)+15, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                             # Aqui você pode adicionar outras ações relacionadas ao dano ao "boss"
                             tempo_anterior_petro = tempo_atual_petro
 
@@ -2794,7 +2827,7 @@ def executar_jogo(game_manager=None):
 
 
                 # === PROCESSAR MORTE DO BOSS (uma única vez) ===
-                if (vida_boss <= 0 or (Ultimo_Estalo and vida_boss <= Executa_inimigo * vida_maxima_boss1)) and not boss_morte_processada:
+                if (vida_boss <= 0 or (Ultimo_Estalo and vida_boss <= limiar_execucao_boss(Executa_inimigo) * vida_maxima_boss1)) and not boss_morte_processada:
                     # Guardar posição antes de desativar
                     posicao_morte_boss = (pos_x_chefe + chefe_largura // 2, pos_y_chefe + chefe_altura // 2)
                     boss_vivo1 = False
@@ -2867,6 +2900,7 @@ def executar_jogo(game_manager=None):
                             texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
                             pos_texto = (pos_x_chefe + chefe_largura // 2 - texto_dano.get_width() // 2, pos_y_chefe - 20)
                             tempo_texto_dano = pygame.time.get_ticks()
+                            dano = dano_boss_mitigado(dano, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                             vida_boss -= dano
                             disparos.remove(disparo)
 
@@ -2880,7 +2914,7 @@ def executar_jogo(game_manager=None):
 
                     # Aplicar dano a cada 500 ms
                     if tempo_atual - ultimo_tick_veneno_boss >= INTERVALO_TICK_VENENO:
-                        vida_boss -= dano_por_tick_veneno_boss
+                        vida_boss -= dano_boss_mitigado(dano_por_tick_veneno_boss, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0), tipo_dano="veneno")
                         ultimo_tick_veneno_boss = tempo_atual
 
                     # Exibir texto do dano de veneno (1.5 segundos)
@@ -3081,7 +3115,7 @@ def executar_jogo(game_manager=None):
                             inimigos_eliminados += 1
                             mult_exec = 1.0 + (nivel_ameaca * 0.12) # Execução dá 12% a mais de escala
 
-                            vida_inimigo_maxima += 0.6 * mult_exec
+                            vida_inimigo_maxima += ganho_vida_inimigo_comum(0.6 * mult_exec)
                             Resistencia_petro += 0.07 * mult_exec
                             dano_inimigo_perto += 0.05 * mult_exec
                             vida_maxima_petro += 0.3 * mult_exec
@@ -3120,7 +3154,7 @@ def executar_jogo(game_manager=None):
                                 inimigos_comum.remove(inimigo)
 
                             # Crescimento proporcional por nível de ameaça
-                            vida_inimigo_maxima += 1.2 + nivel_ameaca * 0.8
+                            vida_inimigo_maxima += ganho_vida_inimigo_comum(1.2 + nivel_ameaca * 0.8)
                             Resistencia_petro += 0.2 + nivel_ameaca * 0.1
                             dano_inimigo_perto += 0.2 + nivel_ameaca * 0.1
                             dano_person_hit += 0.15 + nivel_ameaca * 0.05
@@ -3400,6 +3434,7 @@ def executar_jogo(game_manager=None):
                 tecla_teleporte = Variaveis.formatar_nome_tecla(Variaveis.config_teclas.get("Teleporte", pygame.K_LSHIFT))
                 tecla_loja = Variaveis.formatar_nome_tecla(Variaveis.config_teclas.get("Comprar na loja", pygame.K_e))
                 modo_teleporte = Variaveis.obter_modo_teleporte()
+                modo_sem_loja = Variaveis.obter_modo_cartas() == "drops"
 
                 # Definir dimensões do painel de informações com base na fase do tutorial para enquadrar perfeitamente
                 w, h = 600, 160  # padrão
@@ -3645,12 +3680,30 @@ def executar_jogo(game_manager=None):
                                     gerar_fragmentos_morte(tutorial_inimigo, 1)
                                     tutorial_inimigo_ativo = False
                                     tutorial_inimigo = None
-                                    tutorial_fase = 5
+                                    if modo_sem_loja:
+                                        tutorial_fase = 7
+                                        mostrar_tutorial = False
+                                        try:
+                                            with open("saves/tutorial_config.json", "w") as f:
+                                                json.dump({"mostrar_tutorial": False}, f)
+                                        except:
+                                            pass
+                                    else:
+                                        tutorial_fase = 5
                                     tempo_fase_completa = time.time()
                                     break
 
                 # ====== FASE 5: Ensinar a loja (Q) ======
                 elif tutorial_fase == 5:
+                    if modo_sem_loja:
+                        tutorial_fase = 7
+                        mostrar_tutorial = False
+                        try:
+                            with open("saves/tutorial_config.json", "w") as f:
+                                json.dump({"mostrar_tutorial": False}, f)
+                        except:
+                            pass
+                        continue
                     # Garantir que o jogador tenha pontos suficientes para comprar
                     total_cartas_temp = sum(cartas_compradas.values())
                     custo_temp = custo_base_carta + (total_cartas_temp * custo_por_carta)

@@ -84,10 +84,10 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
          "descricao": "Recupere 25% da sua vida maxima e ganhe mais vida maxima permanentemente. Excedente vira vida maxima."},
         
         {"nome": "Disparo crescente", "Nick": "Impacto Escalante", 
-         "descricao": "Ganhe +27 de dano e deixe os inimigos temendo seus tiros poderosos."},
+         "descricao": "Ganhe dano reduzido e constante para fortalecer seus tiros sem quebrar a progressao."},
         
         {"nome": "Tempestade", "Nick": "Tempestade Crescente", 
-         "descricao": "Aumente sua chance critica em 2% e triplique o dano causado. Transforme cada acerto em uma tempestade!"},
+         "descricao": "Aumente sua chance critica em 2% e receba um pequeno bonus de dano base."},
 
         {"nome": "Cura", "Nick": "Mordida Sombria", 
          "descricao": "Toda bala recupera +0.20% da vida perdida. Recupere sua saude proporcionalmente a cada acerto!"},
@@ -108,7 +108,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
          "descricao": "Aumente sua resistencia em +5 e mitigue os danos dos inimigos. Uma defesa imbatível para cada desafio."},
 
         {"nome": "Sorte", "Nick": "Anomalia Favorável", 
-         "descricao": "Aumente suas chances de obter cartas raras com 0.6% de sorte adicional. A sorte agora esta ao seu favor!"},
+         "descricao": "Aumente levemente todas as probabilidades favoraveis. Cartas raras partem de 1% e escalam com Sorte ate um limite seguro."},
          
         {"nome": "Poison", "Nick": "Toxina Temporal", 
          "descricao": "Infunde seus ataques com veneno, causando dano continuo de 2% da vida max. Acumular aumenta o dano (+0.5%) e a duracao (+0.1s)."},
@@ -183,7 +183,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
         cartas.append(carta)
 
     def obter_cartas_disponiveis(cartas, cartas_compradas, qtd=3):
-        rare_names = {"Trembo", "Petro", "Poison", "Coletora", "Mercenaria"}
+        rare_names = CARTAS_RARAS
         
         # pool preference for unbought cards
         pool_nao_compradas = [c for c in cartas if cartas_compradas.get(c["nome"], 0) == 0]
@@ -198,9 +198,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
         
         selecionadas = []
         
-        # Apply 10% rare drop rate floor if player has 15 or more Sorte cards
-        sorte_count = cartas_compradas.get("Sorte", 0)
-        chance_efetiva = max(Chance_Sorte, 0.10) if sorte_count >= 15 else Chance_Sorte
+        chance_efetiva = chance_carta_rara(Chance_Sorte, cartas_compradas)
         
         def pop_card(rares, commons):
             if not rares and not commons:
@@ -302,7 +300,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
                 vida_maxima_petro = vida_petro
             cartas_compradas["Porção"] += 1
         elif nome == "Disparo crescente":
-            dano_person_hit += 27 + (inimigos_eliminados // 50) * 10
+            dano_person_hit += incremento_carta_dano(inimigos_eliminados)
             cartas_compradas["Disparo crescente"] += 1
         elif nome == "Trembo":
             trembo = True
@@ -314,8 +312,8 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
                 Tempo_cura -= Tempo_cura * 0.05
                 porcentagem_cura += 0.001 + (inimigos_eliminados // 100) * 0.0005
         elif nome == "Tempestade":
-            dano_person_hit += 10 + (inimigos_eliminados // 50) * 4
-            chance_critico += 0.02 + (inimigos_eliminados // 100) * 0.005
+            dano_person_hit += incremento_dano_carta_critico(inimigos_eliminados)
+            chance_critico += incremento_chance_carta_critico(inimigos_eliminados)
             cartas_compradas["Tempestade"] += 1
         elif nome == "Cura":
             # Coop balance values
@@ -358,7 +356,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
                 Resistencia = 50
             cartas_compradas["Defesa"] += 1
         elif nome == "Sorte":
-            Chance_Sorte += 0.006
+            Chance_Sorte += incremento_sorte_carta()
             cartas_compradas["Sorte"] += 1
         elif nome == "Poison":
             Poison_Active = True
