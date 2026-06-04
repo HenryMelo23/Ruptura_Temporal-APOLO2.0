@@ -26,6 +26,7 @@ from ui_helpers import (
     tentar_ativar_dilatacao_racional,
 )
 from post_boss_pressure import criar_estado_pressao_pos_boss, calcular_pressao_spawn_pos_boss
+from player_projectile import PlayerProjectileVFX, estourar_disparo_eletrico
 from onda_recoil import criar_estado_coice_onda, aplicar_coice_onda, atualizar_coice_onda
 from audio_manager import carregar_config_audio, aplicar_volume_som
 from Tela_Upgrade_Aureas import tela_upgrade_aureas
@@ -608,7 +609,7 @@ def criar_inimigo(x, y, is_elite=False, tipo=None):
     }
 
 def trigger_kamikaze_explosion(inimigo):
-    global vida, personagem_imovel, tempo_ultimo_atingido, escudo_devota_ativo, piscando_vida, tempo_ultimo_hit_inimigo
+    global vida, personagem_imovel, tempo_ultimo_atingido, escudo_devota_ativo, piscando_vida, tempo_ultimo_hit_inimigo, imune_tempo_restante
     cx, cy = inimigo["rect"].center
 
     # 1. Damage and freeze player if within radius of 120px
@@ -619,7 +620,9 @@ def trigger_kamikaze_explosion(inimigo):
         dmg = int(vida_maxima * 0.15)
         dmg_taken = max(10, dmg - Resistencia)
 
-        if escudo_devota_ativo:
+        if imune_tempo_restante > 0:
+            pass
+        elif escudo_devota_ativo:
             escudo_devota_ativo = False
         else:
             vida -= dmg_taken
@@ -844,15 +847,7 @@ def executar_jogo(game_manager=None):
         global tela
         tela = configurar_tela(largura_mapa, altura_mapa)
 
-        # Pre-carregar frames de disparo
-        frames_disparo_normal_base = [
-            pygame.image.load("Sprites/Fogo1.png").convert_alpha(),
-            pygame.image.load("Sprites/Fogo2.png").convert_alpha()
-        ]
-        frames_disparo_impulso_base = [
-            pygame.image.load("Sprites/Fogo_impulso1.png").convert_alpha(),
-            pygame.image.load("Sprites/Fogo_impulso2.png").convert_alpha()
-        ]
+        vfx_disparo_player = PlayerProjectileVFX()
         
         tempo_ultimo_escudo = pygame.time.get_ticks()
         tempo_parado_person = pygame.time.get_ticks()  
@@ -1240,20 +1235,41 @@ def executar_jogo(game_manager=None):
                     "atributos": snapshot_attrs,
                     "pos_x": pos_x_personagem,
                     "pos_y": pos_y_personagem,
+                    "pontuacao_magia": pontuacao_magia,
+                    "inimigos_eliminados": inimigos_eliminados,
+                    "nivel_ameaca": nivel_ameaca,
+                    "vida_inimigo_maxima": vida_inimigo_maxima,
+                    "max_inimigos": max_inimigos2,
+                    "tempo_cronometro": Variaveis.obter_tempo_decorrido(),
+                    "inimigos_comum": Variaveis.serializar_inimigos_rewind(inimigos_comum),
                     "vida_boss": vida_chefe if 'vida_chefe' in locals() or 'vida_chefe' in globals() else (vida_boss if 'vida_boss' in locals() or 'vida_boss' in globals() else None)
                 }
                 Variaveis.registrar_snapshot(snapshot_data, tempo_atual)
 
             if carregar_atributos_na_fase:
+                rewind_aplicado = False
                 try:
                     carregar_atributos()
                     if Variaveis.snapshot_para_carregar is not None:
                         snap = Variaveis.snapshot_para_carregar
+                        rewind_aplicado = True
                         pos_x_personagem = snap.get("pos_x", pos_x_personagem)
                         pos_y_personagem = snap.get("pos_y", pos_y_personagem)
                         vida = snap.get("vida_fracao", 0.20) * vida_maxima
                         pontuacao = 0
                         pontuacao_exib = 0
+                        pontuacao_magia = snap.get("pontuacao_magia", pontuacao_magia)
+                        inimigos_eliminados = snap.get("inimigos_eliminados", inimigos_eliminados)
+                        nivel_ameaca = snap.get("nivel_ameaca", inimigos_eliminados // 10)
+                        vida_inimigo_maxima = snap.get("vida_inimigo_maxima", vida_inimigo_maxima)
+                        max_inimigos2 = snap.get("max_inimigos", max_inimigos2)
+                        Variaveis.definir_tempo_cronometro(snap.get("tempo_cronometro", Variaveis.obter_tempo_decorrido()))
+                        if "inimigos_comum" in snap:
+                            inimigos_comum = Variaveis.restaurar_inimigos_rewind(snap.get("inimigos_comum"), frames_inimigo[0])
+                        if snap.get("refragmentacao_rewind"):
+                            imune_tempo_restante = max(imune_tempo_restante, 4000)
+                            piscando_vida = False
+                            Variaveis.aplicar_rewind_respawn_visual(pos_x_personagem, pos_y_personagem, direcao_atual, pygame.time.get_ticks())
                         if "vida_boss" in snap and snap["vida_boss"] is not None:
                             if 'vida_chefe' in locals() or 'vida_chefe' in globals():
                                 vida_chefe = snap["vida_boss"]
@@ -1265,8 +1281,9 @@ def executar_jogo(game_manager=None):
                 carregar_atributos_na_fase=False
                 
                 # Dynamic enemy stat scaling based on loaded player stats
-                vida_inimigo_maxima = vida_inimigo_comum_inicial(max(35, int(dano_person_hit * 2.5)))
-                vida_inimigo = vida_inimigo_maxima
+                if not rewind_aplicado:
+                    vida_inimigo_maxima = vida_inimigo_comum_inicial(max(35, int(dano_person_hit * 2.5)))
+                    vida_inimigo = vida_inimigo_maxima
                 
                 dano_inimigo_perto = max(dano_inimigo_perto, Resistencia + 15)
                 dano_inimigo_longe = max(dano_inimigo_longe, Resistencia // 2 + 10)
@@ -1277,12 +1294,6 @@ def executar_jogo(game_manager=None):
                 # Boss 2 scaling
                 vida_boss2 = max(vida_inicial_boss(2, 8000), int(dano_person_hit * 120 * 2.0))
                 vida_maxima_boss2 = vida_boss2
-
-            if impulsiva_ativa:
-                frames_disparo = [pygame.transform.scale(frame, (largura_disparo, altura_disparo)) for frame in frames_disparo_impulso_base]
-            else:
-                frames_disparo = [pygame.transform.scale(frame, (largura_disparo, altura_disparo)) for frame in frames_disparo_normal_base]
-
 
             nivel_impulsiva = upgrades.get("Impulsiva", 0)
             if impulsiva_ativa:
@@ -1455,7 +1466,7 @@ def executar_jogo(game_manager=None):
                         # Rastreie o tempo de exibição do texto
                         tempo_texto_dano = pygame.time.get_ticks()
                         inimigo["vida"] -= dano
-                        disparos.remove(disparo)  # Remover o disparo após colisão
+                        estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)  # Remover o disparo após colisão
 
                         if Poison_Active:
                             aplicar_veneno(inimigo, tempo_atual, cartas_compradas.get("Poison", 0))
@@ -1686,10 +1697,13 @@ def executar_jogo(game_manager=None):
 
 
             # Reinicia a animação quando troca de direção para não pular frames
-            if direcao_atual != ultima_direcao_animacao:
+            chave_direcao_animacao = direcao_atual
+            if direcao_atual == 'disp':
+                chave_direcao_animacao = 'disp_left' if math.cos(angulo_disparo_preparado) < 0 else 'disp_right'
+            if chave_direcao_animacao != ultima_direcao_animacao:
                 frame_atual = 0
                 tempo_passado = 0
-                ultima_direcao_animacao = direcao_atual
+                ultima_direcao_animacao = chave_direcao_animacao
 
             if direcao_atual == 'stop':
                 if tempo_passado >= tempo_animacao_stop:
@@ -1710,10 +1724,10 @@ def executar_jogo(game_manager=None):
                 if disparo_frame_atual >= len(frames_animacao['disp']) - 1:
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
-                    disparos.append({
-                        "rect": pygame.Rect(px_centro - largura_disparo // 2, py_centro - altura_disparo // 2, largura_disparo, altura_disparo),
-                        "angulo": angulo_disparo_preparado
-                    })
+                    disparos.append(vfx_disparo_player.criar_disparo(
+                        px_centro, py_centro, largura_disparo, altura_disparo,
+                        angulo_disparo_preparado, velocidade_disparo, tempo_atual, impulsiva_ativa
+                    ))
                     tempo_ultimo_disparo = tempo_atual
                     disparo_preparando = False
                     disparo_frame_atual = 0
@@ -1836,15 +1850,20 @@ def executar_jogo(game_manager=None):
             desenhar_sombra(tela, pos_x_personagem + shake_x, pos_y_personagem + shake_y, largura_personagem, altura_personagem)
             if not personagem_imovel:
                 frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
+                if direcao_atual == 'disp' and math.cos(angulo_disparo_preparado) < 0:
+                    frame_para_desenhar = pygame.transform.flip(frame_para_desenhar, True, False)
                 if angulo_inclinacao_personagem != 0:
                     # Rotaciona o frame pelo centro para manter o eixo
                     frame_rotacionado = pygame.transform.rotate(frame_para_desenhar, angulo_inclinacao_personagem)
                     novo_rect = frame_rotacionado.get_rect(center=(pos_x_personagem + largura_personagem//2 + shake_x, pos_y_personagem + altura_personagem//2 + shake_y))
-                    tela.blit(frame_rotacionado, novo_rect.topleft)
+                    desenhar_personagem_com_dano(tela, frame_rotacionado, novo_rect.x, novo_rect.y, tempo_atual, tempo_ultimo_hit_inimigo)
                 else:
-                    tela.blit(frame_para_desenhar, (pos_x_personagem + shake_x, pos_y_personagem + shake_y))
+                    w_f, h_f = frame_para_desenhar.get_size()
+                    bx = pos_x_personagem + (largura_personagem - w_f) // 2 + shake_x
+                    by = pos_y_personagem + (altura_personagem - h_f) + shake_y
+                    desenhar_personagem_com_dano(tela, frame_para_desenhar, bx, by, tempo_atual, tempo_ultimo_hit_inimigo)
             else:
-                tela.blit(imagem_personagem_congelada, (pos_x_personagem + shake_x, pos_y_personagem + shake_y))
+                desenhar_personagem_com_dano(tela, imagem_personagem_congelada, pos_x_personagem + shake_x, pos_y_personagem + shake_y, tempo_atual, tempo_ultimo_hit_inimigo)
 
             # Desenhar zona de teleporte (se estiver mirando no modo mouse)
             Variaveis.desenhar_zona_teleporte(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, distancia_dash)
@@ -2072,14 +2091,7 @@ def executar_jogo(game_manager=None):
             # Desenhar os disparos normais
             novos_disparos = []
             for disparo in disparos:
-                if "pos_x" not in disparo:
-                    disparo["pos_x"] = float(disparo["rect"].x)
-                if "pos_y" not in disparo:
-                    disparo["pos_y"] = float(disparo["rect"].y)
-                disparo["pos_x"] += velocidade_disparo * math.cos(disparo["angulo"]) * dt
-                disparo["pos_y"] += velocidade_disparo * math.sin(disparo["angulo"]) * dt
-                disparo["rect"].x = int(disparo["pos_x"])
-                disparo["rect"].y = int(disparo["pos_y"])
+                vfx_disparo_player.atualizar_disparo(disparo, velocidade_disparo, dt)
 
                 # Verificar se o disparo está dentro do mapa
                 if 0 <= disparo["rect"].x < largura_mapa and 0 <= disparo["rect"].y < altura_mapa:
@@ -2089,9 +2101,8 @@ def executar_jogo(game_manager=None):
 
             # Renderizar os disparos
             for disparo in disparos:
-                tela.blit(frames_disparo[frame_atual_disparo], (disparo["rect"].x + shake_x, disparo["rect"].y + shake_y))
-
-            frame_atual_disparo = (frame_atual_disparo + 1) % len(frames_disparo)
+                vfx_disparo_player.desenhar_disparo(tela, disparo, tempo_atual, config_graficos, (shake_x, shake_y))
+            vfx_disparo_player.atualizar_e_desenhar_particulas(tela, dt, config_graficos, (shake_x, shake_y))
 
             boss_info = {
                 "vivo": boss_vivo2,
@@ -2313,7 +2324,7 @@ def executar_jogo(game_manager=None):
                     if escudo_devota_ativo:
                         escudo_devota_ativo= False
                         pass
-                    elif Dano_pos_resistencia_person > 0:
+                    elif imune_tempo_restante <= 0 and Dano_pos_resistencia_person > 0:
                         vida -= Dano_pos_resistencia_person
                         if aurea == "Impulsiva":
                             eliminacoes_consecutivas_impulsiva = 0  # Perde streak se levar dano
@@ -2378,14 +2389,18 @@ def executar_jogo(game_manager=None):
                             "decay": random.uniform(0.015, 0.03)
                         })
                 elif disparo_inimigo.get("elite", False):
-                    # Scale and tint elite projectile to icy blue
-                    scaled_frame = pygame.transform.scale(frames_disparo[frame_atual_disparo], (disparo_inimigo["rect"].width, disparo_inimigo["rect"].height))
-                    tint_surf = pygame.Surface(scaled_frame.get_size(), pygame.SRCALPHA)
-                    tint_surf.fill((100, 200, 255, 255))
-                    scaled_frame.blit(tint_surf, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
-                    tela.blit(scaled_frame, (pos_x_disparo_inimigo + shake_x, pos_y_disparo_inimigo + shake_y))
+                    cx = pos_x_disparo_inimigo + disparo_inimigo["rect"].width // 2 + shake_x
+                    cy = pos_y_disparo_inimigo + disparo_inimigo["rect"].height // 2 + shake_y
+                    raio = max(5, int(disparo_inimigo["rect"].width * 0.48))
+                    pygame.draw.circle(tela, (90, 190, 255), (cx, cy), raio + 4)
+                    pygame.draw.circle(tela, (210, 245, 255), (cx - 2, cy - 2), max(2, raio // 2))
+                    pygame.draw.circle(tela, (25, 105, 210), (cx, cy), raio + 5, 2)
                 else:
-                    tela.blit(frames_disparo[frame_atual_disparo], (pos_x_disparo_inimigo + shake_x, pos_y_disparo_inimigo + shake_y))
+                    cx = pos_x_disparo_inimigo + disparo_inimigo["rect"].width // 2 + shake_x
+                    cy = pos_y_disparo_inimigo + disparo_inimigo["rect"].height // 2 + shake_y
+                    raio = max(4, int(disparo_inimigo["rect"].width * 0.42))
+                    pygame.draw.circle(tela, (120, 220, 255), (cx, cy), raio)
+                    pygame.draw.circle(tela, (235, 255, 255), (cx - 1, cy - 1), max(2, raio // 2))
 
                 # Atualize a posição do disparo do inimigo
                 disparo_inimigo["pos_x"] += disparo_inimigo["velocidade"][0] * dt
@@ -2416,7 +2431,7 @@ def executar_jogo(game_manager=None):
                             eliminacoes_consecutivas_impulsiva = 0  # Perde streak se levar dano        
                         if escudo_devota_ativo:
                             escudo_devota_ativo = False
-                        else:  
+                        elif imune_tempo_restante <= 0:
                             vida -= Dano_pos_resistencia_person_longe
                             eliminacoes_consecutivas = 0
                             bonus_pontuacao = 0
@@ -3054,7 +3069,7 @@ def executar_jogo(game_manager=None):
                                 if dist_to_player <= 50:
                                     if escudo_devota_ativo:
                                         escudo_devota_ativo = False
-                                    elif pygame.time.get_ticks() - tempo_ultimo_atingido >= 1000:
+                                    elif imune_tempo_restante <= 0 and pygame.time.get_ticks() - tempo_ultimo_atingido >= 1000:
                                         vida -= int(vida_maxima - vida) * 0.10 + 20 + dano_boss2
                                         tempo_ultimo_atingido = pygame.time.get_ticks()
                                         personagem_imovel = True
@@ -3242,7 +3257,7 @@ def executar_jogo(game_manager=None):
                             if rect_wave.colliderect(personagem_rect):
                                 if escudo_devota_ativo:
                                     escudo_devota_ativo = False
-                                elif pygame.time.get_ticks() - tempo_ultimo_atingido >= 800:
+                                elif imune_tempo_restante <= 0 and pygame.time.get_ticks() - tempo_ultimo_atingido >= 800:
                                     vida -= int(vida_maxima * 0.08) + 20 + dano_boss2
                                     tempo_ultimo_atingido = pygame.time.get_ticks()
                                     personagem_imovel = True
@@ -3296,7 +3311,7 @@ def executar_jogo(game_manager=None):
                         tempo_texto_dano = pygame.time.get_ticks()
                         dano = dano_boss_mitigado(dano, 2, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                         vida_boss2 -= dano
-                        disparos.remove(disparo)
+                        estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
 
                         # Roubo de vida
                         if quantidade_roubo_vida > 0:
@@ -3629,6 +3644,9 @@ def executar_jogo(game_manager=None):
                     tela.blit(shadow_surf, (rect_warn.x - 10, rect_warn.y - 5))
                     tela.blit(txt_warn, rect_warn)
 
+            Variaveis.desenhar_refragmentacao_rewind(tela, tempo_atual)
+            Variaveis.desenhar_overlay_vida_critica(tela, vida, vida_maxima, tempo_atual)
+
             desenhar_hud_fase(
                 tela, vida, vida_maxima, pontuacao_exib, custo_carta_atual,
                 pontuacao_magia, cooldowns, dispositivo_ativo,
@@ -3636,6 +3654,8 @@ def executar_jogo(game_manager=None):
                 escudo_devota_ativo, pos_x_personagem, pos_y_personagem,
                 largura_personagem, altura_personagem
             )
+
+            Variaveis.aplicar_tremor_dano_tela(tela, tempo_atual, tempo_ultimo_hit_inimigo, piscando_vida)
 
             tela.blit(cursor_imagem, (mouse_x, mouse_y))
 

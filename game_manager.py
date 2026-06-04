@@ -144,7 +144,8 @@ class GameManager:
                     self.dados_compartilhados['fase_antes_do_game_over'] = self.estado_atual
             else:
                 import Variaveis
-                Variaveis.limpar_historico_rewind()
+                if not (self.estado_atual == EstadoJogo.GAME_OVER and Variaveis.snapshot_para_carregar is not None):
+                    Variaveis.limpar_historico_rewind()
             self.estado_atual = self.proximo_estado
             self.proximo_estado = None
             

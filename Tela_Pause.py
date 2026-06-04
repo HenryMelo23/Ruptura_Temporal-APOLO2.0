@@ -1,4 +1,4 @@
-﻿import Caminhos
+import Caminhos
 import pygame
 import sys
 import math
@@ -125,6 +125,21 @@ def _snapshot_config(config):
 def _tem_alteracoes_pendentes(config, config_salva):
     return _snapshot_config(config) != _snapshot_config(config_salva)
 
+def _desenhar_painel_legibilidade(tela, rect, alpha=224, borda_alpha=95):
+    painel = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+    pygame.draw.rect(painel, (3, 6, 18, alpha), painel.get_rect(), border_radius=10)
+    pygame.draw.rect(painel, (0, 255, 230, borda_alpha), painel.get_rect(), width=1, border_radius=10)
+    brilho = pygame.Rect(4, 4, max(0, rect.width - 8), max(0, rect.height - 8))
+    if brilho.width > 0 and brilho.height > 0:
+        pygame.draw.rect(painel, (20, 90, 120, 45), brilho, width=1, border_radius=8)
+    tela.blit(painel, rect.topleft)
+
+def _retornar_pause(acao, tela=None):
+    pygame.mouse.set_visible(False)
+    if tela is not None:
+        return {"acao": acao, "tela": tela}
+    return acao
+
 def _confirmar_saida_alteracoes_pause(tela, fontes):
     largura_tela, altura_tela = tela.get_size()
     fonte_titulo = fontes["titulo"](34)
@@ -184,7 +199,6 @@ def _confirmar_saida_alteracoes_pause(tela, fontes):
                         return acao
 
         clock.tick(60)
-
 def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
     try:
         with open("saves/config_graficos.json", "r") as f:
@@ -196,12 +210,16 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
             "nivel_detalhes": "alto",
             "particulas_ativas": True,
             "efeitos_visuais": True,
-            "fps_limite": 60
+            "fps_limite": 60,
+            "tela_cheia": False
         }
     config.setdefault("fps_limite", 60)
     config.setdefault("nivel_detalhes", "alto")
     config.setdefault("particulas_ativas", True)
     config.setdefault("efeitos_visuais", True)
+    config.setdefault("tela_cheia", False)
+    
+    config_salva = json.loads(json.dumps(config))
     
     opcoes_config = [
         {"nome": "Sombras", "chave": "sombras_ativas", "valores": ["desativadas", "simples", "dinamicas"], "labels": ["Desativadas", "Simples", "Dinamicas"]},
@@ -210,6 +228,8 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
         {"nome": "Particulas", "chave": "particulas_ativas", "valores": [True, False], "labels": ["Ativadas", "Desativadas"]},
         {"nome": "Efeitos Visuais", "chave": "efeitos_visuais", "valores": [True, False], "labels": ["Ativados", "Desativados"]},
         {"nome": "Limite de FPS", "chave": "fps_limite", "valores": [30, 60, 120, 0], "labels": ["30 FPS", "60 FPS", "120 FPS", "Ilimitado"]},
+        {"nome": "Tela Cheia", "chave": "tela_cheia", "valores": [False, True], "labels": ["Janela", "Tela Cheia"]},
+        {"nome": "Aplicar Alteracoes", "chave": "aplicar", "valores": None, "labels": None},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
     ]
     
@@ -242,11 +262,16 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
             60: "Padrao recomendado para jogabilidade fluida e estavel.",
             120: "Para monitores de alta taxa de atualizacao (120Hz ou mais).",
             0: "Ilimitado. Roda o mais rapido possivel (uso maximo de hardware)."
+        },
+        "tela_cheia": {
+            False: "Modo Janela: Executa o jogo em uma janela redimensionavel.",
+            True: "Modo Tela Cheia: Ocupa toda a tela do monitor para maior imersao."
         }
     }
     
     largura_tela, altura_tela = tela.get_size()
     selecionado = 0
+    modo_interacao = "teclado"
     clock = pygame.time.Clock()
     
     fonte_titulo_tela = fontes["titulo"](48)
@@ -254,6 +279,27 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
     fonte_valor_tela = fontes["texto"](22)
     fonte_instrucao = fontes["texto"](20)
     
+    def aplicar_config():
+        nonlocal config_salva, tela, fundo_pausa
+        with open("saves/config_graficos.json", "w") as f:
+            json.dump(config, f, indent=4)
+        from utils import configurar_tela
+        tela = configurar_tela(largura_tela, altura_tela)
+        config_salva = json.loads(json.dumps(config))
+        if fundo_pausa:
+            fundo_pausa = pygame.transform.scale(fundo_pausa, (largura_tela, altura_tela))
+
+    def tentar_sair():
+        if not _tem_alteracoes_pendentes(config, config_salva):
+            return True
+        acao = _confirmar_saida_alteracoes_pause(tela, fontes)
+        if acao == "salvar":
+            aplicar_config()
+            return True
+        if acao == "descartar":
+            return True
+        return False
+        
     rodando = True
     while rodando:
         if fundo_pausa:
@@ -269,24 +315,37 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
             pygame.draw.line(overlay, (0, 255, 204, 10), (0, y), (largura_tela, y))
             
         tela.blit(overlay, (0, 0))
-        
+         
         texto_titulo = fonte_titulo_tela.render("CONFIGURACOES GRAFICAS", True, (0, 255, 204))
         ret_tit = texto_titulo.get_rect(center=(largura_tela // 2, altura_tela // 8))
+        _desenhar_painel_legibilidade(tela, ret_tit.inflate(70, 28), alpha=210, borda_alpha=85)
         tela.blit(texto_titulo, ret_tit)
         
         mx, my = _obter_pos_mouse_pause()
+        clicado = False
         
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+            elif evento.type == pygame.MOUSEMOTION:
+                if evento.rel != (0, 0):
+                    modo_interacao = "mouse"
+            elif evento.type == pygame.MOUSEBUTTONDOWN:
+                if evento.button == 1:
+                    modo_interacao = "mouse"
+                    clicado = True
             elif evento.type == pygame.KEYDOWN:
+                modo_interacao = "teclado"
                 if evento.key in [pygame.K_UP, pygame.K_w]:
                     selecionado = (selecionado - 1) % len(opcoes_config)
+                    tocar_hover()
                 elif evento.key in [pygame.K_DOWN, pygame.K_s]:
                     selecionado = (selecionado + 1) % len(opcoes_config)
+                    tocar_hover()
                 elif evento.key in [pygame.K_LEFT, pygame.K_a, pygame.K_RIGHT, pygame.K_d]:
-                    if opcoes_config[selecionado]["chave"]:
+                    if opcoes_config[selecionado]["chave"] and opcoes_config[selecionado]["chave"] != "aplicar":
+                        tocar_hover()
                         chave = opcoes_config[selecionado]["chave"]
                         valores = opcoes_config[selecionado]["valores"]
                         valor_atual = config[chave]
@@ -301,47 +360,58 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
                             novo_indice = (indice_atual - 1) % len(valores)
                         
                         config[chave] = valores[novo_indice]
-                        with open("saves/config_graficos.json", "w") as f:
-                            json.dump(config, f, indent=4)
                 elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
-                    if opcoes_config[selecionado]["nome"] == "Voltar":
+                    tocar_selecionar()
+                    if opcoes_config[selecionado]["chave"] == "aplicar":
+                        aplicar_config()
+                    elif opcoes_config[selecionado]["nome"] == "Voltar" and tentar_sair():
                         rodando = False
                 elif evento.key == pygame.K_ESCAPE:
-                    rodando = False
-            elif evento.type == pygame.MOUSEBUTTONDOWN:
-                # Voltar Click check
-                y_inicial = altura_tela // 4 + 20
-                espacamento = 50
-                for i, opcao in enumerate(opcoes_config):
-                    y_pos = y_inicial + i * espacamento
-                    rect_item = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 38)
-                    if rect_item.collidepoint(mx, my):
-                        if i == selecionado:
-                            if opcao["nome"] == "Voltar":
-                                rodando = False
-                            elif opcao["chave"]:
-                                # Cycle to next value on direct click
-                                chave = opcao["chave"]
-                                valores = opcao["valores"]
-                                valor_atual = config[chave]
-                                try:
-                                    idx = (valores.index(valor_atual) + 1) % len(valores)
-                                except:
-                                    idx = 0
-                                config[chave] = valores[idx]
-                                with open("saves/config_graficos.json", "w") as f:
-                                    json.dump(config, f, indent=4)
-                        else:
-                            selecionado = i
-                    
-        y_inicial = altura_tela // 4 + 20
-        espacamento = 50
+                    tocar_selecionar()
+                    if tentar_sair():
+                        rodando = False
+                        
+        y_inicial = altura_tela // 4 + 10
+        espacamento = 44
+        desc_y = min(altura_tela - 145, y_inicial + len(opcoes_config) * espacamento + 12)
+        lista_rect = pygame.Rect(
+            largura_tela // 4 - 44,
+            y_inicial - 24,
+            largura_tela // 2 + 88,
+            max(80, desc_y - (y_inicial - 24) - 14),
+        )
+        _desenhar_painel_legibilidade(tela, lista_rect, alpha=218, borda_alpha=70)
         
+        # Mouse hover & click processing
+        if modo_interacao == "mouse":
+            for i, opcao in enumerate(opcoes_config):
+                y_pos = y_inicial + i * espacamento
+                rect_item = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 34)
+                if rect_item.collidepoint(mx, my):
+                    if selecionado != i:
+                        selecionado = i
+                        tocar_hover()
+                    if clicado:
+                        tocar_selecionar()
+                        if opcao["nome"] == "Voltar" and tentar_sair():
+                            rodando = False
+                        elif opcao["chave"] == "aplicar":
+                            aplicar_config()
+                        elif opcao["chave"]:
+                            chave = opcao["chave"]
+                            valores = opcao["valores"]
+                            valor_atual = config[chave]
+                            try:
+                                idx = (valores.index(valor_atual) + 1) % len(valores)
+                            except:
+                                idx = 0
+                            config[chave] = valores[idx]
+                            
         for i, opcao in enumerate(opcoes_config):
             y_pos = y_inicial + i * espacamento
             
             if i == selecionado:
-                rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 38)
+                rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 34)
                 pygame.draw.rect(tela, (0, 180, 200, 65), rect_bg, border_radius=6)
                 pygame.draw.rect(tela, (0, 255, 230), rect_bg, width=2, border_radius=6)
                 cor_nome = (255, 255, 255)
@@ -351,7 +421,7 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
             texto_nome = fonte_opcao_tela.render(opcao["nome"], True, cor_nome)
             tela.blit(texto_nome, (largura_tela // 4, y_pos))
             
-            if opcao["chave"]:
+            if opcao["chave"] and opcao["chave"] != "aplicar":
                 valor_atual = config[opcao["chave"]]
                 try:
                     indice_valor = opcao["valores"].index(valor_atual)
@@ -369,13 +439,14 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
                     tela.blit(seta_esq, (largura_tela // 2 + 25, y_pos + 2))
                     tela.blit(seta_dir, (largura_tela // 2 + 220, y_pos + 2))
                     
-        rect_desc = pygame.Rect(largura_tela // 2 - 360, 480, 720, 50)
-        pygame.draw.rect(tela, (15, 10, 30, 200), rect_desc, border_radius=8)
-        pygame.draw.rect(tela, (0, 255, 230, 80), rect_desc, width=1, border_radius=8)
+        rect_desc = pygame.Rect(largura_tela // 2 - 360, desc_y, 720, 58)
+        _desenhar_painel_legibilidade(tela, rect_desc, alpha=238, borda_alpha=120)
         
         opt_sel = opcoes_config[selecionado]
         if opt_sel["chave"] is None:
             texto_desc_str = "Retornar ao menu de configuracoes anterior."
+        elif opt_sel["chave"] == "aplicar":
+            texto_desc_str = "Salvar e aplicar as alteracoes graficas agora."
         else:
             val_sel = config[opt_sel["chave"]]
             texto_desc_str = descricoes_valores[opt_sel["chave"]].get(val_sel, "")
@@ -391,6 +462,9 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
         pygame.display.flip()
         clock.tick(60)
 
+    return {"tela": tela, "config_graficos": json.loads(json.dumps(config_salva))}
+
+
 def abrir_configuracoes_audio(tela, fontes, fundo_pausa=None):
     try:
         with open("saves/config_audio.json", "r") as f:
@@ -402,8 +476,11 @@ def abrir_configuracoes_audio(tela, fontes, fundo_pausa=None):
             "volume_master": 1.0
         }
         
+    config_salva = json.loads(json.dumps(config))
+    
     largura_tela, altura_tela = tela.get_size()
     selecionado = 0
+    modo_interacao = "teclado"
     clock = pygame.time.Clock()
     
     fonte_titulo_tela = fontes["titulo"](48)
@@ -411,16 +488,37 @@ def abrir_configuracoes_audio(tela, fontes, fundo_pausa=None):
     fonte_valor_tela = fontes["texto"](22)
     fonte_instrucao = fontes["texto"](20)
     
-    opcoes = ["volume_master", "volume_musica", "volume_efeitos", "voltar"]
-    labels = ["Volume Master", "Volume Musica", "Volume Efeitos", "Voltar"]
+    opcoes = ["volume_master", "volume_musica", "volume_efeitos", "aplicar", "voltar"]
+    labels = ["Volume Master", "Volume Musica", "Volume Efeitos", "Aplicar Alteracoes", "Voltar"]
     
     descricoes_audio = {
         "volume_master": "Volume geral. Ajusta a musica e os efeitos sonoros proporcionalmente.",
         "volume_musica": "Trilha sonora. Ajusta o volume da musica de fundo e ambiente.",
         "volume_efeitos": "Efeitos sonoros. Ajusta o volume de tiros, explosoes e impactos.",
+        "aplicar": "Salvar e aplicar as alteracoes de audio agora.",
         "voltar": "Retornar ao menu de configuracoes anterior."
     }
     
+    def aplicar_config():
+        nonlocal config_salva
+        from audio_manager import salvar_config_audio, atualizar_sons_do_jogo
+        salvar_config_audio(config)
+        atualizar_sons_do_jogo(config)
+        config_salva = json.loads(json.dumps(config))
+
+    def tentar_sair():
+        if not _tem_alteracoes_pendentes(config, config_salva):
+            return True
+        acao = _confirmar_saida_alteracoes_pause(tela, fontes)
+        if acao == "salvar":
+            aplicar_config()
+            return True
+        if acao == "descartar":
+            # Restore music volume to saved config
+            pygame.mixer.music.set_volume(config_salva["volume_musica"] * config_salva["volume_master"])
+            return True
+        return False
+        
     rodando = True
     while rodando:
         if fundo_pausa:
@@ -436,73 +534,92 @@ def abrir_configuracoes_audio(tela, fontes, fundo_pausa=None):
             pygame.draw.line(overlay, (0, 255, 204, 10), (0, y), (largura_tela, y))
             
         tela.blit(overlay, (0, 0))
-        
+         
         texto_titulo = fonte_titulo_tela.render("CONFIGURACOES DE AUDIO", True, (0, 255, 204))
         ret_tit = texto_titulo.get_rect(center=(largura_tela // 2, altura_tela // 8))
+        _desenhar_painel_legibilidade(tela, ret_tit.inflate(70, 28), alpha=210, borda_alpha=85)
         tela.blit(texto_titulo, ret_tit)
         
         mx, my = _obter_pos_mouse_pause()
+        clicado = False
         
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+            elif evento.type == pygame.MOUSEMOTION:
+                if evento.rel != (0, 0):
+                    modo_interacao = "mouse"
+            elif evento.type == pygame.MOUSEBUTTONDOWN:
+                if evento.button == 1:
+                    modo_interacao = "mouse"
+                    clicado = True
             elif evento.type == pygame.KEYDOWN:
+                modo_interacao = "teclado"
                 if evento.key in [pygame.K_UP, pygame.K_w]:
                     selecionado = (selecionado - 1) % len(opcoes)
+                    tocar_hover()
                 elif evento.key in [pygame.K_DOWN, pygame.K_s]:
                     selecionado = (selecionado + 1) % len(opcoes)
-                elif evento.key in [pygame.K_LEFT, pygame.K_a]:
-                    if opcoes[selecionado] != "voltar":
+                    tocar_hover()
+                elif evento.key in [pygame.K_LEFT, pygame.K_a, pygame.K_RIGHT, pygame.K_d]:
+                    if opcoes[selecionado] not in ["voltar", "aplicar"]:
+                        tocar_hover()
                         chave = opcoes[selecionado]
-                        config[chave] = max(0.0, config[chave] - 0.1)
-                        with open("saves/config_audio.json", "w") as f:
-                            json.dump(config, f, indent=4)
-                        pygame.mixer.music.set_volume(config["volume_musica"] * config["volume_master"])
-                elif evento.key in [pygame.K_RIGHT, pygame.K_d]:
-                    if opcoes[selecionado] != "voltar":
-                        chave = opcoes[selecionado]
-                        config[chave] = min(1.0, config[chave] + 0.1)
-                        with open("saves/config_audio.json", "w") as f:
-                            json.dump(config, f, indent=4)
+                        step = -0.1 if evento.key in [pygame.K_LEFT, pygame.K_a] else 0.1
+                        config[chave] = max(0.0, min(1.0, config[chave] + step))
                         pygame.mixer.music.set_volume(config["volume_musica"] * config["volume_master"])
                 elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
-                    if opcoes[selecionado] == "voltar":
+                    tocar_selecionar()
+                    if opcoes[selecionado] == "aplicar":
+                        aplicar_config()
+                    elif opcoes[selecionado] == "voltar" and tentar_sair():
                         rodando = False
                 elif evento.key == pygame.K_ESCAPE:
-                    rodando = False
-            elif evento.type == pygame.MOUSEBUTTONDOWN:
-                y_inicial = altura_tela // 4 + 40
-                espacamento = 65
-                for i, opcao in enumerate(opcoes):
-                    y_pos = y_inicial + i * espacamento
-                    rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 48)
-                    if rect_bg.collidepoint(mx, my):
-                        if i == selecionado:
-                            if opcao == "voltar":
-                                rodando = False
-                            else:
-                                # Standard volume click adjustment based on mouse x position relative to bar
-                                barra_x = largura_tela // 2 - 20
-                                barra_largura = 180
-                                rel_x = mx - barra_x
-                                if 0 <= rel_x <= barra_largura:
-                                    pct = rel_x / barra_largura
-                                    config[opcao] = round(pct, 1)
-                                    with open("saves/config_audio.json", "w") as f:
-                                        json.dump(config, f, indent=4)
-                                    pygame.mixer.music.set_volume(config["volume_musica"] * config["volume_master"])
-                        else:
-                            selecionado = i
-                    
-        y_inicial = altura_tela // 4 + 40
-        espacamento = 65
+                    tocar_selecionar()
+                    if tentar_sair():
+                        rodando = False
+                        
+        y_inicial = altura_tela // 4 + 10
+        espacamento = 50
+        lista_rect = pygame.Rect(
+            largura_tela // 4 - 44,
+            y_inicial - 24,
+            largura_tela // 2 + 88,
+            (len(opcoes) - 1) * espacamento + 76,
+        )
+        _desenhar_painel_legibilidade(tela, lista_rect, alpha=218, borda_alpha=70)
         
+        # Mouse hover & click processing
+        if modo_interacao == "mouse":
+            for i, opcao in enumerate(opcoes):
+                y_pos = y_inicial + i * espacamento
+                rect_item = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 44)
+                if rect_item.collidepoint(mx, my):
+                    if selecionado != i:
+                        selecionado = i
+                        tocar_hover()
+                    if clicado:
+                        if opcao == "voltar" and tentar_sair():
+                            rodando = False
+                        elif opcao == "aplicar":
+                            tocar_selecionar()
+                            aplicar_config()
+                        elif opcao not in ["voltar", "aplicar"]:
+                            barra_x = largura_tela // 2 - 20
+                            barra_largura = 180
+                            rel_x = mx - barra_x
+                            if 0 <= rel_x <= barra_largura:
+                                tocar_selecionar()
+                                pct = rel_x / barra_largura
+                                config[opcao] = round(pct, 1)
+                                pygame.mixer.music.set_volume(config["volume_musica"] * config["volume_master"])
+                                
         for i, opcao in enumerate(opcoes):
             y_pos = y_inicial + i * espacamento
             
             if i == selecionado:
-                rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 48)
+                rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 44)
                 pygame.draw.rect(tela, (0, 180, 200, 65), rect_bg, border_radius=6)
                 pygame.draw.rect(tela, (0, 255, 230), rect_bg, width=2, border_radius=6)
                 cor_nome = (255, 255, 255)
@@ -512,7 +629,7 @@ def abrir_configuracoes_audio(tela, fontes, fundo_pausa=None):
             texto_nome = fonte_opcao_tela.render(labels[i], True, cor_nome)
             tela.blit(texto_nome, (largura_tela // 4, y_pos))
             
-            if opcao != "voltar":
+            if opcao not in ["voltar", "aplicar"]:
                 valor = config[opcao]
                 barra_x = largura_tela // 2 - 20
                 barra_y = y_pos + 10
@@ -537,9 +654,8 @@ def abrir_configuracoes_audio(tela, fontes, fundo_pausa=None):
                     tela.blit(seta_esq, (barra_x - 20, y_pos + 5))
                     tela.blit(seta_dir, (barra_x + barra_largura + 45, y_pos + 5))
                     
-        rect_desc = pygame.Rect(largura_tela // 2 - 360, 480, 720, 50)
-        pygame.draw.rect(tela, (15, 10, 30, 200), rect_desc, border_radius=8)
-        pygame.draw.rect(tela, (0, 255, 230, 80), rect_desc, width=1, border_radius=8)
+        rect_desc = pygame.Rect(largura_tela // 2 - 360, 485, 720, 58)
+        _desenhar_painel_legibilidade(tela, rect_desc, alpha=238, borda_alpha=120)
         
         opt_sel = opcoes[selecionado]
         texto_desc_str = descricoes_audio[opt_sel]
@@ -554,6 +670,7 @@ def abrir_configuracoes_audio(tela, fontes, fundo_pausa=None):
         
         pygame.display.flip()
         clock.tick(60)
+
 
 def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
     try:
@@ -573,9 +690,12 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
         "modo_teleporte": modo_teleporte
     }
     
+    config_salva = json.loads(json.dumps(config))
+    
     opcoes_config = [
         {"nome": "Tutorial", "chave": "mostrar_tutorial", "valores": [True, False], "labels": ["Ativado", "Desativado"]},
         {"nome": "Modo de Teleporte", "chave": "modo_teleporte", "valores": ["fixo", "mouse"], "labels": ["Fixo", "Mouse Target"]},
+        {"nome": "Aplicar Alteracoes", "chave": "aplicar", "valores": None, "labels": None},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
     ]
     
@@ -592,6 +712,7 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
     
     largura_tela, altura_tela = tela.get_size()
     selecionado = 0
+    modo_interacao = "teclado"
     clock = pygame.time.Clock()
     
     fonte_titulo_tela = fontes["titulo"](48)
@@ -599,18 +720,30 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
     fonte_valor_tela = fontes["texto"](22)
     fonte_instrucao = fontes["texto"](20)
 
-    def salvar_config(chave):
-        if chave == "mostrar_tutorial":
-            with open("saves/tutorial_config.json", "w") as f:
-                json.dump({"mostrar_tutorial": config[chave]}, f)
-        elif chave == "modo_teleporte":
-            with open("saves/config_teleporte.json", "w") as f:
-                json.dump({"modo": config[chave]}, f)
-            try:
-                import Variaveis
-                Variaveis.obter_modo_teleporte(forcar_recarregar=True)
-            except:
-                pass
+    def aplicar_config():
+        nonlocal config_salva
+        with open("saves/tutorial_config.json", "w") as f:
+            json.dump({"mostrar_tutorial": config["mostrar_tutorial"]}, f)
+        with open("saves/config_teleporte.json", "w") as f:
+            json.dump({"modo": config["modo_teleporte"]}, f)
+        try:
+            import Variaveis
+            Variaveis.obter_modo_teleporte(forcar_recarregar=True)
+        except:
+            pass
+        config_salva = json.loads(json.dumps(config))
+
+    def tentar_sair():
+        if not _tem_alteracoes_pendentes(config, config_salva):
+            return True
+        acao = _confirmar_saida_alteracoes_pause(tela, fontes)
+        if acao == "salvar":
+            aplicar_config()
+            return True
+        if acao == "descartar":
+            return True
+        return False
+        
     rodando = True
     while rodando:
         if fundo_pausa:
@@ -626,18 +759,28 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
             pygame.draw.line(overlay, (0, 255, 204, 10), (0, y), (largura_tela, y))
             
         tela.blit(overlay, (0, 0))
-        
+         
         texto_titulo = fonte_titulo_tela.render("CONFIGURACOES DE JOGABILIDADE", True, (0, 255, 204))
         ret_tit = texto_titulo.get_rect(center=(largura_tela // 2, altura_tela // 8))
+        _desenhar_painel_legibilidade(tela, ret_tit.inflate(70, 28), alpha=210, borda_alpha=85)
         tela.blit(texto_titulo, ret_tit)
         
         mx, my = _obter_pos_mouse_pause()
+        clicado = False
         
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+            elif evento.type == pygame.MOUSEMOTION:
+                if evento.rel != (0, 0):
+                    modo_interacao = "mouse"
+            elif evento.type == pygame.MOUSEBUTTONDOWN:
+                if evento.button == 1:
+                    modo_interacao = "mouse"
+                    clicado = True
             elif evento.type == pygame.KEYDOWN:
+                modo_interacao = "teclado"
                 if evento.key in [pygame.K_UP, pygame.K_w]:
                     selecionado = (selecionado - 1) % len(opcoes_config)
                     tocar_hover()
@@ -645,10 +788,11 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
                     selecionado = (selecionado + 1) % len(opcoes_config)
                     tocar_hover()
                 elif evento.key in [pygame.K_LEFT, pygame.K_a, pygame.K_RIGHT, pygame.K_d]:
-                    if opcoes_config[selecionado]["chave"]:
+                    opt = opcoes_config[selecionado]
+                    if opt["chave"] and opt["chave"] != "aplicar":
                         tocar_hover()
-                        chave = opcoes_config[selecionado]["chave"]
-                        valores = opcoes_config[selecionado]["valores"]
+                        chave = opt["chave"]
+                        valores = opt["valores"]
                         valor_atual = config[chave]
                         try:
                             indice_atual = valores.index(valor_atual)
@@ -661,42 +805,63 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
                             novo_indice = (indice_atual - 1) % len(valores)
                         
                         config[chave] = valores[novo_indice]
-                        salvar_config(chave)
                 elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
                     tocar_selecionar()
-                    if opcoes_config[selecionado]["nome"] == "Voltar":
+                    opt = opcoes_config[selecionado]
+                    if opt["nome"] == "Voltar" and tentar_sair():
                         rodando = False
+                    elif opt["nome"] == "Aplicar Alteracoes":
+                        aplicar_config()
+                    elif opt["chave"] and opt["chave"] != "aplicar":
+                        chave = opt["chave"]
+                        valores = opt["valores"]
+                        valor_atual = config[chave]
+                        try:
+                            idx = (valores.index(valor_atual) + 1) % len(valores)
+                        except:
+                            idx = 0
+                        config[chave] = valores[idx]
                 elif evento.key == pygame.K_ESCAPE:
                     tocar_selecionar()
-                    rodando = False
-            elif evento.type == pygame.MOUSEBUTTONDOWN:
-                y_inicial = altura_tela // 4
-                espacamento = 44
-                for i, opcao in enumerate(opcoes_config):
-                    y_pos = y_inicial + i * espacamento
-                    rect_item = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 38)
-                    if rect_item.collidepoint(mx, my):
-                        if i == selecionado:
-                            tocar_selecionar()
-                            if opcao["nome"] == "Voltar":
-                                rodando = False
-                            elif opcao["chave"]:
-                                chave = opcao["chave"]
-                                valores = opcao["valores"]
-                                valor_atual = config[chave]
-                                try:
-                                    idx = (valores.index(valor_atual) + 1) % len(valores)
-                                except:
-                                    idx = 0
-                                config[chave] = valores[idx]
-                                salvar_config(chave)
-                        else:
-                            selecionado = i
-                            tocar_hover()
-                            
-        y_inicial = altura_tela // 4
-        espacamento = 44
+                    if tentar_sair():
+                        rodando = False
+                        
+        y_inicial = altura_tela // 4 + 20
+        espacamento = 45
+        desc_y = min(altura_tela - 145, y_inicial + len(opcoes_config) * espacamento + 12)
+        lista_rect = pygame.Rect(
+            largura_tela // 4 - 44,
+            y_inicial - 24,
+            largura_tela // 2 + 88,
+            max(80, desc_y - (y_inicial - 24) - 14),
+        )
+        _desenhar_painel_legibilidade(tela, lista_rect, alpha=218, borda_alpha=70)
         
+        # Mouse interaction check
+        if modo_interacao == "mouse":
+            for i, opcao in enumerate(opcoes_config):
+                y_pos = y_inicial + i * espacamento
+                rect_item = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 38)
+                if rect_item.collidepoint(mx, my):
+                    if selecionado != i:
+                        selecionado = i
+                        tocar_hover()
+                    if clicado:
+                        tocar_selecionar()
+                        if opcao["nome"] == "Voltar" and tentar_sair():
+                            rodando = False
+                        elif opcao["nome"] == "Aplicar Alteracoes":
+                            aplicar_config()
+                        elif opcao["chave"] and opcao["chave"] != "aplicar":
+                            chave = opcao["chave"]
+                            valores = opcao["valores"]
+                            valor_atual = config[chave]
+                            try:
+                                idx = (valores.index(valor_atual) + 1) % len(valores)
+                            except:
+                                idx = 0
+                            config[chave] = valores[idx]
+                            
         for i, opcao in enumerate(opcoes_config):
             y_pos = y_inicial + i * espacamento
             
@@ -711,7 +876,7 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
             texto_nome = fonte_opcao_tela.render(opcao["nome"], True, cor_nome)
             tela.blit(texto_nome, (largura_tela // 4, y_pos))
             
-            if opcao["chave"]:
+            if opcao["chave"] and opcao["chave"] != "aplicar":
                 valor_atual = config[opcao["chave"]]
                 try:
                     indice_valor = opcao["valores"].index(valor_atual)
@@ -729,15 +894,15 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
                     tela.blit(seta_esq, (largura_tela // 2 + 25, y_pos + 2))
                     tela.blit(seta_dir, (largura_tela // 2 + 220, y_pos + 2))
                     
-        desc_y = min(altura_tela - 145, y_inicial + len(opcoes_config) * espacamento + 12)
         rect_desc = pygame.Rect(largura_tela // 2 - 360, desc_y, 720, 70)
-        pygame.draw.rect(tela, (15, 10, 30, 200), rect_desc, border_radius=8)
-        pygame.draw.rect(tela, (0, 255, 230, 80), rect_desc, width=1, border_radius=8)
+        _desenhar_painel_legibilidade(tela, rect_desc, alpha=238, borda_alpha=120)
         
         opt_sel = opcoes_config[selecionado]
+        aviso_str = ""
         if opt_sel["chave"] is None:
             texto_desc_str = "Retornar ao menu de configuracoes anterior."
-            aviso_str = ""
+        elif opt_sel["chave"] == "aplicar":
+            texto_desc_str = "Salvar e aplicar as alteracoes de jogabilidade agora."
         else:
             val_sel = config[opt_sel["chave"]]
             texto_desc_str = descricoes_valores[opt_sel["chave"]].get(val_sel, "")
@@ -762,7 +927,7 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
         
         pygame.display.flip()
         clock.tick(60)
-        
+
     return {"tela": tela}
 
 
@@ -776,7 +941,7 @@ def abrir_analise_atributos(tela, fontes, fundo_pausa=None):
             attrs = json.load(f)
     except:
         attrs = {}
-        
+
     largura_tela, altura_tela = tela.get_size()
     clock = pygame.time.Clock()
     
@@ -1010,6 +1175,36 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
     largura_tela, altura_tela = tela.get_size()
     fontes = carregar_fontes()
     fundo_pausa = tela.copy()
+    tela_atualizada = False
+    config_graficos_atualizada = None
+
+    def _aplicar_resultado_config(resultado):
+        nonlocal tela, largura_tela, altura_tela, fundo_pausa, tela_atualizada, config_graficos_atualizada
+        nova_tela = None
+        if isinstance(resultado, dict):
+            nova_tela = resultado.get("tela")
+            if isinstance(resultado.get("config_graficos"), dict):
+                config_graficos_atualizada = resultado["config_graficos"]
+        elif isinstance(resultado, pygame.Surface):
+            nova_tela = resultado
+        if nova_tela is None:
+            return
+        tela = nova_tela
+        largura_tela, altura_tela = tela.get_size()
+        fundo_pausa = pygame.transform.scale(fundo_pausa, (largura_tela, altura_tela))
+        tela_atualizada = True
+        pygame.mouse.set_visible(True)
+
+    def _finalizar_pause(acao):
+        pygame.mouse.set_visible(False)
+        if tela_atualizada or config_graficos_atualizada is not None:
+            retorno = {"acao": acao}
+            if tela_atualizada:
+                retorno["tela"] = tela
+            if config_graficos_atualizada is not None:
+                retorno["config_graficos"] = config_graficos_atualizada
+            return retorno
+        return acao
     
     opcoes_pause = [
         "Continuar",
@@ -1105,12 +1300,12 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                         tocar_hover()
                     elif evento.key == pygame.K_ESCAPE:
                         tocar_selecionar()
-                        return "continuar"
+                        return _finalizar_pause("continuar")
                     elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
                         tocar_selecionar()
                         opcao_sel = opcoes_pause[selecionado]
                         if opcao_sel == "Continuar":
-                            return "continuar"
+                            return _finalizar_pause("continuar")
                         elif opcao_sel == "Analise de Atributos":
                             abrir_analise_atributos(tela, fontes, fundo_pausa=fundo_pausa)
                         elif opcao_sel == "Ajustar Controles":
@@ -1118,15 +1313,15 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                             cfg = carregar_config_teclas()
                             tela_de_controles(tela, cfg, largura_tela, altura_tela, fundo_pausa=fundo_pausa)
                         elif opcao_sel == "Ajustar Audio":
-                            abrir_configuracoes_audio(tela, fontes, fundo_pausa=fundo_pausa)
+                            _aplicar_resultado_config(abrir_configuracoes_audio(tela, fontes, fundo_pausa=fundo_pausa))
                         elif opcao_sel == "Ajustar Graficos":
-                            abrir_configuracoes_graficas(tela, fontes, fundo_pausa=fundo_pausa)
+                            _aplicar_resultado_config(abrir_configuracoes_graficas(tela, fontes, fundo_pausa=fundo_pausa))
                         elif opcao_sel == "Ajustar Jogabilidade":
-                            abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=fundo_pausa)
+                            _aplicar_resultado_config(abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=fundo_pausa))
                         elif opcao_sel == "Ver Anomalias":
                             estado_pause = "anomalias"
                         elif opcao_sel == "Sair ao Menu":
-                            return "sair"
+                            return _finalizar_pause("sair")
                 else: # "anomalias"
                     if evento.key == pygame.K_ESCAPE:
                         tocar_selecionar()
@@ -1150,7 +1345,7 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                                 tocar_selecionar()
                                 opcao_sel = opcoes_pause[selecionado]
                                 if opcao_sel == "Continuar":
-                                    return "continuar"
+                                    return _finalizar_pause("continuar")
                                 elif opcao_sel == "Analise de Atributos":
                                     abrir_analise_atributos(tela, fontes, fundo_pausa=fundo_pausa)
                                 elif opcao_sel == "Ajustar Controles":
@@ -1158,15 +1353,15 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                                     cfg = carregar_config_teclas()
                                     tela_de_controles(tela, cfg, largura_tela, altura_tela, fundo_pausa=fundo_pausa)
                                 elif opcao_sel == "Ajustar Audio":
-                                    abrir_configuracoes_audio(tela, fontes, fundo_pausa=fundo_pausa)
+                                    _aplicar_resultado_config(abrir_configuracoes_audio(tela, fontes, fundo_pausa=fundo_pausa))
                                 elif opcao_sel == "Ajustar Graficos":
-                                    abrir_configuracoes_graficas(tela, fontes, fundo_pausa=fundo_pausa)
+                                    _aplicar_resultado_config(abrir_configuracoes_graficas(tela, fontes, fundo_pausa=fundo_pausa))
                                 elif opcao_sel == "Ajustar Jogabilidade":
-                                    abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=fundo_pausa)
+                                    _aplicar_resultado_config(abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=fundo_pausa))
                                 elif opcao_sel == "Ver Anomalias":
                                     estado_pause = "anomalias"
                                 elif opcao_sel == "Sair ao Menu":
-                                    return "sair"
+                                    return _finalizar_pause("sair")
                             else:
                                 selecionado = i
                                 tocar_hover()
@@ -1183,7 +1378,7 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                         tocar_selecionar()
                         opcao_sel = opcoes_pause[selecionado]
                         if opcao_sel == "Continuar":
-                            return "continuar"
+                            return _finalizar_pause("continuar")
                         elif opcao_sel == "Analise de Atributos":
                             abrir_analise_atributos(tela, fontes, fundo_pausa=fundo_pausa)
                         elif opcao_sel == "Ajustar Controles":
@@ -1191,18 +1386,18 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
                             cfg = carregar_config_teclas()
                             tela_de_controles(tela, cfg, largura_tela, altura_tela, fundo_pausa=fundo_pausa)
                         elif opcao_sel == "Ajustar Audio":
-                            abrir_configuracoes_audio(tela, fontes, fundo_pausa=fundo_pausa)
+                            _aplicar_resultado_config(abrir_configuracoes_audio(tela, fontes, fundo_pausa=fundo_pausa))
                         elif opcao_sel == "Ajustar Graficos":
-                            abrir_configuracoes_graficas(tela, fontes, fundo_pausa=fundo_pausa)
+                            _aplicar_resultado_config(abrir_configuracoes_graficas(tela, fontes, fundo_pausa=fundo_pausa))
                         elif opcao_sel == "Ajustar Jogabilidade":
-                            abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=fundo_pausa)
+                            _aplicar_resultado_config(abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=fundo_pausa))
                         elif opcao_sel == "Ver Anomalias":
                             estado_pause = "anomalias"
                         elif opcao_sel == "Sair ao Menu":
-                            return "sair"
+                            return _finalizar_pause("sair")
                     elif evento.button in [1, 7]: # B or Start
                         tocar_selecionar()
-                        return "continuar"
+                        return _finalizar_pause("continuar")
                 else: # "anomalias"
                     if evento.button in [1, 7]: # B or Start
                         tocar_selecionar()
@@ -1419,4 +1614,4 @@ def exibir_tela_pause(tela, cartas_compradas, joystick=None):
         pygame.display.flip()
         clock.tick(60)
 
-    return "continuar"
+    return _finalizar_pause("continuar")

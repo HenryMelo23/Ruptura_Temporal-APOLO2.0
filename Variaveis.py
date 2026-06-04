@@ -722,7 +722,7 @@ dimensoes_direcao_personagem = {
 
     'right': (52, 76), 
 
-    'disp': (54, 80)
+    'disp': (52, 77)
 
 }
 
@@ -1298,16 +1298,8 @@ for direcao, paths in personagem_paths2.items():
 
         
 
-        # Cria uma superfície do tamanho "padrão" para manter o ancoramento no chão (sem dar pulinhos)
-
-        surf = pygame.Surface((largura_personagem, altura_personagem), pygame.SRCALPHA)
-
-        x_offset = (largura_personagem - w_alvo) // 2
-
-        y_offset = altura_personagem - h_alvo
-
-        surf.blit(img_s, (x_offset, y_offset))
-
+        surf = pygame.Surface((w_alvo, h_alvo), pygame.SRCALPHA)
+        surf.blit(img_s, (0, 0))
         frames.append(surf.convert_alpha())
 
     frames_animacao2[direcao] = frames
@@ -1330,16 +1322,8 @@ for direcao, paths in personagem_paths.items():
 
         
 
-        # Cria uma superfície do tamanho "padrão" para manter o ancoramento no chão (sem dar pulinhos)
-
-        surf = pygame.Surface((largura_personagem, altura_personagem), pygame.SRCALPHA)
-
-        x_offset = (largura_personagem - w_alvo) // 2
-
-        y_offset = altura_personagem - h_alvo
-
-        surf.blit(img_s, (x_offset, y_offset))
-
+        surf = pygame.Surface((w_alvo, h_alvo), pygame.SRCALPHA)
+        surf.blit(img_s, (0, 0))
         frames.append(surf.convert_alpha())
 
     frames_animacao[direcao] = frames
@@ -1823,6 +1807,108 @@ def obter_tempo_decorrido():
         return time.time() - tempo_inicial + tempo_acumulado
 
     return tempo_acumulado
+
+
+
+def definir_tempo_cronometro(segundos):
+
+    global tempo_acumulado, tempo_inicial, cronometro_pausado
+
+    tempo_acumulado = max(0.0, float(segundos or 0))
+
+    tempo_inicial = time.time()
+
+    cronometro_pausado = False
+
+
+
+def _valor_snapshot_seguro(valor):
+
+    if isinstance(valor, (str, int, float, bool)) or valor is None:
+
+        return valor
+
+    if isinstance(valor, dict):
+
+        return {str(k): _valor_snapshot_seguro(v) for k, v in valor.items() if k != "image"}
+
+    if isinstance(valor, (list, tuple)):
+
+        return [_valor_snapshot_seguro(v) for v in valor]
+
+    return None
+
+
+
+def serializar_inimigos_rewind(inimigos):
+
+    dados = []
+
+    for inimigo in inimigos or []:
+
+        rect = inimigo.get("rect")
+
+        item = {}
+
+        if rect is not None:
+
+            item["rect"] = {"x": rect.x, "y": rect.y, "w": rect.width, "h": rect.height}
+
+        for chave, valor in inimigo.items():
+
+            if chave in ("rect", "image"):
+
+                continue
+
+            valor_seguro = _valor_snapshot_seguro(valor)
+
+            if valor_seguro is not None:
+
+                item[chave] = valor_seguro
+
+        dados.append(item)
+
+    return dados
+
+
+
+def restaurar_inimigos_rewind(dados, imagem_padrao=None):
+
+    restaurados = []
+
+    for item in dados or []:
+
+        rect_info = item.get("rect") or {}
+
+        inimigo = {
+
+            "rect": pygame.Rect(
+
+                int(rect_info.get("x", 0)),
+
+                int(rect_info.get("y", 0)),
+
+                int(rect_info.get("w", 1)),
+
+                int(rect_info.get("h", 1)),
+
+            )
+
+        }
+
+        for chave, valor in item.items():
+
+            if chave != "rect":
+
+                inimigo[chave] = valor
+
+        if imagem_padrao is not None:
+
+            inimigo["image"] = imagem_padrao
+
+        restaurados.append(inimigo)
+
+    return restaurados
 
 
 
@@ -3260,6 +3346,8 @@ tempo_ultimo_atingido = 0
 
 piscando_vida = False
 
+refragmentacao_rewind_estado = None
+
 frame_atual = 0
 
 carregar_atributos_na_fase = True
@@ -3917,6 +4005,8 @@ tentativas_rewind = 0
 
 MAX_TENTATIVAS_REWIND = 3
 
+CAMINHO_SNAPSHOT_REWIND = os.path.join("saves", "rewind_snapshot.json")
+
 
 
 # Penalidades por tentativa: (fração de vida, modo de cartas)
@@ -3937,7 +4027,7 @@ _PENALIDADES_REWIND = [
 
 def pode_tentar_novamente():
 
-    return tentativas_rewind < MAX_TENTATIVAS_REWIND and len(historico_rewind) > 0
+    return tentativas_rewind < MAX_TENTATIVAS_REWIND and (len(historico_rewind) > 0 or os.path.exists(CAMINHO_SNAPSHOT_REWIND))
 
 
 
@@ -3961,13 +4051,33 @@ def registrar_snapshot(dados, tempo_atual):
 
         ultimo_registro_tempo = tempo_atual
 
-        historico_rewind.append(dados)
+        import copy
+
+        snapshot = copy.deepcopy(dados)
+
+        snapshot.setdefault("tempo_cronometro", obter_tempo_decorrido())
+
+        snapshot.setdefault("tempo_pygame", tempo_atual)
+
+        historico_rewind.append(snapshot)
 
         # Manter os últimos 11 snapshots (10 segundos + margem)
 
         if len(historico_rewind) > 11:
 
             historico_rewind.pop(0)
+
+        try:
+
+            os.makedirs("saves", exist_ok=True)
+
+            with open(CAMINHO_SNAPSHOT_REWIND, "w", encoding="utf-8") as file:
+
+                json.dump(historico_rewind[0], file)
+
+        except Exception as e:
+
+            print("Erro ao salvar snapshot de rewind:", e)
 
 
 
@@ -3976,6 +4086,18 @@ def obter_snapshot_rewind():
     global historico_rewind
 
     if not historico_rewind:
+
+        try:
+
+            if os.path.exists(CAMINHO_SNAPSHOT_REWIND):
+
+                with open(CAMINHO_SNAPSHOT_REWIND, "r", encoding="utf-8") as file:
+
+                    return json.load(file)
+
+        except Exception as e:
+
+            print("Erro ao carregar snapshot de rewind:", e)
 
         return None
 
@@ -4043,19 +4165,12 @@ def preparar_rewind():
 
 
 
-        snapshot_copia = {
+        import copy
 
-            "atributos": snapshot.get("atributos", {}).copy(),
+        snapshot_copia = copy.deepcopy(snapshot)
 
-            "pos_x": snapshot.get("pos_x"),
-
-            "pos_y": snapshot.get("pos_y"),
-
-            "vida_boss": snapshot.get("vida_boss"),
-
-            "vida_fracao": vida_fracao,
-
-        }
+        snapshot_copia["vida_fracao"] = vida_fracao
+        snapshot_copia["refragmentacao_rewind"] = True
 
 
 
@@ -4110,6 +4225,16 @@ def limpar_historico_rewind():
     ultimo_registro_tempo = 0
 
     tentativas_rewind = 0
+
+    try:
+
+        if os.path.exists(CAMINHO_SNAPSHOT_REWIND):
+
+            os.remove(CAMINHO_SNAPSHOT_REWIND)
+
+    except Exception:
+
+        pass
 
 
 
@@ -4389,7 +4514,271 @@ def reset_phase_state():
 
     pos_y_personagem = 100
 
+def desenhar_personagem_com_dano(tela, frame, x, y, tempo_atual, tempo_ultimo_hit, shake_x=0, shake_y=0):
+    if refragmentacao_rewind_esta_ativa(tempo_atual):
+        return
+
+    dt_dano = tempo_atual - tempo_ultimo_hit
+    pos_draw = (x + shake_x, y + shake_y)
+    
+    if dt_dano < 300:
+        prog = dt_dano / 300.0
+        # Glitch offsets
+        offset_x = int(10 * (1.0 - prog) * random.choice([-1.2, -0.8, 0.8, 1.2]))
+        offset_y = int(4 * (1.0 - prog) * random.choice([-1.0, 0.0, 1.0]))
+        alpha_glitch = int(180 * (1.0 - prog))
+        
+        # Sombra Ciano (Glitch Esquerda)
+        cyan_surf = frame.copy()
+        temp_cyan = pygame.Surface(cyan_surf.get_size(), pygame.SRCALPHA)
+        temp_cyan.fill((0, 240, 255, alpha_glitch))
+        cyan_surf.blit(temp_cyan, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+        tela.blit(cyan_surf, (pos_draw[0] - offset_x, pos_draw[1] + offset_y))
+        
+        # Sombra Vermelha (Glitch Direita)
+        red_surf = frame.copy()
+        temp_red = pygame.Surface(red_surf.get_size(), pygame.SRCALPHA)
+        temp_red.fill((255, 50, 50, alpha_glitch))
+        red_surf.blit(temp_red, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+        tela.blit(red_surf, (pos_draw[0] + offset_x, pos_draw[1] - offset_y))
+        
+        # Personagem principal avermelhado
+        main_surf = frame.copy()
+        temp_main = pygame.Surface(main_surf.get_size(), pygame.SRCALPHA)
+        temp_main.fill((255, 180, 180, 255))
+        main_surf.blit(temp_main, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+        tela.blit(main_surf, pos_draw)
+    else:
+        tela.blit(frame, pos_draw)
 
 
+def obter_frame_refragmentacao_personagem(direcao=None):
+    try:
+        direcoes = []
+        if direcao:
+            direcoes.append(direcao)
+        direcoes.extend(["stop", "down", "right", "left", "up", "disp"])
+
+        for chave in direcoes:
+            frames = frames_animacao.get(chave)
+            if frames:
+                return frames[0].copy()
+    except Exception:
+        pass
+    return None
 
 
+def iniciar_refragmentacao_rewind(pos_x, pos_y, frame=None, tempo_atual=None, duracao_ms=1000):
+    global refragmentacao_rewind_estado
+
+    tempo_atual = pygame.time.get_ticks() if tempo_atual is None else tempo_atual
+    sprite = frame.copy() if frame is not None else obter_frame_refragmentacao_personagem()
+    if sprite is None:
+        refragmentacao_rewind_estado = None
+        return
+
+    w, h = sprite.get_size()
+    num_cols = 7
+    num_rows = 7
+    tile_w = max(1, w // num_cols)
+    tile_h = max(1, h // num_rows)
+    centro_x = float(pos_x) + w / 2
+    centro_y = float(pos_y) + h / 2
+    fragmentos = []
+
+    for r in range(num_rows):
+        for c in range(num_cols):
+            rect = pygame.Rect(c * tile_w, r * tile_h, tile_w, tile_h)
+            if rect.right > w:
+                rect.width = w - rect.x
+            if rect.bottom > h:
+                rect.height = h - rect.y
+            if rect.width <= 0 or rect.height <= 0:
+                continue
+
+            parte = sprite.subsurface(rect).copy()
+            try:
+                if pygame.mask.from_surface(parte).count() == 0:
+                    continue
+            except Exception:
+                pass
+
+            angulo = random.uniform(0, math.tau)
+            distancia = random.uniform(150, 420)
+            fragmentos.append({
+                "surf": parte,
+                "sx": centro_x + math.cos(angulo) * distancia - rect.width / 2,
+                "sy": centro_y + math.sin(angulo) * distancia - rect.height / 2,
+                "tx": float(pos_x) + rect.x,
+                "ty": float(pos_y) + rect.y,
+                "rot0": random.uniform(-230, 230),
+                "rot1": random.uniform(-8, 8),
+                "delay": random.uniform(0.0, 0.16),
+            })
+
+    refragmentacao_rewind_estado = {
+        "inicio": tempo_atual,
+        "duracao": duracao_ms,
+        "sprite": sprite,
+        "x": float(pos_x),
+        "y": float(pos_y),
+        "w": w,
+        "h": h,
+        "fragmentos": fragmentos,
+    }
+
+
+def refragmentacao_rewind_esta_ativa(tempo_atual=None):
+    if not refragmentacao_rewind_estado:
+        return False
+    tempo_atual = pygame.time.get_ticks() if tempo_atual is None else tempo_atual
+    return tempo_atual - refragmentacao_rewind_estado.get("inicio", 0) < refragmentacao_rewind_estado.get("duracao", 1000)
+
+
+def desenhar_refragmentacao_rewind(tela, tempo_atual=None):
+    global refragmentacao_rewind_estado
+
+    if not refragmentacao_rewind_estado:
+        return False
+
+    tempo_atual = pygame.time.get_ticks() if tempo_atual is None else tempo_atual
+    inicio = refragmentacao_rewind_estado.get("inicio", tempo_atual)
+    duracao = max(1, refragmentacao_rewind_estado.get("duracao", 1000))
+    progresso = min(1.0, max(0.0, (tempo_atual - inicio) / float(duracao)))
+
+    if progresso >= 1.0:
+        tela.blit(refragmentacao_rewind_estado["sprite"], (refragmentacao_rewind_estado["x"], refragmentacao_rewind_estado["y"]))
+        refragmentacao_rewind_estado = None
+        return False
+
+    x = refragmentacao_rewind_estado["x"]
+    y = refragmentacao_rewind_estado["y"]
+    w = refragmentacao_rewind_estado["w"]
+    h = refragmentacao_rewind_estado["h"]
+    centro = (int(x + w / 2), int(y + h / 2))
+    pulso = (math.sin(progresso * math.pi * 7) + 1.0) * 0.5
+
+    aura_w = int(max(w, h) * (2.8 + progresso))
+    aura = pygame.Surface((aura_w, aura_w), pygame.SRCALPHA)
+    aura_centro = aura_w // 2
+    for i in range(3):
+        raio = int((22 + progresso * 64) + i * 24)
+        alpha = max(0, int((90 - i * 22) * (1.0 - progresso * 0.45) + pulso * 18))
+        pygame.draw.circle(aura, (0, 255, 204, alpha), (aura_centro, aura_centro), raio, 2)
+    pygame.draw.circle(aura, (180, 100, 255, int(62 + pulso * 42)), (aura_centro, aura_centro), int(16 + pulso * 12), 2)
+    tela.blit(aura, (centro[0] - aura_centro, centro[1] - aura_centro))
+
+    for frag in refragmentacao_rewind_estado["fragmentos"]:
+        local_t = max(0.0, min(1.0, (progresso - frag["delay"]) / (1.0 - frag["delay"])))
+        ease = 1.0 - ((1.0 - local_t) ** 3)
+        jitter = math.sin((tempo_atual * 0.018) + frag["tx"] * 0.07) * (1.0 - ease) * 7
+        px = frag["sx"] + (frag["tx"] - frag["sx"]) * ease + jitter
+        py = frag["sy"] + (frag["ty"] - frag["sy"]) * ease - jitter * 0.35
+        rot = frag["rot0"] + (frag["rot1"] - frag["rot0"]) * ease
+        alpha = int(45 + 210 * ease)
+
+        parte = pygame.transform.rotate(frag["surf"], rot)
+        parte.set_alpha(alpha)
+        tela.blit(parte, parte.get_rect(center=(int(px + frag["surf"].get_width() / 2), int(py + frag["surf"].get_height() / 2))).topleft)
+
+    if progresso > 0.58:
+        sprite_final = refragmentacao_rewind_estado["sprite"].copy()
+        sprite_final.set_alpha(int(255 * min(1.0, (progresso - 0.58) / 0.42)))
+        tela.blit(sprite_final, (x, y))
+
+    return True
+
+
+def aplicar_rewind_respawn_visual(pos_x, pos_y, direcao=None, tempo_atual=None, duracao_animacao=1000):
+    frame = obter_frame_refragmentacao_personagem(direcao)
+    iniciar_refragmentacao_rewind(pos_x, pos_y, frame, tempo_atual, duracao_animacao)
+
+
+def calcular_tremor_dano(tempo_atual, tempo_ultimo_hit, piscando=False, intensidade=10, duracao=180):
+    if not piscando or tempo_ultimo_hit <= 0:
+        return 0, 0
+
+    decorrido = tempo_atual - tempo_ultimo_hit
+    if decorrido < 0 or decorrido > duracao:
+        return 0, 0
+
+    progresso = 1.0 - (decorrido / float(duracao))
+    forca = max(1, int(intensidade * progresso))
+    return random.randint(-forca, forca), random.randint(-forca, forca)
+
+
+def aplicar_tremor_dano_tela(tela, tempo_atual, tempo_ultimo_hit, piscando=False, intensidade=10, duracao=180, fundo=(10, 5, 20)):
+    shake_x, shake_y = calcular_tremor_dano(tempo_atual, tempo_ultimo_hit, piscando, intensidade, duracao)
+    if shake_x == 0 and shake_y == 0:
+        return 0, 0
+
+    frame = tela.copy()
+    tela.fill(fundo)
+    tela.blit(frame, (shake_x, shake_y))
+    return shake_x, shake_y
+
+
+def desenhar_overlay_vida_critica(tela, vida_atual, vida_maxima_atual, tempo_atual):
+    if vida_maxima_atual <= 0:
+        return
+
+    fracao_vida = max(0.0, min(1.0, float(vida_atual) / float(vida_maxima_atual)))
+    if fracao_vida > 0.30:
+        return
+
+    largura, altura = tela.get_size()
+    intensidade = min(1.0, (0.30 - fracao_vida) / 0.25)
+    pulso = 0.0
+    if fracao_vida <= 0.10:
+        ciclo = (tempo_atual % 850) / 850.0
+        primeira_batida = max(0.0, 1.0 - abs(ciclo - 0.10) / 0.085) ** 2
+        segunda_batida = max(0.0, 1.0 - abs(ciclo - 0.26) / 0.075) ** 2
+        pulso = min(1.0, primeira_batida + segunda_batida * 0.65)
+
+        intensidade_batida = min(1.0, (0.10 - fracao_vida) / 0.10)
+        amplitude = int((2 + intensidade_batida * 7) * pulso)
+        if amplitude > 0:
+            shake_x = int(math.sin(tempo_atual * 0.07) * amplitude)
+            shake_y = int(math.cos(tempo_atual * 0.09) * amplitude * 0.65)
+            frame = tela.copy()
+            tela.fill((24, 0, 6))
+            tela.blit(frame, (shake_x, shake_y))
+
+    alpha_base = int(18 + intensidade * 48 + pulso * 28)
+    overlay = pygame.Surface((largura, altura), pygame.SRCALPHA)
+    overlay.fill((120, 0, 0, alpha_base))
+
+    rng = random.Random(7331 + largura * 3 + altura)
+    qtd_respingos = int(4 + intensidade * 16)
+    for _ in range(qtd_respingos):
+        borda = rng.choice(("top", "bottom", "left", "right"))
+        if borda == "top":
+            x = rng.randint(0, largura)
+            y = rng.randint(0, max(1, int(altura * 0.18)))
+        elif borda == "bottom":
+            x = rng.randint(0, largura)
+            y = rng.randint(max(0, int(altura * 0.78)), altura)
+        elif borda == "left":
+            x = rng.randint(0, max(1, int(largura * 0.16)))
+            y = rng.randint(0, altura)
+        else:
+            x = rng.randint(max(0, int(largura * 0.84)), largura)
+            y = rng.randint(0, altura)
+
+        raio = rng.randint(8, 26) + int(intensidade * 12)
+        alpha = rng.randint(24, 58) + int(intensidade * 34) + int(pulso * 14)
+        cor_sangue = (110 + rng.randint(0, 45), 0, 0, min(125, alpha))
+        pygame.draw.ellipse(overlay, cor_sangue, (x - raio, y - raio // 2, raio * 2, raio))
+
+        gotas = rng.randint(1, 3)
+        for _gota in range(gotas):
+            gx = x + rng.randint(-raio, raio)
+            gy = y + rng.randint(-raio // 2, raio)
+            gr = max(2, rng.randint(3, max(4, raio // 3)))
+            pygame.draw.circle(overlay, cor_sangue, (gx, gy), gr)
+
+    if fracao_vida <= 0.10:
+        batida_alpha = int(pulso * 30)
+        overlay.fill((180, 0, 0, batida_alpha), special_flags=pygame.BLEND_RGBA_ADD)
+
+    tela.blit(overlay, (0, 0))

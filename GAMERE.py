@@ -24,12 +24,27 @@ from habilidades_personagem import (
 )
 from ui_helpers import desenhar_efeitos_vanguarda, desenhar_efeito_racional_dilatacao, fator_movimento_racional, intervalo_disparo_racional, tentar_ativar_dilatacao_racional
 from post_boss_pressure import criar_estado_pressao_pos_boss, calcular_pressao_spawn_pos_boss
+from player_projectile import PlayerProjectileVFX, estourar_disparo_eletrico
 lock_inimigos = threading.Lock()
 from Tela_Upgrade_Aureas import tela_upgrade_aureas
 joystick = None
 
 instalar_captura_global()
 instalar_filtro_prints()
+
+try:
+    with open("saves/config_graficos.json", "r") as f:
+        config_graficos = json.load(f)
+except Exception:
+    config_graficos = {
+        "sombras_ativas": "dinamicas",
+        "qualidade_grafica": "alta",
+        "nivel_detalhes": "alto",
+        "particulas_ativas": True,
+        "efeitos_visuais": True,
+        "fps_limite": 60,
+        "tela_cheia": False,
+    }
 
 def checar_colisao_onda(onda, inimigos_comum):
     for inimigo in inimigos_comum:
@@ -1034,15 +1049,7 @@ def executar_jogo(game_manager=None):
         global tela
         tela = configurar_tela(largura_mapa, altura_mapa)
 
-        # Pre-carregar frames de disparo
-        frames_disparo_normal_base = [
-            pygame.image.load("Sprites/Fogo1.png").convert_alpha(),
-            pygame.image.load("Sprites/Fogo2.png").convert_alpha()
-        ]
-        frames_disparo_impulso_base = [
-            pygame.image.load("Sprites/Fogo_impulso1.png").convert_alpha(),
-            pygame.image.load("Sprites/Fogo_impulso2.png").convert_alpha()
-        ]
+        vfx_disparo_player = PlayerProjectileVFX()
         
         tempo_parado_person = pygame.time.get_ticks()  
         boss_atingido_por_onda = pygame.time.get_ticks()
@@ -1342,12 +1349,6 @@ def executar_jogo(game_manager=None):
 
             # Atualizar a posição do personagem
             atualizar_posicao_personagem(keys, joystick)
-
-            if impulsiva_ativa:
-                frames_disparo = [pygame.transform.scale(frame, (largura_disparo, altura_disparo)) for frame in frames_disparo_impulso_base]
-            else:
-                frames_disparo = [pygame.transform.scale(frame, (largura_disparo, altura_disparo)) for frame in frames_disparo_normal_base]
-
 
             #################################### Conexão Host ou cliente
             if modo == "host" :
@@ -2046,7 +2047,7 @@ def executar_jogo(game_manager=None):
                 if jogador_morto:
                     tela.blit(sprite_morto, (pos_x_personagem, pos_y_personagem))
                 else:
-                    tela.blit(frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])], (pos_x_personagem, pos_y_personagem))
+                    desenhar_personagem_com_dano(tela, frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])], pos_x_personagem, pos_y_personagem, tempo_atual, tempo_ultimo_hit_inimigo)
 
                 # --- Desenha o segundo jogador (cliente) ---
                 if cliente_ativo:
@@ -2064,7 +2065,7 @@ def executar_jogo(game_manager=None):
                 if jogador_morto:
                     tela.blit(sprite_morto, (pos_x_personagem, pos_y_personagem))
                 else:
-                    tela.blit(frames_animacao2[direcao_atual_p2][frame_atual % len(frames_animacao2[direcao_atual_p2])], (pos_x_personagem, pos_y_personagem))
+                    desenhar_personagem_com_dano(tela, frames_animacao2[direcao_atual_p2][frame_atual % len(frames_animacao2[direcao_atual_p2])], pos_x_personagem, pos_y_personagem, tempo_atual, tempo_ultimo_hit_inimigo)
 
                 # --- Desenha o host (jogador 1 remoto) ---
                 if host_ativo:
@@ -2368,7 +2369,7 @@ def executar_jogo(game_manager=None):
                         tela.blit(texto_dano, (pos_x_chefe + chefe_largura // 2, pos_y_chefe - 20))
                         dano = dano_boss_mitigado(dano, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                         vida_boss -= dano
-                        disparos.remove(disparo)
+                        estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
                         if quantidade_roubo_vida > 0:
                             vida += (vida_maxima - vida) * quantidade_roubo_vida
 
@@ -2438,7 +2439,7 @@ def executar_jogo(game_manager=None):
                             fila_envio.put({"hit_boss": True})
                         except:
                             pass
-                        disparos.remove(disparo)
+                        estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
             if modo == "join" and boss_vivo1:
                 for idx, onda in enumerate(ondas[:]):
                     rect_onda = onda["rect"]
@@ -2505,7 +2506,7 @@ def executar_jogo(game_manager=None):
                             tempo_texto_dano = pygame.time.get_ticks()
 
                             inimigo["vida"] -= dano
-                            disparos.remove(disparo)  # Remover o disparo após colisão
+                            estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)  # Remover o disparo após colisão
 
 
 
@@ -2589,7 +2590,7 @@ def executar_jogo(game_manager=None):
                             )
                             # Rastreie o tempo de exibição do texto
                             tempo_texto_dano = pygame.time.get_ticks()
-                            disparos.remove(disparo)  # Remover o disparo após colisão
+                            estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)  # Remover o disparo após colisão
                             # Notifica o host se for client
                             if modo == "join":
                                 try:
@@ -2911,6 +2912,7 @@ def executar_jogo(game_manager=None):
 
             # Atualizar e desenhar fragmentos de morte / Trembo
             atualizar_e_desenhar_fragmentos(tela)
+            vfx_disparo_player.atualizar_e_desenhar_particulas(tela, 1.0, config_graficos)
 
             tela.blit(cursor_imagem, (mouse_x, mouse_y))
 

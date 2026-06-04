@@ -44,3 +44,24 @@ def salvar_config_audio(config_audio):
     """Salva as configurações de áudio no arquivo JSON"""
     with open("saves/config_audio.json", "w") as f:
         json.dump(config_audio, f, indent=4)
+
+def atualizar_sons_do_jogo(config_audio=None):
+    """Aplica o volume de música e atualiza todos os objetos Sound ativos no jogo."""
+    import sys
+    if config_audio is None:
+        config_audio = carregar_config_audio()
+    
+    # 1. Aplicar volume da música
+    aplicar_volume_musica(config_audio)
+    
+    # 2. Atualizar todos os objetos Sound definidos nos módulos do jogo
+    for mod_name, mod in list(sys.modules.items()):
+        if mod_name.startswith("GAME") or mod_name in ["__main__", "sons_procedurais", "Ruptura_Temporal", "Tela_Pause", "Tela_Cartas", "Tela_Cartas_Coop"]:
+            for attr_name in dir(mod):
+                try:
+                    val = getattr(mod, attr_name)
+                    if isinstance(val, pygame.mixer.Sound):
+                        aplicar_volume_som(val, config_audio)
+                except Exception:
+                    pass
+

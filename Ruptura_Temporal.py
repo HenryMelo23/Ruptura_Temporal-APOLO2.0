@@ -12,6 +12,7 @@ import os
 import json
 import uuid
 import math
+import random
 import pyperclip
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from Config_Teclas import tela_de_controles,carregar_config_teclas
@@ -122,6 +123,562 @@ fonte_fallback_config = None
 
 titulo_jogo = "Ruptura Temporal (2.0)"
 posicao_titulo = (largura_tela // 2, altura_tela // 8)
+
+
+class PopUpAplicar:
+    def __init__(self, largura_tela, altura_tela):
+        self.largura_tela = largura_tela
+        self.altura_tela = altura_tela
+        self.ativo = False
+        self.estado = "INATIVO" # "ENTRADA", "ESTAVEL", "EXPLOSAO", "INATIVO"spwa
+        self.tempo_inicio_estado = 0
+        self.duracao_entrada = 800  # ms
+        self.duracao_estavel = 700 # ms
+        self.duracao_explosao = 600 # ms
+        
+        self.w_popup = 360
+        self.h_popup = 110
+        self.x_popup = (largura_tela - self.w_popup) // 2
+        self.y_popup = (altura_tela - self.h_popup) // 2
+        self.centro = (largura_tela // 2, altura_tela // 2)
+        
+        self.particulas = []
+        self.raio_ondas = []
+
+    def disparar(self, agora):
+        self.ativo = True
+        self.estado = "ENTRADA"
+        self.tempo_inicio_estado = agora
+        self.raio_ondas = []
+        self.particulas = []
+        
+        # Gerar partículas que vão se juntar
+        num_particulas = 80
+        for _ in range(num_particulas):
+            tx = random.randint(self.x_popup, self.x_popup + self.w_popup)
+            ty = random.randint(self.y_popup, self.y_popup + self.h_popup)
+            
+            # Ponto de origem: círculo distante ao redor do centro
+            angulo = random.uniform(0, 2 * math.pi)
+            distancia = random.uniform(300, 500)
+            ox = self.centro[0] + math.cos(angulo) * distancia
+            oy = self.centro[1] + math.sin(angulo) * distancia
+            
+            cor = random.choice([
+                (0, 191, 255),  # Azul elétrico
+                (0, 255, 230),  # Ciano neon
+                (100, 200, 255) # Azul claro
+            ])
+            
+            self.particulas.append({
+                "ox": ox, "oy": oy,
+                "tx": tx, "ty": ty,
+                "x": ox, "y": oy,
+                "cor": cor,
+                "tamanho": random.randint(2, 5),
+                "alpha": 0
+            })
+            
+    def update(self, agora):
+        if not self.ativo:
+            return
+            
+        tempo_decorrido = agora - self.tempo_inicio_estado
+        
+        if self.estado == "ENTRADA":
+            progresso = min(1.0, tempo_decorrido / self.duracao_entrada)
+            t = progresso
+            ease = 1 - (1 - t) ** 3 # easeOutCubic
+            
+            for p in self.particulas:
+                p["x"] = p["ox"] + (p["tx"] - p["ox"]) * ease
+                p["y"] = p["oy"] + (p["ty"] - p["oy"]) * ease
+                p["alpha"] = int(progresso * 255)
+                
+            if tempo_decorrido >= self.duracao_entrada:
+                self.estado = "ESTAVEL"
+                self.tempo_inicio_estado = agora
+                # Gerar algumas partículas de ambiente
+                self.particulas = []
+                for _ in range(15):
+                    self.particulas.append(self._criar_particula_estavel())
+                    
+        elif self.estado == "ESTAVEL":
+            for p in self.particulas:
+                p["x"] += p["vx"]
+                p["y"] += p["vy"]
+                p["vida"] -= 1
+                if p["vida"] <= 0:
+                    p.update(self._criar_particula_estavel())
+                    
+            if tempo_decorrido >= self.duracao_estavel:
+                self._explodir(agora)
+                
+        elif self.estado == "EXPLOSAO":
+            inativas = 0
+            for p in self.particulas:
+                p["x"] += p["vx"]
+                p["y"] += p["vy"]
+                p["vx"] *= 0.95
+                p["vy"] *= 0.95
+                p["alpha"] = max(0, p["alpha"] - 6)
+                if p["alpha"] <= 0:
+                    inativas += 1
+                    
+            for onda in self.raio_ondas:
+                onda["raio"] += onda["velocidade"]
+                onda["alpha"] = max(0, onda["alpha"] - 8)
+                
+            todas_ondas_sumiram = all(o["alpha"] <= 0 for o in self.raio_ondas)
+            if (inativas == len(self.particulas) and todas_ondas_sumiram) or tempo_decorrido >= self.duracao_explosao:
+                self.ativo = False
+                self.estado = "INATIVO"
+                
+    def _criar_particula_estavel(self):
+        x = random.randint(self.x_popup, self.x_popup + self.w_popup)
+        y = random.randint(self.y_popup, self.y_popup + self.h_popup)
+        return {
+            "x": x, "y": y,
+            "vx": random.uniform(-0.3, 0.3),
+            "vy": random.uniform(-0.3, 0.3),
+            "cor": random.choice([(0, 191, 255), (0, 255, 230)]),
+            "tamanho": random.randint(1, 3),
+            "alpha": random.randint(100, 200),
+            "vida": random.randint(30, 80)
+        }
+        
+    def _explodir(self, agora):
+        self.estado = "EXPLOSAO"
+        self.tempo_inicio_estado = agora
+        
+        self.raio_ondas = [
+            {"raio": 10, "velocidade": 9, "alpha": 255, "espessura": 4},
+            {"raio": 25, "velocidade": 7, "alpha": 200, "espessura": 2}
+        ]
+        
+        self.particulas = []
+        num_particulas = 90
+        for _ in range(num_particulas):
+            x = random.randint(self.x_popup, self.x_popup + self.w_popup)
+            y = random.randint(self.y_popup, self.y_popup + self.h_popup)
+            
+            dx = x - self.centro[0]
+            dy = y - self.centro[1]
+            dist = math.hypot(dx, dy)
+            if dist == 0:
+                ang = random.uniform(0, 2 * math.pi)
+                vx = math.cos(ang) * random.uniform(4, 10)
+                vy = math.sin(ang) * random.uniform(4, 10)
+            else:
+                fator = random.uniform(3, 8)
+                vx = (dx / dist) * fator + random.uniform(-2, 2)
+                vy = (dy / dist) * fator + random.uniform(-2, 2)
+                
+            self.particulas.append({
+                "x": x, "y": y,
+                "vx": vx, "vy": vy,
+                "cor": random.choice([(0, 191, 255), (0, 255, 230), (255, 255, 255)]),
+                "tamanho": random.randint(2, 5),
+                "alpha": 255
+            })
+            
+    def draw(self, tela):
+        if not self.ativo:
+            return
+            
+        # Desenhar partículas (entrada ou explosão)
+        if self.estado in ["ENTRADA", "EXPLOSAO"]:
+            for p in self.particulas:
+                if p["alpha"] <= 0:
+                    continue
+                s = pygame.Surface((p["tamanho"] * 2, p["tamanho"] * 2), pygame.SRCALPHA)
+                pygame.draw.circle(s, (p["cor"][0], p["cor"][1], p["cor"][2], p["alpha"]), (p["tamanho"], p["tamanho"]), p["tamanho"])
+                tela.blit(s, (int(p["x"]) - p["tamanho"], int(p["y"]) - p["tamanho"]))
+                
+        # Desenhar ondas de choque (explosão)
+        if self.estado == "EXPLOSAO":
+            for onda in self.raio_ondas:
+                if onda["alpha"] <= 0:
+                    continue
+                s_circ = pygame.Surface((onda["raio"] * 2 + 10, onda["raio"] * 2 + 10), pygame.SRCALPHA)
+                pygame.draw.circle(s_circ, (0, 191, 255, onda["alpha"]), (onda["raio"] + 5, onda["raio"] + 5), onda["raio"], onda["espessura"])
+                tela.blit(s_circ, (self.centro[0] - onda["raio"] - 5, self.centro[1] - onda["raio"] - 5))
+                
+        # Desenhar painel principal (glassmorphism)
+        if self.estado in ["ENTRADA", "ESTAVEL"]:
+            alpha = 255
+            if self.estado == "ENTRADA":
+                tempo_decorrido = pygame.time.get_ticks() - self.tempo_inicio_estado
+                percent = min(1.0, tempo_decorrido / self.duracao_entrada)
+                if percent < 0.5:
+                    return # não desenha o painel principal, apenas as partículas
+                alpha = int((percent - 0.5) * 2 * 255)
+                
+            popup_surf = pygame.Surface((self.w_popup, self.h_popup), pygame.SRCALPHA)
+            bg_alpha = int(alpha * 0.85)
+            pygame.draw.rect(popup_surf, (8, 12, 28, bg_alpha), (0, 0, self.w_popup, self.h_popup), border_radius=12)
+            pygame.draw.rect(popup_surf, (0, 255, 230, alpha), (0, 0, self.w_popup, self.h_popup), width=3, border_radius=12)
+            
+            # Detalhes decorativos nos cantos
+            pygame.draw.line(popup_surf, (255, 255, 255, alpha), (15, 0), (35, 0), 3)
+            pygame.draw.line(popup_surf, (255, 255, 255, alpha), (self.w_popup - 35, 0), (self.w_popup - 15, 0), 3)
+            pygame.draw.line(popup_surf, (255, 255, 255, alpha), (0, 15), (0, 35), 3)
+            pygame.draw.line(popup_surf, (255, 255, 255, alpha), (self.w_popup, 15), (self.w_popup, 35), 3)
+            
+            # Texto
+            try:
+                fonte_pop = pygame.font.Font(caminho_fonte_titulo, 22)
+                fonte_pop_sub = pygame.font.Font(caminho_fonte_letras, 14)
+            except Exception:
+                fonte_pop = pygame.font.Font(None, 24)
+                fonte_pop_sub = pygame.font.Font(None, 16)
+                
+            texto_p = "ALTERACOES APLICADAS"
+            texto_surf = fonte_pop.render(texto_p, True, (0, 255, 204, alpha))
+            tx = (self.w_popup - texto_surf.get_width()) // 2
+            ty = (self.h_popup - texto_surf.get_height()) // 2 - 12
+            
+            sub_texto = "Configuracoes salvas com sucesso!"
+            sub_surf = fonte_pop_sub.render(sub_texto, True, (255, 255, 255, int(alpha * 0.7)))
+            tsx = (self.w_popup - sub_surf.get_width()) // 2
+            tsy = ty + texto_surf.get_height() + 8
+            
+            popup_surf.blit(texto_surf, (tx, ty))
+            popup_surf.blit(sub_surf, (tsx, tsy))
+            
+            if self.estado == "ESTAVEL":
+                for p in self.particulas:
+                    px_rel = p["x"] - self.x_popup
+                    py_rel = p["y"] - self.y_popup
+                    if 0 <= px_rel <= self.w_popup and 0 <= py_rel <= self.h_popup:
+                        pygame.draw.circle(popup_surf, (p["cor"][0], p["cor"][1], p["cor"][2], p["alpha"]), (int(px_rel), int(py_rel)), p["tamanho"])
+                        
+            tela.blit(popup_surf, (self.x_popup, self.y_popup))
+
+    def __init__(self, largura_tela, altura_tela):
+        self.largura_tela = largura_tela
+        self.altura_tela = altura_tela
+        self.ativo = False
+        self.estado = "INATIVO"
+        self.tempo_inicio_estado = 0
+        self.duracao_entrada = 520
+        self.duracao_estavel = 700
+        self.duracao_raio = 460
+        self.duracao_explosao = 760
+
+        self.w_popup = 360
+        self.h_popup = 110
+        self.x_popup = (largura_tela - self.w_popup) // 2
+        self.y_popup = (altura_tela - self.h_popup) // 2
+        self.centro = (largura_tela // 2, altura_tela // 2)
+        self.raio_origem = (int(largura_tela * 0.92), -34)
+        self.raio_alvo = self.centro
+
+        self.particulas = []
+        self.estavel_particulas = []
+        self.raio_ondas = []
+        self.raio_seed = []
+        self.ramificacoes = []
+
+    def disparar(self, agora):
+        self.ativo = True
+        self.estado = "ENTRADA"
+        self.tempo_inicio_estado = agora
+        self.particulas = []
+        self.estavel_particulas = []
+        self.raio_ondas = []
+        self.ramificacoes = []
+        self.raio_seed = [random.uniform(-1.0, 1.0) for _ in range(18)]
+
+        for _ in range(42):
+            tx = random.randint(self.x_popup, self.x_popup + self.w_popup)
+            ty = random.randint(self.y_popup, self.y_popup + self.h_popup)
+            angulo = random.uniform(0, math.tau)
+            distancia = random.uniform(300, 520)
+            ox = self.centro[0] + math.cos(angulo) * distancia
+            oy = self.centro[1] + math.sin(angulo) * distancia
+            self.particulas.append({
+                "ox": ox, "oy": oy,
+                "tx": tx, "ty": ty,
+                "x": ox, "y": oy,
+                "cor": random.choice([(30, 170, 255), (0, 245, 255), (135, 220, 255)]),
+                "tamanho": random.randint(2, 5),
+                "alpha": 0,
+            })
+
+    def update(self, agora):
+        if not self.ativo:
+            return
+
+        tempo_decorrido = agora - self.tempo_inicio_estado
+
+        if self.estado == "ENTRADA":
+            progresso = min(1.0, tempo_decorrido / self.duracao_entrada)
+            ease = 1 - (1 - progresso) ** 3
+            for p in self.particulas:
+                p["x"] = p["ox"] + (p["tx"] - p["ox"]) * ease
+                p["y"] = p["oy"] + (p["ty"] - p["oy"]) * ease
+                p["alpha"] = int(progresso * 255)
+            if tempo_decorrido >= self.duracao_entrada:
+                self.estado = "ESTAVEL"
+                self.tempo_inicio_estado = agora
+                self.particulas = []
+                self.estavel_particulas = [self._criar_particula_estavel() for _ in range(18)]
+
+        elif self.estado == "ESTAVEL":
+            for p in self.estavel_particulas:
+                p["x"] += p["vx"]
+                p["y"] += p["vy"]
+                p["vida"] -= 1
+                if p["vida"] <= 0:
+                    p.update(self._criar_particula_estavel())
+            if tempo_decorrido >= self.duracao_estavel:
+                self._iniciar_raio(agora)
+
+        elif self.estado == "RAIO":
+            if tempo_decorrido >= self.duracao_raio:
+                self._explodir(agora)
+
+        elif self.estado == "EXPLOSAO":
+            inativas = 0
+            for p in self.particulas:
+                p["x"] += p["vx"]
+                p["y"] += p["vy"]
+                p["vx"] *= p["drag"]
+                p["vy"] = p["vy"] * p["drag"] + p["grav"]
+                p["vida"] -= 1
+                p["alpha"] = max(0, int(255 * (p["vida"] / p["vida_max"])))
+                if p["alpha"] <= 0:
+                    inativas += 1
+
+            for onda in self.raio_ondas:
+                onda["raio"] += onda["velocidade"]
+                onda["alpha"] = max(0, onda["alpha"] - onda["fade"])
+
+            ondas_sumiram = all(onda["alpha"] <= 0 for onda in self.raio_ondas)
+            if (inativas == len(self.particulas) and ondas_sumiram) or tempo_decorrido >= self.duracao_explosao:
+                self.ativo = False
+                self.estado = "INATIVO"
+
+    def _iniciar_raio(self, agora):
+        self.estado = "RAIO"
+        self.tempo_inicio_estado = agora
+        self.particulas = []
+        self.raio_alvo = (
+            self.x_popup + self.w_popup // 2 + random.randint(-22, 22),
+            self.y_popup + self.h_popup // 2 + random.randint(-10, 10),
+        )
+        self.ramificacoes = []
+
+        for _ in range(44):
+            lado = random.randrange(4)
+            if lado == 0:
+                destino = (random.randint(self.x_popup, self.x_popup + self.w_popup), self.y_popup)
+            elif lado == 1:
+                destino = (self.x_popup + self.w_popup, random.randint(self.y_popup, self.y_popup + self.h_popup))
+            elif lado == 2:
+                destino = (random.randint(self.x_popup, self.x_popup + self.w_popup), self.y_popup + self.h_popup)
+            else:
+                destino = (self.x_popup, random.randint(self.y_popup, self.y_popup + self.h_popup))
+
+            sx, sy = self.raio_alvo
+            dx = destino[0] - sx
+            dy = destino[1] - sy
+            passos = random.randint(3, 6)
+            pontos = []
+            for i in range(passos + 1):
+                t = i / passos
+                pontos.append((
+                    sx + dx * t + random.uniform(-18, 18) * (1.0 - t),
+                    sy + dy * t + random.uniform(-10, 10),
+                ))
+
+            self.ramificacoes.append({
+                "pontos": pontos,
+                "delay": random.uniform(0.08, 0.28),
+                "cor": random.choice([(0, 210, 255), (40, 130, 255), (160, 240, 255)]),
+                "largura": random.choice([1, 1, 2]),
+            })
+
+    def _explodir(self, agora):
+        self.estado = "EXPLOSAO"
+        self.tempo_inicio_estado = agora
+        self.raio_ondas = [
+            {"raio": 10, "velocidade": 19, "alpha": 245, "espessura": 5, "fade": 18},
+            {"raio": 34, "velocidade": 13, "alpha": 190, "espessura": 3, "fade": 15},
+            {"raio": 68, "velocidade": 8, "alpha": 130, "espessura": 2, "fade": 11},
+        ]
+        self.particulas = []
+        impacto_x, impacto_y = self.raio_alvo
+        for i in range(260):
+            ang = (i / 260) * math.tau + random.uniform(-0.035, 0.035)
+            borda_x = self.x_popup + self.w_popup * random.random()
+            borda_y = self.y_popup + self.h_popup * random.random()
+            x = impacto_x * 0.62 + borda_x * 0.38 + random.uniform(-16, 16)
+            y = impacto_y * 0.62 + borda_y * 0.38 + random.uniform(-12, 12)
+            velocidade = random.uniform(3.8, 13.5) * (1.0 + 0.45 * random.random())
+            vx = math.cos(ang) * velocidade + (x - impacto_x) * 0.018
+            vy = math.sin(ang) * velocidade + (y - impacto_y) * 0.018
+            vida = random.randint(30, 52)
+            self.particulas.append({
+                "x": x, "y": y,
+                "vx": vx, "vy": vy,
+                "grav": random.uniform(0.015, 0.06),
+                "drag": random.uniform(0.925, 0.968),
+                "cor": random.choice([(0, 210, 255), (0, 255, 255), (80, 160, 255), (210, 250, 255)]),
+                "tamanho": random.choice([1, 1, 2, 2, 3, 4]),
+                "alpha": 255,
+                "vida": vida,
+                "vida_max": vida,
+            })
+
+    def draw(self, tela):
+        if not self.ativo:
+            return
+
+        if self.estado == "ENTRADA":
+            self._draw_particulas_entrada(tela)
+
+        if self.estado in ["ENTRADA", "ESTAVEL", "RAIO"]:
+            alpha = 255
+            if self.estado == "ENTRADA":
+                tempo_decorrido = pygame.time.get_ticks() - self.tempo_inicio_estado
+                percent = max(0.0, min(1.0, tempo_decorrido / self.duracao_entrada))
+                if percent < 0.5:
+                    return
+                alpha = int((percent - 0.5) * 2 * 255)
+            elif self.estado == "RAIO":
+                tempo_decorrido = pygame.time.get_ticks() - self.tempo_inicio_estado
+                p = max(0.0, min(1.0, tempo_decorrido / self.duracao_raio))
+                alpha = max(45, int(255 * (1.0 - max(0.0, p - 0.66) / 0.34)))
+            self._draw_popup_panel(tela, alpha)
+
+        if self.estado == "RAIO":
+            self._draw_raio(tela)
+
+        if self.estado == "EXPLOSAO":
+            self._draw_explosao(tela)
+
+    def _draw_particulas_entrada(self, tela):
+        for p in self.particulas:
+            if p["alpha"] <= 0:
+                continue
+            tamanho = p["tamanho"]
+            s = pygame.Surface((tamanho * 2 + 8, tamanho * 2 + 8), pygame.SRCALPHA)
+            pygame.draw.circle(s, (*p["cor"], p["alpha"] // 3), (tamanho + 4, tamanho + 4), tamanho + 4)
+            pygame.draw.circle(s, (*p["cor"], p["alpha"]), (tamanho + 4, tamanho + 4), tamanho)
+            tela.blit(s, (int(p["x"]) - tamanho - 4, int(p["y"]) - tamanho - 4), special_flags=pygame.BLEND_RGBA_ADD)
+
+    def _draw_popup_panel(self, tela, alpha):
+        popup_surf = pygame.Surface((self.w_popup, self.h_popup), pygame.SRCALPHA)
+        pygame.draw.rect(popup_surf, (5, 10, 26, int(alpha * 0.84)), (0, 0, self.w_popup, self.h_popup), border_radius=12)
+        pygame.draw.rect(popup_surf, (0, 235, 255, alpha), (0, 0, self.w_popup, self.h_popup), width=3, border_radius=12)
+        pygame.draw.rect(popup_surf, (60, 110, 255, int(alpha * 0.42)), (5, 5, self.w_popup - 10, self.h_popup - 10), width=1, border_radius=9)
+
+        brilho = max(0, int(alpha * 0.65))
+        pygame.draw.line(popup_surf, (255, 255, 255, brilho), (15, 0), (48, 0), 3)
+        pygame.draw.line(popup_surf, (255, 255, 255, brilho), (self.w_popup - 48, 0), (self.w_popup - 15, 0), 3)
+        pygame.draw.line(popup_surf, (255, 255, 255, brilho), (0, 15), (0, 48), 3)
+        pygame.draw.line(popup_surf, (255, 255, 255, brilho), (self.w_popup, 15), (self.w_popup, 48), 3)
+
+        try:
+            fonte_pop = pygame.font.Font(caminho_fonte_titulo, 22)
+            fonte_pop_sub = pygame.font.Font(caminho_fonte_letras, 14)
+        except Exception:
+            fonte_pop = pygame.font.Font(None, 24)
+            fonte_pop_sub = pygame.font.Font(None, 16)
+
+        texto_surf = fonte_pop.render("ALTERACOES APLICADAS", True, (0, 255, 220, alpha))
+        tx = (self.w_popup - texto_surf.get_width()) // 2
+        ty = (self.h_popup - texto_surf.get_height()) // 2 - 12
+        sub_surf = fonte_pop_sub.render("Configuracoes salvas com sucesso!", True, (230, 250, 255, int(alpha * 0.72)))
+        popup_surf.blit(texto_surf, (tx, ty))
+        popup_surf.blit(sub_surf, ((self.w_popup - sub_surf.get_width()) // 2, ty + texto_surf.get_height() + 8))
+
+        if self.estado == "ESTAVEL":
+            for p in self.estavel_particulas:
+                px_rel = p["x"] - self.x_popup
+                py_rel = p["y"] - self.y_popup
+                if 0 <= px_rel <= self.w_popup and 0 <= py_rel <= self.h_popup:
+                    pygame.draw.circle(popup_surf, (*p["cor"], p["alpha"]), (int(px_rel), int(py_rel)), p["tamanho"])
+
+        if self.estado == "RAIO":
+            tempo_decorrido = pygame.time.get_ticks() - self.tempo_inicio_estado
+            prog = max(0.0, min(1.0, tempo_decorrido / self.duracao_raio))
+            impacto_rel = (self.raio_alvo[0] - self.x_popup, self.raio_alvo[1] - self.y_popup)
+            pygame.draw.circle(popup_surf, (0, 245, 255, int(190 * min(1.0, prog * 2))), impacto_rel, int(18 + 26 * prog), 2)
+            espalhar = max(0.0, min(1.0, (prog - 0.34) / 0.44))
+            for ramo in self.ramificacoes:
+                rprog = max(0.0, min(1.0, (espalhar - ramo["delay"]) / 0.55))
+                if rprog <= 0:
+                    continue
+                pontos = [(int(x - self.x_popup), int(y - self.y_popup)) for x, y in ramo["pontos"]]
+                usar = max(2, int(2 + (len(pontos) - 1) * rprog))
+                pygame.draw.lines(popup_surf, (*ramo["cor"], int(160 * (1.0 - prog * 0.45))), False, pontos[:usar], ramo["largura"])
+                pygame.draw.lines(popup_surf, (230, 255, 255, int(95 * (1.0 - prog * 0.35))), False, pontos[:usar], 1)
+
+        tela.blit(popup_surf, (self.x_popup, self.y_popup))
+
+    def _pontos_raio(self, progresso):
+        ox, oy = self.raio_origem
+        ax, ay = self.raio_alvo
+        pontos = []
+        total = 13
+        dx = ax - ox
+        dy = ay - oy
+        normal_len = max(1.0, math.hypot(dx, dy))
+        nx = -dy / normal_len
+        ny = dx / normal_len
+        chegada = min(1.0, progresso * 1.22)
+        for i in range(total + 1):
+            t = i / total
+            jitter = self.raio_seed[i % len(self.raio_seed)] * (34 + 18 * math.sin(pygame.time.get_ticks() * 0.02 + i))
+            pontos.append((int(ox + dx * t * chegada + nx * jitter * (0.25 + t)), int(oy + dy * t * chegada + ny * jitter * (0.25 + t))))
+        pontos[-1] = (int(ox + dx * chegada), int(oy + dy * chegada))
+        return pontos
+
+    def _draw_raio(self, tela):
+        tempo_decorrido = pygame.time.get_ticks() - self.tempo_inicio_estado
+        prog = max(0.0, min(1.0, tempo_decorrido / self.duracao_raio))
+        pontos = self._pontos_raio(prog)
+        min_x = max(0, min(p[0] for p in pontos) - 90)
+        min_y = max(0, min(p[1] for p in pontos) - 90)
+        max_x = min(self.largura_tela, max(p[0] for p in pontos) + 90)
+        max_y = min(self.altura_tela, max(p[1] for p in pontos) + 90)
+        camada = pygame.Surface((max(1, max_x - min_x), max(1, max_y - min_y)), pygame.SRCALPHA)
+        locais = [(x - min_x, y - min_y) for x, y in pontos]
+        flash = 0.55 + 0.45 * math.sin(tempo_decorrido * 0.075)
+        pygame.draw.lines(camada, (0, 85, 255, int(82 * flash)), False, locais, 18)
+        pygame.draw.lines(camada, (0, 220, 255, int(165 * flash)), False, locais, 9)
+        pygame.draw.lines(camada, (235, 255, 255, 245), False, locais, 3)
+
+        if prog > 0.28:
+            ix, iy = self.raio_alvo[0] - min_x, self.raio_alvo[1] - min_y
+            choque = min(1.0, (prog - 0.28) / 0.52)
+            pygame.draw.circle(camada, (0, 210, 255, int(130 * (1.0 - choque * 0.45))), (ix, iy), 34 + int(70 * choque), 3)
+            pygame.draw.circle(camada, (0, 245, 255, int(210 * (1.0 - choque * 0.45))), (ix, iy), 10 + int(30 * choque), 2)
+            pygame.draw.circle(camada, (245, 255, 255, 230), (ix, iy), max(5, int(14 - 7 * choque)))
+
+        tela.blit(camada, (min_x, min_y), special_flags=pygame.BLEND_RGBA_ADD)
+
+    def _draw_explosao(self, tela):
+        if not self.particulas:
+            return
+        min_x = max(0, int(min(p["x"] for p in self.particulas)) - 18)
+        min_y = max(0, int(min(p["y"] for p in self.particulas)) - 18)
+        max_x = min(self.largura_tela, int(max(p["x"] for p in self.particulas)) + 18)
+        max_y = min(self.altura_tela, int(max(p["y"] for p in self.particulas)) + 18)
+        camada = pygame.Surface((max(1, max_x - min_x), max(1, max_y - min_y)), pygame.SRCALPHA)
+        for p in self.particulas:
+            if p["alpha"] <= 0:
+                continue
+            x = int(p["x"] - min_x)
+            y = int(p["y"] - min_y)
+            r = p["tamanho"]
+            pygame.draw.circle(camada, (*p["cor"], p["alpha"]), (x, y), r)
+            if r >= 3:
+                pygame.draw.circle(camada, (220, 255, 255, p["alpha"] // 3), (x, y), r + 3, 1)
+        tela.blit(camada, (min_x, min_y), special_flags=pygame.BLEND_RGBA_ADD)
 ajuste_vertical = int(altura_tela * 0.12)
 
 opcoes = ["Iniciar Jornada", "Catalogo", "ConfiguraÃ§Ã£o", "Sair"]
@@ -175,8 +732,10 @@ def inicializar_menu():
     
     if tela is not None:
         try:
-            tela.fill((0, 0, 0))
-            return
+            if tela is pygame.display.get_surface() and tela.get_size() == (largura_tela, altura_tela):
+                tela.fill((0, 0, 0))
+                return
+            tela = None
         except pygame.error:
             tela = None
         
@@ -306,6 +865,9 @@ def mostrar_erro_lan(tela, font_titulo, font_desc):
 
 def tela_escolha_dificuldade(tela, fonte, mostrar_tutorial=False):
     import random
+    import math
+    import json
+    import os
 
     pygame.mouse.set_visible(False)
     largura, altura = tela.get_size()
@@ -323,9 +885,9 @@ def tela_escolha_dificuldade(tela, fonte, mostrar_tutorial=False):
             return fallback or pygame.font.Font(None, tamanho)
 
     font_titulo = carregar_fonte(caminho_fonte_titulo, 42, fonte)
-    font_botao = carregar_fonte(caminho_fonte_letra1, 34, fonte)
-    font_info = carregar_fonte(caminho_fonte_letras, 20, fonte)
-    font_peq = carregar_fonte(caminho_fonte_letras, 16, fonte)
+    font_botao = carregar_fonte(caminho_fonte_letra1, 28, fonte)
+    font_info = carregar_fonte(caminho_fonte_letras, 18, fonte)
+    font_peq = carregar_fonte(caminho_fonte_letras, 15, fonte)
 
     opcoes_dificuldade = [
         {
@@ -333,7 +895,11 @@ def tela_escolha_dificuldade(tela, fonte, mostrar_tutorial=False):
             "modo_cartas": "drops",
             "tema": "inferno",
             "bloqueado": bool(mostrar_tutorial),
-            "motivo": "Hard bloqueado com tutorial ativo.",
+            "motivo": "Dificil bloqueado com tutorial ativo.",
+            "bg_cor": (42, 12, 8),
+            "accent_cor": (255, 92, 24),
+            "titulo_sub": "MODO DROPS",
+            "desc": "Inimigos dropam cartas ao morrer. Sem loja inter-fases. Recomendado apenas para veteranos buscando o desafio maximo.",
         },
         {
             "nome": "Normal",
@@ -341,40 +907,36 @@ def tela_escolha_dificuldade(tela, fonte, mostrar_tutorial=False):
             "tema": "cosmo",
             "bloqueado": False,
             "motivo": "",
+            "bg_cor": (8, 20, 42),
+            "accent_cor": (0, 230, 255),
+            "titulo_sub": "MODO LOJA",
+            "desc": "Adquira cartas na loja inter-fases usando Poeira Cosmica. O modo classico ideal para aprender e evoluir.",
         },
     ]
 
-    btn_w, btn_h = 280, 82
-    gap = 58
-    total_w = btn_w * 2 + gap
-    y_botoes = altura // 2 - btn_h // 2 + 28
-    x_inicio = largura // 2 - total_w // 2
-    rects = [
-        pygame.Rect(x_inicio, y_botoes, btn_w, btn_h),
-        pygame.Rect(x_inicio + btn_w + gap, y_botoes, btn_w, btn_h),
-    ]
+    base_x = [largura // 2 - 170, largura // 2 + 170]
+    rects = [pygame.Rect(0, 0, 1, 1), pygame.Rect(0, 0, 1, 1)]
     btn_voltar = pygame.Rect(largura - 166, 34, 126, 38)
 
-    estrelas = []
-    for _ in range(115):
-        estrelas.append({
+    bg_cor_atual = list(opcoes_dificuldade[selecionado]["bg_cor"])
+    accent_cor_atual = list(opcoes_dificuldade[selecionado]["accent_cor"])
+    card_scale = [0.88, 0.88]
+    card_y_offset = [10, 10]
+    card_alpha = [130, 130]
+
+    # Particles system
+    particulas = []
+    for _ in range(70):
+        particulas.append({
             "x": random.uniform(0, largura),
             "y": random.uniform(0, altura),
-            "r": random.uniform(1.0, 3.2),
-            "alpha": random.randint(80, 230),
-            "pulso": random.uniform(0.002, 0.008),
-            "drift": random.uniform(-0.08, 0.12),
-        })
-
-    brasas = []
-    for _ in range(95):
-        brasas.append({
-            "x": random.uniform(0, largura),
-            "y": random.uniform(altura * 0.42, altura),
-            "r": random.uniform(1.6, 5.0),
-            "vy": random.uniform(0.8, 2.6),
-            "vx": random.uniform(-0.6, 0.6),
-            "alpha": random.randint(75, 210),
+            "r": random.uniform(1.2, 4.5),
+            "alpha": random.randint(50, 220),
+            "speed_y": random.uniform(-1.5, -0.4),
+            "drift_speed": random.uniform(0.01, 0.04),
+            "drift_phase": random.uniform(0, math.pi * 2),
+            "breathe_speed": random.uniform(0.02, 0.06),
+            "breathe_dir": random.choice([-1, 1])
         })
 
     def mostrar_aviso(texto):
@@ -396,156 +958,92 @@ def tela_escolha_dificuldade(tela, fonte, mostrar_tutorial=False):
         tocar_selecionar()
         return opcao["modo_cartas"]
 
-    def desenhar_fundo_cosmo(agora):
-        for y in range(0, altura, 8):
-            t = y / max(1, altura)
-            cor = (
-                int(5 + 12 * t),
-                int(8 + 20 * t),
-                int(28 + 58 * t),
-            )
-            pygame.draw.rect(tela, cor, (0, y, largura, 8))
+    def desenhar_texto_wrap_local(superficie, texto, rect, fonte_usada, cor, line_gap=0):
+        palavras = texto.split(" ")
+        linhas = []
+        linha_atual = []
+        for palavra in palavras:
+            teste = " ".join(linha_atual + [palavra])
+            if fonte_usada.size(teste)[0] <= rect.width:
+                linha_atual.append(palavra)
+            else:
+                if linha_atual:
+                    linhas.append(" ".join(linha_atual))
+                linha_atual = [palavra]
+        if linha_atual:
+            linhas.append(" ".join(linha_atual))
 
-        nebula = pygame.Surface((largura, altura), pygame.SRCALPHA)
-        pulso = (math.sin(agora * 0.0012) + 1.0) * 0.5
-        pygame.draw.circle(nebula, (30, 120, 255, int(34 + pulso * 28)), (int(largura * 0.25), int(altura * 0.58)), 230)
-        pygame.draw.circle(nebula, (170, 80, 255, 32), (int(largura * 0.76), int(altura * 0.34)), 190)
-        pygame.draw.circle(nebula, (0, 255, 204, 24), (int(largura * 0.52), int(altura * 0.82)), 260)
-        tela.blit(nebula, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+        y_txt = rect.top
+        altura_linha = fonte_usada.get_linesize() + line_gap
+        for i_linha, linha in enumerate(linhas):
+            if y_txt + altura_linha > rect.bottom:
+                break
+            if y_txt + 2 * altura_linha > rect.bottom and i_linha < len(linhas) - 1:
+                linha = linha + "..."
+                while len(linha) > 3 and fonte_usada.size(linha)[0] > rect.width:
+                    linha = linha[:-4] + "..."
+            render = fonte_usada.render(linha, True, cor)
+            superficie.blit(render, (rect.left, y_txt))
+            y_txt += altura_linha
 
-        for estrela in estrelas:
-            estrela["x"] += estrela["drift"]
-            if estrela["x"] < -6:
-                estrela["x"] = largura + 6
-            elif estrela["x"] > largura + 6:
-                estrela["x"] = -6
-            alpha = max(35, min(255, int(estrela["alpha"] + math.sin(agora * estrela["pulso"]) * 55)))
-            cor = (210, 240, 255, alpha)
-            surf = pygame.Surface((10, 10), pygame.SRCALPHA)
-            pygame.draw.circle(surf, cor, (5, 5), int(estrela["r"]))
-            tela.blit(surf, (int(estrela["x"]) - 5, int(estrela["y"]) - 5))
-
-        for i in range(8):
-            y = int((altura * 0.12 + i * 66 + math.sin(agora * 0.001 + i) * 14) % altura)
-            pygame.draw.line(tela, (0, 255, 204, 22), (0, y), (largura, y + 34), 1)
-
-    def desenhar_fundo_inferno(agora):
-        for y in range(0, altura, 7):
-            t = y / max(1, altura)
-            cor = (
-                int(8 + 48 * t),
-                int(2 + 12 * t),
-                int(4 + 4 * t),
-            )
-            pygame.draw.rect(tela, cor, (0, y, largura, 7))
-
-        ceu = pygame.Surface((largura, altura), pygame.SRCALPHA)
-        pygame.draw.circle(ceu, (140, 18, 0, 70), (int(largura * 0.66), int(altura * 0.28)), 250)
-        pygame.draw.circle(ceu, (255, 70, 0, 38), (int(largura * 0.31), int(altura * 0.38)), 190)
-        tela.blit(ceu, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
-
-        chao_y = altura - 112
-        pygame.draw.rect(tela, (26, 8, 5), (0, chao_y, largura, altura - chao_y))
-        pygame.draw.rect(tela, (92, 18, 0), (0, chao_y, largura, 6))
-
-        for i in range(18):
-            x = int((i * 87 + math.sin(agora * 0.0017 + i) * 16) % largura)
-            y = chao_y + 24 + (i % 4) * 17
-            pygame.draw.line(tela, (255, 82, 0), (x - 24, y), (x + 50, y + 8), 2)
-            pygame.draw.line(tela, (255, 210, 70), (x - 8, y + 1), (x + 24, y + 5), 1)
-
-        fogo = pygame.Surface((largura, altura), pygame.SRCALPHA)
-        for i in range(42):
-            x = int(i * largura / 41)
-            oscilacao = math.sin(agora * 0.006 + i * 0.9)
-            h = int(50 + oscilacao * 18 + (i % 5) * 11)
-            base = chao_y + 12
-            pontos = [
-                (x - 24, base),
-                (x - 8, base - h // 2),
-                (x, base - h),
-                (x + 10, base - h // 3),
-                (x + 28, base),
-            ]
-            pygame.draw.polygon(fogo, (255, 52, 0, 130), pontos)
-            pontos2 = [(x - 11, base), (x, base - h + 24), (x + 12, base)]
-            pygame.draw.polygon(fogo, (255, 194, 45, 160), pontos2)
-        tela.blit(fogo, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
-
-        for brasa in brasas:
-            brasa["y"] -= brasa["vy"]
-            brasa["x"] += brasa["vx"] + math.sin(agora * 0.002 + brasa["r"]) * 0.18
-            if brasa["y"] < -10:
-                brasa["y"] = random.uniform(chao_y, altura + 20)
-                brasa["x"] = random.uniform(0, largura)
-            if brasa["x"] < 0:
-                brasa["x"] = largura
-            elif brasa["x"] > largura:
-                brasa["x"] = 0
-            surf = pygame.Surface((14, 14), pygame.SRCALPHA)
-            pygame.draw.circle(surf, (255, 112, 24, brasa["alpha"]), (7, 7), int(brasa["r"]))
-            tela.blit(surf, (int(brasa["x"]) - 7, int(brasa["y"]) - 7), special_flags=pygame.BLEND_RGBA_ADD)
-
-    def desenhar_chamas_botao(rect, agora):
-        fogo = pygame.Surface((rect.w + 70, rect.h + 70), pygame.SRCALPHA)
-        for i in range(20):
-            x = 35 + int((i + 0.5) * rect.w / 20)
-            base = rect.h + 36
-            h = int(28 + 18 * math.sin(agora * 0.008 + i * 1.7))
-            pontos = [(x - 14, base), (x, base - h - (i % 3) * 8), (x + 16, base)]
-            pygame.draw.polygon(fogo, (255, 60, 0, 130), pontos)
-            pygame.draw.polygon(fogo, (255, 210, 50, 165), [(x - 6, base), (x, base - h + 12), (x + 7, base)])
-        tela.blit(fogo, (rect.x - 35, rect.y - 35), special_flags=pygame.BLEND_RGBA_ADD)
-
-    def desenhar_botao(opcao, rect, indice, agora):
-        ativo = indice == selecionado
-        bloqueado = opcao["bloqueado"]
-
-        if opcao["tema"] == "inferno" and ativo:
-            desenhar_chamas_botao(rect, agora)
-
-        surf = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
+    def desenhar_card(opcao, rect, ativo, alpha, agora):
+        surf_card = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
+        
         if opcao["tema"] == "inferno":
-            cor_base = (72, 12, 5, 228) if ativo else (28, 10, 8, 178)
-            cor_borda = (255, 92, 24) if ativo else (120, 42, 24)
+            cor_bg = (55, 12, 8, 210 if ativo else 130)
+            cor_borda = (255, 92, 24, 255 if ativo else 120)
         else:
-            cor_base = (12, 28, 72, 220) if ativo else (9, 16, 36, 178)
-            cor_borda = (120, 220, 255) if ativo else (70, 96, 130)
-
-        if bloqueado:
-            cor_base = (30, 28, 32, 190)
-            cor_borda = (96, 86, 86) if not ativo else (255, 96, 48)
-
-        pygame.draw.rect(surf, cor_base, (0, 0, rect.w, rect.h), border_radius=8)
-        pygame.draw.rect(surf, cor_borda, (0, 0, rect.w, rect.h), width=2 if ativo else 1, border_radius=8)
-
+            cor_bg = (8, 24, 55, 210 if ativo else 130)
+            cor_borda = (0, 230, 255, 255 if ativo else 120)
+            
+        if opcao["bloqueado"]:
+            cor_bg = (30, 28, 32, 170)
+            cor_borda = (130, 110, 110, 120)
+            if ativo:
+                cor_borda = (255, 120, 80, 255)
+                
+        pygame.draw.rect(surf_card, cor_bg, (0, 0, rect.w, rect.h), border_radius=12)
+        pygame.draw.rect(surf_card, cor_borda, (0, 0, rect.w, rect.h), width=2 if ativo else 1, border_radius=12)
+        
         if ativo:
-            glow_cor = (255, 80, 24, 38) if opcao["tema"] == "inferno" else (0, 230, 255, 34)
-            pygame.draw.rect(surf, glow_cor, (6, 6, rect.w - 12, rect.h - 12), border_radius=6)
-
-        if opcao["tema"] == "cosmo":
-            for n in range(9):
-                sx = int((n * 37 + agora * 0.02) % rect.w)
-                sy = 12 + (n * 17) % (rect.h - 24)
-                pygame.draw.circle(surf, (190, 240, 255, 80 if ativo else 36), (sx, sy), 1 + (n % 2))
-        elif ativo:
-            for n in range(7):
-                sx = 18 + (n * 41) % (rect.w - 36)
-                sy = rect.h - 10
-                h = 16 + int(math.sin(agora * 0.01 + n) * 7)
-                pygame.draw.polygon(surf, (255, 76, 0, 145), [(sx - 7, sy), (sx, sy - h), (sx + 8, sy)])
-
-        cor_texto = (130, 130, 135) if bloqueado else ((255, 246, 220) if opcao["tema"] == "inferno" else (230, 245, 255))
-        texto = font_botao.render(opcao["nome"].upper(), True, cor_texto)
-        surf.blit(texto, texto.get_rect(center=(rect.w // 2, rect.h // 2 - (9 if bloqueado else 0))))
-
-        if bloqueado:
-            aviso = font_peq.render("TRAVADO", True, (255, 120, 80) if ativo else (150, 130, 130))
-            surf.blit(aviso, aviso.get_rect(center=(rect.w // 2, rect.h // 2 + 24)))
-            for x in range(-rect.h, rect.w, 22):
-                pygame.draw.line(surf, (255, 255, 255, 24), (x, rect.h), (x + rect.h, 0), 1)
-
-        tela.blit(surf, rect.topleft)
+            glow_cor = (255, 92, 24, 30) if opcao["tema"] == "inferno" else (0, 230, 255, 30)
+            pygame.draw.rect(surf_card, glow_cor, (5, 5, rect.w - 10, rect.h - 10), border_radius=10)
+            
+        cor_titulo = (255, 240, 220) if opcao["tema"] == "inferno" else (220, 245, 255)
+        if opcao["bloqueado"]:
+            cor_titulo = (150, 140, 140)
+        texto_titulo = font_botao.render(opcao["nome"].upper(), True, cor_titulo)
+        rect_tit = texto_titulo.get_rect(center=(rect.w // 2, 34))
+        surf_card.blit(texto_titulo, rect_tit)
+        
+        cor_sub = (255, 180, 120) if opcao["tema"] == "inferno" else (100, 220, 255)
+        if opcao["bloqueado"]:
+            cor_sub = (120, 110, 110)
+        texto_sub = font_peq.render(opcao["titulo_sub"], True, cor_sub)
+        rect_sub = texto_sub.get_rect(center=(rect.w // 2, 66))
+        surf_card.blit(texto_sub, rect_sub)
+        
+        cor_div = (255, 92, 24, 70) if opcao["tema"] == "inferno" else (0, 230, 255, 70)
+        if opcao["bloqueado"]:
+            cor_div = (100, 100, 100, 40)
+        pygame.draw.line(surf_card, cor_div, (30, 85), (rect.w - 30, 85), 1)
+        
+        desc_rect = pygame.Rect(20, 100, rect.w - 40, rect.h - 110)
+        cor_desc = (230, 210, 200) if opcao["tema"] == "inferno" else (200, 220, 235)
+        if opcao["bloqueado"]:
+            cor_desc = (115, 110, 110)
+        desenhar_texto_wrap_local(surf_card, opcao["desc"], desc_rect, font_info, cor_desc, line_gap=2)
+        
+        if opcao["bloqueado"]:
+            for x_line in range(-rect.h, rect.w, 18):
+                pygame.draw.line(surf_card, (255, 80, 50, 15), (x_line, rect.h), (x_line + rect.h, 0), 1)
+            
+            txt_travado = font_info.render("BLOQUEADO", True, (255, 100, 80) if ativo else (160, 120, 120))
+            rect_trav = txt_travado.get_rect(center=(rect.w // 2, rect.h - 26))
+            surf_card.blit(txt_travado, rect_trav)
+            
+        surf_card.set_alpha(int(alpha))
+        tela.blit(surf_card, rect.topleft)
 
     while True:
         agora = pygame.time.get_ticks()
@@ -610,25 +1108,102 @@ def tela_escolha_dificuldade(tela, fonte, mostrar_tutorial=False):
                     tocar_selecionar()
                     return None
 
+        # Update card layout and targets dynamically based on scaling
+        for i in range(2):
+            if i == selecionado:
+                target_scale = 1.12
+                target_y_offset = -12
+                target_alpha = 255
+            else:
+                target_scale = 0.88
+                target_y_offset = 12
+                target_alpha = 135
+            
+            card_scale[i] += (target_scale - card_scale[i]) * 0.1
+            card_y_offset[i] += (target_y_offset - card_y_offset[i]) * 0.1
+            card_alpha[i] += (target_alpha - card_alpha[i]) * 0.1
+
+        card_w, card_h = 250, 240
+        for i in range(2):
+            w_scaled = int(card_w * card_scale[i])
+            h_scaled = int(card_h * card_scale[i])
+            x_pos = int(base_x[i] - w_scaled // 2)
+            y_pos = int(altura // 2 - h_scaled // 2 + card_y_offset[i])
+            rects[i] = pygame.Rect(x_pos, y_pos, w_scaled, h_scaled)
+
         if modo_interacao == "mouse":
             for i, rect in enumerate(rects):
                 if rect.collidepoint(mx, my) and selecionado != i:
                     selecionado = i
                     tocar_hover()
 
-        if opcoes_dificuldade[selecionado]["tema"] == "inferno":
-            desenhar_fundo_inferno(agora)
-        else:
-            desenhar_fundo_cosmo(agora)
+        # Update LERP colors
+        target_bg = opcoes_dificuldade[selecionado]["bg_cor"]
+        target_accent = opcoes_dificuldade[selecionado]["accent_cor"]
+        for c in range(3):
+            bg_cor_atual[c] += (target_bg[c] - bg_cor_atual[c]) * 0.08
+            accent_cor_atual[c] += (target_accent[c] - accent_cor_atual[c]) * 0.08
 
-        titulo = font_titulo.render("Selecione a dificuldade", True, (255, 255, 255))
-        sombra = font_titulo.render("Selecione a dificuldade", True, (12, 8, 18))
-        tela.blit(sombra, (38, 38))
-        tela.blit(titulo, (34, 34))
+        # Draw Background Gradient
+        for y in range(0, altura, 8):
+            t = y / max(1, altura)
+            cor_grad = (
+                int(bg_cor_atual[0] * (0.8 + 0.4 * t)),
+                int(bg_cor_atual[1] * (0.8 + 0.4 * t)),
+                int(bg_cor_atual[2] * (0.8 + 0.4 * t))
+            )
+            pygame.draw.rect(tela, cor_grad, (0, y, largura, 8))
 
+        # Glowing Nebula Circles
+        nebula = pygame.Surface((largura, altura), pygame.SRCALPHA)
+        pulso = (math.sin(agora * 0.0012) + 1.0) * 0.5
+        pygame.draw.circle(nebula, (int(accent_cor_atual[0] * 0.35), int(accent_cor_atual[1] * 0.35), int(accent_cor_atual[2] * 0.35), int(34 + pulso * 28)), (int(largura * 0.25), int(altura * 0.58)), 230)
+        pygame.draw.circle(nebula, (int(accent_cor_atual[0] * 0.18), int(accent_cor_atual[1] * 0.18), int(accent_cor_atual[2] * 0.18), 32), (int(largura * 0.76), int(altura * 0.34)), 190)
+        tela.blit(nebula, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+        # Cyber Grid Lines
+        for i in range(8):
+            y_line = int((altura * 0.12 + i * 66 + math.sin(agora * 0.001 + i) * 14) % altura)
+            cor_linha = (int(accent_cor_atual[0]), int(accent_cor_atual[1]), int(accent_cor_atual[2]), 22)
+            surf_linha = pygame.Surface((largura, 1), pygame.SRCALPHA)
+            pygame.draw.line(surf_linha, cor_linha, (0, 0), (largura, 0), 1)
+            tela.blit(surf_linha, (0, y_line))
+
+        # Draw Particles
+        for p in particulas:
+            p["y"] += p["speed_y"]
+            if p["y"] < -10:
+                p["y"] = altura + 10
+                p["x"] = random.uniform(0, largura)
+            
+            x_drift = math.sin(agora * p["drift_speed"] + p["drift_phase"]) * 0.2
+            p["x"] += x_drift
+            
+            if p["x"] < -10: p["x"] = largura + 10
+            elif p["x"] > largura + 10: p["x"] = -10
+            
+            p["alpha"] += p["breathe_dir"] * p["breathe_speed"] * 10
+            if p["alpha"] >= 255:
+                p["alpha"] = 255
+                p["breathe_dir"] = -1
+            elif p["alpha"] <= 40:
+                p["alpha"] = 40
+                p["breathe_dir"] = 1
+                
+            cor_part = (int(accent_cor_atual[0]), int(accent_cor_atual[1]), int(accent_cor_atual[2]), int(p["alpha"]))
+            surf_p = pygame.Surface((int(p["r"] * 2), int(p["r"] * 2)), pygame.SRCALPHA)
+            pygame.draw.circle(surf_p, cor_part, (int(p["r"]), int(p["r"])), int(p["r"]))
+            tela.blit(surf_p, (int(p["x"] - p["r"]), int(p["y"] - p["r"])))
+
+        # Draw Glitch Title
+        render_titulo = render_glitch_text_with_fallback("ESCOLHA A DIFICULDADE", font_titulo, fonte, (255, 255, 255))
+        tela.blit(render_titulo, (largura // 2 - render_titulo.get_width() // 2, altura // 12))
+
+        # Render Cards
         for i, opcao in enumerate(opcoes_dificuldade):
-            desenhar_botao(opcao, rects[i], i, agora)
+            desenhar_card(opcao, rects[i], i == selecionado, card_alpha[i], agora)
 
+        # Voltar button
         hover_voltar = modo_interacao == "mouse" and btn_voltar.collidepoint(mx, my)
         surf_voltar = pygame.Surface((btn_voltar.w, btn_voltar.h), pygame.SRCALPHA)
         pygame.draw.rect(surf_voltar, (18, 12, 28, 210 if hover_voltar else 150), (0, 0, btn_voltar.w, btn_voltar.h), border_radius=7)
@@ -637,13 +1212,14 @@ def tela_escolha_dificuldade(tela, fonte, mostrar_tutorial=False):
         surf_voltar.blit(texto_voltar, texto_voltar.get_rect(center=(btn_voltar.w // 2, btn_voltar.h // 2)))
         tela.blit(surf_voltar, btn_voltar.topleft)
 
+        # Warning panel (if any)
         if aviso_texto and agora < aviso_fim:
             aviso = font_info.render(aviso_texto, True, (255, 180, 100))
             painel = pygame.Surface((aviso.get_width() + 42, 42), pygame.SRCALPHA)
             pygame.draw.rect(painel, (24, 10, 8, 220), painel.get_rect(), border_radius=7)
             pygame.draw.rect(painel, (255, 92, 32, 120), painel.get_rect(), width=1, border_radius=7)
             painel.blit(aviso, (21, 20 - aviso.get_height() // 2))
-            tela.blit(painel, (largura // 2 - painel.get_width() // 2, y_botoes + btn_h + 32))
+            tela.blit(painel, (largura // 2 - painel.get_width() // 2, altura // 2 + card_h // 2 + 36))
 
         instr = font_info.render("A/D ou SETAS: alternar | ENTER/ESPACO: selecionar | ESC: voltar", True, (205, 220, 230))
         tela.blit(instr, instr.get_rect(center=(largura // 2, altura - 40)))
@@ -748,6 +1324,9 @@ def tela_escolha_modo():
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 return None, None
+            elif evento.type == pygame.MOUSEMOTION:
+                if evento.rel != (0, 0):
+                    modo_interacao = "mouse"
             elif evento.type == pygame.MOUSEBUTTONDOWN:
                 if evento.button == 1:
                     modo_interacao = "mouse"
@@ -993,11 +1572,11 @@ def tela_selecao_aurea(tela, fonte):
             "cor_tema": (0, 191, 255),       # Azul ElÃ©trico / Ciano
             "bg_tema": (8, 20, 42),          # Fundo Deep Blue
             "categoria": "ANÃLISE E PRECISÃƒO TEMPORAL",
-            "efeito": "Fique imÃ³vel por 5 segundos para gerar pontos bÃ´nus. A aura continua concedendo pontos a cada novo ciclo parado.",
+            "efeito": "Gera pontos bÃ´nus ao ficar imÃ³vel por 5s. Ao teleportar, ativa a DilataÃ§Ã£o Temporal por 8s, desacelerando inimigos/projÃ©teis em 58% (cooldown de 30s).",
             "atributos": [
-                "â€¢ Gatilho: ficar 5s sem mover Apolo.",
-                "â€¢ Efeito: pontuaÃ§Ã£o bÃ´nus automÃ¡tica por ciclo.",
-                "â€¢ EvoluÃ§Ã£o: aumenta os pontos recebidos."
+                "â€¢ Passiva: +3 (+nÃ­vel) pontos a cada 5s imÃ³vel.",
+                "â€¢ DilataÃ§Ã£o: inimigos e projÃ©teis ficam 58% mais lentos.",
+                "â€¢ Buffs: +35% de velocidade e +28% de cadÃªncia de tiro para."
             ],
             "lore": "A mente fria calcula trajetÃ³rias e enxerga padrÃµes em meio ao caos da ruptura temporal."
         },
@@ -1162,6 +1741,9 @@ def tela_selecao_aurea(tela, fonte):
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 exit()
+            elif evento.type == pygame.MOUSEMOTION:
+                if evento.rel != (0, 0):
+                    modo_interacao = "mouse"
             elif evento.type == pygame.MOUSEBUTTONDOWN:
                 if evento.button == 1:
                     modo_interacao = "mouse"
@@ -1722,18 +2304,24 @@ def tela_configuracoes_graficas(tela, fonte):
     }
     
     selecionado = 0
+    modo_interacao = "teclado"
     clock = pygame.time.Clock()
     fonte_titulo_tela = pygame.font.Font(caminho_fonte_titulo, 48)
     fonte_opcao_tela = pygame.font.Font(caminho_fonte_letra1, 24)
     fonte_valor_tela = pygame.font.Font(caminho_fonte_letras, 20)
+    popup_aplicar = PopUpAplicar(largura_tela, altura_tela)
 
     def aplicar_config():
         nonlocal config_salva, tela
+        if not _tem_alteracoes_pendentes(config, config_salva):
+            return False
         dados_para_salvar = {k: v for k, v in config.items() if not k.startswith("__")}
         with open("saves/config_graficos.json", "w") as f:
             json.dump(dados_para_salvar, f, indent=4)
         tela = configurar_tela(largura_tela, altura_tela)
         config_salva = json.loads(json.dumps(config))
+        popup_aplicar.disparar(pygame.time.get_ticks())
+        return True
 
     def tentar_sair():
         if not _tem_alteracoes_pendentes(config, config_salva):
@@ -1788,10 +2376,15 @@ def tela_configuracoes_graficas(tela, fonte):
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 exit()
+            elif evento.type == pygame.MOUSEMOTION:
+                if evento.rel != (0, 0):
+                    modo_interacao = "mouse"
             elif evento.type == pygame.MOUSEBUTTONDOWN:
                 if evento.button == 1:
+                    modo_interacao = "mouse"
                     clicado = True
             elif evento.type == pygame.KEYDOWN:
+                modo_interacao = "teclado"
                 if evento.key in [pygame.K_UP, pygame.K_w]:
                     selecionado = (selecionado - 1) % len(opcoes_config)
                     tocar_hover()
@@ -1833,7 +2426,7 @@ def tela_configuracoes_graficas(tela, fonte):
             rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 42)
             
             # DetecÃ§Ã£o de hover e cliques do mouse
-            if rect_bg.collidepoint(mx, my):
+            if modo_interacao == "mouse" and rect_bg.collidepoint(mx, my):
                 if selecionado != i:
                     selecionado = i
                     tocar_hover()
@@ -1912,6 +2505,10 @@ def tela_configuracoes_graficas(tela, fonte):
             tela.blit(texto_inst, (largura_tela // 2 - texto_inst.get_width() // 2, y_instrucao))
             y_instrucao += 20
         
+        if popup_aplicar.ativo:
+            popup_aplicar.update(agora)
+            popup_aplicar.draw(tela)
+        
         ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()
         clock.tick(60)
@@ -1933,10 +2530,12 @@ def tela_configuracoes_audio(tela, fonte):
     config_salva = json.loads(json.dumps(config))
     
     selecionado = 0
+    modo_interacao = "teclado"
     clock = pygame.time.Clock()
     fonte_titulo_tela = pygame.font.Font(caminho_fonte_titulo, 48)
     fonte_opcao_tela = pygame.font.Font(caminho_fonte_letra1, 24)
     fonte_valor_tela = pygame.font.Font(caminho_fonte_letras, 20)
+    popup_aplicar = PopUpAplicar(largura_tela, altura_tela)
     
     opcoes = ["volume_master", "volume_musica", "volume_efeitos", "aplicar", "voltar"]
     labels = ["Volume Master", "Volume Musica", "Volume Efeitos", "Aplicar Alteracoes", "Voltar"]
@@ -1951,10 +2550,14 @@ def tela_configuracoes_audio(tela, fonte):
 
     def aplicar_config():
         nonlocal config_salva
+        if not _tem_alteracoes_pendentes(config, config_salva):
+            return False
         with open("saves/config_audio.json", "w") as f:
             json.dump(config, f, indent=4)
         aplicar_volumes_audio(config)
         config_salva = json.loads(json.dumps(config))
+        popup_aplicar.disparar(pygame.time.get_ticks())
+        return True
 
     def tentar_sair():
         if not _tem_alteracoes_pendentes(config, config_salva):
@@ -1964,6 +2567,7 @@ def tela_configuracoes_audio(tela, fonte):
             aplicar_config()
             return True
         if acao == "descartar":
+            pygame.mixer.music.set_volume(config_salva["volume_musica"] * config_salva["volume_master"])
             return True
         return False
     
@@ -2010,10 +2614,15 @@ def tela_configuracoes_audio(tela, fonte):
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 exit()
+            elif evento.type == pygame.MOUSEMOTION:
+                if evento.rel != (0, 0):
+                    modo_interacao = "mouse"
             elif evento.type == pygame.MOUSEBUTTONDOWN:
                 if evento.button == 1:
+                    modo_interacao = "mouse"
                     clicado = True
             elif evento.type == pygame.KEYDOWN:
+                modo_interacao = "teclado"
                 if evento.key in [pygame.K_UP, pygame.K_w]:
                     selecionado = (selecionado - 1) % len(opcoes)
                     tocar_hover()
@@ -2025,12 +2634,14 @@ def tela_configuracoes_audio(tela, fonte):
                         tocar_hover()
                         chave = opcoes[selecionado]
                         config[chave] = max(0.0, config[chave] - 0.1)
+                        pygame.mixer.music.set_volume(config["volume_musica"] * config["volume_master"])
                         
                 elif evento.key in [pygame.K_RIGHT, pygame.K_d]:
                     if opcoes[selecionado] not in ["voltar", "aplicar"]:
                         tocar_hover()
                         chave = opcoes[selecionado]
                         config[chave] = min(1.0, config[chave] + 0.1)
+                        pygame.mixer.music.set_volume(config["volume_musica"] * config["volume_master"])
                         
                 elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
                     tocar_selecionar()
@@ -2052,7 +2663,7 @@ def tela_configuracoes_audio(tela, fonte):
             rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 48)
             
             # DetecÃ§Ã£o de hover e cliques do mouse
-            if rect_bg.collidepoint(mx, my):
+            if modo_interacao == "mouse" and rect_bg.collidepoint(mx, my):
                 if selecionado != i:
                     selecionado = i
                     tocar_hover()
@@ -2073,6 +2684,7 @@ def tela_configuracoes_audio(tela, fonte):
                     novo_val = round(novo_val, 2)
                     if config[opcao] != novo_val:
                         config[opcao] = novo_val
+                        pygame.mixer.music.set_volume(config["volume_musica"] * config["volume_master"])
 
             # Caixa glassy para a opÃ§Ã£o selecionada
             if i == selecionado:
@@ -2135,6 +2747,10 @@ def tela_configuracoes_audio(tela, fonte):
             tela.blit(texto_inst, (largura_tela // 2 - texto_inst.get_width() // 2, y_instrucao))
             y_instrucao += 20
         
+        if popup_aplicar.ativo:
+            popup_aplicar.update(agora)
+            popup_aplicar.draw(tela)
+        
         ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()
         clock.tick(60)
@@ -2185,13 +2801,17 @@ def tela_configuracoes_jogabilidade(tela, fonte):
     
     descricoes_valores["__aplicar__"] = {"aplicar": "Salva e aplica as alteracoes de jogabilidade."}
     selecionado = 0
+    modo_interacao = "teclado"
     clock = pygame.time.Clock()
     fonte_titulo_tela = pygame.font.Font(caminho_fonte_titulo, 48)
     fonte_opcao_tela = pygame.font.Font(caminho_fonte_letra1, 24)
     fonte_valor_tela = pygame.font.Font(caminho_fonte_letras, 20)
+    popup_aplicar = PopUpAplicar(largura_tela, altura_tela)
     
     def aplicar_config():
         nonlocal config_salva
+        if not _tem_alteracoes_pendentes(config, config_salva):
+            return False
         with open("saves/tutorial_config.json", "w") as f:
             json.dump({"mostrar_tutorial": config["mostrar_tutorial"]}, f)
         with open("saves/config_teleporte.json", "w") as f:
@@ -2202,6 +2822,8 @@ def tela_configuracoes_jogabilidade(tela, fonte):
         except Exception:
             pass
         config_salva = json.loads(json.dumps(config))
+        popup_aplicar.disparar(pygame.time.get_ticks())
+        return True
 
     def tentar_sair():
         if not _tem_alteracoes_pendentes(config, config_salva):
@@ -2256,10 +2878,15 @@ def tela_configuracoes_jogabilidade(tela, fonte):
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 exit()
+            elif evento.type == pygame.MOUSEMOTION:
+                if evento.rel != (0, 0):
+                    modo_interacao = "mouse"
             elif evento.type == pygame.MOUSEBUTTONDOWN:
                 if evento.button == 1:
+                    modo_interacao = "mouse"
                     clicado = True
             elif evento.type == pygame.KEYDOWN:
+                modo_interacao = "teclado"
                 if evento.key in [pygame.K_UP, pygame.K_w]:
                     selecionado = (selecionado - 1) % len(opcoes_config)
                     tocar_hover()
@@ -2301,7 +2928,7 @@ def tela_configuracoes_jogabilidade(tela, fonte):
             rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 48)
             
             # DetecÃ§Ã£o de hover e cliques do mouse
-            if rect_bg.collidepoint(mx, my):
+            if modo_interacao == "mouse" and rect_bg.collidepoint(mx, my):
                 if selecionado != i:
                     selecionado = i
                     tocar_hover()
@@ -2380,6 +3007,10 @@ def tela_configuracoes_jogabilidade(tela, fonte):
             tela.blit(texto_inst, (largura_tela // 2 - texto_inst.get_width() // 2, y_instrucao))
             y_instrucao += 20
             
+        if popup_aplicar.ativo:
+            popup_aplicar.update(agora)
+            popup_aplicar.draw(tela)
+            
         ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()
         clock.tick(60)
@@ -2431,7 +3062,7 @@ def _dados_catalogo_temporal():
             {"nome": "Onda de Choque", "imagem": "Sprites/Onda_Boss2.png", "funcionamento": "Segunda habilidade ativa da personagem. Libera uma explosao de area ao redor de Geovana para afastar grupos, abrir espaco e causar dano quando a arena fecha.", "historia": "Um pulso de recusa: por um momento, Geovana empurra a ruptura para fora da propria volta."},
         ],
         "Aureas": [
-            {"nome": "Aurea Racional", "imagem": "Sprites/aurea_cientista.png", "funcionamento": "Recompensa controle e leitura fria da arena. Ficar parado por tempo suficiente gera bonus de pontuacao, e evolucoes aumentam esse ganho.", "historia": "A mente fria calcula trajetorias e enxerga padroes em meio ao caos da ruptura temporal."},
+            {"nome": "Aurea Racional", "imagem": "Sprites/aurea_cientista.png", "funcionamento": "Gera pontuacao bonus ao ficar imovel por 5s. Ao teleportar, ativa a Dilatacao Temporal por 8s, reduzindo a velocidade dos inimigos e projeteis em 58%, enquanto concede +35% de velocidade e +28% de cadencia de tiro a Apolo (cooldown de 30s).", "historia": "A mente fria calcula trajetorias e enxerga padroes em meio ao caos da ruptura temporal."},
             {"nome": "Aurea Impulsiva", "imagem": "Sprites/aurea_impulsiva.png", "funcionamento": "Recompensa agressao sem erro. Abates consecutivos sem sofrer dano ativam um buff temporario de dano ou velocidade.", "historia": "Acao imediata. O instinto reage antes que o proprio tempo possa processar."},
             {"nome": "Aurea Devota", "imagem": "Sprites/aurea_devota.png", "funcionamento": "Cria um escudo automatico que bloqueia o proximo dano recebido. Evoluir a aurea reduz a recarga da protecao.", "historia": "A fe inabalavel manifesta uma barreira divina que desafia a propria causalidade."},
             {"nome": "Aurea Vanguarda", "imagem": "Sprites/aurea_vanguarda.png", "funcionamento": "Transforma proximidade em pressao ofensiva. Inimigos proximos ou tocados podem incendiar e sofrer dano continuo.", "historia": "Liderando o avanco, a pioneira incendeia o solo para que nada a siga no fluxo temporal."},
@@ -2568,6 +3199,7 @@ def tela_catalogo_temporal():
         return imagens_cache[chave_cache]
 
     rodando_catalogo = True
+    modo_interacao = "teclado"
     while rodando_catalogo:
         mx, my = ui_helpers.obter_pos_mouse_superficie(tela)
         itens = dados[categorias[categoria_idx]]
@@ -2602,7 +3234,11 @@ def tela_catalogo_temporal():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+            elif event.type == pygame.MOUSEMOTION:
+                if event.rel != (0, 0):
+                    modo_interacao = "mouse"
             elif event.type == pygame.KEYDOWN:
+                modo_interacao = "teclado"
                 if event.key == pygame.K_ESCAPE:
                     rodando_catalogo = False
                 elif event.key in [pygame.K_a, pygame.K_LEFT]:
@@ -2626,27 +3262,30 @@ def tela_catalogo_temporal():
                     scroll_lista -= event.y
                     scroll_lista = max(0, min(scroll_lista, max(0, len(itens) - visiveis)))
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                if btn_voltar.collidepoint(event.pos):
+                modo_interacao = "mouse"
+                pos_clique = ui_helpers.converter_pos_mouse_jogo(event.pos)
+                if btn_voltar.collidepoint(pos_clique):
                     tocar_selecionar()
                     rodando_catalogo = False
                 for i, rect_tab in tab_rects:
-                    if rect_tab.collidepoint(event.pos):
+                    if rect_tab.collidepoint(pos_clique):
                         categoria_idx = i
                         item_idx = 0
                         scroll_lista = 0
                         tocar_selecionar()
                         break
                 for idx_real, rect_item in item_rects:
-                    if rect_item.collidepoint(event.pos):
+                    if rect_item.collidepoint(pos_clique):
                         item_idx = idx_real
                         tocar_selecionar()
                         break
 
-        for idx_real, rect_item in item_rects:
-            if rect_item.collidepoint(mx, my) and item_idx != idx_real:
-                item_idx = idx_real
-                tocar_hover()
-                break
+        if modo_interacao == "mouse":
+            for idx_real, rect_item in item_rects:
+                if rect_item.collidepoint(mx, my) and item_idx != idx_real:
+                    item_idx = idx_real
+                    tocar_hover()
+                    break
 
         tela.blit(fundo_menu1, (0, 0))
         overlay = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
@@ -2659,7 +3298,7 @@ def tela_catalogo_temporal():
 
         for i, rect_tab in tab_rects:
             ativo = i == categoria_idx
-            hover = rect_tab.collidepoint(mx, my)
+            hover = modo_interacao == "mouse" and rect_tab.collidepoint(mx, my)
             cor_bg = (0, 150, 170, 115) if ativo else (18, 18, 28, 185)
             cor_borda = (0, 255, 230) if ativo or hover else (90, 90, 120)
             pygame.draw.rect(tela, cor_bg, rect_tab, border_radius=8)
@@ -2672,7 +3311,7 @@ def tela_catalogo_temporal():
 
         for idx_real, rect_item in item_rects:
             ativo = idx_real == item_idx
-            hover = rect_item.collidepoint(mx, my)
+            hover = modo_interacao == "mouse" and rect_item.collidepoint(mx, my)
             pygame.draw.rect(tela, (0, 180, 200, 95) if ativo else (24, 24, 36, 170), rect_item, border_radius=6)
             pygame.draw.rect(tela, (0, 255, 230) if ativo or hover else (70, 70, 90), rect_item, width=1, border_radius=6)
             txt = fonte_item.render(itens[idx_real]["nome"], True, (255, 255, 255) if ativo else (195, 200, 215))
@@ -2715,7 +3354,7 @@ def tela_catalogo_temporal():
         y_texto += 32
         _catalogo_texto_wrap(tela, item["historia"], fonte_texto, (190, 195, 210), pygame.Rect(x_texto, y_texto, detalhe_rect.width - 56, detalhe_rect.bottom - y_texto - 26))
 
-        hover_voltar = btn_voltar.collidepoint(mx, my)
+        hover_voltar = modo_interacao == "mouse" and btn_voltar.collidepoint(mx, my)
         pygame.draw.rect(tela, (18, 18, 28), btn_voltar, border_radius=8)
         pygame.draw.rect(tela, (0, 255, 230) if hover_voltar else (90, 90, 120), btn_voltar, width=2 if hover_voltar else 1, border_radius=8)
         txt_voltar = fonte_item.render("VOLTAR", True, (255, 255, 255))
@@ -2771,15 +3410,18 @@ def executar_menu_principal(game_manager=None):
                     pygame.mixer.music.stop()
                     pygame.quit()
                     sys.exit()
+            elif event.type == pygame.MOUSEMOTION:
+                if event.rel != (0, 0):
+                    modo_interacao = "mouse"
                     
             if opcao_confirmada is None:
                 if event.type == pygame.KEYDOWN:
                     modo_interacao = "teclado"
-                    if event.key == pygame.K_w and agora - ultima_mudanca_de_opcao >= DELAY_ENTRE_OPCOES:
+                    if event.key in [pygame.K_w, pygame.K_UP] and agora - ultima_mudanca_de_opcao >= DELAY_ENTRE_OPCOES:
                         indice_selecionado = (indice_selecionado - 1) % len(opcoes)
                         ultima_mudanca_de_opcao = agora
                         tocar_hover()
-                    elif event.key == pygame.K_s and agora - ultima_mudanca_de_opcao >= DELAY_ENTRE_OPCOES:
+                    elif event.key in [pygame.K_s, pygame.K_DOWN] and agora - ultima_mudanca_de_opcao >= DELAY_ENTRE_OPCOES:
                         indice_selecionado = (indice_selecionado + 1) % len(opcoes)
                         ultima_mudanca_de_opcao = agora
                         tocar_hover()
@@ -2823,12 +3465,12 @@ def executar_menu_principal(game_manager=None):
                             })
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     modo_interacao = "mouse"
-                    mx, my = event.pos
+                    pos_clique = ui_helpers.converter_pos_mouse_jogo(event.pos)
                     for i, opcao in enumerate(opcoes):
                         x_botao = 60
                         y_botao = altura_tela // 2 - 20 + i * 70
                         rect_botao = pygame.Rect(x_botao, y_botao, 320, 50)
-                        if rect_botao.collidepoint(mx, my):
+                        if rect_botao.collidepoint(pos_clique):
                             opcao_confirmada = i
                             tempo_confirmacao = agora
                             tocar_selecionar()
@@ -3187,9 +3829,13 @@ def executar_menu_principal(game_manager=None):
                             else:
                                 pygame.quit()
                                 sys.exit()
+                        elif event_config.type == pygame.MOUSEMOTION:
+                            if event_config.rel != (0, 0):
+                                modo_interacao = "mouse"
                                 
                         if opcao_conf_confirmada is None:
                             if event_config.type == pygame.KEYDOWN:
+                                modo_interacao = "teclado"
                                 if event_config.key in [pygame.K_w, pygame.K_UP]:
                                     indice_config = (indice_config - 1) % len(opcoes_config)
                                 elif event_config.key in [pygame.K_s, pygame.K_DOWN]:
@@ -3216,12 +3862,13 @@ def executar_menu_principal(game_manager=None):
                                     config_rodando = False
                                     break
                             elif event_config.type == pygame.MOUSEBUTTONDOWN and event_config.button == 1:
-                                mx_conf, my_conf = event_config.pos
+                                modo_interacao = "mouse"
+                                pos_clique = ui_helpers.converter_pos_mouse_jogo(event_config.pos)
                                 for i, opcao in enumerate(opcoes_config):
                                     x_botao = largura_tela // 2 - 160
                                     y_botao = int(altura_tela // 4.5 + i * 65)
                                     rect_botao = pygame.Rect(x_botao, y_botao, 320, 50)
-                                    if rect_botao.collidepoint(mx_conf, my_conf):
+                                    if rect_botao.collidepoint(pos_clique):
                                         opcao_conf_confirmada = i
                                         tempo_conf_confirmacao = agora_conf
                                         tocar_selecionar()
@@ -3248,7 +3895,7 @@ def executar_menu_principal(game_manager=None):
                         x_botao = largura_tela // 2 - 160
                         y_botao = int(altura_tela // 4.5 + i * 65)
                         rect_botao = pygame.Rect(x_botao, y_botao, 320, 50)
-                        if rect_botao.collidepoint(mx_conf, my_conf) and opcao_conf_confirmada is None:
+                        if modo_interacao == "mouse" and rect_botao.collidepoint(mx_conf, my_conf) and opcao_conf_confirmada is None:
                             if indice_config != i:
                                 indice_config = i
                                 tocar_hover()

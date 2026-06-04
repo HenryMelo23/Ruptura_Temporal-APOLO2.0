@@ -69,6 +69,159 @@ def tratar_tentar_novamente(game_manager):
             GAME.executar_jogo()
         return False
 
+def _obter_sprite_refragmentacao():
+    try:
+        import Variaveis
+        frames_por_direcao = getattr(Variaveis, "frames_animacao", {})
+        for chave in ("stop", "down", "right", "left", "up"):
+            frames = frames_por_direcao.get(chave)
+            if frames:
+                sprite = frames[0].copy()
+                w, h = sprite.get_size()
+                escala = 2.25
+                return pygame.transform.smoothscale(sprite, (max(1, int(w * escala)), max(1, int(h * escala))))
+    except Exception:
+        pass
+
+    sprite = pygame.Surface((96, 132), pygame.SRCALPHA)
+    pygame.draw.ellipse(sprite, (75, 210, 255, 210), (28, 6, 40, 40))
+    pygame.draw.rect(sprite, (255, 255, 255, 220), (34, 46, 28, 58), border_radius=8)
+    pygame.draw.rect(sprite, (90, 180, 255, 190), (22, 56, 18, 48), border_radius=6)
+    pygame.draw.rect(sprite, (90, 180, 255, 190), (56, 56, 18, 48), border_radius=6)
+    pygame.draw.rect(sprite, (255, 90, 120, 210), (34, 100, 12, 30), border_radius=4)
+    pygame.draw.rect(sprite, (255, 90, 120, 210), (50, 100, 12, 30), border_radius=4)
+    return sprite
+
+def animar_refragmentacao_rewind(window, clock=None, duracao_ms=1000):
+    fundo = window.copy()
+    largura, altura = window.get_size()
+    sprite = _obter_sprite_refragmentacao()
+    sprite_w, sprite_h = sprite.get_size()
+    alvo_x = largura // 2 - sprite_w // 2
+    alvo_y = int(altura * 0.54) - sprite_h // 2
+
+    fragments = []
+    num_cols = 7
+    num_rows = 7
+    tile_w = max(1, sprite_w // num_cols)
+    tile_h = max(1, sprite_h // num_rows)
+    centro = (alvo_x + sprite_w / 2, alvo_y + sprite_h / 2)
+
+    for r in range(num_rows):
+        for c in range(num_cols):
+            rect = pygame.Rect(c * tile_w, r * tile_h, tile_w, tile_h)
+            if rect.right > sprite_w:
+                rect.width = sprite_w - rect.x
+            if rect.bottom > sprite_h:
+                rect.height = sprite_h - rect.y
+            if rect.width <= 0 or rect.height <= 0:
+                continue
+
+            sub = sprite.subsurface(rect).copy()
+            if pygame.mask.from_surface(sub).count() == 0:
+                continue
+
+            target_x = alvo_x + rect.x
+            target_y = alvo_y + rect.y
+            ang = random.uniform(0, math.tau)
+            distancia = random.uniform(260, 620)
+            start_x = centro[0] + math.cos(ang) * distancia - rect.width / 2
+            start_y = centro[1] + math.sin(ang) * distancia - rect.height / 2
+            fragments.append({
+                "surf": sub,
+                "sx": start_x,
+                "sy": start_y,
+                "tx": target_x,
+                "ty": target_y,
+                "rot0": random.uniform(-210, 210),
+                "rot1": random.uniform(-8, 8),
+                "delay": random.uniform(0.0, 0.18),
+            })
+
+    if clock is None:
+        clock = pygame.time.Clock()
+
+    inicio = pygame.time.get_ticks()
+    fonte = None
+    try:
+        fonte = pygame.font.Font("Texto/rainyhearts.ttf", 22)
+    except Exception:
+        try:
+            fonte = pygame.font.Font(None, 24)
+        except Exception:
+            fonte = None
+
+    while True:
+        agora = pygame.time.get_ticks()
+        progresso = min(1.0, (agora - inicio) / float(duracao_ms))
+        if progresso >= 1.0:
+            break
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return False
+
+        frame = fundo.copy()
+        escurecer = pygame.Surface((largura, altura), pygame.SRCALPHA)
+        escurecer.fill((4, 0, 10, int(120 * (1.0 - progresso))))
+        frame.blit(escurecer, (0, 0))
+
+        pulso = (math.sin(progresso * math.pi * 6) + 1.0) * 0.5
+        raio_base = int(28 + progresso * 135)
+        aura = pygame.Surface((largura, altura), pygame.SRCALPHA)
+        for i in range(3):
+            raio = raio_base + i * 34
+            alpha = max(0, int((95 - i * 24) * (1.0 - progresso * 0.55) + pulso * 22))
+            pygame.draw.circle(aura, (0, 255, 204, alpha), (int(centro[0]), int(centro[1])), raio, 2)
+        pygame.draw.circle(aura, (180, 100, 255, int(70 + pulso * 45)), (int(centro[0]), int(centro[1])), max(8, int(22 + pulso * 18)), 2)
+        frame.blit(aura, (0, 0))
+
+        for frag in fragments:
+            local_t = max(0.0, min(1.0, (progresso - frag["delay"]) / (1.0 - frag["delay"])))
+            ease = 1.0 - ((1.0 - local_t) ** 3)
+            jitter = math.sin((agora * 0.018) + frag["tx"] * 0.07) * (1.0 - ease) * 8
+            x = frag["sx"] + (frag["tx"] - frag["sx"]) * ease + jitter
+            y = frag["sy"] + (frag["ty"] - frag["sy"]) * ease - jitter * 0.35
+            rot = frag["rot0"] + (frag["rot1"] - frag["rot0"]) * ease
+            alpha = int(45 + 210 * ease)
+
+            piece = pygame.transform.rotate(frag["surf"], rot)
+            piece.set_alpha(alpha)
+            frame.blit(piece, piece.get_rect(center=(int(x + frag["surf"].get_width() / 2), int(y + frag["surf"].get_height() / 2))).topleft)
+
+        if progresso > 0.58:
+            final_sprite = sprite.copy()
+            final_sprite.set_alpha(int(255 * min(1.0, (progresso - 0.58) / 0.42)))
+            frame.blit(final_sprite, (alvo_x, alvo_y))
+
+        if fonte:
+            texto = fonte.render("Refragmentando linha temporal...", True, (210, 255, 245))
+            sombra = fonte.render("Refragmentando linha temporal...", True, (30, 0, 45))
+            tx = largura // 2 - texto.get_width() // 2
+            ty = alvo_y + sprite_h + 22
+            frame.blit(sombra, (tx + 2, ty + 2))
+            frame.blit(texto, (tx, ty))
+
+        window.blit(frame, (0, 0))
+        pygame.display.flip()
+        clock.tick(60)
+
+    final = fundo.copy()
+    flash = pygame.Surface((largura, altura), pygame.SRCALPHA)
+    flash.fill((0, 255, 204, 45))
+    final.blit(sprite, (alvo_x, alvo_y))
+    final.blit(flash, (0, 0))
+    window.blit(final, (0, 0))
+    pygame.display.flip()
+    clock.tick(60)
+    return True
+
+def tentar_novamente_com_refragmentacao(game_manager, window, clock):
+    import Variaveis
+    if not Variaveis.pode_tentar_novamente():
+        return False
+    return tratar_tentar_novamente(game_manager)
+
 def _obter_mensagem_rewind():
     """Retorna linhas curtas de aviso conforme a tentativa atual."""
     import Variaveis
@@ -218,7 +371,7 @@ def executar_game_over(game_manager=None):
                         else:
                             import Ruptura_Temporal
                     elif escolha == "Tentar Novamente":
-                        if tratar_tentar_novamente(game_manager):
+                        if tentar_novamente_com_refragmentacao(game_manager, window, clock):
                             return
 
         # Controle de Joystick Xbox
@@ -250,7 +403,7 @@ def executar_game_over(game_manager=None):
                         else:
                             import Ruptura_Temporal
                     elif escolha == "Tentar Novamente":
-                        if tratar_tentar_novamente(game_manager):
+                        if tentar_novamente_com_refragmentacao(game_manager, window, clock):
                             return
             except:
                 pass
@@ -368,7 +521,7 @@ def executar_game_over(game_manager=None):
                         else:
                             import Ruptura_Temporal
                     elif text == "Tentar Novamente":
-                        if tratar_tentar_novamente(game_manager):
+                        if tentar_novamente_com_refragmentacao(game_manager, window, clock):
                             return
 
             is_selected = (selected_button == idx)

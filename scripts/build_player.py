@@ -69,9 +69,18 @@ from habilidades_personagem import desenhar_onda, criar_particulas_explosao_onda
 
     # Extrair variáveis globais do início de GAME5.py
     global_vars = []
+    in_import_parentheses = False
     for idx in range(setup_start):
         line = lines[idx]
         stripped = line.strip()
+        if stripped.startswith("from ") or stripped.startswith("import "):
+            if "(" in stripped and ")" not in stripped:
+                in_import_parentheses = True
+            continue
+        if in_import_parentheses:
+            if ")" in stripped:
+                in_import_parentheses = False
+            continue
         if (
             stripped 
             and not stripped.startswith("import ") 

@@ -78,46 +78,46 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
     
     atributos_cartas = [
         {"nome": "Speed Boost", "Nick": "Vento Celeste", 
-         "descricao": "Aumente sua velocidade em +10%. Corra como o vento e fuja de qualquer situacao perigosa."},
+         "descricao": "Aumenta a velocidade de movimento de Apolo em +0.035 (escala +0.005 a cada 50 abates na partida)."},
         
         {"nome": "Porção", "Nick": "Elixir Vital", 
-         "descricao": "Recupere 25% da sua vida maxima e ganhe mais vida maxima permanentemente. Excedente vira vida maxima."},
+         "descricao": "Cura Apolo em 45% da vida maxima e Petro em 30% da vida maxima (escala com abates). Cura excedente aumenta permanentemente a vida maxima de ambos."},
         
         {"nome": "Disparo crescente", "Nick": "Impacto Escalante", 
-         "descricao": "Ganhe dano reduzido e constante para fortalecer seus tiros sem quebrar a progressao."},
+         "descricao": "Aumenta o dano de ataque basico de Apolo em +13.5 (escala com +5 a cada 50 abates na partida)."},
         
         {"nome": "Tempestade", "Nick": "Tempestade Crescente", 
-         "descricao": "Aumente sua chance critica em 2% e receba um pequeno bonus de dano base."},
+         "descricao": "Aumenta a chance critica de Apolo em +2% (escala +0.5% a cada 100 abates) e o dano basico em +5 (escala +2 a cada 100 abates)."},
 
         {"nome": "Cura", "Nick": "Mordida Sombria", 
-         "descricao": "Toda bala recupera +0.20% da vida perdida. Recupere sua saude proporcionalmente a cada acerto!"},
+         "descricao": "Ativa Roubo de Vida. Cada acerto de projetil cura +0.20% da vida perdida de Apolo (a porcentagem de roubo de vida escala em +0.05% a cada 80 abates)."},
 
         {"nome": "Trembo", "Nick": "Reversão Temporal", 
-         "descricao": "Quando a morte se aproxima, o tempo volta. Recupere toda a saude e reapareca. Acumular 2 buffa a regeneracao. Se consumida, a regen diminui so 50%."},
+         "descricao": "Ao sofrer dano fatal, revive Apolo com vida cheia. Concede bonus de regeneracao passiva (-5% de intervalo, +0.1% de cura). Acumular 2 Trembos melhora a regeneracao (-25% intervalo, +0.5% cura). Ao reviver, consome o companheiro e retem 50% dos bonus de regeneracao."},
 
         {"nome": "Speed Atack", "Nick": "Fluidez Letal", 
-         "descricao": "Aumente a velocidade de ataque em 5%, tornando seus tiros rapidos e letais."},
+         "descricao": "Aumenta a cadencia de disparo reduzindo o intervalo em -20ms (escala em -5ms a cada 100 abates). O intervalo minimo permitido e de 50ms."},
         
         {"nome": "Teleporte", "Nick": "Salto Espacial", 
-         "descricao": "Reduza o cooldown do teleporte em 3%, permitindo que voce se mova rapidamente entre os campos de batalha."},
+         "descricao": "Reduz o tempo de recarga do Teleporte em 0.3% do valor atual (reducao extra de 0.05% a cada 50 abates). Recarga minima de 0.5s."},
 
         {"nome": "Petro", "Nick": "Sentinela Leal", 
-         "descricao": "Desencadeie o poder de um pequeno guardiao. Alimente-o para ver seu poder crescer e proteger voce!"},
+         "descricao": "Invoca a sentinela Petro. Compras adicionais aumentam seu dano basico em +2 (escala com abates), curam Petro em 45% de sua vida e o evoluem em ate 3 niveis (ganhando bonus de vida max, resistencia e dano)."},
 
         {"nome": "Defesa", "Nick": "Escudo Fásico", 
-         "descricao": "Aumente sua resistencia em +5 e mitigue os danos dos inimigos. Uma defesa imbatível para cada desafio."},
+         "descricao": "Aumenta a resistencia de Apolo em +3.5 (escala +0.5 a cada 50 abates). A reducao maxima de dano por resistencia e de 50."},
 
         {"nome": "Sorte", "Nick": "Anomalia Favorável", 
-         "descricao": "Aumente levemente todas as probabilidades favoraveis. Cartas raras partem de 1% e escalam com Sorte ate um limite seguro."},
+         "descricao": "Aumenta a Sorte de Apolo em +0.3%, elevando a probabilidade de encontrar cartas e drops de maior raridade."},
          
         {"nome": "Poison", "Nick": "Toxina Temporal", 
-         "descricao": "Infunde seus ataques com veneno, causando dano continuo de 2% da vida max. Acumular aumenta o dano (+0.5%) e a duracao (+0.1s)."},
+         "descricao": "Ataques aplicam veneno por 2 segundos. Cada acúmulo desta carta aumenta o dano do veneno por segundo em +0.5% da vida máxima do inimigo."},
          
         {"nome": "Coletora", "Nick": "Foice do Tempo", 
-         "descricao": f"Executa inimigos quando a vida deles cai para {Executa_inimigo * 100:.1f}% ou menos. Comprar aumenta o limite para {(Executa_inimigo + 0.005) * 100:.1f}%."},
+         "descricao": f"Executa inimigos comuns abaixo do limiar de vida (inicia em 5%, aumenta +0.5% por compra). Contra chefes, o limiar e reduzido a 20% do normal e limitado ao teto de 1.5%. Cada compra tambem aumenta a armadura do chefe em +0.4%."},
 
         {"nome": "Mercenaria", "Nick": "Contrato de Guerra",
-         "descricao": f"Ativa a contagem de combo de pontos. A cada 5 abates, aumenta o bonus da sequencia em +{Valor_Bonus + 25} pontos."}
+         "descricao": f"Ativa combo de pontos. A cada 5 abates consecutivos na partida, concede um bonus adicional de +25 pontos na pontuacao."}
     ]
 
     cartas_disponiveis = [
@@ -787,6 +787,293 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
         ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()
         clock.tick(60)
+
+    # === ANIMACAO DE SAIDA PRE-MUNDO (550ms) ===
+    tempo_inicio_saida = pygame.time.get_ticks()
+    duracao_saida = 550
+    
+    # Armazenar coordenadas iniciais para LERP / offsets
+    y_painel_ini = altura_tela - 160 - 80
+    hud_y_ini = 35
+    instr_y_ini = altura_tela - 40
+    
+    # Som da transicao (raio / portal se fechando) se houver
+    try:
+        som_transicao = pygame.mixer.Sound("Sounds/Teleporte.mp3")
+        som_transicao.set_volume(0.3)
+        som_transicao.play()
+    except:
+        som_transicao = None
+
+    while True:
+        agora = pygame.time.get_ticks()
+        decorrido = agora - tempo_inicio_saida
+        if decorrido >= duracao_saida:
+            break
+            
+        progresso = decorrido / duracao_saida
+        
+        # Manter janela responsiva
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+        # 1. Interpolação de Fundo para Preto
+        bg_alvo = (0, 0, 0)
+        for c in range(3):
+            cor_fundo_atual[c] += (bg_alvo[c] - cor_fundo_atual[c]) * 0.15
+        tela.fill((int(cor_fundo_atual[0]), int(cor_fundo_atual[1]), int(cor_fundo_atual[2])))
+        
+        # 2. Desenhar grid background com opacidade decrescente
+        alpha_bg = max(0, int(75 * (1.0 - progresso)))
+        if alpha_bg > 0:
+            background.set_alpha(alpha_bg)
+            tela.blit(background, (0, 0))
+            
+        # 3. Particulas em espiral (vortex) em direcao ao centro
+        cor_accent = theme_sel["cor_tema"]
+        cx, cy = largura_tela // 2, altura_tela // 2
+        for p in particulas:
+            # Calcular vetor para o centro
+            dx = cx - p["x"]
+            dy = cy - p["y"]
+            dist = math.hypot(dx, dy)
+            if dist > 5:
+                # Atrair para o centro + espiral
+                pull_speed = 3.5 + progresso * 8.0
+                spiral_speed = 4.0 - progresso * 2.0
+                p["x"] += (dx / dist) * pull_speed - (dy / dist) * spiral_speed
+                p["y"] += (dy / dist) * pull_speed + (dx / dist) * spiral_speed
+            else:
+                # Regenera distante para continuar a ser sugado
+                p["x"] = random.randint(0, largura_tela)
+                p["y"] = random.randint(0, altura_tela)
+            
+            p["alpha"] = max(0, int(255 * (1.0 - progresso)))
+            if p["alpha"] > 0:
+                cor_part = cor_accent + (p["alpha"],)
+                surf_p = pygame.Surface((int(p["tamanho"]*2), int(p["tamanho"]*2)), pygame.SRCALPHA)
+                pygame.draw.circle(surf_p, cor_part, (int(p["tamanho"]), int(p["tamanho"])), int(p["tamanho"]))
+                tela.blit(surf_p, (int(p["x"] - p["tamanho"]), int(p["y"] - p["tamanho"])))
+
+        # 4. Renderizar Cards do Carrossel (sendo sugados e rotacionando)
+        for i, carta in enumerate(cartas_selecionadas):
+            # LERP para o centro da tela
+            t_lerp = progresso ** 1.5
+            x_centro_alvo = cx
+            y_centro_alvo = cy
+            
+            # Posição original do card neste instante
+            orig_x = card_x[i]
+            orig_y = altura_tela // 2.5 + card_y_offset[i]
+            
+            curr_x = orig_x + (x_centro_alvo - orig_x) * t_lerp
+            curr_y = orig_y + (y_centro_alvo - orig_y) * t_lerp
+            
+            # Escala e Alpha reduzem a zero
+            curr_scale = card_scale[i] * (1.0 - progresso)
+            curr_alpha = max(0, int(card_alpha[i] * (1.0 - progresso)))
+            
+            if curr_scale > 0.05 and curr_alpha > 0:
+                w_scaled = int(largura_carta * curr_scale)
+                h_scaled = int(altura_carta * curr_scale)
+                
+                # Criar superficie do card
+                surf_card = pygame.Surface((w_scaled, h_scaled), pygame.SRCALPHA)
+                
+                # Fundo do card
+                alpha_fundo = int((45 + (curr_alpha / 255.0) * 115) * (1.0 - progresso))
+                pygame.draw.rect(surf_card, (20, 20, 25, alpha_fundo), (0, 0, w_scaled, h_scaled), border_radius=max(1, int(12 * curr_scale)))
+                
+                # Imagem da carta
+                frame = carta["frames_animacao"][carta["frame_atual"]]
+                img_scaled = pygame.transform.scale(frame, (max(1, w_scaled - 12), max(1, h_scaled - 12)))
+                surf_img_alpha = pygame.Surface(img_scaled.get_size(), pygame.SRCALPHA)
+                surf_img_alpha.blit(img_scaled, (0, 0))
+                surf_img_alpha.fill((255, 255, 255, curr_alpha), special_flags=pygame.BLEND_RGBA_MULT)
+                surf_card.blit(surf_img_alpha, (6, 6))
+                
+                # Borda
+                card_theme = CARD_THEMES.get(carta["nome"], {"cor_tema": (0, 255, 200)})
+                cor_borda = card_theme["cor_tema"] + (curr_alpha,)
+                pygame.draw.rect(surf_card, cor_borda, (0, 0, w_scaled, h_scaled), width=1, border_radius=max(1, int(12 * curr_scale)))
+                
+                # Rotacionar a carta baseada no progresso para dar efeito de redemoinho
+                angulo_rotacao = progresso * 540  # 1.5 voltas completas
+                surf_rot = pygame.transform.rotate(surf_card, angulo_rotacao)
+                
+                tela.blit(surf_rot, (int(curr_x - surf_rot.get_width() // 2), int(curr_y - surf_rot.get_height() // 2)))
+
+        # 5. Painel HUD (Top) - desliza para cima e some
+        hud_alpha = max(0, int(210 * (1.0 - progresso)))
+        if hud_alpha > 0:
+            hud_y_curr = hud_y_ini - int(progresso * 150)
+            surf_hud = pygame.Surface((hud_w, hud_h), pygame.SRCALPHA)
+            pygame.draw.rect(surf_hud, (12, 12, 18, hud_alpha), (0, 0, hud_w, hud_h), border_radius=12)
+            pygame.draw.rect(surf_hud, cor_accent + (int(120 * (1.0 - progresso)),), (0, 0, hud_w, hud_h), width=1, border_radius=12)
+            
+            # Textos do HUD
+            render_compras_s = fonte_glitch_pequena.render(text_compras, True, (255, 255, 255))
+            render_rerolls_s = fonte_glitch_pequena.render(text_rerolls, True, cor_accent)
+            
+            # Aplicar alpha nos textos renderizados
+            surf_compras_alpha = pygame.Surface(render_compras_s.get_size(), pygame.SRCALPHA)
+            surf_compras_alpha.blit(render_compras_s, (0, 0))
+            surf_compras_alpha.fill((255, 255, 255, hud_alpha), special_flags=pygame.BLEND_RGBA_MULT)
+            
+            surf_rerolls_alpha = pygame.Surface(render_rerolls_s.get_size(), pygame.SRCALPHA)
+            surf_rerolls_alpha.blit(render_rerolls_s, (0, 0))
+            surf_rerolls_alpha.fill((255, 255, 255, hud_alpha), special_flags=pygame.BLEND_RGBA_MULT)
+            
+            surf_hud.blit(surf_compras_alpha, (35, (hud_h - render_compras_s.get_height()) // 2))
+            surf_hud.blit(surf_rerolls_alpha, (hud_w - render_rerolls_s.get_width() - 35, (hud_h - render_rerolls_s.get_height()) // 2))
+            tela.blit(surf_hud, (hud_x, hud_y_curr))
+
+        # 6. Painel Descritivo (Bottom) - desliza para baixo e some
+        painel_alpha = max(0, int(220 * (1.0 - progresso)))
+        if painel_alpha > 0:
+            carta_sel = cartas_selecionadas[carta_selecionada_index]
+            y_painel_curr = y_painel_ini + int(progresso * 200)
+            
+            surf_painel_s = pygame.Surface((largura_painel, altura_painel), pygame.SRCALPHA)
+            pygame.draw.rect(surf_painel_s, (12, 12, 18, painel_alpha), (0, 0, largura_painel, altura_painel), border_radius=16)
+            pygame.draw.rect(surf_painel_s, theme_sel["cor_tema"] + (int(180 * (1.0 - progresso)),), (0, 0, largura_painel, altura_painel), width=2, border_radius=16)
+            
+            # Renderizar textos com alpha correto
+            # Nome
+            render_nome = fonte_nome.render(carta_sel["nome"].upper(), True, theme_sel["cor_tema"])
+            surf_nome_alpha = pygame.Surface(render_nome.get_size(), pygame.SRCALPHA)
+            surf_nome_alpha.blit(render_nome, (0, 0))
+            surf_nome_alpha.fill((255, 255, 255, painel_alpha), special_flags=pygame.BLEND_RGBA_MULT)
+            surf_painel_s.blit(surf_nome_alpha, (24, 16))
+            
+            # Nickname
+            render_nick = fonte_desc.render(f'"{carta_sel["Nick"].upper()}"', True, (255, 255, 255))
+            surf_nick_alpha = pygame.Surface(render_nick.get_size(), pygame.SRCALPHA)
+            surf_nick_alpha.blit(render_nick, (0, 0))
+            surf_nick_alpha.fill((255, 255, 255, painel_alpha), special_flags=pygame.BLEND_RGBA_MULT)
+            surf_painel_s.blit(surf_nick_alpha, (24 + render_nome.get_width() + 15, 22))
+            
+            # Category
+            render_cat = fonte_status.render(theme_sel["categoria"], True, (150, 150, 150))
+            surf_cat_alpha = pygame.Surface(render_cat.get_size(), pygame.SRCALPHA)
+            surf_cat_alpha.blit(render_cat, (0, 0))
+            surf_cat_alpha.fill((255, 255, 255, painel_alpha), special_flags=pygame.BLEND_RGBA_MULT)
+            surf_painel_s.blit(surf_cat_alpha, (26, 48))
+            
+            # Divider
+            pygame.draw.line(surf_painel_s, (50, 50, 60, int(120 * (1.0 - progresso))), (x_divisor, 16), (x_divisor, altura_painel - 16), 1)
+            
+            # Descricao
+            palabras = carta_sel["descricao"].split(' ')
+            linhas_desc = []
+            linha_atual = []
+            largura_limite = x_divisor - 48
+            for palavra in palabras:
+                test_linha = ' '.join(linha_atual + [palavra])
+                if fonte_desc.size(test_linha)[0] <= largura_limite:
+                    linha_atual.append(palavra)
+                else:
+                    linhas_desc.append(' '.join(linha_atual))
+                    linha_atual = [palavra]
+            if linha_atual:
+                linhas_desc.append(' '.join(linha_atual))
+                
+            y_desc = 76
+            for linha in linhas_desc:
+                render_linha = fonte_desc.render(linha, True, (230, 230, 230))
+                surf_l_alpha = pygame.Surface(render_linha.get_size(), pygame.SRCALPHA)
+                surf_l_alpha.blit(render_linha, (0, 0))
+                surf_l_alpha.fill((255, 255, 255, painel_alpha), special_flags=pygame.BLEND_RGBA_MULT)
+                surf_painel_s.blit(surf_l_alpha, (24, y_desc))
+                y_desc += 22
+                
+            # Lore
+            lore_txt = theme_sel["lore"]
+            palabras_lore = lore_txt.split(' ')
+            linhas_lore = []
+            linha_atual_lore = []
+            largura_limite_lore = largura_painel - x_divisor - 48
+            for palavra in palabras_lore:
+                test_linha = ' '.join(linha_atual_lore + [palavra])
+                if fonte_status.size(test_linha)[0] <= largura_limite_lore:
+                    linha_atual_lore.append(palavra)
+                else:
+                    linhas_lore.append(' '.join(linha_atual_lore))
+                    linha_atual_lore = [palavra]
+            if linha_atual_lore:
+                linhas_lore.append(' '.join(linha_atual_lore))
+                
+            y_lore = 45
+            for linha in linhas_lore:
+                render_linha = fonte_status.render(linha, True, (130, 130, 140))
+                surf_l_alpha = pygame.Surface(render_linha.get_size(), pygame.SRCALPHA)
+                surf_l_alpha.blit(render_linha, (0, 0))
+                surf_l_alpha.fill((255, 255, 255, painel_alpha), special_flags=pygame.BLEND_RGBA_MULT)
+                surf_painel_s.blit(surf_l_alpha, (x_divisor + 24, y_lore))
+                y_lore += 20
+                
+            # Owned count
+            qtd = cartas_compradas.get(carta_sel["nome"], 0)
+            render_qtd = fonte_status.render(f"POSSUIDO NO DECK: {qtd}", True, theme_sel["cor_tema"])
+            surf_q_alpha = pygame.Surface(render_qtd.get_size(), pygame.SRCALPHA)
+            surf_q_alpha.blit(render_qtd, (0, 0))
+            surf_q_alpha.fill((255, 255, 255, painel_alpha), special_flags=pygame.BLEND_RGBA_MULT)
+            surf_painel_s.blit(surf_q_alpha, (x_divisor + 24, 16))
+            
+            tela.blit(surf_painel_s, (x_painel, y_painel_curr))
+
+        # 7. Barra de Instrucao - some
+        footer_alpha = max(0, int(200 * (1.0 - progresso)))
+        if footer_alpha > 0:
+            surf_instr_s = pygame.Surface((largura_instr, altura_instr), pygame.SRCALPHA)
+            pygame.draw.rect(surf_instr_s, (12, 12, 18, footer_alpha), (0, 0, largura_instr, altura_instr), border_radius=6)
+            pygame.draw.rect(surf_instr_s, cor_accent + (int(80 * (1.0 - progresso)),), (0, 0, largura_instr, altura_instr), width=1, border_radius=6)
+            
+            surf_instr_text_alpha = pygame.Surface(render_instr_text.get_size(), pygame.SRCALPHA)
+            surf_instr_text_alpha.blit(render_instr_text, (0, 0))
+            surf_instr_text_alpha.fill((255, 255, 255, footer_alpha), special_flags=pygame.BLEND_RGBA_MULT)
+            surf_instr_s.blit(surf_instr_text_alpha, (20, (altura_instr - render_instr_text.get_height()) // 2))
+            
+            tela.blit(surf_instr_s, (largura_tela // 2 - largura_instr // 2, instr_y_ini + int(progresso * 100)))
+
+        # 8. Efeito da Ruptura Temporal (Abertura de Fenda Cósmica e Flash)
+        if progresso < 0.8:
+            # Fenda se abrindo no centro
+            fenda_prog = progresso / 0.8
+            fenda_w = int(largura_tela * fenda_prog)
+            fenda_h = int(6 * math.sin(agora * 0.05) + 8)
+            
+            # Glow da fenda
+            glow_fenda = pygame.Surface((largura_tela, 60), pygame.SRCALPHA)
+            for g in range(1, 10):
+                g_alpha = int((1.0 - g/10.0) * 120 * fenda_prog)
+                g_h = g * 6
+                pygame.draw.rect(glow_fenda, (0, 220, 255, g_alpha), (largura_tela // 2 - fenda_w // 2, 30 - g_h // 2, fenda_w, g_h), border_radius=g)
+            pygame.draw.rect(glow_fenda, (255, 255, 255, int(255 * fenda_prog)), (largura_tela // 2 - fenda_w // 2, 30 - fenda_h // 2, fenda_w, fenda_h), border_radius=3)
+            tela.blit(glow_fenda, (0, cy - 30), special_flags=pygame.BLEND_RGBA_ADD)
+        else:
+            # Flash de expansão (0.8 a 1.0)
+            flash_prog = (progresso - 0.8) / 0.2
+            
+            # Surface branca/azulada que cobre a tela inteira
+            flash_surf = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
+            
+            # Interpolar cor do flash: branco brilhante no início, desvanecendo para preto no final
+            flash_alpha = int(255 * math.sin(flash_prog * math.pi))
+            
+            flash_surf.fill((210, 245, 255, flash_alpha))
+            tela.blit(flash_surf, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+        pygame.display.flip()
+        clock.tick(60)
+
+    # Restaurar opacidade normal do background para proximas chamadas da tela
+    try:
+        background.set_alpha(75)
+    except:
+        pass
 
     return [velocidade_personagem, intervalo_disparo, vida, largura_disparo, altura_disparo, trembo, dano_person_hit, chance_critico, roubo_de_vida,
             quantidade_roubo_vida, tempo_cooldown_dash, vida_maxima, Petro_active, Resistencia, vida_petro, vida_maxima_petro, dano_petro, xp_petro, petro_evolucao, Resistencia_petro,

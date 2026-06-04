@@ -14,6 +14,7 @@ from utils import *
 from ui_helpers import tela_transicao_dimensional, desenhar_efeitos_vanguarda
 from onda_recoil import criar_estado_coice_onda, aplicar_coice_onda, atualizar_coice_onda
 from audio_manager import carregar_config_audio, aplicar_volume_som
+from player_projectile import PlayerProjectileVFX, estourar_disparo_eletrico
 
 instalar_captura_global()
 instalar_filtro_prints()
@@ -783,19 +784,13 @@ def executar_jogo(game_manager=None):
 
         sprite_moeda = pygame.image.load("Sprites/moeda.png").convert_alpha()
         moedas_soltadas = []
+        vfx_disparo_player = PlayerProjectileVFX()
 
         ###################################################################################################PRINCIPAL#################################################################################################################
         #LOOP PRINCIPAL
         running = True
         while running:
             tempo_atual = pygame.time.get_ticks()
-            if impulsiva_ativa:
-                disparo_paths = ["Sprites/Fogo_impulso1.png", "Sprites/Fogo_impulso2.png"]
-            else:
-                disparo_paths = ["Sprites/Fogo1.png", "Sprites/Fogo2.png"]
-            frames_disparo = [pygame.image.load(path) for path in disparo_paths]
-            frames_disparo = [pygame.transform.scale(frame, (largura_disparo, altura_disparo)) for frame in frames_disparo]
-
             nivel_impulsiva = upgrades.get("Impulsiva", 0)
             if impulsiva_ativa:
                 duracao_buff = 3000 + nivel_impulsiva * 500  # 3s base + 0.5s por nível
@@ -965,10 +960,13 @@ def executar_jogo(game_manager=None):
 
 
             # Reinicia a animação quando troca de direção para não pular frames
-            if direcao_atual != ultima_direcao_animacao:
+            chave_direcao_animacao = direcao_atual
+            if direcao_atual == 'disp':
+                chave_direcao_animacao = 'disp_left' if math.cos(angulo_disparo_preparado) < 0 else 'disp_right'
+            if chave_direcao_animacao != ultima_direcao_animacao:
                 frame_atual = 0
                 tempo_passado = 0
-                ultima_direcao_animacao = direcao_atual
+                ultima_direcao_animacao = chave_direcao_animacao
 
             if direcao_atual == 'stop':
                 if tempo_passado >= tempo_animacao_stop:
@@ -988,10 +986,12 @@ def executar_jogo(game_manager=None):
                 frame_atual = disparo_frame_atual
                 if disparo_frame_atual >= len(frames_animacao['disp']) - 1:
                     Disparo_Geo.play()
-                    disparos.append({
-                        "rect": pygame.Rect(pos_x_personagem, pos_y_personagem, largura_disparo, altura_disparo),
-                        "angulo": angulo_disparo_preparado
-                    })
+                    px_centro = pos_x_personagem + largura_personagem // 2
+                    py_centro = pos_y_personagem + altura_personagem // 2
+                    disparos.append(vfx_disparo_player.criar_disparo(
+                        px_centro, py_centro, largura_disparo, altura_disparo,
+                        angulo_disparo_preparado, velocidade_disparo, tempo_atual, impulsiva_ativa
+                    ))
                     tempo_ultimo_disparo = tempo_atual
                     disparo_preparando = False
                     disparo_frame_atual = 0
@@ -1006,8 +1006,7 @@ def executar_jogo(game_manager=None):
             # Desenhar os disparos normais
             novos_disparos = []
             for disparo in disparos:
-                disparo["rect"].x += velocidade_disparo * math.cos(disparo["angulo"])
-                disparo["rect"].y += velocidade_disparo * math.sin(disparo["angulo"])
+                vfx_disparo_player.atualizar_disparo(disparo, velocidade_disparo, 1.0)
 
                 # Verificar se o disparo está dentro do mapa
                 if 0 <= disparo["rect"].x < largura_mapa and 0 <= disparo["rect"].y < altura_mapa:
@@ -1017,7 +1016,8 @@ def executar_jogo(game_manager=None):
 
             # Renderizar os disparos
             for disparo in disparos:
-                tela.blit(frames_disparo[frame_atual_disparo], disparo["rect"].topleft)
+                vfx_disparo_player.desenhar_disparo(tela, disparo, tempo_atual, config_graficos)
+            vfx_disparo_player.atualizar_e_desenhar_particulas(tela, 1.0, config_graficos)
 
 
 
@@ -1272,13 +1272,18 @@ def executar_jogo(game_manager=None):
             desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
 
             frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
+            if direcao_atual == 'disp' and math.cos(angulo_disparo_preparado) < 0:
+                frame_para_desenhar = pygame.transform.flip(frame_para_desenhar, True, False)
             if angulo_inclinacao_personagem != 0:
                 # Rotaciona o frame pelo centro para manter o eixo
                 frame_rotacionado = pygame.transform.rotate(frame_para_desenhar, angulo_inclinacao_personagem)
                 novo_rect = frame_rotacionado.get_rect(center=(pos_x_personagem + largura_personagem//2, pos_y_personagem + altura_personagem//2))
                 tela.blit(frame_rotacionado, novo_rect.topleft)
             else:
-                tela.blit(frame_para_desenhar, (pos_x_personagem, pos_y_personagem))
+                w_f, h_f = frame_para_desenhar.get_size()
+                bx = pos_x_personagem + (largura_personagem - w_f) // 2
+                by = pos_y_personagem + (altura_personagem - h_f)
+                tela.blit(frame_para_desenhar, (bx, by))
 
             for moeda in moedas_soltadas[:]:
                 if personagem_rect.colliderect(moeda["rect"]):
@@ -1588,7 +1593,7 @@ def executar_jogo(game_manager=None):
                         tempo_texto_dano = pygame.time.get_ticks()
                         dano = dano_boss_mitigado(dano, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                         vida_boss -= dano
-                        disparos.remove(disparo)
+                        estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
 
                         # Roubo de vida
                         if random.random() < roubo_de_vida:
@@ -1687,7 +1692,7 @@ def executar_jogo(game_manager=None):
                         # Rastreie o tempo de exibição do texto
                         tempo_texto_dano = pygame.time.get_ticks()
                         inimigo["vida"] -= dano
-                        disparos.remove(disparo)  # Remover o disparo após colisão
+                        estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)  # Remover o disparo após colisão
                         # Adicionar uma chance de 50% de aumentar a vida em 20 pontos
 
                         if random.random() < roubo_de_vida:
@@ -2174,7 +2179,7 @@ def executar_jogo(game_manager=None):
                             if disparo["rect"].colliderect(tutorial_inimigo["rect"]):
                                 tutorial_inimigo["vida"] -= dano_person_hit
                                 if disparo in disparos:
-                                    disparos.remove(disparo)
+                                    estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
                                 Hit_inimigo1.play()
 
                                 if tutorial_inimigo["vida"] <= 0:

@@ -25,6 +25,7 @@ from ui_helpers import (
     tentar_ativar_dilatacao_racional,
 )
 from post_boss_pressure import criar_estado_pressao_pos_boss, calcular_pressao_spawn_pos_boss
+from player_projectile import PlayerProjectileVFX, estourar_disparo_eletrico
 from onda_recoil import criar_estado_coice_onda, aplicar_coice_onda, atualizar_coice_onda
 from audio_manager import carregar_config_audio, aplicar_volume_som
 from Tela_Upgrade_Aureas import tela_upgrade_aureas
@@ -125,6 +126,7 @@ chefe_largura3,chefe_altura3= largura_tela * 0.2, altura_tela * 0.3
 disparos_boss3=[]
 tempo_espera_ataque_boss3=5000
 carregar_atributos_na_fase=True
+comando_direção_petro=True
 tempo_boss_entrada_fim = 0
 
 
@@ -488,6 +490,7 @@ def atualizar_posicao_personagem(keys, joystick):
                 posicao_inimigo = inimigo["rect"].center
                 soltar_moeda(posicao_inimigo)
                 Variaveis.tentar_soltar_carta(posicao_inimigo, tempo_atual, Chance_Sorte, inimigos_eliminados)
+                registrar_morte_toxica(inimigo)
                 gerar_fragmentos_morte(inimigo, 3)
                 if inimigo in inimigos_comum:
                     inimigos_comum.remove(inimigo)
@@ -546,6 +549,25 @@ def atualizar_posicao_personagem(keys, joystick):
 
 # Antes do loop principal, crie uma lista para armazenar os inimigos
 inimigos_comum = []
+rastros_toxicos = []
+nuvens_miasma = []
+areas_miasma = []
+feedbacks_bloqueio = []
+
+TIPO_INIMIGO_BASE = "base"
+TIPO_INIMIGO_DEVOTO_FEBRIL = "devoto_febril"
+TIPO_INIMIGO_INCENSARIO = "incensario"
+TIPO_INIMIGO_GUARDIAO_SUCATA = "guardiao_sucata"
+MAX_DEVOTOS_FEBRIS = 3
+MAX_INCENSARIOS = 2
+MAX_GUARDIOES_SUCATA = 2
+DURACAO_RASTRO_TOXICO = 2500
+DURACAO_NUVEM_MIASMA = 2000
+DURACAO_AREA_MIASMA = 3200
+INTERVALO_RASTRO_DEVOTO = 260
+INTERVALO_DANO_TOXICO = 650
+PREPARACAO_ATAQUE_INCENSARIO = 550
+COOLDOWN_ATAQUE_INCENSARIO = 2600
 
 tempo_ultima_criacao_gelo = pygame.time.get_ticks()
 
@@ -563,9 +585,530 @@ def criar_disparo_inimigo(pos_inimigo, pos_personagem):
     return {"rect": pygame.Rect(pos_inimigo[0], pos_inimigo[1], largura_disparo, altura_disparo), "velocidade": direcao_disparo_inimigo}
 
 
-def criar_inimigo(x, y):
+def aplicar_atributos_tipo(inimigo):
+    tipo = inimigo.get("tipo", TIPO_INIMIGO_BASE)
+
+    inimigo.setdefault("escala", 1.0)
+    inimigo.setdefault("velocidade_x", 1.70)
+    inimigo.setdefault("velocidade_y", 1.50)
+    inimigo.setdefault("dano_multiplicador", 1.0)
+
+    if tipo == TIPO_INIMIGO_DEVOTO_FEBRIL:
+        inimigo["escala"] = 0.85
+        inimigo["vida_maxima"] = max(1, vida_inimigo_maxima * 0.60)
+        inimigo["vida"] = inimigo["vida_maxima"]
+        inimigo["velocidade_x"] = 1.70 * 1.35
+        inimigo["velocidade_y"] = 1.50 * 1.35
+        inimigo["dano_multiplicador"] = 0.90
+        inimigo["cor_efeito"] = (70, 255, 90)
+        inimigo["ultimo_rastro_toxico"] = 0
+        inimigo["posicoes_recentes"] = []
+
+    elif tipo == TIPO_INIMIGO_INCENSARIO:
+        inimigo["escala"] = 1.0
+        inimigo["vida_maxima"] = max(1, vida_inimigo_maxima * 0.90)
+        inimigo["vida"] = inimigo["vida_maxima"]
+        inimigo["velocidade_x"] = 1.70 * 0.72
+        inimigo["velocidade_y"] = 1.50 * 0.72
+        inimigo["dano_multiplicador"] = 0.75
+        inimigo["cor_efeito"] = (155, 80, 225)
+        inimigo["estado"] = "movendo"
+        inimigo["tempo_inicio_preparo"] = 0
+        inimigo["tempo_ultimo_ataque"] = pygame.time.get_ticks() + random.randint(400, 1200)
+        inimigo["cooldown_ataque"] = random.randint(2200, 3000)
+        inimigo["alvo_miasma"] = None
+        inimigo["direcao_lateral"] = random.choice([-1, 1])
+
+    elif tipo == TIPO_INIMIGO_GUARDIAO_SUCATA:
+        inimigo["escala"] = 1.35
+        inimigo["vida_maxima"] = max(1, vida_inimigo_maxima * 2.75)
+        inimigo["vida"] = inimigo["vida_maxima"]
+        inimigo["velocidade_x"] = 1.70 * 0.52
+        inimigo["velocidade_y"] = 1.50 * 0.52
+        inimigo["dano_multiplicador"] = 1.35
+        inimigo["cor_efeito"] = (145, 135, 120)
+        inimigo["direcao_frente"] = 1
+        inimigo["estado"] = "movendo"
+
+    largura = max(1, int(largura_inimigo3 * inimigo["escala"]))
+    altura = max(1, int(altura_inimigo3 * inimigo["escala"]))
+    centro = inimigo["rect"].center
+    inimigo["rect"].size = (largura, altura)
+    inimigo["rect"].center = centro
+    return inimigo
+
+
+def criar_inimigo(x=0, y=0, tipo=TIPO_INIMIGO_BASE):
     image = frames_inimigo_esquerda3[0]
-    return {"rect": pygame.Rect(x, y, largura_inimigo3, altura_inimigo3), "image": image, "vida": vida_inimigo_maxima, "vida_maxima": vida_inimigo_maxima}
+    inimigo = {
+        "rect": pygame.Rect(x, y, largura_inimigo3, altura_inimigo3),
+        "image": image,
+        "vida": vida_inimigo_maxima,
+        "vida_maxima": vida_inimigo_maxima,
+        "tipo": tipo
+    }
+    return aplicar_atributos_tipo(inimigo)
+
+
+def escolher_tipo_inimigo():
+    devotos_ativos = sum(1 for inimigo in inimigos_comum if inimigo.get("tipo") == TIPO_INIMIGO_DEVOTO_FEBRIL)
+    incensarios_ativos = sum(1 for inimigo in inimigos_comum if inimigo.get("tipo") == TIPO_INIMIGO_INCENSARIO)
+    guardioes_ativos = sum(1 for inimigo in inimigos_comum if inimigo.get("tipo") == TIPO_INIMIGO_GUARDIAO_SUCATA)
+
+    rolagem = random.random()
+    if guardioes_ativos < MAX_GUARDIOES_SUCATA and rolagem <= 0.06:
+        return TIPO_INIMIGO_GUARDIAO_SUCATA
+    if incensarios_ativos < MAX_INCENSARIOS and rolagem <= 0.15:
+        return TIPO_INIMIGO_INCENSARIO
+    if devotos_ativos < MAX_DEVOTOS_FEBRIS and rolagem <= 0.33:
+        return TIPO_INIMIGO_DEVOTO_FEBRIL
+    return TIPO_INIMIGO_BASE
+
+
+def criar_nuvem_miasma(x, y):
+    nuvens_miasma.append({
+        "x": x,
+        "y": y,
+        "raio": 52,
+        "tempo_inicio": pygame.time.get_ticks(),
+        "ultimo_tick_dano": 0,
+        "particulas": [
+            {
+                "dx": random.uniform(-28, 28),
+                "dy": random.uniform(-22, 22),
+                "raio": random.randint(3, 7),
+                "vel": random.uniform(0.2, 0.7)
+            }
+            for _ in range(14)
+        ]
+    })
+
+
+def registrar_morte_toxica(inimigo):
+    if inimigo.get("tipo") == TIPO_INIMIGO_DEVOTO_FEBRIL:
+        criar_nuvem_miasma(inimigo["rect"].centerx, inimigo["rect"].centery)
+
+
+def registrar_rastro_toxico(inimigo, tempo_atual):
+    if inimigo.get("tipo") != TIPO_INIMIGO_DEVOTO_FEBRIL:
+        return
+
+    centro = inimigo["rect"].center
+    inimigo.setdefault("posicoes_recentes", []).append(centro)
+    if len(inimigo["posicoes_recentes"]) > 8:
+        inimigo["posicoes_recentes"].pop(0)
+
+    if tempo_atual - inimigo.get("ultimo_rastro_toxico", 0) < INTERVALO_RASTRO_DEVOTO:
+        return
+
+    px, py = inimigo["posicoes_recentes"][0] if inimigo["posicoes_recentes"] else centro
+    rastros_toxicos.append({
+        "x": px,
+        "y": py,
+        "raio": random.randint(18, 26),
+        "tempo_inicio": tempo_atual,
+        "duracao": DURACAO_RASTRO_TOXICO,
+        "ultimo_tick_dano": 0
+    })
+    inimigo["ultimo_rastro_toxico"] = tempo_atual
+
+
+def aplicar_dano_toxico_no_personagem(efeito, personagem_rect, tempo_atual, dano_base):
+    global vida, piscando_vida, tempo_ultimo_hit_inimigo, imune_tempo_restante
+
+    if tempo_atual - efeito.get("ultimo_tick_dano", 0) < INTERVALO_DANO_TOXICO:
+        return
+    if imune_tempo_restante > 0:
+        return
+
+    if math.hypot(personagem_rect.centerx - efeito["x"], personagem_rect.centery - efeito["y"]) <= efeito["raio"]:
+        vida -= dano_base
+        efeito["ultimo_tick_dano"] = tempo_atual
+        tempo_ultimo_hit_inimigo = tempo_atual
+        piscando_vida = True
+
+
+def atualizar_rastros_toxicos(personagem_rect, tempo_atual):
+    rastros_ativos = []
+    dano_base = max(1, int(vida_maxima * 0.012))
+
+    for rastro in rastros_toxicos:
+        if tempo_atual - rastro["tempo_inicio"] <= rastro["duracao"]:
+            aplicar_dano_toxico_no_personagem(rastro, personagem_rect, tempo_atual, dano_base)
+            rastros_ativos.append(rastro)
+
+    rastros_toxicos[:] = rastros_ativos
+
+
+def desenhar_rastros_toxicos(tela, tempo_atual):
+    for rastro in rastros_toxicos:
+        progresso = (tempo_atual - rastro["tempo_inicio"]) / rastro["duracao"]
+        alpha = max(0, int(105 * (1 - progresso)))
+        diametro = rastro["raio"] * 2
+        superficie = pygame.Surface((diametro, diametro), pygame.SRCALPHA)
+        pygame.draw.circle(superficie, (45, 220, 75, alpha), (rastro["raio"], rastro["raio"]), rastro["raio"])
+        pygame.draw.circle(superficie, (140, 255, 120, alpha // 2), (rastro["raio"], rastro["raio"]), max(4, rastro["raio"] // 2))
+        tela.blit(superficie, (rastro["x"] - rastro["raio"], rastro["y"] - rastro["raio"]))
+
+
+def atualizar_nuvens_miasma(personagem_rect, tempo_atual):
+    nuvens_ativas = []
+    dano_base = max(1, int(vida_maxima * 0.018))
+
+    for nuvem in nuvens_miasma:
+        if tempo_atual - nuvem["tempo_inicio"] <= DURACAO_NUVEM_MIASMA:
+            aplicar_dano_toxico_no_personagem(nuvem, personagem_rect, tempo_atual, dano_base)
+            nuvens_ativas.append(nuvem)
+
+    nuvens_miasma[:] = nuvens_ativas
+
+
+def desenhar_nuvens_miasma(tela, tempo_atual):
+    for nuvem in nuvens_miasma:
+        progresso = (tempo_atual - nuvem["tempo_inicio"]) / DURACAO_NUVEM_MIASMA
+        raio = int(nuvem["raio"] * (0.75 + progresso * 0.35))
+        alpha = max(0, int(135 * (1 - progresso)))
+        superficie = pygame.Surface((raio * 2, raio * 2), pygame.SRCALPHA)
+        pygame.draw.circle(superficie, (38, 210, 78, alpha), (raio, raio), raio)
+        pygame.draw.circle(superficie, (170, 255, 135, alpha // 2), (raio, raio), max(5, raio // 3))
+
+        for particula in nuvem.get("particulas", []):
+            px = int(raio + particula["dx"] * (1 + progresso * particula["vel"]))
+            py = int(raio + particula["dy"] * (1 + progresso * particula["vel"]))
+            pygame.draw.circle(superficie, (100, 255, 120, alpha), (px, py), particula["raio"])
+
+        tela.blit(superficie, (nuvem["x"] - raio, nuvem["y"] - raio))
+
+
+def criar_area_miasma(x, y, raio=64, duracao=DURACAO_AREA_MIASMA):
+    areas_miasma.append({
+        "x": max(0, min(largura_mapa, x)),
+        "y": max(0, min(altura_mapa, y)),
+        "raio": raio,
+        "duracao": duracao,
+        "tempo_inicio": pygame.time.get_ticks(),
+        "ultimo_tick_dano": 0,
+        "particulas": [
+            {
+                "dx": random.uniform(-raio * 0.55, raio * 0.55),
+                "dy": random.uniform(-raio * 0.45, raio * 0.45),
+                "raio": random.randint(3, 8),
+                "fase": random.uniform(0, math.pi * 2)
+            }
+            for _ in range(18)
+        ]
+    })
+
+
+def atualizar_areas_miasma(personagem_rect, tempo_atual):
+    areas_ativas = []
+    dano_base = max(1, int(vida_maxima * 0.015))
+
+    for area in areas_miasma:
+        if tempo_atual - area["tempo_inicio"] <= area["duracao"]:
+            aplicar_dano_toxico_no_personagem(area, personagem_rect, tempo_atual, dano_base)
+            areas_ativas.append(area)
+
+    areas_miasma[:] = areas_ativas
+
+
+def desenhar_areas_miasma(tela, tempo_atual):
+    for area in areas_miasma:
+        progresso = (tempo_atual - area["tempo_inicio"]) / area["duracao"]
+        alpha = max(0, int(125 * (1 - progresso)))
+        raio = area["raio"]
+        superficie = pygame.Surface((raio * 2, raio * 2), pygame.SRCALPHA)
+        pygame.draw.circle(superficie, (86, 42, 140, alpha), (raio, raio), raio)
+        pygame.draw.circle(superficie, (58, 210, 94, alpha // 2), (raio, raio), max(6, int(raio * 0.68)))
+        pygame.draw.circle(superficie, (178, 112, 235, max(0, alpha - 35)), (raio, raio), raio, 2)
+
+        for particula in area.get("particulas", []):
+            ondulacao = math.sin(tempo_atual * 0.004 + particula["fase"]) * 5
+            px = int(raio + particula["dx"] + ondulacao)
+            py = int(raio + particula["dy"] - progresso * 18)
+            pygame.draw.circle(superficie, (150, 245, 125, alpha), (px, py), particula["raio"])
+
+        tela.blit(superficie, (area["x"] - raio, area["y"] - raio))
+
+
+def desenhar_feedback_bloqueio(x, y):
+    feedbacks_bloqueio.append({
+        "x": x,
+        "y": y,
+        "tempo_inicio": pygame.time.get_ticks(),
+        "particulas": [
+            {
+                "dx": random.uniform(-22, 22),
+                "dy": random.uniform(-18, 18),
+                "raio": random.randint(2, 4)
+            }
+            for _ in range(8)
+        ]
+    })
+
+
+def atualizar_e_desenhar_feedbacks_bloqueio(tela, tempo_atual):
+    ativos = []
+
+    for feedback in feedbacks_bloqueio:
+        idade = tempo_atual - feedback["tempo_inicio"]
+        if idade > 320:
+            continue
+
+        progresso = idade / 320
+        alpha = max(0, int(220 * (1 - progresso)))
+        for particula in feedback.get("particulas", []):
+            px = int(feedback["x"] + particula["dx"] * progresso)
+            py = int(feedback["y"] + particula["dy"] * progresso)
+            pygame.draw.circle(tela, (230, 225, 180, alpha), (px, py), particula["raio"])
+            pygame.draw.line(tela, (180, 180, 165, alpha), (feedback["x"], feedback["y"]), (px, py), 1)
+        ativos.append(feedback)
+
+    feedbacks_bloqueio[:] = ativos
+
+
+def ataque_veio_pela_frente(inimigo, origem_ataque):
+    frente_x = inimigo.get("direcao_frente", 1)
+    vetor_ataque_x = origem_ataque[0] - inimigo["rect"].centerx
+    vetor_ataque_y = origem_ataque[1] - inimigo["rect"].centery
+    distancia = max(1.0, math.hypot(vetor_ataque_x, vetor_ataque_y))
+    alinhamento_frontal = (vetor_ataque_x / distancia) * frente_x
+    return alinhamento_frontal > 0.55
+
+
+def calcular_dano_com_escudo(inimigo, dano, origem_ataque):
+    if inimigo.get("tipo") != TIPO_INIMIGO_GUARDIAO_SUCATA:
+        return dano, False, False
+
+    frente_x = inimigo.get("direcao_frente", 1)
+    vetor_ataque_x = origem_ataque[0] - inimigo["rect"].centerx
+    vetor_ataque_y = origem_ataque[1] - inimigo["rect"].centery
+    distancia = max(1.0, math.hypot(vetor_ataque_x, vetor_ataque_y))
+    alinhamento = (vetor_ataque_x / distancia) * frente_x
+
+    if alinhamento > 0.55:
+        return dano * 0.25, True, False
+    if alinhamento < -0.45:
+        return dano * 1.12, False, True
+    return dano, False, False
+
+
+def atualizar_guardiao_sucata(inimigo, jogador, fator_tempo_mundo):
+    jogador_x, jogador_y, jogador_largura, jogador_altura = jogador
+    alvo_x = jogador_x + jogador_largura // 2
+    alvo_y = jogador_y + jogador_altura // 2
+    dx = alvo_x - inimigo["rect"].centerx
+    dy = alvo_y - inimigo["rect"].centery
+    distancia = max(1.0, math.hypot(dx, dy))
+
+    inimigo["direcao_frente"] = 1 if dx >= 0 else -1
+    inimigo["estado"] = "movendo"
+    intensidade = 0.55 if distancia < 95 else 1.0
+    inimigo["pos_x"] += (dx / distancia) * inimigo.get("velocidade_x", 0.88) * intensidade * fator_tempo_mundo
+    inimigo["pos_y"] += (dy / distancia) * inimigo.get("velocidade_y", 0.78) * intensidade * fator_tempo_mundo
+    inimigo["pos_x"] = max(0, min(largura_mapa - inimigo["rect"].width, inimigo["pos_x"]))
+    inimigo["pos_y"] = max(0, min(altura_mapa - inimigo["rect"].height, inimigo["pos_y"]))
+    inimigo["rect"].x = int(inimigo["pos_x"])
+    inimigo["rect"].y = int(inimigo["pos_y"])
+
+
+def atualizar_incensario(inimigo, jogador, tempo_atual, fator_tempo_mundo):
+    jogador_x, jogador_y, jogador_largura, jogador_altura = jogador
+    alvo_x = jogador_x + jogador_largura // 2
+    alvo_y = jogador_y + jogador_altura // 2
+    centro_x = inimigo["rect"].centerx
+    centro_y = inimigo["rect"].centery
+    dx = alvo_x - centro_x
+    dy = alvo_y - centro_y
+    distancia = max(1.0, math.hypot(dx, dy))
+
+    if tempo_atual - inimigo.get("tempo_troca_lateral", 0) > 1400:
+        inimigo["direcao_lateral"] = random.choice([-1, 1])
+        inimigo["tempo_troca_lateral"] = tempo_atual
+
+    estado = inimigo.get("estado", "movendo")
+    if estado == "preparando_ataque":
+        if tempo_atual - inimigo.get("tempo_inicio_preparo", 0) >= PREPARACAO_ATAQUE_INCENSARIO:
+            alvo = inimigo.get("alvo_miasma")
+            if alvo:
+                criar_area_miasma(alvo[0], alvo[1], random.randint(58, 72), random.randint(2800, 3500))
+            inimigo["estado"] = "atacando"
+            inimigo["tempo_estado"] = tempo_atual
+            inimigo["tempo_ultimo_ataque"] = tempo_atual
+            inimigo["cooldown_ataque"] = random.randint(2200, 3000)
+            inimigo["alvo_miasma"] = None
+        elif distancia < 190:
+            inimigo["pos_x"] -= (dx / distancia) * inimigo.get("velocidade_x", 1.20) * 0.75 * fator_tempo_mundo
+            inimigo["pos_y"] -= (dy / distancia) * inimigo.get("velocidade_y", 1.05) * 0.75 * fator_tempo_mundo
+        inimigo["pos_x"] = max(0, min(largura_mapa - inimigo["rect"].width, inimigo["pos_x"]))
+        inimigo["pos_y"] = max(0, min(altura_mapa - inimigo["rect"].height, inimigo["pos_y"]))
+        inimigo["rect"].x = int(inimigo["pos_x"])
+        inimigo["rect"].y = int(inimigo["pos_y"])
+        return
+
+    if estado == "atacando":
+        if tempo_atual - inimigo.get("tempo_estado", 0) > 180:
+            inimigo["estado"] = "movendo"
+        else:
+            inimigo["rect"].x = int(inimigo["pos_x"])
+            inimigo["rect"].y = int(inimigo["pos_y"])
+            return
+
+    pode_atacar = (
+        tempo_atual - inimigo.get("tempo_ultimo_ataque", 0) >= inimigo.get("cooldown_ataque", COOLDOWN_ATAQUE_INCENSARIO)
+        and distancia <= 560
+    )
+    if pode_atacar:
+        inimigo["estado"] = "preparando_ataque"
+        inimigo["tempo_inicio_preparo"] = tempo_atual
+        inimigo["alvo_miasma"] = (max(25, min(largura_mapa - 25, alvo_x)), max(25, min(altura_mapa - 25, alvo_y)))
+        inimigo["rect"].x = int(inimigo["pos_x"])
+        inimigo["rect"].y = int(inimigo["pos_y"])
+        return
+
+    perto_demais = 220
+    longe_demais = 430
+    if distancia < perto_demais:
+        inimigo["estado"] = "recuando"
+        mov_x = -dx / distancia
+        mov_y = -dy / distancia
+        intensidade = 1.20
+    elif distancia > longe_demais:
+        inimigo["estado"] = "movendo"
+        mov_x = dx / distancia
+        mov_y = dy / distancia
+        intensidade = 0.82
+    else:
+        inimigo["estado"] = "movendo"
+        lateral = inimigo.get("direcao_lateral", 1)
+        mov_x = (-dy / distancia) * lateral
+        mov_y = (dx / distancia) * lateral
+        intensidade = 0.42
+
+    inimigo["pos_x"] += mov_x * inimigo.get("velocidade_x", 1.20) * intensidade * fator_tempo_mundo
+    inimigo["pos_y"] += mov_y * inimigo.get("velocidade_y", 1.05) * intensidade * fator_tempo_mundo
+    inimigo["pos_x"] = max(0, min(largura_mapa - inimigo["rect"].width, inimigo["pos_x"]))
+    inimigo["pos_y"] = max(0, min(altura_mapa - inimigo["rect"].height, inimigo["pos_y"]))
+    inimigo["rect"].x = int(inimigo["pos_x"])
+    inimigo["rect"].y = int(inimigo["pos_y"])
+
+
+def desenhar_efeitos_incensario(tela, inimigo, tempo_atual, pos_x, pos_y, largura, altura):
+    preparando = inimigo.get("estado") == "preparando_ataque"
+    pulso = (math.sin(tempo_atual * 0.012) + 1) / 2
+    aura_alpha = int(50 + pulso * 35 + (55 if preparando else 0))
+    aura_raio_extra = 14 + (10 if preparando else 0)
+    aura = pygame.Surface((largura + aura_raio_extra * 2, altura + aura_raio_extra * 2), pygame.SRCALPHA)
+    pygame.draw.ellipse(aura, (110, 65, 180, aura_alpha), (0, 0, largura + aura_raio_extra * 2, altura + aura_raio_extra * 2))
+    pygame.draw.ellipse(aura, (80, 220, 110, aura_alpha // 2), (8, 8, largura + aura_raio_extra * 2 - 16, altura + aura_raio_extra * 2 - 16))
+    tela.blit(aura, (pos_x - aura_raio_extra, pos_y - aura_raio_extra))
+
+    origem_fumaca_x = pos_x + largura // 2
+    origem_fumaca_y = pos_y + max(6, altura // 4)
+    quantidade = 7 if preparando else 4
+    for i in range(quantidade):
+        oscilacao = math.sin(tempo_atual * 0.005 + i) * 7
+        px = int(origem_fumaca_x + oscilacao + random.randint(-2, 2))
+        py = int(origem_fumaca_y - i * 5 - random.randint(0, 4))
+        raio = random.randint(3, 7) + (2 if preparando else 0)
+        cor = (145, 80, 210, 95) if i % 2 == 0 else (80, 230, 120, 85)
+        pygame.draw.circle(tela, cor, (px, py), raio)
+
+    alvo = inimigo.get("alvo_miasma")
+    if preparando and alvo:
+        progresso = min(1.0, (tempo_atual - inimigo.get("tempo_inicio_preparo", 0)) / PREPARACAO_ATAQUE_INCENSARIO)
+        raio = int(38 + progresso * 28)
+        aviso = pygame.Surface((raio * 2, raio * 2), pygame.SRCALPHA)
+        pygame.draw.circle(aviso, (130, 55, 205, 75), (raio, raio), raio)
+        pygame.draw.circle(aviso, (110, 255, 120, 120), (raio, raio), max(4, int(raio * progresso)), 3)
+        pygame.draw.circle(aviso, (230, 205, 255, 170), (raio, raio), raio, 2)
+        tela.blit(aviso, (alvo[0] - raio, alvo[1] - raio))
+
+
+def desenhar_armadura_guardiao(tela, inimigo, pos_x, pos_y, largura, altura):
+    aura = pygame.Surface((largura + 20, altura + 20), pygame.SRCALPHA)
+    pygame.draw.ellipse(aura, (95, 85, 70, 58), (0, 0, largura + 20, altura + 20))
+    tela.blit(aura, (pos_x - 10, pos_y - 10))
+
+    peito = pygame.Rect(pos_x + int(largura * 0.28), pos_y + int(altura * 0.30), int(largura * 0.44), int(altura * 0.28))
+    pygame.draw.rect(tela, (92, 92, 88), peito, border_radius=3)
+    pygame.draw.rect(tela, (155, 150, 135), peito, 2, border_radius=3)
+    pygame.draw.line(tela, (55, 55, 52), peito.midleft, peito.midright, 2)
+
+    frente_x = inimigo.get("direcao_frente", 1)
+    if frente_x >= 0:
+        escudo = pygame.Rect(pos_x + int(largura * 0.58), pos_y + int(altura * 0.22), int(largura * 0.25), int(altura * 0.46))
+    else:
+        escudo = pygame.Rect(pos_x + int(largura * 0.17), pos_y + int(altura * 0.22), int(largura * 0.25), int(altura * 0.46))
+
+    pygame.draw.rect(tela, (75, 78, 80), escudo, border_radius=5)
+    pygame.draw.rect(tela, (178, 174, 155), escudo, 2, border_radius=5)
+    pygame.draw.line(tela, (48, 50, 52), (escudo.centerx, escudo.top + 4), (escudo.centerx, escudo.bottom - 4), 2)
+
+    for px, py in (
+        (peito.left + 5, peito.top + 5),
+        (peito.right - 5, peito.top + 5),
+        (peito.left + 5, peito.bottom - 5),
+        (peito.right - 5, peito.bottom - 5),
+        (escudo.left + 5, escudo.top + 7),
+        (escudo.right - 5, escudo.bottom - 7),
+    ):
+        pygame.draw.circle(tela, (205, 200, 178), (px, py), 2)
+
+    cano_y = pos_y + int(altura * 0.68)
+    pygame.draw.line(tela, (105, 105, 100), (pos_x + int(largura * 0.20), cano_y), (pos_x + int(largura * 0.80), cano_y + 4), 4)
+    pygame.draw.line(tela, (55, 55, 52), (pos_x + int(largura * 0.20), cano_y), (pos_x + int(largura * 0.80), cano_y + 4), 1)
+
+
+def desenhar_inimigo(tela, inimigo):
+    escala = inimigo.get("escala", 1.0)
+    largura = max(1, int(largura_inimigo3 * escala))
+    altura = max(1, int(altura_inimigo3 * escala))
+    pos_x = inimigo["rect"].x
+    pos_y = inimigo["rect"].y
+
+    if inimigo.get("tipo") == TIPO_INIMIGO_GUARDIAO_SUCATA:
+        imagem = pygame.transform.smoothscale(inimigo["image"], (largura, altura))
+        tint = pygame.Surface((largura, altura), pygame.SRCALPHA)
+        tint.fill((55, 48, 38, 35))
+        imagem = imagem.copy()
+        imagem.blit(tint, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+        tela.blit(imagem, (pos_x, pos_y))
+        desenhar_armadura_guardiao(tela, inimigo, pos_x, pos_y, largura, altura)
+
+    elif inimigo.get("tipo") == TIPO_INIMIGO_INCENSARIO:
+        desenhar_efeitos_incensario(tela, inimigo, pygame.time.get_ticks(), pos_x, pos_y, largura, altura)
+        imagem = pygame.transform.smoothscale(inimigo["image"], (largura, altura))
+        tint = pygame.Surface((largura, altura), pygame.SRCALPHA)
+        tint.fill((70, 35, 115, 55))
+        imagem = imagem.copy()
+        imagem.blit(tint, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+        tela.blit(imagem, (pos_x, pos_y))
+
+    elif inimigo.get("tipo") == TIPO_INIMIGO_DEVOTO_FEBRIL:
+        tremor_x = random.randint(-2, 2)
+        tremor_y = random.randint(-2, 2)
+        pos_x += tremor_x
+        pos_y += tremor_y
+
+        aura = pygame.Surface((largura + 18, altura + 18), pygame.SRCALPHA)
+        pygame.draw.ellipse(aura, (45, 230, 85, 70), (0, 0, largura + 18, altura + 18))
+        pygame.draw.ellipse(aura, (145, 255, 130, 45), (5, 5, largura + 8, altura + 8))
+        tela.blit(aura, (pos_x - 9, pos_y - 9))
+
+        for _ in range(3):
+            px = pos_x + random.randint(2, largura)
+            py = pos_y + altura - random.randint(2, max(3, altura // 3))
+            pygame.draw.circle(tela, (90, 255, 105), (px, py), random.randint(2, 4))
+
+        imagem = pygame.transform.smoothscale(inimigo["image"], (largura, altura))
+        tint = pygame.Surface((largura, altura), pygame.SRCALPHA)
+        tint.fill((30, 150, 45, 70))
+        imagem = imagem.copy()
+        imagem.blit(tint, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+        tela.blit(imagem, (pos_x, pos_y))
+    else:
+        tela.blit(inimigo["image"], inimigo["rect"])
 
 def desenhar_sombra(tela, x, y, largura, altura, offset_y=5):
     """Desenha uma sombra elíptica embaixo de um ser com três níveis de qualidade"""
@@ -612,11 +1155,12 @@ def gerar_inimigo(limite_inimigos=None):
 
     limite_inimigos = max_inimigos2 if limite_inimigos is None else limite_inimigos
     if len(inimigos_comum) < limite_inimigos:
+        tipo_inimigo = escolher_tipo_inimigo()
         # Adicione uma chance de 40% de gerar o inimigo na borda esquerda
         if random.random() <= 0.4:
-            novo_inimigo = criar_inimigo(0, random.randint(10, altura_mapa))
+            novo_inimigo = criar_inimigo(0, random.randint(10, altura_mapa), tipo_inimigo)
         else:
-            novo_inimigo = criar_inimigo(largura_mapa, random.randint(10, altura_mapa))
+            novo_inimigo = criar_inimigo(largura_mapa, random.randint(10, altura_mapa), tipo_inimigo)
 
         # Verifique se o novo inimigo está muito próximo de algum inimigo existente
         distancia_minima_alcancada = any(
@@ -626,10 +1170,11 @@ def gerar_inimigo(limite_inimigos=None):
 
         
         while distancia_minima_alcancada:
+            tipo_inimigo = escolher_tipo_inimigo()
             if random.random() <= 0.4:
-                novo_inimigo = criar_inimigo(0, random.randint(10, altura_mapa))
+                novo_inimigo = criar_inimigo(0, random.randint(10, altura_mapa), tipo_inimigo)
             else:
-                novo_inimigo = criar_inimigo(largura_mapa, random.randint(10, altura_mapa))
+                novo_inimigo = criar_inimigo(largura_mapa, random.randint(10, altura_mapa), tipo_inimigo)
             distancia_minima_alcancada = any(
                 math.sqrt((novo_inimigo["rect"].x - inimigo["rect"].x) ** 2 + (novo_inimigo["rect"].y - inimigo["rect"].y) ** 2) < distancia_minima_inimigos
                 for inimigo in inimigos_comum
@@ -722,7 +1267,7 @@ y = 0
 def executar_jogo(game_manager=None):
     global dt
     global direcao_atual, tempo_ultimo_disparo
-    global Boss_vivo3, gerar_fragmentos_morte, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss3, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, bonus_pontuacao, boss_envenenado, boss_frame_andando, boss_frame_atual, boss_frame_peca, carregar_atributos_na_fase, cartas_compradas, chance_critico, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, disparos, disparos_boss3, disparos_inimigos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, escudo_devota_ativo, fonte, frame_atual, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, largura_disparo, max_inimigos2, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, musica_boss3, nivel_ameaca, ondas, personagem_doente, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe3, pos_x_personagem, pos_x_petro, pos_y_chefe3, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, queijo_geracao, queijo_spawn, r_press, rect_boss, roubo_de_vida, running, spawn_inimigo, sprite_moeda, teleportado, tempo_anterior_petro, tempo_atual, tempo_boss_entrada_fim, tempo_cooldown_dash, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_regeneracao, tempo_ultimo_atingido, tempo_ultimo_disparo_inimigo, tempo_ultimo_frame_boss, tempo_ultimo_grupo_disparo_boss3, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, texto_dano, tipo_buff_impulsiva, toque, trembo, ultima_direcao_animacao, ultimo_tick_veneno_boss, upgrades, velocidade_personagem, vida, vida_boss3, vida_boss4, vida_inimigo_maxima, vida_maxima, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, vida_queijo, x, xp_petro, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
+    global Boss_vivo3, gerar_fragmentos_morte, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss3, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, bonus_pontuacao, boss_envenenado, boss_frame_andando, boss_frame_atual, boss_frame_peca, carregar_atributos_na_fase, cartas_compradas, chance_critico, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, disparos, disparos_boss3, disparos_inimigos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, escudo_devota_ativo, fonte, frame_atual, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, rastros_toxicos, nuvens_miasma, areas_miasma, intervalo_disparo, largura_disparo, max_inimigos2, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, musica_boss3, nivel_ameaca, ondas, personagem_doente, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe3, pos_x_personagem, pos_x_petro, pos_y_chefe3, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, queijo_geracao, queijo_spawn, r_press, rect_boss, roubo_de_vida, running, spawn_inimigo, sprite_moeda, teleportado, tempo_anterior_petro, tempo_atual, tempo_boss_entrada_fim, tempo_cooldown_dash, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_regeneracao, tempo_ultimo_atingido, tempo_ultimo_disparo_inimigo, tempo_ultimo_frame_boss, tempo_ultimo_grupo_disparo_boss3, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, texto_dano, tipo_buff_impulsiva, toque, trembo, ultima_direcao_animacao, ultimo_tick_veneno_boss, upgrades, velocidade_personagem, vida, vida_boss3, vida_boss4, vida_inimigo_maxima, vida_maxima, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, vida_queijo, x, xp_petro, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -749,15 +1294,7 @@ def executar_jogo(game_manager=None):
         global tela
         tela = configurar_tela(largura_mapa, altura_mapa)
 
-        # Pre-carregar frames de disparo
-        frames_disparo_normal_base = [
-            pygame.image.load("Sprites/Fogo1.png").convert_alpha(),
-            pygame.image.load("Sprites/Fogo2.png").convert_alpha()
-        ]
-        frames_disparo_impulso_base = [
-            pygame.image.load("Sprites/Fogo_impulso1.png").convert_alpha(),
-            pygame.image.load("Sprites/Fogo_impulso2.png").convert_alpha()
-        ]
+        vfx_disparo_player = PlayerProjectileVFX()
         tempo_ultimo_disparo = pygame.time.get_ticks()
         disparo_preparando = False
         disparo_frame_atual = 0
@@ -1131,6 +1668,18 @@ def executar_jogo(game_manager=None):
                     "atributos": snapshot_attrs,
                     "pos_x": pos_x_personagem,
                     "pos_y": pos_y_personagem,
+                    "pontuacao": pontuacao,
+                    "pontuacao_exib": pontuacao_exib,
+                    "pontuacao_magia": pontuacao_magia,
+                    "inimigos_eliminados": inimigos_eliminados,
+                    "nivel_ameaca": nivel_ameaca,
+                    "vida_inimigo_maxima": vida_inimigo_maxima,
+                    "max_inimigos": max_inimigos2,
+                    "tempo_cronometro": Variaveis.obter_tempo_decorrido(),
+                    "inimigos_comum": Variaveis.serializar_inimigos_rewind(inimigos_comum),
+                    "rastros_toxicos": rastros_toxicos,
+                    "nuvens_miasma": nuvens_miasma,
+                    "areas_miasma": areas_miasma,
                     "vida_boss": vida_chefe if 'vida_chefe' in locals() or 'vida_chefe' in globals() else (
                                  vida_boss if 'vida_boss' in locals() or 'vida_boss' in globals() else (
                                  vida_boss2 if 'vida_boss2' in locals() or 'vida_boss2' in globals() else (
@@ -1149,6 +1698,21 @@ def executar_jogo(game_manager=None):
                         vida = snap.get("vida_fracao", 0.20) * vida_maxima
                         pontuacao = 0
                         pontuacao_exib = 0
+                        pontuacao_magia = snap.get("pontuacao_magia", pontuacao_magia)
+                        inimigos_eliminados = snap.get("inimigos_eliminados", inimigos_eliminados)
+                        nivel_ameaca = snap.get("nivel_ameaca", inimigos_eliminados // 10)
+                        vida_inimigo_maxima = snap.get("vida_inimigo_maxima", vida_inimigo_maxima)
+                        max_inimigos2 = snap.get("max_inimigos", max_inimigos2)
+                        Variaveis.definir_tempo_cronometro(snap.get("tempo_cronometro", Variaveis.obter_tempo_decorrido()))
+                        if "inimigos_comum" in snap:
+                            inimigos_comum = Variaveis.restaurar_inimigos_rewind(snap.get("inimigos_comum"), frames_inimigo_esquerda3[0])
+                        rastros_toxicos = snap.get("rastros_toxicos", [])
+                        nuvens_miasma = snap.get("nuvens_miasma", [])
+                        areas_miasma = snap.get("areas_miasma", [])
+                        if snap.get("refragmentacao_rewind"):
+                            imune_tempo_restante = max(imune_tempo_restante, 4000)
+                            piscando_vida = False
+                            Variaveis.aplicar_rewind_respawn_visual(pos_x_personagem, pos_y_personagem, direcao_atual, pygame.time.get_ticks())
                         if "vida_boss" in snap and snap["vida_boss"] is not None:
                             if 'vida_chefe' in locals() or 'vida_chefe' in globals():
                                 vida_chefe = snap["vida_boss"]
@@ -1164,12 +1728,6 @@ def executar_jogo(game_manager=None):
                 except Exception as e:
                     registrar_erro("Fase 3: erro ao carregar atributos; usando padrao", e)
                 carregar_atributos_na_fase=False
-
-            if impulsiva_ativa:
-                frames_disparo = [pygame.transform.scale(frame, (largura_disparo, altura_disparo)) for frame in frames_disparo_impulso_base]
-            else:
-                frames_disparo = [pygame.transform.scale(frame, (largura_disparo, altura_disparo)) for frame in frames_disparo_normal_base]
-
 
             if impulsiva_ativa and tempo_atual - tempo_inicio_buff_impulsiva > 15000:
                 impulsiva_ativa = False
@@ -1316,7 +1874,7 @@ def executar_jogo(game_manager=None):
 
                 for disparo in disparos:
 
-                    if verificar_colisao_disparo_inimigo(disparo, (inimigo["rect"].x, inimigo["rect"].y), largura_disparo, altura_disparo, largura_inimigo, altura_inimigo, inimigos_eliminados):
+                    if verificar_colisao_disparo_inimigo(disparo, (inimigo["rect"].x, inimigo["rect"].y), largura_disparo, altura_disparo, inimigo["rect"].width, inimigo["rect"].height, inimigos_eliminados):
                         if random.random() <= chance_critico:  # 10% de chance de dano crítico
                             dano = dano_person_hit * 3  # Valor do dano crítico é 3 vezes o dano normal
                             cor = (255, 255, 0)  # Amarelo (RGB)
@@ -1325,6 +1883,22 @@ def executar_jogo(game_manager=None):
                             dano = dano_person_hit
                             cor = (255, 0, 0)  # Vermelho (RGB)
                             fonte_dano=fonte_dano_normal
+                        origem_ataque = disparo["rect"].center
+                        dano, dano_bloqueado, dano_flanco = calcular_dano_com_escudo(inimigo, dano, origem_ataque)
+                        if dano_bloqueado:
+                            cor = (190, 190, 170)
+                            fonte_dano = fonte_dano_normal
+                            desenhar_feedback_bloqueio(inimigo["rect"].centerx, inimigo["rect"].centery)
+                            efeitos_texto.append({
+                                "texto": "BLOQ",
+                                "x": inimigo["rect"].centerx,
+                                "y": inimigo["rect"].y - 34,
+                                "tempo_inicio": tempo_atual,
+                                "cor": (210, 205, 170)
+                            })
+                        elif dano_flanco:
+                            cor = (255, 185, 60)
+                            fonte_dano = fonte_dano_critico
                         if Petro_active:
                             if vida_petro > vida_maxima_petro :
                                 vida_petro+= (vida_maxima_petro-vida_petro) *0.25   
@@ -1332,12 +1906,12 @@ def executar_jogo(game_manager=None):
                         texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
 
                         # Desenhe o texto na tela perto do chefe
-                        pos_texto = (inimigo["rect"].x + largura_inimigo3 // 2 - texto_dano.get_width() // 2,  inimigo["rect"].y - 20)
+                        pos_texto = (inimigo["rect"].x + inimigo["rect"].width // 2 - texto_dano.get_width() // 2,  inimigo["rect"].y - 20)
 
                         # Rastreie o tempo de exibição do texto
                         tempo_texto_dano = pygame.time.get_ticks()
                         inimigo["vida"] -= dano
-                        disparos.remove(disparo)  # Remover o disparo após colisão
+                        estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)  # Remover o disparo após colisão
 
                         if Poison_Active:
                             aplicar_veneno(inimigo, tempo_atual, cartas_compradas.get("Poison", 0))
@@ -1347,6 +1921,7 @@ def executar_jogo(game_manager=None):
                             vida += (vida_maxima-vida)*quantidade_roubo_vida
                         if Ultimo_Estalo and inimigo["vida"] <= Executa_inimigo * inimigo["vida_maxima"]:
                             if inimigo in inimigos_comum:
+                                registrar_morte_toxica(inimigo)
                                 gerar_fragmentos_morte(inimigo, 3)
                                 inimigos_comum.remove(inimigo)
                             posicao_inimigo = inimigo["rect"].center
@@ -1388,6 +1963,7 @@ def executar_jogo(game_manager=None):
                             posicao_inimigo = inimigo["rect"].center
                             soltar_moeda(posicao_inimigo)
                             Variaveis.tentar_soltar_carta(posicao_inimigo, tempo_atual, Chance_Sorte, inimigos_eliminados)
+                            registrar_morte_toxica(inimigo)
                             gerar_fragmentos_morte(inimigo, 3)
                             inimigos_comum.remove(inimigo)
                             inimigos_eliminados += 1
@@ -1535,10 +2111,13 @@ def executar_jogo(game_manager=None):
 
 
             # Reinicia a animação quando troca de direção para não pular frames
-            if direcao_atual != ultima_direcao_animacao:
+            chave_direcao_animacao = direcao_atual
+            if direcao_atual == 'disp':
+                chave_direcao_animacao = 'disp_left' if math.cos(angulo_disparo_preparado) < 0 else 'disp_right'
+            if chave_direcao_animacao != ultima_direcao_animacao:
                 frame_atual = 0
                 tempo_passado = 0
-                ultima_direcao_animacao = direcao_atual
+                ultima_direcao_animacao = chave_direcao_animacao
 
             if direcao_atual == 'stop':
                 if tempo_passado >= tempo_animacao_stop:
@@ -1559,10 +2138,10 @@ def executar_jogo(game_manager=None):
                 if disparo_frame_atual >= len(frames_animacao['disp']) - 1:
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
-                    disparos.append({
-                        "rect": pygame.Rect(px_centro - largura_disparo // 2, py_centro - altura_disparo // 2, largura_disparo, altura_disparo),
-                        "angulo": angulo_disparo_preparado
-                    })
+                    disparos.append(vfx_disparo_player.criar_disparo(
+                        px_centro, py_centro, largura_disparo, altura_disparo,
+                        angulo_disparo_preparado, velocidade_disparo, tempo_atual, impulsiva_ativa
+                    ))
                     tempo_ultimo_disparo = tempo_atual
                     disparo_preparando = False
                     disparo_frame_atual = 0
@@ -1576,15 +2155,20 @@ def executar_jogo(game_manager=None):
             desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
             if not personagem_doente:
                 frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
+                if direcao_atual == 'disp' and math.cos(angulo_disparo_preparado) < 0:
+                    frame_para_desenhar = pygame.transform.flip(frame_para_desenhar, True, False)
                 if angulo_inclinacao_personagem != 0:
                     # Rotaciona o frame pelo centro para manter o eixo
                     frame_rotacionado = pygame.transform.rotate(frame_para_desenhar, angulo_inclinacao_personagem)
                     novo_rect = frame_rotacionado.get_rect(center=(pos_x_personagem + largura_personagem//2, pos_y_personagem + altura_personagem//2))
-                    tela.blit(frame_rotacionado, novo_rect.topleft)
+                    desenhar_personagem_com_dano(tela, frame_rotacionado, novo_rect.x, novo_rect.y, tempo_atual, tempo_ultimo_hit_inimigo)
                 else:
-                    tela.blit(frame_para_desenhar, (pos_x_personagem, pos_y_personagem))
+                    w_f, h_f = frame_para_desenhar.get_size()
+                    bx = pos_x_personagem + (largura_personagem - w_f) // 2
+                    by = pos_y_personagem + (altura_personagem - h_f)
+                    desenhar_personagem_com_dano(tela, frame_para_desenhar, bx, by, tempo_atual, tempo_ultimo_hit_inimigo)
             else:
-                tela.blit(imagem_personagem_doente, (pos_x_personagem, pos_y_personagem))
+                desenhar_personagem_com_dano(tela, imagem_personagem_doente, pos_x_personagem, pos_y_personagem, tempo_atual, tempo_ultimo_hit_inimigo)
 
             # Desenhar zona de teleporte (se estiver mirando no modo mouse)
             Variaveis.desenhar_zona_teleporte(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, distancia_dash)
@@ -1730,6 +2314,7 @@ def executar_jogo(game_manager=None):
                                 pontuacao_exib += pontos_p
 
                                 if inimigo_mais_proximo in inimigos_comum:
+                                    registrar_morte_toxica(inimigo_mais_proximo)
                                     gerar_fragmentos_morte(inimigo_mais_proximo, 3)
                                     Variaveis.tentar_soltar_carta(inimigo_mais_proximo["rect"].center, tempo_atual, Chance_Sorte, inimigos_eliminados)
                                     inimigos_comum.remove(inimigo_mais_proximo)
@@ -1805,14 +2390,7 @@ def executar_jogo(game_manager=None):
             # Desenhar os disparos normais
             novos_disparos = []
             for disparo in disparos:
-                if "pos_x" not in disparo:
-                    disparo["pos_x"] = float(disparo["rect"].x)
-                if "pos_y" not in disparo:
-                    disparo["pos_y"] = float(disparo["rect"].y)
-                disparo["pos_x"] += velocidade_disparo * math.cos(disparo["angulo"]) * dt
-                disparo["pos_y"] += velocidade_disparo * math.sin(disparo["angulo"]) * dt
-                disparo["rect"].x = int(disparo["pos_x"])
-                disparo["rect"].y = int(disparo["pos_y"])
+                vfx_disparo_player.atualizar_disparo(disparo, velocidade_disparo, dt)
 
                 # Verificar se o disparo está dentro do mapa
                 if 0 <= disparo["rect"].x < largura_mapa and 0 <= disparo["rect"].y < altura_mapa:
@@ -1822,7 +2400,8 @@ def executar_jogo(game_manager=None):
 
             # Renderizar os disparos
             for disparo in disparos:
-                tela.blit(frames_disparo[frame_atual_disparo], disparo["rect"].topleft)
+                vfx_disparo_player.desenhar_disparo(tela, disparo, tempo_atual, config_graficos)
+            vfx_disparo_player.atualizar_e_desenhar_particulas(tela, dt, config_graficos)
 
 
 
@@ -1874,6 +2453,7 @@ def executar_jogo(game_manager=None):
             inimigos_mortos = inimigos_mortos_neste_frame + inimigos_mortos_correntes
             for morto in inimigos_mortos:
                 if morto in inimigos_comum:
+                    registrar_morte_toxica(morto)
                     gerar_fragmentos_morte(morto, 3)
                     Variaveis.tentar_soltar_carta(morto["rect"].center, tempo_atual, Chance_Sorte, inimigos_eliminados)
                     inimigos_comum.remove(morto)
@@ -1909,10 +2489,25 @@ def executar_jogo(game_manager=None):
                     inimigo["pos_y"] = float(inimigo["rect"].y)
                     
                 fator_tempo_mundo = fator_mundo_racional(aurea, racional_dilatacao_fim, tempo_atual)
-                inimigo["pos_x"] += (dx / dist) * 1.70 * fator_tempo_mundo
-                inimigo["pos_y"] += (dy / dist) * 1.50 * fator_tempo_mundo
-                inimigo["rect"].x = int(inimigo["pos_x"])
-                inimigo["rect"].y = int(inimigo["pos_y"])
+                if inimigo.get("tipo") == TIPO_INIMIGO_INCENSARIO:
+                    atualizar_incensario(
+                        inimigo,
+                        (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem),
+                        tempo_atual,
+                        fator_tempo_mundo,
+                    )
+                elif inimigo.get("tipo") == TIPO_INIMIGO_GUARDIAO_SUCATA:
+                    atualizar_guardiao_sucata(
+                        inimigo,
+                        (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem),
+                        fator_tempo_mundo,
+                    )
+                else:
+                    inimigo["pos_x"] += (dx / dist) * inimigo.get("velocidade_x", 1.70) * fator_tempo_mundo
+                    inimigo["pos_y"] += (dy / dist) * inimigo.get("velocidade_y", 1.50) * fator_tempo_mundo
+                    inimigo["rect"].x = int(inimigo["pos_x"])
+                    inimigo["rect"].y = int(inimigo["pos_y"])
+                    registrar_rastro_toxico(inimigo, tempo_atual)
 
             # Resolve colisões e separações entre inimigos e jogador
             pos_x_personagem, pos_y_personagem = Variaveis.resolver_colisao_player_com_inimigos(
@@ -1921,6 +2516,15 @@ def executar_jogo(game_manager=None):
             pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem))
             pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem))
             Variaveis.resolver_colisoes_e_separacao(inimigos_comum, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+
+            personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+            atualizar_rastros_toxicos(personagem_rect, tempo_atual)
+            atualizar_nuvens_miasma(personagem_rect, tempo_atual)
+            atualizar_areas_miasma(personagem_rect, tempo_atual)
+            desenhar_rastros_toxicos(tela, tempo_atual)
+            desenhar_nuvens_miasma(tela, tempo_atual)
+            desenhar_areas_miasma(tela, tempo_atual)
+            atualizar_e_desenhar_feedbacks_bloqueio(tela, tempo_atual)
 
             for inimigo in inimigos_comum:
                 dx = pos_x_personagem - inimigo["rect"].x
@@ -1933,17 +2537,17 @@ def executar_jogo(game_manager=None):
                     inimigo["image"] = frames_inimigo_esquerda3[frame_atual % len(frames_inimigo_esquerda3)]
 
                 # Desenhar sombra do inimigo
-                desenhar_sombra(tela, inimigo["rect"].x, inimigo["rect"].y, largura_inimigo3, altura_inimigo3)
-                tela.blit(inimigo["image"], inimigo["rect"])
-                desenhar_barra_de_vida(tela, inimigo["rect"].x, inimigo["rect"].y - 10, largura_inimigo3, 5, inimigo["vida"], inimigo["vida_maxima"], inimigo.get("eletrocutado", False), Executa_inimigo if Ultimo_Estalo else None)
+                largura_visual = max(1, int(largura_inimigo3 * inimigo.get("escala", 1.0)))
+                altura_visual = max(1, int(altura_inimigo3 * inimigo.get("escala", 1.0)))
+                desenhar_sombra(tela, inimigo["rect"].x, inimigo["rect"].y, largura_visual, altura_visual)
+                desenhar_inimigo(tela, inimigo)
+                desenhar_barra_de_vida(tela, inimigo["rect"].x, inimigo["rect"].y - 10, largura_visual, 5, inimigo["vida"], inimigo["vida_maxima"], inimigo.get("eletrocutado", False), Executa_inimigo if Ultimo_Estalo else None)
 
                 tempo_atual = pygame.time.get_ticks()
-                if tempo_atual - tempo_ultimo_disparo_inimigo >= intervalo_disparo_inimigo and random.random() <= 0.01:  #frequencia do disparo do sinimigos
+                if inimigo.get("tipo") not in (TIPO_INIMIGO_INCENSARIO, TIPO_INIMIGO_GUARDIAO_SUCATA) and tempo_atual - tempo_ultimo_disparo_inimigo >= intervalo_disparo_inimigo and random.random() <= 0.01:  #frequencia do disparo do sinimigos
                     disparos_inimigos.append(criar_disparo_inimigo((inimigo["rect"].x, inimigo["rect"].y), (pos_x_personagem, pos_y_personagem)))
                     tempo_ultimo_disparo_inimigo = tempo_atual  # Atualize o tempo do último disparo
 
-
-            personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
             inimigos_rects = [inimigo["rect"] for inimigo in inimigos_comum]
 
             if imune_tempo_restante > 0:
@@ -1955,7 +2559,9 @@ def executar_jogo(game_manager=None):
             if verificar_colisao_personagem_inimigo(personagem_rect, inimigos_rects) and imune_tempo_restante <= 0:
 
                 if tempo_atual - tempo_ultimo_hit_inimigo >= intervalo_hit_inimigo:
-                    Dano_pos_resistencia_person = int(((vida_maxima * 0.25)+dano_inimigo_perto) - Resistencia)
+                    inimigos_em_contato = [inimigo for inimigo in inimigos_comum if personagem_rect.colliderect(inimigo["rect"])]
+                    multiplicador_dano_contato = max((inimigo.get("dano_multiplicador", 1.0) for inimigo in inimigos_em_contato), default=1.0)
+                    Dano_pos_resistencia_person = int((((vida_maxima * 0.25)+dano_inimigo_perto) - Resistencia) * multiplicador_dano_contato)
                     if aurea == "Vanguarda":
                         for inimigo in inimigos_comum:
                             if personagem_rect.colliderect(inimigo["rect"]):
@@ -1968,6 +2574,15 @@ def executar_jogo(game_manager=None):
                         pass
                     elif Dano_pos_resistencia_person > 0:
                         vida -= Dano_pos_resistencia_person
+                        guardiao_em_contato = next((inimigo for inimigo in inimigos_em_contato if inimigo.get("tipo") == TIPO_INIMIGO_GUARDIAO_SUCATA), None)
+                        if guardiao_em_contato:
+                            empurrao_x = (pos_x_personagem + largura_personagem // 2) - guardiao_em_contato["rect"].centerx
+                            empurrao_y = (pos_y_personagem + altura_personagem // 2) - guardiao_em_contato["rect"].centery
+                            dist_empurrao = max(1.0, math.hypot(empurrao_x, empurrao_y))
+                            pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem + int((empurrao_x / dist_empurrao) * 14)))
+                            pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem + int((empurrao_y / dist_empurrao) * 14)))
+                            personagem_rect.x = pos_x_personagem
+                            personagem_rect.y = pos_y_personagem
                         if aurea == "Impulsiva":
                             eliminacoes_consecutivas_impulsiva = 0  # Perde streak se levar dano
                         eliminacoes_consecutivas = 0
@@ -2009,7 +2624,7 @@ def executar_jogo(game_manager=None):
                         if escudo_devota_ativo:
                             escudo_devota_ativo= False
                             pass
-                        else:
+                        elif imune_tempo_restante <= 0:
 
                             vida -=Dano_pos_resistencia_person_longe
                             eliminacoes_consecutivas = 0
@@ -2213,7 +2828,7 @@ def executar_jogo(game_manager=None):
                             tempo_texto_dano = pygame.time.get_ticks()
                             dano = dano_boss_mitigado(dano, 3, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                             vida_boss3 -= dano
-                            disparos.remove(disparo)
+                            estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
 
                             # Roubo de vida
                             if quantidade_roubo_vida > 0:
@@ -2299,7 +2914,8 @@ def executar_jogo(game_manager=None):
 
                         if rect_disparo_boss.colliderect(rect_personagem):
                             Frascos.play()
-                            vida -= int(vida_maxima*0.25)+450
+                            if imune_tempo_restante <= 0:
+                                vida -= int(vida_maxima*0.25)+450
                             disparos_boss3.remove(disparo)  # Remova o disparo após colisão
 
 
@@ -2358,7 +2974,7 @@ def executar_jogo(game_manager=None):
                                 # Reduza a vida do queijo com base no dano do disparo
                                 vida_queijo -= 5
                                 # Remova o disparo
-                                disparos.remove(disparo)
+                                estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
                                 # Verifique se a vida do queijo chegou a zero
                                 if vida_queijo <= 5:
                                     queijo_geracao+=1
@@ -2421,7 +3037,7 @@ def executar_jogo(game_manager=None):
                                 # Reduza a vida do queijo com base no dano do disparo
                                 vida_queijo -= 5
                                 # Remova o disparo
-                                disparos.remove(disparo)
+                                estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
                                 # Verifique se a vida do queijo chegou a zero
                                 if vida_queijo <= 5:
                                     queijo_geracao+=1
@@ -2484,7 +3100,7 @@ def executar_jogo(game_manager=None):
                                 # Reduza a vida do queijo com base no dano do disparo
                                 vida_queijo -= 5
                                 # Remova o disparo
-                                disparos.remove(disparo)
+                                estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
                                 # Verifique se a vida do queijo chegou a zero
                                 if vida_queijo <= 5:
                                     queijo_geracao+=1
@@ -2546,7 +3162,7 @@ def executar_jogo(game_manager=None):
                                 # Reduza a vida do queijo com base no dano do disparo
                                 vida_queijo -= 5
                                 # Remova o disparo
-                                disparos.remove(disparo)
+                                estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
                                 # Verifique se a vida do queijo chegou a zero
                                 if vida_queijo <= 5:
                                     queijo_geracao+=1
@@ -2608,7 +3224,7 @@ def executar_jogo(game_manager=None):
                                 # Reduza a vida do queijo com base no dano do disparo
                                 vida_queijo -= 10
                                 # Remova o disparo
-                                disparos.remove(disparo)
+                                estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
                                 # Verifique se a vida do queijo chegou a zero
                                 if vida_queijo <= 5:
                                     queijo_geracao+=1
@@ -2910,6 +3526,9 @@ def executar_jogo(game_manager=None):
                     trembo = stats_jogador["trembo"]; cartas_compradas = stats_jogador["cartas_compradas"]
 
 
+            Variaveis.desenhar_refragmentacao_rewind(tela, tempo_atual)
+            Variaveis.desenhar_overlay_vida_critica(tela, vida, vida_maxima, tempo_atual)
+
             desenhar_hud_fase(
                 tela, vida, vida_maxima, pontuacao_exib, custo_carta_atual,
                 pontuacao_magia, cooldowns, dispositivo_ativo,
@@ -2917,6 +3536,8 @@ def executar_jogo(game_manager=None):
                 escudo_devota_ativo, pos_x_personagem, pos_y_personagem,
                 largura_personagem, altura_personagem
             )
+
+            Variaveis.aplicar_tremor_dano_tela(tela, tempo_atual, tempo_ultimo_hit_inimigo, piscando_vida)
 
             tela.blit(cursor_imagem, (mouse_x, mouse_y))    
 

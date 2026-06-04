@@ -18,6 +18,8 @@ _stage = {
     "orig_flip": None,
 }
 
+_MIN_LARGURA_HUD_FULLSCREEN = 150
+
 def get_cached_font(caminho, tamanho):
     key = (caminho, tamanho)
     if key not in _font_cache:
@@ -80,8 +82,14 @@ def ativar_palco_fullscreen(largura_jogo, altura_jogo):
         _stage["orig_flip"] = pygame.display.flip
 
     display = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+    pygame.mouse.set_visible(False)
     screen_w, screen_h = display.get_size()
     escala = min(screen_w / largura_jogo, screen_h / altura_jogo)
+
+    if screen_w >= largura_jogo + (_MIN_LARGURA_HUD_FULLSCREEN * 2):
+        largura_maxima_jogo = screen_w - (_MIN_LARGURA_HUD_FULLSCREEN * 2)
+        escala = min(escala, largura_maxima_jogo / largura_jogo)
+
     dst_w = max(1, int(largura_jogo * escala))
     dst_h = max(1, int(altura_jogo * escala))
     dst_rect = pygame.Rect((screen_w - dst_w) // 2, (screen_h - dst_h) // 2, dst_w, dst_h)
@@ -134,6 +142,16 @@ def _desenhar_moldura(surface, rect, lado):
     pygame.draw.line(painel, (0, 255, 220), (borda_x, 0), (borda_x, rect.height), 4)
     pygame.draw.line(painel, (255, 255, 255, 30), (borda_x + (1 if lado == "direita" else -1), 0), (borda_x + (1 if lado == "direita" else -1), rect.height), 1)
     surface.blit(painel, rect.topleft)
+
+def _desenhar_fundo_palco(surface):
+    largura, altura = surface.get_size()
+    surface.fill((8, 7, 16))
+    tempo = pygame.time.get_ticks() * 0.001
+    for y in range(-40, altura + 40, 40):
+        yy = int((y + tempo * 18) % (altura + 40) - 20)
+        pygame.draw.line(surface, (5, 34, 43), (0, yy), (largura, yy), 1)
+    for x in range(0, largura, 40):
+        pygame.draw.line(surface, (4, 27, 36), (x, 0), (x, altura), 1)
 
 def _desenhar_barra_sidebar(surface, x, y, w, h, atual, maximo, cor):
     maximo = max(1.0, float(maximo))
@@ -332,6 +350,7 @@ def desenhar_efeitos_vanguarda(
     duracao_incendio_ms=5000,
     aurea=None,
     config_graficos=None,
+    aura_fogo_fim_ms=0,
 ):
     if surface is None or str(aurea).strip().lower() != "vanguarda":
         return
@@ -359,16 +378,23 @@ def desenhar_efeitos_vanguarda(
     inimigos = inimigos or []
     inimigos_em_chamas = inimigos_em_chamas or {}
     inimigos_proximos = []
+    ha_inimigo_queimando = False
 
     for inimigo in inimigos:
         rect = inimigo.get("rect") if isinstance(inimigo, dict) else None
         if rect is None or inimigo.get("invisivel", False):
             continue
+        chave_chamas = inimigo.get("_vanguarda_id", id(inimigo))
+        inicio_chamas = inimigos_em_chamas.get(chave_chamas)
+        if inicio_chamas is not None and agora - inicio_chamas <= duracao_incendio_ms:
+            ha_inimigo_queimando = True
         dist = math.hypot(rect.centerx - centro_x, rect.centery - centro_y)
         if dist <= alcance + max(rect.width, rect.height) * 0.4:
             inimigos_proximos.append(inimigo)
 
-    if inimigos_proximos:
+    raio_fogo_ativo = agora < aura_fogo_fim_ms or ha_inimigo_queimando
+
+    if raio_fogo_ativo:
         margem = alcance + 28
         zona = pygame.Surface((margem * 2, margem * 2), pygame.SRCALPHA)
         zc = margem
@@ -408,7 +434,8 @@ def desenhar_efeitos_vanguarda(
         rect = inimigo.get("rect") if isinstance(inimigo, dict) else None
         if rect is None:
             continue
-        inicio = inimigos_em_chamas.get(id(inimigo))
+        chave_chamas = inimigo.get("_vanguarda_id", id(inimigo))
+        inicio = inimigos_em_chamas.get(chave_chamas)
         if inicio is None or agora - inicio > duracao_incendio_ms:
             continue
 
@@ -418,7 +445,7 @@ def desenhar_efeitos_vanguarda(
         oy = 18
         fogo.fill((255, 72, 0, int(18 + 22 * restante)), pygame.Rect(ox, oy, rect.width, rect.height), special_flags=pygame.BLEND_RGBA_ADD)
 
-        seed = id(inimigo) % 997
+        seed = chave_chamas % 997
         for i in range(max_chamas):
             fase = (agora * 0.006 + seed * 0.01 + i * 0.37) % 1.0
             fx = ox + int(rect.width * ((i + fase) / max(1, max_chamas)))
@@ -455,12 +482,19 @@ def racional_dilatacao_ativa(aurea, fim_ms, agora_ms=None):
 
 RACIONAL_DILATACAO_DURACAO_MS = 8000
 RACIONAL_DILATACAO_COOLDOWN_MS = 30000
+RACIONAL_REBOTE_DURACAO_MS = 3000
 
 def tentar_ativar_dilatacao_racional(aurea, agora_ms, proximo_uso_ms=0):
     if str(aurea).strip().lower() != "racional" or agora_ms < proximo_uso_ms:
         return None, proximo_uso_ms
     fim_ms = agora_ms + RACIONAL_DILATACAO_DURACAO_MS
     return fim_ms, fim_ms + RACIONAL_DILATACAO_COOLDOWN_MS
+
+def racional_rebote_ativo(aurea, fim_ms, agora_ms=None):
+    if str(aurea).strip().lower() != "racional" or fim_ms <= 0:
+        return False
+    agora_ms = pygame.time.get_ticks() if agora_ms is None else agora_ms
+    return fim_ms <= agora_ms < fim_ms + RACIONAL_REBOTE_DURACAO_MS
 
 def fator_movimento_racional(aurea, fim_ms, agora_ms=None):
     return 1.35 if racional_dilatacao_ativa(aurea, fim_ms, agora_ms) else 1.0
@@ -471,7 +505,137 @@ def intervalo_disparo_racional(intervalo_base, aurea, fim_ms, agora_ms=None):
     return max(50, int(intervalo_base * 0.72))
 
 def fator_mundo_racional(aurea, fim_ms, agora_ms=None):
-    return 0.42 if racional_dilatacao_ativa(aurea, fim_ms, agora_ms) else 1.0
+    if racional_dilatacao_ativa(aurea, fim_ms, agora_ms):
+        return 0.42
+    if racional_rebote_ativo(aurea, fim_ms, agora_ms):
+        return 1.5
+    return 1.0
+
+IMPULSIVA_ABATES_POR_CICLO = 5
+IMPULSIVA_DURACAO_BASE_MS = 3000
+IMPULSIVA_DURACAO_POR_UPGRADE_MS = 500
+IMPULSIVA_DANO_BASE = 1.3
+IMPULSIVA_VELOCIDADE_BASE = 1.2
+
+def criar_estado_impulsiva():
+    return {
+        "ativa": False,
+        "nivel": 0,
+        "fim_ms": 0,
+        "panico_nivel": 0,
+    }
+
+def _duracao_impulsiva_ms(nivel_upgrade=0):
+    return IMPULSIVA_DURACAO_BASE_MS + int(max(0, nivel_upgrade) * IMPULSIVA_DURACAO_POR_UPGRADE_MS)
+
+def atualizar_ciclo_impulsiva(aurea, estado, abates_ciclo, agora_ms, nivel_upgrade=0):
+    eventos = []
+    if str(aurea).strip().lower() != "impulsiva":
+        estado.update({"ativa": False, "nivel": 0, "fim_ms": 0, "panico_nivel": 0})
+        return 0, eventos
+
+    if estado.get("ativa") and agora_ms >= estado.get("fim_ms", 0):
+        estado.update({"ativa": False, "nivel": 0, "fim_ms": 0})
+        abates_ciclo = 0
+        eventos.append({"tipo": "fim"})
+
+    duracao = _duracao_impulsiva_ms(nivel_upgrade)
+    while abates_ciclo >= IMPULSIVA_ABATES_POR_CICLO:
+        abates_ciclo -= IMPULSIVA_ABATES_POR_CICLO
+        if not estado.get("ativa"):
+            estado["ativa"] = True
+            estado["nivel"] = max(1, int(estado.get("nivel", 0)))
+            estado["fim_ms"] = agora_ms + duracao
+            eventos.append({"tipo": "ativou", "nivel": estado["nivel"]})
+            continue
+
+        sobra = estado.get("fim_ms", 0) - agora_ms
+        if sobra >= 1000:
+            estado["nivel"] = int(estado.get("nivel", 0)) + 1
+            eventos.append({"tipo": "ascendeu", "nivel": estado["nivel"]})
+        else:
+            eventos.append({"tipo": "renovou", "nivel": estado["nivel"]})
+        estado["fim_ms"] = agora_ms + duracao
+
+    return abates_ciclo, eventos
+
+def fator_dano_impulsiva(aurea, estado):
+    if str(aurea).strip().lower() != "impulsiva" or not estado.get("ativa"):
+        return 1.0
+    return IMPULSIVA_DANO_BASE * (1.0 + 0.15 * int(estado.get("nivel", 0)))
+
+def fator_velocidade_impulsiva(aurea, estado):
+    if str(aurea).strip().lower() != "impulsiva" or not estado.get("ativa"):
+        return 1.0
+    return IMPULSIVA_VELOCIDADE_BASE * (1.0 + 0.15 * int(estado.get("nivel", 0)))
+
+def quebrar_frenesi_impulsiva(aurea, estado):
+    if str(aurea).strip().lower() != "impulsiva" or not estado.get("ativa"):
+        return 0
+    nivel = max(1, int(estado.get("nivel", 0)))
+    estado.update({"ativa": False, "nivel": 0, "fim_ms": 0, "panico_nivel": nivel})
+    return nivel
+
+def consumir_multiplicador_panico_impulsiva(aurea, estado):
+    if str(aurea).strip().lower() != "impulsiva":
+        return 1.0
+    nivel = int(estado.get("panico_nivel", 0))
+    if nivel <= 0:
+        return 1.0
+    estado["panico_nivel"] = 0
+    return 2.0 + 0.5 * nivel
+
+DEVOTA_CARGAS_ESCUDO = 3
+DEVOTA_DURACAO_EFEITOS_MS = 4000
+
+def criar_estado_devota(ativa=False, agora_ms=0):
+    return {
+        "cargas": DEVOTA_CARGAS_ESCUDO if ativa else 0,
+        "debuff_velocidade_fim_ms": 0,
+        "buff_dano_fim_ms": 0,
+    }
+
+def restaurar_escudo_devota(estado):
+    estado["cargas"] = DEVOTA_CARGAS_ESCUDO
+
+def absorver_hit_devota(aurea, escudo_ativo, estado, agora_ms):
+    if str(aurea).strip().lower() != "devota" or not escudo_ativo:
+        return False, escudo_ativo, False
+    estado["cargas"] = max(0, int(estado.get("cargas", DEVOTA_CARGAS_ESCUDO)) - 1)
+    quebrado = estado["cargas"] <= 0
+    if quebrado:
+        escudo_ativo = False
+        estado["debuff_velocidade_fim_ms"] = agora_ms + DEVOTA_DURACAO_EFEITOS_MS
+        estado["buff_dano_fim_ms"] = agora_ms + DEVOTA_DURACAO_EFEITOS_MS
+    return True, escudo_ativo, quebrado
+
+def fator_velocidade_devota(aurea, estado, agora_ms=None):
+    agora_ms = pygame.time.get_ticks() if agora_ms is None else agora_ms
+    if str(aurea).strip().lower() == "devota" and agora_ms < estado.get("debuff_velocidade_fim_ms", 0):
+        return 0.7
+    return 1.0
+
+def fator_dano_devota(aurea, estado, agora_ms=None):
+    agora_ms = pygame.time.get_ticks() if agora_ms is None else agora_ms
+    if str(aurea).strip().lower() == "devota" and agora_ms < estado.get("buff_dano_fim_ms", 0):
+        return 2.0
+    return 1.0
+
+def contar_inimigos_em_chamas_ativos(inimigos, inimigos_em_chamas, duracao_incendio_ms, agora_ms=None):
+    agora_ms = pygame.time.get_ticks() if agora_ms is None else agora_ms
+    total = 0
+    for inimigo in inimigos or []:
+        chave_chamas = inimigo.get("_vanguarda_id", id(inimigo)) if isinstance(inimigo, dict) else id(inimigo)
+        inicio = (inimigos_em_chamas or {}).get(chave_chamas)
+        if inicio is not None and agora_ms - inicio <= duracao_incendio_ms:
+            total += 1
+    return total
+
+def cooldown_teleporte_vanguarda(base_ms, aurea, inimigos, inimigos_em_chamas, duracao_incendio_ms, agora_ms=None):
+    if str(aurea).strip().lower() != "vanguarda":
+        return base_ms
+    queimando = contar_inimigos_em_chamas_ativos(inimigos, inimigos_em_chamas, duracao_incendio_ms, agora_ms)
+    return int(base_ms * (1.0 + 0.15 * queimando))
 
 def desenhar_efeito_racional_dilatacao(
     surface,
@@ -606,12 +770,14 @@ def _desenhar_hud_molduras(display):
     _desenhar_moldura(display, left, "esquerda")
     _desenhar_moldura(display, right, "direita")
 
-    font_titulo = get_cached_font(None, 24)
-    font_valor = get_cached_font(None, 22)
-    font_peq = get_cached_font(None, 16)
+    painel_min = min(left.width, right.width)
+    fonte_ajustada = painel_min < 170
+    font_titulo = get_cached_font(None, 22 if fonte_ajustada else 24)
+    font_valor = get_cached_font(None, 20 if fonte_ajustada else 22)
+    font_peq = get_cached_font(None, 14 if fonte_ajustada else 16)
 
     if left.width >= 120:
-        pad = 18
+        pad = 14 if left.width < 170 else 18
         w = left.width - pad * 2
         _texto_contorno(display, font_peq, "VIDA", (0, 255, 204), (pad, 36))
         _texto_contorno(display, font_valor, f"{int(max(0, hud['vida']))}/{int(max(1, hud['vida_maxima']))}", (255, 255, 255), (pad, 60))
@@ -641,7 +807,7 @@ def _desenhar_hud_molduras(display):
         _texto_contorno(display, font_valor, tempo_txt, (255, 255, 255), (pad, 360))
 
     if right.width >= 120:
-        pad = 18
+        pad = 14 if right.width < 170 else 18
         x0 = right.x + pad
         w = right.width - pad * 2
         modo_drops = False
@@ -672,7 +838,7 @@ def _desenhar_hud_molduras(display):
             teclas.append(("LOJA", "Y" if hud["dispositivo_ativo"] != "teclado" else Variaveis.formatar_nome_tecla(Variaveis.config_teclas.get("Comprar na loja", pygame.K_e)), Variaveis.icone_loja, Variaveis.icone_loja_pronto, hud["cooldowns"].get("loja", 0.0)))
 
         y = 178
-        icon_size = 42 if right.width < 190 else 50
+        icon_size = 38 if right.width < 170 else (42 if right.width < 190 else 50)
         for nome, tecla, pronto, recarga, cd in teclas:
             if nome == "LOJA":
                 icone = recarga if cd > 0 else pronto
@@ -697,7 +863,7 @@ def _flip_palco():
     if not _stage["active"]:
         return _stage["orig_flip"]()
     display = _stage["display"]
-    display.fill((0, 0, 0))
+    _desenhar_fundo_palco(display)
     _desenhar_moldura(display, pygame.Rect(0, 0, _stage["dst_rect"].x, display.get_height()), "esquerda")
     _desenhar_moldura(display, pygame.Rect(_stage["dst_rect"].right, 0, display.get_width() - _stage["dst_rect"].right, display.get_height()), "direita")
     scaled = pygame.transform.smoothscale(_stage["game_surface"], _stage["dst_rect"].size)

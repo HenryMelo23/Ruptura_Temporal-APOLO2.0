@@ -206,10 +206,13 @@ def configurar_tela(largura, altura):
         tela_cheia = False
 
     if tela_cheia:
-        return ativar_palco_fullscreen(largura, altura)
+        tela = ativar_palco_fullscreen(largura, altura)
+        pygame.mouse.set_visible(False)
+        return tela
 
     desativar_palco()
     tela = pygame.display.set_mode((largura, altura))
+    pygame.mouse.set_visible(False)
     return tela
 
 
