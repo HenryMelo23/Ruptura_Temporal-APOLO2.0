@@ -29,6 +29,7 @@ from balanceamento import (
     incremento_carta_dano,
     incremento_dano_carta_critico,
     incremento_sorte_carta,
+    intervalo_drop_certeiro_ms,
     limiar_execucao_boss,
     vida_inicial_boss,
     CURATER_CHANCE_SPAWN,
@@ -1812,13 +1813,15 @@ def obter_tempo_decorrido():
 
 def definir_tempo_cronometro(segundos):
 
-    global tempo_acumulado, tempo_inicial, cronometro_pausado
+    global tempo_acumulado, tempo_inicial, cronometro_pausado, ultimo_drop_carta_ms
 
     tempo_acumulado = max(0.0, float(segundos or 0))
 
     tempo_inicial = time.time()
 
     cronometro_pausado = False
+
+    ultimo_drop_carta_ms = min(ultimo_drop_carta_ms, tempo_acumulado * 1000.0)
 
 
 
@@ -3613,6 +3616,7 @@ def desenhar_zona_teleporte(tela, player_x, player_y, player_w, player_h, max_di
 # Variables and functions for Random Card Drops Mode
 
 cartas_no_chao = []
+ultimo_drop_carta_ms = 0.0
 
 
 
@@ -3663,6 +3667,8 @@ def limpar_cartas_no_chao():
 
 def tentar_soltar_carta(posicao, tempo_atual, chance_sorte_jogador, inimigos_eliminados):
 
+    global ultimo_drop_carta_ms
+
     if obter_modo_cartas() != "drops":
 
         return
@@ -3675,8 +3681,10 @@ def tentar_soltar_carta(posicao, tempo_atual, chance_sorte_jogador, inimigos_eli
 
     # A chance real por inimigo escala ate 40% em 2 horas; Sorte pode superar esse teto.
     chance_drop = chance_drop_carta_por_tempo(tempo_drop_ms, chance_sorte_jogador)
+    intervalo_certeiro_ms = intervalo_drop_certeiro_ms(chance_drop)
+    drop_certeiro = tempo_drop_ms - ultimo_drop_carta_ms >= intervalo_certeiro_ms
 
-    if random.random() < chance_drop:
+    if drop_certeiro or random.random() < chance_drop:
 
         all_cards = list(cartas_imagens.keys())
 
@@ -3711,6 +3719,8 @@ def tentar_soltar_carta(posicao, tempo_atual, chance_sorte_jogador, inimigos_eli
             "tempo_desaparecer": tempo_atual + 4000  # disappears after 4 seconds
 
         })
+
+        ultimo_drop_carta_ms = tempo_drop_ms
 
 
 
@@ -4260,7 +4270,7 @@ def reset_game_session():
 
     global roubo_de_vida, quantidade_roubo_vida, Mercenaria_Active, Valor_Bonus
 
-    global Tempo_cura, porcentagem_cura, tempo_ultima_regeneracao, cartas_compradas
+    global Tempo_cura, porcentagem_cura, tempo_ultima_regeneracao, cartas_compradas, ultimo_drop_carta_ms
 
     global trembo, Petro_active, vida_petro, vida_maxima_petro, dano_petro, Resistencia_petro, petro_evolucao
 
@@ -4287,6 +4297,8 @@ def reset_game_session():
     tempo_inicial = time.time()
 
     cronometro_pausado = False
+
+    ultimo_drop_carta_ms = 0.0
 
     r_press = False
 

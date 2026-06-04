@@ -18,6 +18,8 @@ DROP_CARTA_BASE_MAXIMA = 0.40
 DROP_CARTA_ESCALA_TEMPO_MS = 120 * 60 * 1000
 DROP_CARTA_SORTE_FATOR = 0.25
 DROP_CARTA_SORTE_TETO = 0.70
+DROP_CARTA_CERTEIRO_BASE_MS = 90 * 1000
+DROP_CARTA_CERTEIRO_MAX_MS = 5 * 60 * 1000
 
 VIDA_INIMIGO_HARD_MULTIPLICADOR = 0.90
 GANHO_VIDA_INIMIGO_HARD_MULTIPLICADOR = 0.84
@@ -98,6 +100,19 @@ def chance_drop_carta_por_tempo(tempo_ms, chance_sorte):
         chance_sorte,
         fator=DROP_CARTA_SORTE_FATOR,
         teto=DROP_CARTA_SORTE_TETO,
+    )
+
+
+def intervalo_drop_certeiro_ms(chance_drop):
+    progresso = _clamp(
+        (float(chance_drop or 0.0) - DROP_CARTA_BASE_INICIAL)
+        / (DROP_CARTA_SORTE_TETO - DROP_CARTA_BASE_INICIAL),
+        0.0,
+        1.0,
+    )
+    return int(
+        DROP_CARTA_CERTEIRO_BASE_MS
+        + (DROP_CARTA_CERTEIRO_MAX_MS - DROP_CARTA_CERTEIRO_BASE_MS) * progresso
     )
 
 

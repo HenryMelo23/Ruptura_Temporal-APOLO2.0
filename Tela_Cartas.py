@@ -184,43 +184,42 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
 
     def obter_cartas_disponiveis(cartas, cartas_compradas, qtd=3):
         rare_names = CARTAS_RARAS
-        
-        # pool preference for unbought cards
-        pool_nao_compradas = [c for c in cartas if cartas_compradas.get(c["nome"], 0) == 0]
-        pool_compradas = [c for c in cartas if cartas_compradas.get(c["nome"], 0) > 0]
-        
-        # Partition
-        rares_pref = [c for c in pool_nao_compradas if c["nome"] in rare_names]
-        commons_pref = [c for c in pool_nao_compradas if c["nome"] not in rare_names]
-        
-        rares_fallback = [c for c in pool_compradas if c["nome"] in rare_names]
-        commons_fallback = [c for c in pool_compradas if c["nome"] not in rare_names]
+        rares = [c for c in cartas if c["nome"] in rare_names]
+        commons = [c for c in cartas if c["nome"] not in rare_names]
         
         selecionadas = []
-        
+
         chance_efetiva = chance_carta_rara(Chance_Sorte, cartas_compradas)
-        
-        def pop_card(rares, commons):
-            if not rares and not commons:
+
+        def pop_random(pool):
+            if not pool:
                 return None
-            if rares and (not commons or random.random() < chance_efetiva):
-                choice = random.choice(rares)
-                rares.remove(choice)
-                return choice
-            else:
-                choice = random.choice(commons)
-                commons.remove(choice)
-                return choice
-                
-        for _ in range(qtd):
-            card = pop_card(rares_pref, commons_pref)
+            choice = random.choice(pool)
+            pool.remove(choice)
+            return choice
+
+        def pop_rare():
+            return pop_random(rares)
+
+        def pop_common():
+            return pop_random(commons)
+
+        # Sem preferencia por historico: cada oferta faz uma rolagem de rara
+        # e as comuns sao sorteadas da mesma urna, compradas ou nao.
+        if random.random() < chance_efetiva:
+            card = pop_rare()
             if card:
                 selecionadas.append(card)
-            else:
-                card = pop_card(rares_fallback, commons_fallback)
-                if card:
-                    selecionadas.append(card)
-                    
+
+        while len(selecionadas) < qtd:
+            card = pop_common()
+            if not card:
+                card = pop_rare()
+            if not card:
+                break
+            selecionadas.append(card)
+
+        random.shuffle(selecionadas)
         return selecionadas
 
     cartas_selecionadas = obter_cartas_disponiveis(cartas, cartas_compradas, 3)
