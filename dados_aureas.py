@@ -5,7 +5,8 @@ AUREAS_DADOS = [
         "id": "Racional",
         "nome": "RACIONAL",
         "categoria": "Analise e Precisao Temporal",
-        "descricao": "Como funciona: ficar totalmente imovel por 5s gera pontos bonus. Ao usar o Teleporte, a Dilatacao Temporal pode ativar: por 8s o mundo desacelera e Apolo age melhor. Quando acaba, o Efeito Elastico desfaz o controle e todos os inimigos aceleram +50% por 3s; depois voltam ao normal.",
+        "descricao": "Utilidade: controle de ritmo e reposicionamento seguro. Ficar totalmente imovel por 5s gera pontos bonus (+3 + nivel). Ao usar Teleporte com a recarga pronta, ativa Dilatacao Temporal por 8s: inimigos e projeteis ficam 58% mais lentos, Apolo ganha +35% de movimento e atira 28% mais rapido. Quando acaba, vem o Rebote por 3s: inimigos/projeteis aceleram 50%.",
+        "resumo": "Controle de ritmo: ficar imovel gera pontos; Teleporte pronto desacelera inimigos/projeteis e acelera Apolo por 8s. Depois ha Rebote: inimigos aceleram por 3s.",
         "lore": "\"A mente fria nao preve o futuro. Ela obriga o futuro a se revelar.\"",
         "imagem_path": "Sprites/aurea_cientista.png",
         "cor": (0, 180, 255),
@@ -17,13 +18,19 @@ AUREAS_DADOS = [
             3: "Parado 5s: +6 pontos. Teleporte ativa 8s de lentidao global; ao desfazer, inimigos +50% por 3s.",
             4: "Parado 5s: +7 pontos. Teleporte ativa 8s de lentidao global; ao desfazer, inimigos +50% por 3s.",
             5: "Parado 5s: +8 pontos. Teleporte ativa 8s de lentidao global; ao desfazer, inimigos +50% por 3s."
-        }
+        },
+        "destaques": [
+            "- Fique parado 5s para ganhar pontuacao bonus.",
+            "- Teleporte pronto: 8s de mundo lento e Apolo mais rapido.",
+            "- Custo: depois da Dilatacao, inimigos aceleram por 3s."
+        ]
     },
     {
         "id": "Impulsiva",
         "nome": "IMPULSIVA",
         "categoria": "Agressividade e Velocidade",
-        "descricao": "Como funciona: 5 abates ativam Frenesi, dando dano e velocidade. Mais 5 abates antes do timer acabar mantem o estado; se sobrarem pelo menos 1s, o nivel de Frenesi sobe e os multiplicadores crescem. Se o timer zerar, o Frenesi some sem punicao. Se Apolo levar hit durante o Frenesi, ele quebra na hora e arma Panico: o proximo dano recebido escala pelo nivel alcancado.",
+        "descricao": "Utilidade: agressao continua e limpeza rapida de grupos. A cada 5 abates sem sofrer dano, ativa um Frenesi temporario ligado a dano e/ou velocidade. Nas fases com sistema completo, renovar com tempo sobrando aumenta o nivel do Frenesi e os multiplicadores; se Apolo levar hit durante o Frenesi, ele quebra e arma Panico, fazendo o proximo dano recebido escalar pelo nivel alcancado.",
+        "resumo": "Agressao continua: 5 abates sem dano ativam Frenesi de dano/velocidade. Manter sequencia renova o efeito; sofrer hit quebra a pressao.",
         "lore": "\"A hesitacao e uma fresta pela qual o tempo escorre. Nao pense, aja.\"",
         "imagem_path": "Sprites/aurea_impulsiva.png",
         "cor": (255, 60, 60),
@@ -35,13 +42,19 @@ AUREAS_DADOS = [
             3: "Frenesi dura 4.5s. A cada ciclo de 5 abates: renova; com 1s sobrando: sobe nivel. Hit sofrido quebra e arma Panico.",
             4: "Frenesi dura 5.0s. A cada ciclo de 5 abates: renova; com 1s sobrando: sobe nivel. Hit sofrido quebra e arma Panico.",
             5: "Frenesi dura 5.5s. A cada ciclo de 5 abates: renova; com 1s sobrando: sobe nivel. Hit sofrido quebra e arma Panico."
-        }
+        },
+        "destaques": [
+            "- 5 abates sem dano ativam Frenesi.",
+            "- Frenesi melhora dano/velocidade e favorece jogo agressivo.",
+            "- Custo: sofrer hit quebra a sequencia; no sistema completo arma Panico."
+        ]
     },
     {
         "id": "Devota",
         "nome": "DEVOTA",
         "categoria": "Protecao e Sobrevivencia",
-        "descricao": "Como funciona: a aura cria um escudo com 3 cargas, e cada carga anula totalmente 1 hit. Quando a terceira carga quebra, o escudo se desfaz e Apolo entra em sobrecarga por 4s: -30% velocidade e 2x dano causado. Ao fim da recarga, o escudo volta com 3 cargas novas.",
+        "descricao": "Utilidade: sobreviver a erro, colisao ou disparo perigoso. A aura cria um escudo automatico que anula dano quando esta ativo e depois entra em recarga reduzida por upgrade. Nas fases com sistema completo, o escudo tem 3 cargas; ao quebrar a ultima, Apolo fica 30% mais lento por 4s, mas causa 2x dano no mesmo periodo.",
+        "resumo": "Sobrevivencia: escudo automatico anula dano quando ativo e recarrega sozinho. Upgrade reduz a recarga; sistema completo usa 3 cargas.",
         "lore": "\"O tempo e a melhor armadura. Ele consome tudo, exceto a fe.\"",
         "imagem_path": "Sprites/aurea_devota.png",
         "cor": (255, 200, 0),
@@ -53,13 +66,19 @@ AUREAS_DADOS = [
             3: "3 cargas anulam 3 hits. Na quebra: -30% velocidade e 2x dano por 4s. Depois recarrega em 21s.",
             4: "3 cargas anulam 3 hits. Na quebra: -30% velocidade e 2x dano por 4s. Depois recarrega em 18s.",
             5: "3 cargas anulam 3 hits. Na quebra: -30% velocidade e 2x dano por 4s. Depois recarrega em 15s."
-        }
+        },
+        "destaques": [
+            "- Escudo automatico bloqueia dano quando esta ativo.",
+            "- Upgrade reduz a recarga, de 27s ate 15s.",
+            "- Sistema completo: 3 cargas; quebra final da -30% velocidade e 2x dano."
+        ]
     },
     {
         "id": "Vanguarda",
         "nome": "VANGUARDA",
         "categoria": "Dominio de Area e Incendio",
-        "descricao": "Como funciona: ao sofrer hit, Apolo ativa um circulo de fogo pulsante por 5s. O raio incendeia inimigos ao redor enquanto esta ativo; inimigos queimando continuam marcados ate a queimadura acabar. Cada inimigo queimando aumenta o cooldown do Teleporte em 15%. Quando nao ha circulo ativo nem inimigos queimando, o fogo desaparece.",
+        "descricao": "Utilidade: transformar proximidade perigosa em dano de area. Inimigos tocados ou proximos podem ficar em chamas e sofrem dano por segundo baseado em vida maxima. Nas fases com sistema completo, sofrer hit ativa um circulo de fogo por 5s que incendeia alvos ao redor. Upgrade aumenta a duracao da queimadura; cada inimigo queimando aumenta o cooldown do Teleporte em 15%.",
+        "resumo": "Area e queimadura: inimigos proximos/tocados podem pegar fogo e tomar dano continuo. Upgrade aumenta a duracao; queimando aumenta cooldown do Teleporte.",
         "lore": "\"A marcha do progresso nao pode ser contida por meros segundos.\"",
         "imagem_path": "Sprites/aurea_vanguarda.png",
         "cor": (230, 0, 230),
@@ -71,7 +90,12 @@ AUREAS_DADOS = [
             3: "Hit recebido desenha fogo por 5s. Queimadura dura 8s. Cada inimigo queimando: Teleporte +15%.",
             4: "Hit recebido desenha fogo por 5s. Queimadura dura 9s. Cada inimigo queimando: Teleporte +15%.",
             5: "Hit recebido desenha fogo por 5s. Queimadura dura 10s. Cada inimigo queimando: Teleporte +15%."
-        }
+        },
+        "destaques": [
+            "- Inimigos proximos/tocados podem queimar.",
+            "- Queimadura causa dano por segundo e dura mais com upgrade.",
+            "- Custo: cada inimigo queimando aumenta o cooldown do Teleporte em 15%."
+        ]
     }
 ]
 

@@ -102,17 +102,15 @@ Hit_inimigo1 = aplicar_volume_som(pygame.mixer.Sound("Sounds/Inimigo1_hit.wav"),
 
 Disparo_Geo = aplicar_volume_som(pygame.mixer.Sound("Sounds/Disparo_Geo.wav"), config_audio)
 
-Musica_tema_Boss1 = aplicar_volume_som(pygame.mixer.Sound("Sounds/Fase1_Boss.mp3"), config_audio)
+Musica_tema_Boss1 = aplicar_volume_som(pygame.mixer.Sound("Sounds/Fase1_Boss.mp3"), config_audio, canal="musica")
 
-Musica_tema_fases = aplicar_volume_som(pygame.mixer.Sound("Sounds/Fase_boas.mp3"), config_audio)
+Musica_tema_fases = aplicar_volume_som(pygame.mixer.Sound("Sounds/Fase_boas.mp3"), config_audio, canal="musica")
 
-Som_tema_fases = aplicar_volume_som(pygame.mixer.Sound("Sounds/Praia.wav"), config_audio) 
+Som_tema_fases = aplicar_volume_som(pygame.mixer.Sound("Sounds/Praia.wav"), config_audio, canal="musica")
 
-Som_portal = pygame.mixer.Sound("Sounds/Portal.mp3")
-Som_portal.set_volume(0.06) 
+Som_portal = aplicar_volume_som(pygame.mixer.Sound("Sounds/Portal.mp3"), config_audio)
 
-Dano_person = pygame.mixer.Sound("Sounds/hit_person.mp3")
-Dano_person.set_volume(0.1)  
+Dano_person = aplicar_volume_som(pygame.mixer.Sound("Sounds/hit_person.mp3"), config_audio)
 
 toque=0
 comando_direção_petro=True
@@ -540,6 +538,9 @@ def executar_jogo(game_manager=None):
         ANOMALIA_CRISTALIZADOR_TEMPO = 45 if TESTAR_VARIANTES_RAPIDO else ANOMALIA_CRISTALIZADOR_SEG
         ANOMALIA_AGLOMERADOR_TEMPO = 60 if TESTAR_VARIANTES_RAPIDO else ANOMALIA_AGLOMERADOR_SEG
         ANOMALIA_CURATER_TEMPO = 75 if TESTAR_VARIANTES_RAPIDO else ANOMALIA_CURATER_SEG
+        FUSAO_AGLOMERACAO_MS = 120000
+        FUSAO_AGLOMERACAO_RAIO = 90
+        FUSAO_AGLOMERACAO_MINIMO = 3
         disparos_inimigos = []
         tempo_ultimo_cheque_fusao = 0
         TIPO_CURATER = "curater"
@@ -1015,10 +1016,10 @@ def executar_jogo(game_manager=None):
             a_inimigo = altura_inimigo
             
             if tipo == 2:  # Aglomerador
-                hp = vida_inimigo_maxima * 2.5
-                vel = Velocidade_Inimigos_1 * 0.7
-                l_inimigo = int(largura_inimigo * 1.5)
-                a_inimigo = int(altura_inimigo * 1.5)
+                hp = vida_inimigo_maxima * 3.2
+                vel = Velocidade_Inimigos_1 * 1.35
+                l_inimigo = int(largura_inimigo * 1.6)
+                a_inimigo = int(altura_inimigo * 1.6)
             elif tipo == 3:  # Espreitador
                 hp = vida_inimigo_maxima * 0.9
                 vel = Velocidade_Inimigos_1 * 1.0
@@ -1663,7 +1664,8 @@ def executar_jogo(game_manager=None):
                     "vida_inimigo_maxima": vida_inimigo_maxima,
                     "tempo_cronometro": Variaveis.obter_tempo_decorrido(),
                     "inimigos_comum": Variaveis.serializar_inimigos_rewind(inimigos_comum),
-                    "vida_boss": vida_chefe if 'vida_chefe' in locals() or 'vida_chefe' in globals() else (vida_boss if 'vida_boss' in locals() or 'vida_boss' in globals() else None)
+                    "vida_boss": vida_chefe if 'vida_chefe' in locals() or 'vida_chefe' in globals() else (vida_boss if 'vida_boss' in locals() or 'vida_boss' in globals() else None),
+                    "r_press": bool(r_press)
                 }
                 Variaveis.registrar_snapshot(snapshot_data, tempo_atual)
 
@@ -1692,6 +1694,8 @@ def executar_jogo(game_manager=None):
                                 vida_chefe = snap["vida_boss"]
                             elif 'vida_boss' in locals() or 'vida_boss' in globals():
                                 vida_boss = snap["vida_boss"]
+                        if snap.get("r_press"):
+                            r_press = True
                         Variaveis.snapshot_para_carregar = None
                 except Exception as e:
                     registrar_erro("Fase 1: erro ao carregar atributos; usando padrao", e)
@@ -2062,11 +2066,13 @@ def executar_jogo(game_manager=None):
                     
             # --- CHEQUE DE FUSÃO DO AGLOMERADOR (A cada 1 segundo) ---
             tempo_decorrido = Variaveis.obter_tempo_decorrido()
-            if tempo_atual - tempo_ultimo_cheque_fusao >= 1000 and tempo_decorrido >= ANOMALIA_AGLOMERADOR_TEMPO:
+            if tempo_atual - tempo_ultimo_cheque_fusao >= 1000 and not r_press:
+                delta_fusao = tempo_atual - tempo_ultimo_cheque_fusao if tempo_ultimo_cheque_fusao else 1000
                 tempo_ultimo_cheque_fusao = tempo_atual
                 standard_enemies = [ini for ini in inimigos_comum if ini.get("tipo", 1) == 1]
                 clusters = []
                 usados = set()
+                em_cluster = set()
                 
                 for i, e1 in enumerate(standard_enemies):
                     if id(e1) in usados:
@@ -2075,22 +2081,38 @@ def executar_jogo(game_manager=None):
                     for j, e2 in enumerate(standard_enemies):
                         if i != j and id(e2) not in usados:
                             dist = math.hypot(e1["rect"].centerx - e2["rect"].centerx, e1["rect"].centery - e2["rect"].centery)
-                            if dist <= 90:
+                            if dist <= FUSAO_AGLOMERACAO_RAIO:
                                 cluster.append(e2)
-                    if len(cluster) >= 3:
+                    if len(cluster) >= FUSAO_AGLOMERACAO_MINIMO:
                         clusters.append(cluster)
                         for c_e in cluster:
                             usados.add(id(c_e))
+                            em_cluster.add(id(c_e))
+
+                for inimigo in standard_enemies:
+                    if id(inimigo) in em_cluster:
+                        inimigo["tempo_aglomerado_ms"] = inimigo.get("tempo_aglomerado_ms", 0) + delta_fusao
+                    else:
+                        inimigo["tempo_aglomerado_ms"] = 0
                             
                 for cluster in clusters:
+                    if min(e.get("tempo_aglomerado_ms", 0) for e in cluster) < FUSAO_AGLOMERACAO_MS:
+                        continue
                     cx = sum(e["rect"].centerx for e in cluster) // len(cluster)
                     cy = sum(e["rect"].centery for e in cluster) // len(cluster)
                     aglomerador = criar_inimigo(cx - largura_inimigo // 2, cy - altura_inimigo // 2, tipo=2)
+                    vida_fundida = sum(e.get("vida_maxima", vida_inimigo_maxima) for e in cluster) * 0.9
+                    aglomerador["vida_maxima"] = max(aglomerador["vida_maxima"], vida_fundida)
+                    aglomerador["vida"] = aglomerador["vida_maxima"]
+                    aglomerador["velocidade"] = max(
+                        aglomerador["velocidade"],
+                        Velocidade_Inimigos_1 * (1.35 + max(0, len(cluster) - FUSAO_AGLOMERACAO_MINIMO) * 0.15),
+                    )
                     for c_e in cluster:
                         if c_e in inimigos_comum:
                             inimigos_comum.remove(c_e)
                     efeitos_texto.append({
-                        "texto": "FUSAO!",
+                        "texto": "FUSAO FORCADA!",
                         "x": cx,
                         "y": cy - 40,
                         "tempo_inicio": tempo_atual,
@@ -2099,7 +2121,7 @@ def executar_jogo(game_manager=None):
                     inimigos_comum.append(aglomerador)
                     
             # --- CONTROLE DOS AVISOS DOS EVENTOS ---
-            if not mostrar_tutorial:
+            if not mostrar_tutorial and not r_press:
                 if tempo_decorrido >= ANOMALIA_CURATER_TEMPO and not alerta_t5_mostrado:
                     alerta_t5_mostrado = True
                     aviso_evento_texto = "ANOMALIA DE CURA DETECTADA: CURATER!"
@@ -3095,6 +3117,13 @@ def executar_jogo(game_manager=None):
 
                         # Desenhe o texto na tela perto do chefe
                         pos_texto = (inimigo["rect"].x + largura_inimigo // 2 - texto_dano.get_width() // 2,  inimigo["rect"].y - 20)
+                        efeitos_texto.append({
+                            "texto": "-" + str(int(dano_final)),
+                            "x": pos_texto[0],
+                            "y": pos_texto[1],
+                            "tempo_inicio": tempo_atual,
+                            "cor": cor
+                        })
 
                         # Rastreie o tempo de exibição do texto
                         tempo_texto_dano = pygame.time.get_ticks()
@@ -3412,9 +3441,7 @@ def executar_jogo(game_manager=None):
                     posicao_bonus = (largura_mapa - 330, 90)
                     desenhar_texto_com_contorno(tela, texto_bonus, fonte_bonus, (255, 245, 190), (0, 0, 0), posicao_bonus)
 
-            # Desenhe o texto na tela
-            if texto_dano is not None:
-                tela.blit(texto_dano, pos_texto)
+            texto_dano = None
             # Controle de exibição
             if mostrar_tutorial:
                 # Desenhar a barreira roxa se estiver ativa, ANTES de desenhar o painel de glassmorphism e as legendas
@@ -3889,9 +3916,9 @@ def executar_jogo(game_manager=None):
 
 
 
-            # A cada 15 minutos de jogo, lembra que R chama o boss imediatamente.
+            # A cada 13 minutos de jogo, lembra que R chama o boss imediatamente.
             tempo_jogo_segundos = int(Variaveis.obter_tempo_decorrido())
-            aviso_boss_periodo = tempo_jogo_segundos // 900
+            aviso_boss_periodo = tempo_jogo_segundos // (13 * 60)
             if not mostrar_tutorial and not r_press and aviso_boss_periodo > 0:
                 if alerta_boss_mostrado_para != aviso_boss_periodo:
                     alerta_boss_ativo = True
@@ -3921,7 +3948,7 @@ def executar_jogo(game_manager=None):
                     tela.blit(msg_line3, (cx_n - msg_line3.get_width() // 2, cy_n + 26))
 
             # --- DESENHAR BANNER DE EVENTO (VARIANTES) ---
-            if aviso_evento_texto and tempo_atual - aviso_evento_inicio <= 4000:
+            if aviso_evento_texto and not r_press and tempo_atual - aviso_evento_inicio <= 4000:
                 # Semi-transparent background stripe
                 banner_surf = pygame.Surface((largura_tela, 60), pygame.SRCALPHA)
                 banner_surf.fill((15, 10, 20, 200))

@@ -1,0 +1,23 @@
+COMO INICIAR A VERSAO PLAYER SEM PYTORCH
+
+1. Abra esta pasta no VS Code.
+
+2. Abra o terminal do VS Code.
+
+3. Se a pasta .venv ainda nao existir no computador:
+   py -3.12 -m venv .venv
+
+4. Ative a venv:
+   .\.venv\Scripts\activate
+
+5. Instale as dependencias leves:
+   python -m pip install -r requirements_player.txt
+
+6. Inicie o jogo:
+   python Ruptura_Temporal.py
+
+OBSERVACOES
+
+- Nao use requirements.txt para a versao player leve, porque ele instala PyTorch e ferramentas de IA/treino.
+- O arquivo GAME5_PLAYER.py usa habilidade_boss_player.py, que mantem a Umbra funcionando sem PyTorch.
+- Se o trailer nao abrir por falta de VLC, o jogo deve continuar; instale o VLC Player no Windows se quiser suporte completo aos videos.

@@ -21,6 +21,7 @@ from rede import descobrir_host_udp, conectar_ao_host
 from audio_manager import carregar_config_audio, aplicar_volume_musica, aplicar_volume_som
 from utils import configurar_tela, tocar_trailer_se_necessario, redimensionar_cover, carregar_upgrade_aureas
 from sons_procedurais import tocar_hover, tocar_selecionar
+from dados_aureas import AUREAS_DADOS
 import ui_helpers
 
 instalar_captura_global()
@@ -1642,6 +1643,16 @@ def tela_selecao_aurea(tela, fonte):
         }
     ]
 
+    dados_aureas_por_id = {dado["id"]: dado for dado in AUREAS_DADOS}
+    for item in aureas:
+        dado = dados_aureas_por_id.get(item["nome"])
+        if not dado:
+            continue
+        item["categoria"] = dado["categoria"].upper()
+        item["efeito"] = dado.get("resumo", dado["descricao"])
+        item["atributos"] = dado.get("destaques", item["atributos"])
+        item["lore"] = dado["lore"].strip('"')
+
     upgrades = carregar_upgrade_aureas("saves/aureas_upgrade.json")
     
     selecionado = 0
@@ -3062,11 +3073,11 @@ def _dados_catalogo_temporal():
             {"nome": "Onda de Choque", "imagem": "Sprites/Onda_Boss2.png", "funcionamento": "Segunda habilidade ativa da personagem. Libera uma explosao de area ao redor de Geovana para afastar grupos, abrir espaco e causar dano quando a arena fecha.", "historia": "Um pulso de recusa: por um momento, Geovana empurra a ruptura para fora da propria volta."},
         ],
         "Aureas": [
-            {"nome": "Aurea Racional", "imagem": "Sprites/aurea_cientista.png", "funcionamento": "Gera pontuacao bonus ao ficar imovel por 5s. Ao teleportar, ativa a Dilatacao Temporal por 8s, reduzindo a velocidade dos inimigos e projeteis em 58%, enquanto concede +35% de velocidade e +28% de cadencia de tiro a Apolo (cooldown de 30s).", "historia": "A mente fria calcula trajetorias e enxerga padroes em meio ao caos da ruptura temporal."},
-            {"nome": "Aurea Impulsiva", "imagem": "Sprites/aurea_impulsiva.png", "funcionamento": "Recompensa agressao sem erro. Abates consecutivos sem sofrer dano ativam um buff temporario de dano ou velocidade.", "historia": "Acao imediata. O instinto reage antes que o proprio tempo possa processar."},
-            {"nome": "Aurea Devota", "imagem": "Sprites/aurea_devota.png", "funcionamento": "Cria um escudo automatico que bloqueia o proximo dano recebido. Evoluir a aurea reduz a recarga da protecao.", "historia": "A fe inabalavel manifesta uma barreira divina que desafia a propria causalidade."},
-            {"nome": "Aurea Vanguarda", "imagem": "Sprites/aurea_vanguarda.png", "funcionamento": "Transforma proximidade em pressao ofensiva. Inimigos proximos ou tocados podem incendiar e sofrer dano continuo.", "historia": "Liderando o avanco, a pioneira incendeia o solo para que nada a siga no fluxo temporal."},
-            {"nome": "Aurea Aleatoria", "imagem": "Sprites/aurea_misteriosa.png", "funcionamento": "Seleciona uma das aureas ativas ao iniciar a jornada, mudando a estrategia da partida sem revelar totalmente o destino antes da escolha.", "historia": "O destino e incerto, e o tempo se desdobra em infinitas possibilidades."},
+            {"nome": "Aurea Racional", "imagem": "Sprites/aurea_cientista.png", "funcionamento": "Controle de ritmo. Ficar imovel por 5s gera pontuacao bonus. Teleporte pronto ativa Dilatacao Temporal por 8s: inimigos/projeteis ficam 58% mais lentos, Apolo ganha +35% movimento e atira 28% mais rapido. Depois vem Rebote por 3s, acelerando inimigos/projeteis em 50%.", "historia": "A mente fria calcula trajetorias e enxerga padroes em meio ao caos da ruptura temporal."},
+            {"nome": "Aurea Impulsiva", "imagem": "Sprites/aurea_impulsiva.png", "funcionamento": "Agressao continua. A cada 5 abates sem sofrer dano, ativa Frenesi temporario de dano e/ou velocidade. Manter a sequencia renova a pressao; nas fases com sistema completo, renovar com tempo sobrando aumenta o nivel e sofrer hit durante o Frenesi arma Panico.", "historia": "Acao imediata. O instinto reage antes que o proprio tempo possa processar."},
+            {"nome": "Aurea Devota", "imagem": "Sprites/aurea_devota.png", "funcionamento": "Sobrevivencia. Cria escudo automatico que anula dano quando ativo e recarrega sozinho. Upgrade reduz a recarga. Nas fases com sistema completo, sao 3 cargas; ao quebrar a ultima, Apolo fica 30% mais lento por 4s e causa 2x dano.", "historia": "A fe inabalavel manifesta uma barreira divina que desafia a propria causalidade."},
+            {"nome": "Aurea Vanguarda", "imagem": "Sprites/aurea_vanguarda.png", "funcionamento": "Area e queimadura. Inimigos proximos ou tocados podem incendiar e sofrer dano por segundo baseado em vida maxima. Nas fases com sistema completo, sofrer hit abre um circulo de fogo por 5s. Cada inimigo queimando aumenta o cooldown do Teleporte em 15%.", "historia": "Liderando o avanco, a pioneira incendeia o solo para que nada a siga no fluxo temporal."},
+            {"nome": "Aurea Aleatoria", "imagem": "Sprites/aurea_misteriosa.png", "funcionamento": "Seleciona uma das quatro aureas ativas ao confirmar a jornada: Racional, Impulsiva, Devota ou Vanguarda. A utilidade muda conforme a sorte, exigindo adaptar movimentacao, agressividade, defesa ou controle de area.", "historia": "O destino e incerto, e o tempo se desdobra em infinitas possibilidades."},
         ],
         "Fragmentos": [
             {"nome": "Speed Boost", "imagem": "Sprites/Deck/Speed_boost1.png", "funcionamento": "Fragmento dimensional que aumenta velocidade de movimento.", "historia": "Um fragmento para quem prefere vencer a ruptura antes que ela feche o cerco."},

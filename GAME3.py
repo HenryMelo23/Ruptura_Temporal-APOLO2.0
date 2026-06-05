@@ -1680,11 +1680,8 @@ def executar_jogo(game_manager=None):
                     "rastros_toxicos": rastros_toxicos,
                     "nuvens_miasma": nuvens_miasma,
                     "areas_miasma": areas_miasma,
-                    "vida_boss": vida_chefe if 'vida_chefe' in locals() or 'vida_chefe' in globals() else (
-                                 vida_boss if 'vida_boss' in locals() or 'vida_boss' in globals() else (
-                                 vida_boss2 if 'vida_boss2' in locals() or 'vida_boss2' in globals() else (
-                                 vida_boss3 if 'vida_boss3' in locals() or 'vida_boss3' in globals() else (
-                                 vida_boss4 if 'vida_boss4' in locals() or 'vida_boss4' in globals() else None))))
+                    "vida_boss": vida_boss3,
+                    "r_press": bool(r_press)
                 }
                 Variaveis.registrar_snapshot(snapshot_data, tempo_atual)
 
@@ -1714,16 +1711,9 @@ def executar_jogo(game_manager=None):
                             piscando_vida = False
                             Variaveis.aplicar_rewind_respawn_visual(pos_x_personagem, pos_y_personagem, direcao_atual, pygame.time.get_ticks())
                         if "vida_boss" in snap and snap["vida_boss"] is not None:
-                            if 'vida_chefe' in locals() or 'vida_chefe' in globals():
-                                vida_chefe = snap["vida_boss"]
-                            elif 'vida_boss' in locals() or 'vida_boss' in globals():
-                                vida_boss = snap["vida_boss"]
-                            elif 'vida_boss2' in locals() or 'vida_boss2' in globals():
-                                vida_boss2 = snap["vida_boss"]
-                            elif 'vida_boss3' in locals() or 'vida_boss3' in globals():
-                                vida_boss3 = snap["vida_boss"]
-                            elif 'vida_boss4' in locals() or 'vida_boss4' in globals():
-                                vida_boss4 = snap["vida_boss"]
+                            vida_boss3 = snap["vida_boss"]
+                        if snap.get("r_press"):
+                            r_press = True
                         Variaveis.snapshot_para_carregar = None
                 except Exception as e:
                     registrar_erro("Fase 3: erro ao carregar atributos; usando padrao", e)

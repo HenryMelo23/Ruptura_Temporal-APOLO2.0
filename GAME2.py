@@ -1242,7 +1242,8 @@ def executar_jogo(game_manager=None):
                     "max_inimigos": max_inimigos2,
                     "tempo_cronometro": Variaveis.obter_tempo_decorrido(),
                     "inimigos_comum": Variaveis.serializar_inimigos_rewind(inimigos_comum),
-                    "vida_boss": vida_chefe if 'vida_chefe' in locals() or 'vida_chefe' in globals() else (vida_boss if 'vida_boss' in locals() or 'vida_boss' in globals() else None)
+                    "vida_boss": vida_boss2,
+                    "r_press": bool(r_press)
                 }
                 Variaveis.registrar_snapshot(snapshot_data, tempo_atual)
 
@@ -1271,10 +1272,9 @@ def executar_jogo(game_manager=None):
                             piscando_vida = False
                             Variaveis.aplicar_rewind_respawn_visual(pos_x_personagem, pos_y_personagem, direcao_atual, pygame.time.get_ticks())
                         if "vida_boss" in snap and snap["vida_boss"] is not None:
-                            if 'vida_chefe' in locals() or 'vida_chefe' in globals():
-                                vida_chefe = snap["vida_boss"]
-                            elif 'vida_boss' in locals() or 'vida_boss' in globals():
-                                vida_boss = snap["vida_boss"]
+                            vida_boss2 = snap["vida_boss"]
+                        if snap.get("r_press"):
+                            r_press = True
                         Variaveis.snapshot_para_carregar = None
                 except Exception as e:
                     registrar_erro("Fase 2: erro ao carregar atributos; usando padrao", e)
@@ -1292,8 +1292,9 @@ def executar_jogo(game_manager=None):
                 velocidade_disparo_inimigo = max(3.0, velocidade_personagem * 0.9)
                 
                 # Boss 2 scaling
-                vida_boss2 = max(vida_inicial_boss(2, 8000), int(dano_person_hit * 120 * 2.0))
-                vida_maxima_boss2 = vida_boss2
+                if not rewind_aplicado:
+                    vida_boss2 = max(vida_inicial_boss(2, 8000), int(dano_person_hit * 120 * 2.0))
+                    vida_maxima_boss2 = vida_boss2
 
             nivel_impulsiva = upgrades.get("Impulsiva", 0)
             if impulsiva_ativa:

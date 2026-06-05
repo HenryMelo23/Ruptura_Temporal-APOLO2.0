@@ -14,6 +14,19 @@ instalar_filtro_prints()
 # Inicializar Pygame
 pygame.init()
 
+def limpar_audio_em_transicao():
+    """Para qualquer som/musica que possa ter ficado preso entre estados."""
+    try:
+        parar_tudo()
+    except Exception:
+        pass
+    try:
+        if pygame.mixer and pygame.mixer.get_init():
+            pygame.mixer.stop()
+            pygame.mixer.music.stop()
+    except Exception:
+        pass
+
 def generate_crack_points(p1, p2, deviation):
     points = [p1]
     
@@ -35,6 +48,7 @@ def tratar_tentar_novamente(game_manager):
     import Variaveis
     if not Variaveis.pode_tentar_novamente():
         return False
+    limpar_audio_em_transicao()
     Variaveis.preparar_rewind()
     if game_manager:
         from game_manager import EstadoJogo
@@ -252,7 +266,7 @@ def executar_game_over(game_manager=None):
             pass
 
     # Parar áudio anterior e tocar o som procedimental de Game Over
-    parar_tudo()
+    limpar_audio_em_transicao()
     tocar_game_over()
 
     # Configuração da janela

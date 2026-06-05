@@ -58,7 +58,7 @@ from Tela_Cartas import tela_de_pausa
 from Variaveis import *
 import Variaveis
 from utils import *
-import habilidade_boss as hb
+import habilidade_boss_player as hb
 import collections
 from audio_manager import carregar_config_audio, aplicar_volume_som
 from sistema_ratos_umbra import GerenciadorRatos
@@ -95,8 +95,16 @@ from habilidades_personagem import desenhar_onda, criar_particulas_explosao_onda
     # ============================================================
     # PARTE 2: Cache global e setup (do CACHE GLOBAL até antes do Flask)
     # ============================================================
-    for i in range(setup_start - 1, setup_end):
-        output.append(lines[i])
+    i = setup_start - 1
+    while i < setup_end:
+        line = lines[i]
+        if 'APOLO1' in line:
+            i += 1
+            while i < setup_end and lines[i].strip() != 'import atexit, signal':
+                i += 1
+            continue
+        output.append(line)
+        i += 1
 
     # ============================================================
     # PARTE 3: Separador de dados_ia (copia a declaração de dados_ia_umbra)
@@ -234,8 +242,28 @@ from habilidades_personagem import desenhar_onda, criar_particulas_explosao_onda
         print("Erro: Funções auxiliares 2 não encontradas em GAME5.py")
         sys.exit(1)
 
+    pulando_import_apolo = False
     for i in range(helper2_start, helper2_end):
         line = lines[i]
+        if pulando_import_apolo:
+            if ')' in line:
+                pulando_import_apolo = False
+            continue
+        if 'APOLO1' in line:
+            continue
+        if 'Importa arquitetura' in line:
+            continue
+        if 'from apolo_brain' in line:
+            pulando_import_apolo = True
+            continue
+        if 'import torch' in line:
+            continue
+        if 'torch.set_num_threads' in line:
+            continue
+        if 'ApoloDQN' in line or 'ApoloAgent' in line or 'MiniReplayBuffer' in line:
+            continue
+        if 'INPUT_SIZE' in line or 'OUTPUT_SIZE' in line or 'GerenciadorArquitetura' in line:
+            continue
         # Remove referências de apolo
         if "'apolo' in globals()" in line and 'encerrar' in line:
             continue
@@ -281,8 +309,16 @@ from habilidades_personagem import desenhar_onda, criar_particulas_explosao_onda
         print("Erro: Bloco de cartas ou início do loop não encontrados em GAME5.py")
         sys.exit(1)
 
-    for i in range(cards_start_real, main_loop_start):
-        output.append(lines[i])
+    i = cards_start_real
+    while i < main_loop_start:
+        line = lines[i]
+        if 'APOLO1' in line:
+            i += 1
+            while i < main_loop_start and lines[i].strip() != 'import atexit, signal':
+                i += 1
+            continue
+        output.append(line)
+        i += 1
 
     # ============================================================
     # PARTE 9: LOOP PRINCIPAL (copia com filtros cirúrgicos de IA)
@@ -310,6 +346,15 @@ from habilidades_personagem import desenhar_onda, criar_particulas_explosao_onda
         
         # --- REMOÇÕES CIRÚRGICAS ---
         
+        # 0. Remove bloco morto de imports da IA Apolo/PyTorch no player leve.
+        if 'APOLO1' in line:
+            i += 1
+            while i < len(lines):
+                if lines[i].strip() == 'import atexit, signal':
+                    break
+                i += 1
+            continue
+
         # 1. Remove bloco if modo_ia_treino: (tudo dentro)
         if 'if modo_ia_treino:' in line:
             indent = len(line) - len(line.lstrip())

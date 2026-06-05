@@ -14,16 +14,17 @@ def carregar_config_audio():
             "volume_master": 1.0
         }
 
-def aplicar_volume_som(som, config_audio=None):
+def aplicar_volume_som(som, config_audio=None, canal="efeitos"):
     """Aplica o volume configurado a um som específico"""
     if config_audio is None:
         config_audio = carregar_config_audio()
     
     volume_master = config_audio.get("volume_master", 1.0)
-    volume_efeitos = config_audio.get("volume_efeitos", 0.5)
+    chave_volume = "volume_musica" if canal == "musica" else "volume_efeitos"
+    volume_canal = config_audio.get(chave_volume, 0.5)
     
     # Calcula o volume final
-    volume_final = volume_efeitos * volume_master
+    volume_final = volume_canal * volume_master
     som.set_volume(volume_final)
     
     return som
@@ -61,7 +62,9 @@ def atualizar_sons_do_jogo(config_audio=None):
                 try:
                     val = getattr(mod, attr_name)
                     if isinstance(val, pygame.mixer.Sound):
-                        aplicar_volume_som(val, config_audio)
+                        nome = attr_name.lower()
+                        canal = "musica" if nome.startswith("musica_") or nome.startswith("som_tema") or "tema" in nome else "efeitos"
+                        aplicar_volume_som(val, config_audio, canal=canal)
                 except Exception:
                     pass
 

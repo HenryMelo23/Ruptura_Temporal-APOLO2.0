@@ -68,7 +68,8 @@ class GameManager:
         elif self.estado_atual in [EstadoJogo.JOGO_PRINCIPAL, EstadoJogo.JOGO_FASE_1]:
             # Fase 1 ou modo offline
             import Variaveis
-            Variaveis.reset_game_session()
+            if Variaveis.snapshot_para_carregar is None:
+                Variaveis.reset_game_session()
             modo = self.dados_compartilhados.get('modo_jogo', 'offline')
             
             if modo == 'offline':
@@ -84,7 +85,8 @@ class GameManager:
                 
         elif self.estado_atual == EstadoJogo.JOGO_FASE_2:
             import Variaveis
-            Variaveis.reset_phase_state()
+            if Variaveis.snapshot_para_carregar is None:
+                Variaveis.reset_phase_state()
             if 'GAME2' in sys.modules:
                 importlib.reload(sys.modules['GAME2'])
             import GAME2
@@ -92,7 +94,8 @@ class GameManager:
             
         elif self.estado_atual == EstadoJogo.JOGO_FASE_3:
             import Variaveis
-            Variaveis.reset_phase_state()
+            if Variaveis.snapshot_para_carregar is None:
+                Variaveis.reset_phase_state()
             if 'GAME3' in sys.modules:
                 importlib.reload(sys.modules['GAME3'])
             import GAME3
@@ -100,7 +103,8 @@ class GameManager:
             
         elif self.estado_atual == EstadoJogo.JOGO_FASE_4:
             import Variaveis
-            Variaveis.reset_phase_state()
+            if Variaveis.snapshot_para_carregar is None:
+                Variaveis.reset_phase_state()
             if 'GAME4' in sys.modules:
                 importlib.reload(sys.modules['GAME4'])
             import GAME4
@@ -108,7 +112,8 @@ class GameManager:
             
         elif self.estado_atual == EstadoJogo.JOGO_FASE_5:
             import Variaveis
-            Variaveis.reset_phase_state()
+            if Variaveis.snapshot_para_carregar is None:
+                Variaveis.reset_phase_state()
             if 'GAME5' in sys.modules:
                 importlib.reload(sys.modules['GAME5'])
             import GAME5

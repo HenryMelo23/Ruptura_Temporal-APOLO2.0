@@ -1,0 +1,6 @@
+# Dependencias leves para o pacote PLAYER sem PyTorch.
+# Use este arquivo para enviar/compactar a versao de jogador comum.
+pygame-ce==2.5.7
+pyperclip==1.11.0
+python-vlc==3.0.21203
+requests==2.33.1

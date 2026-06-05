@@ -10,7 +10,7 @@ from Tela_Cartas import tela_de_pausa
 from Variaveis import *
 import Variaveis
 from utils import *
-import habilidade_boss as hb
+import habilidade_boss_player as hb
 import collections
 from audio_manager import carregar_config_audio, aplicar_volume_som
 from sistema_ratos_umbra import GerenciadorRatos
@@ -81,10 +81,12 @@ def incendiar_vanguarda_proximos(agora_ms):
         if dist <= alcance + max(rect.width, rect.height) * 0.4:
             inimigos_em_chamas[alvo["_vanguarda_id"]] = agora_ms
 def aplicar_hit_jogador(dano_bruto, respeitar_resistencia=True, ativar_vanguarda=True):
-    global vida, escudo_devota_ativo, tempo_ultimo_escudo, vanguarda_fogo_fim
+    global vida, escudo_devota_ativo, tempo_ultimo_escudo, vanguarda_fogo_fim, imune_tempo_restante
     global impulsiva_ativa, tipo_buff_impulsiva, eliminacoes_consecutivas_impulsiva
-    global eliminacoes_consecutivas, bonus_pontuacao
+    global eliminacoes_consecutivas, bonus_pontuacao, tempo_ultimo_hit_inimigo, piscando_vida
     agora_ms = pygame.time.get_ticks()
+    if imune_tempo_restante > 0:
+        return 0
     if ativar_vanguarda and aurea == "Vanguarda":
         vanguarda_fogo_fim = max(vanguarda_fogo_fim, agora_ms + 5000)
         incendiar_vanguarda_proximos(agora_ms)
@@ -124,12 +126,14 @@ def aplicar_hit_jogador(dano_bruto, respeitar_resistencia=True, ativar_vanguarda
         vida -= dano_final
         eliminacoes_consecutivas = 0
         bonus_pontuacao = 0
+        tempo_ultimo_hit_inimigo = agora_ms
+        piscando_vida = True
     return dano_final
 
 
 def executar_jogo(game_manager=None):
     global dt
-    global carregar_atributos_na_fase, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, _VORTICE_SURF_CACHE, _fonte_bonus_cached, _fonte_combo_cached, altura_boss, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apolo, bonus_cura_sifon, bonus_pontuacao, boss_envenenado, cartas_compradas_apolo_global, chance_critico, cooldown_dash, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_boss, disparos, distancia_dash, duracao_frame_onda, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_transicao_mapa, erros_player_contagem, escudo_devota_ativo, esferas_energia_umbra, espacamento, estado_atual_ia, frame_boss, gerenciador_ratos, hitbox_boss5, impulsiva_ativa, inicio_transicao_mapa, inimigos_eliminados, intervalo_disparo, largura_boss, largura_disparo, largura_personagem, linha, mapa_antigo, mapa_novo, modo_ia_treino, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, multiplicador_chamas, multiplicador_dano_umbra, ondas, particulas_fogo_player, petro_evolucao, player_em_chamas, pontuacao, pontuacao_exib, porcentagem_cura, pos_x_personagem, pos_x_petro, pos_x_umbra, pos_y_personagem, pos_y_petro, pos_y_umbra, projeteis_boss, quantidade_roubo_vida, racional_dilatacao_fim, racional_dilatacao_proximo_uso, reducao_cooldown_umbra, relogio, resistencia_umbra, roubo_de_vida, running, surf, teleporte_duration, teleporte_index, teleporte_timer, tempo_atual, tempo_boss_entrada_fim, tempo_cooldown_dash, tempo_fim_chamas, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado_boss, tempo_ultima_esfera_umbra, tempo_ultima_regeneracao, tempo_ultimo_dash, tempo_ultimo_disparo, tempo_ultimo_uso_habilidade, tipo_buff_impulsiva, trauma_umbra_acumulado, trembo, ultima_direcao_animacao, ultima_tecla_movimento, ultimo_tick_chamas, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_maxima, vida_maxima_petro, vida_maxima_umbra, vida_petro, vida_umbra, xp_petro, duracao_incendio_vanguarda, intervalo_escudo, estado_impulsiva, estado_devota, vanguarda_fogo_fim, inimigos_em_chamas, tempo_ultimo_escudo
+    global carregar_atributos_na_fase, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, _VORTICE_SURF_CACHE, _fonte_bonus_cached, _fonte_combo_cached, altura_boss, altura_disparo, altura_personagem, angulo_inclinacao_personagem, apolo, aurea, bonus_cura_sifon, bonus_pontuacao, boss_envenenado, boss_final_ativo, cartas_compradas_apolo_global, chance_critico, cooldown_dash, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, direcao_atual, direcao_boss, disparos, distancia_dash, duracao_frame_onda, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, em_transicao_mapa, erros_player_contagem, escudo_devota_ativo, esferas_energia_umbra, espacamento, estado_atual_ia, frame_boss, gerenciador_ratos, hitbox_boss5, impulsiva_ativa, imune_tempo_restante, inicio_transicao_mapa, inimigos_eliminados, intervalo_disparo, largura_boss, largura_disparo, largura_personagem, linha, mapa_antigo, mapa_novo, modo_ia_treino, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, multiplicador_chamas, multiplicador_dano_umbra, ondas, particulas_fogo_player, petro_evolucao, piscando_vida, player_em_chamas, pontuacao, pontuacao_exib, porcentagem_cura, pos_x_personagem, pos_x_petro, pos_x_umbra, pos_y_personagem, pos_y_petro, pos_y_umbra, projeteis_boss, quantidade_roubo_vida, racional_dilatacao_fim, racional_dilatacao_proximo_uso, reducao_cooldown_umbra, relogio, resistencia_umbra, roubo_de_vida, running, surf, teleporte_duration, teleporte_index, teleporte_timer, tempo_atual, tempo_boss_entrada_fim, tempo_cooldown_dash, tempo_fim_chamas, tempo_inicial, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado_boss, tempo_ultima_esfera_umbra, tempo_ultima_regeneracao, tempo_ultimo_dash, tempo_ultimo_disparo, tempo_ultimo_hit_inimigo, tempo_ultimo_uso_habilidade, tipo_buff_impulsiva, trauma_umbra_acumulado, trembo, ultima_direcao_animacao, ultima_tecla_movimento, ultimo_tick_chamas, ultimo_tick_veneno_boss, velocidade_disparo, velocidade_personagem, vida, vida_boss, vida_maxima, vida_maxima_petro, vida_maxima_umbra, vida_petro, vida_umbra, xp_petro, duracao_incendio_vanguarda, intervalo_escudo, estado_impulsiva, estado_devota, vanguarda_fogo_fim, inimigos_em_chamas, tempo_ultimo_escudo
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -265,8 +269,6 @@ def executar_jogo(game_manager=None):
 
         # Nossa ponte de dados (Dicionário simples, sem frescura)
         dados_ia_umbra = {"estado": "Aguardando...", "pesos": {}}
-
-        #####################################################################APOLO1######################################################################################################
 
         def gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem):
             largura_mapa_int, altura_mapa_int, largura_personagem_int, altura_personagem_int=map(int,(largura_mapa, altura_mapa, largura_personagem, altura_personagem))
@@ -430,7 +432,6 @@ def executar_jogo(game_manager=None):
         velocidade_disparo = 10
         disparos = []
 
-        tela = pygame.Surface((largura_mapa, altura_mapa))
         pygame.display.set_caption("Renderizando Mapa com Personagem")
 
         pontuacao_inimigos=0
@@ -902,18 +903,8 @@ def executar_jogo(game_manager=None):
 
         modo_ia_treino = True
 
-        #####################################################################APOLO1######################################################################################################
 
-        import torch
-        import torch.nn as nn
-        import torch.optim as optim
-        torch.set_num_threads(1) # OTIMIZAÇÃO: Impede PyTorch de sugar 100% da CPU em redes minúsculas
 
-        # Importa arquitetura e buffer do modulo central (mesma rede do treino offline)
-        from apolo_brain import (
-            ApoloDQN, ApoloAgent, MiniReplayBuffer,
-            INPUT_SIZE, OUTPUT_SIZE, GerenciadorArquitetura,
-        )
 
 
         import atexit, signal
@@ -1175,11 +1166,15 @@ def executar_jogo(game_manager=None):
                     "atributos": snapshot_attrs,
                     "pos_x": pos_x_personagem,
                     "pos_y": pos_y_personagem,
-                    "vida_boss": vida_chefe if 'vida_chefe' in locals() or 'vida_chefe' in globals() else (
-                                 vida_boss if 'vida_boss' in locals() or 'vida_boss' in globals() else (
-                                 vida_boss2 if 'vida_boss2' in locals() or 'vida_boss2' in globals() else (
-                                 vida_boss3 if 'vida_boss3' in locals() or 'vida_boss3' in globals() else (
-                                 vida_boss4 if 'vida_boss4' in locals() or 'vida_boss4' in globals() else None))))
+                    "pontuacao": pontuacao,
+                    "pontuacao_exib": pontuacao_exib,
+                    "inimigos_eliminados": inimigos_eliminados,
+                    "vida_umbra": vida_umbra,
+                    "vida_maxima_umbra": vida_maxima_umbra,
+                    "trauma_umbra_acumulado": trauma_umbra_acumulado,
+                    "tempo_cronometro": Variaveis.obter_tempo_decorrido(),
+                    "vida_boss": vida_umbra,
+                    "boss_final_ativo": bool(boss_final_ativo)
                 }
                 Variaveis.registrar_snapshot(snapshot_data, tempo_atual)
 
@@ -1193,17 +1188,18 @@ def executar_jogo(game_manager=None):
                         vida = snap.get("vida_fracao", 0.20) * vida_maxima
                         pontuacao = 0
                         pontuacao_exib = 0
+                        inimigos_eliminados = snap.get("inimigos_eliminados", inimigos_eliminados)
+                        vida_umbra = snap.get("vida_umbra", vida_umbra)
+                        vida_maxima_umbra = snap.get("vida_maxima_umbra", vida_maxima_umbra)
+                        trauma_umbra_acumulado = snap.get("trauma_umbra_acumulado", trauma_umbra_acumulado)
+                        Variaveis.definir_tempo_cronometro(snap.get("tempo_cronometro", Variaveis.obter_tempo_decorrido()))
+                        if snap.get("refragmentacao_rewind"):
+                            imune_tempo_restante = max(imune_tempo_restante, 4000)
+                            piscando_vida = False
+                            Variaveis.aplicar_rewind_respawn_visual(pos_x_personagem, pos_y_personagem, direcao_atual, pygame.time.get_ticks())
                         if "vida_boss" in snap and snap["vida_boss"] is not None:
-                            if 'vida_chefe' in locals() or 'vida_chefe' in globals():
-                                vida_chefe = snap["vida_boss"]
-                            elif 'vida_boss' in locals() or 'vida_boss' in globals():
-                                vida_boss = snap["vida_boss"]
-                            elif 'vida_boss2' in locals() or 'vida_boss2' in globals():
-                                vida_boss2 = snap["vida_boss"]
-                            elif 'vida_boss3' in locals() or 'vida_boss3' in globals():
-                                vida_boss3 = snap["vida_boss"]
-                            elif 'vida_boss4' in locals() or 'vida_boss4' in globals():
-                                vida_boss4 = snap["vida_boss"]
+                            vida_umbra = snap["vida_boss"]
+                        boss_final_ativo = snap.get("boss_final_ativo", boss_final_ativo)
                         Variaveis.snapshot_para_carregar = None
                 except Exception as e:
                     registrar_erro("Fase 5: erro ao carregar atributos; usando padrao", e)
@@ -3234,6 +3230,9 @@ def executar_jogo(game_manager=None):
             # Atualizar e desenhar fragmentos de morte / Trembo
             atualizar_e_desenhar_fragmentos(tela)
 
+            Variaveis.desenhar_refragmentacao_rewind(tela, tempo_atual)
+            Variaveis.desenhar_overlay_vida_critica(tela, vida, vida_maxima, tempo_atual)
+
             desenhar_hud_fase(
                 tela, vida, vida_maxima, pontuacao_exib, custo_carta_atual,
                 pontuacao_magia, cooldowns, dispositivo_ativo,
@@ -3241,6 +3240,8 @@ def executar_jogo(game_manager=None):
                 escudo_devota_ativo, pos_x_personagem, pos_y_personagem,
                 largura_personagem, altura_personagem
             )
+
+            Variaveis.aplicar_tremor_dano_tela(tela, tempo_atual, tempo_ultimo_hit_inimigo, piscando_vida)
 
             tela.blit(cursor_imagem, (mouse_x, mouse_y))
 
