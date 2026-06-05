@@ -1551,9 +1551,7 @@ frames_inimigo_direita3 = [pygame.transform.scale(pygame.image.load("Sprites/ini
 
                           pygame.transform.scale(pygame.image.load("Sprites/inimigo_esquerda3-2.png").convert_alpha(), (largura_inimigo, altura_inimigo))]
 
-imagem_personagem_doente = pygame.image.load("Sprites/Doente.png").convert_alpha()
-
-imagem_personagem_doente = pygame.transform.scale(imagem_personagem_doente, (largura_personagem, altura_personagem))
+imagem_personagem_doente = None  # Mantido apenas para compatibilidade; o efeito de miasma agora e procedural.
 
 
 
@@ -3679,8 +3677,8 @@ def tentar_soltar_carta(posicao, tempo_atual, chance_sorte_jogador, inimigos_eli
     except Exception:
         pass
 
-    # A chance real por inimigo escala ate 40% em 2 horas; Sorte pode superar esse teto.
-    chance_drop = chance_drop_carta_por_tempo(tempo_drop_ms, chance_sorte_jogador)
+    # A chance real por inimigo escala ao longo da run, com ajuda extra nos primeiros abates do modo dificil.
+    chance_drop = chance_drop_carta_por_tempo(tempo_drop_ms, chance_sorte_jogador, inimigos_eliminados)
     intervalo_certeiro_ms = intervalo_drop_certeiro_ms(chance_drop)
     drop_certeiro = tempo_drop_ms - ultimo_drop_carta_ms >= intervalo_certeiro_ms
 
@@ -4562,6 +4560,79 @@ def desenhar_personagem_com_dano(tela, frame, x, y, tempo_atual, tempo_ultimo_hi
         tela.blit(main_surf, pos_draw)
     else:
         tela.blit(frame, pos_draw)
+
+
+def processar_sprite_miasma_personagem(frame, tempo_atual):
+    if frame is None:
+        return None
+
+    largura, altura = frame.get_size()
+    pulso = (math.sin(tempo_atual * 0.010) + 1.0) * 0.5
+    sprite = frame.copy()
+
+    multiplicador = pygame.Surface((largura, altura), pygame.SRCALPHA)
+    multiplicador.fill((150, 225, 155, 255))
+    sprite.blit(multiplicador, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
+    brilho = pygame.Surface((largura, altura), pygame.SRCALPHA)
+    brilho.fill((24, 95, 38, int(36 + pulso * 34)))
+    sprite.blit(brilho, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+    sombra_roxa = frame.copy()
+    roxo = pygame.Surface((largura, altura), pygame.SRCALPHA)
+    roxo.fill((120, 45, 150, int(80 + pulso * 45)))
+    sombra_roxa.blit(roxo, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
+    combinado = pygame.Surface((largura + 16, altura + 18), pygame.SRCALPHA)
+    tremor_x = int(math.sin(tempo_atual * 0.027) * 2)
+    tremor_y = int(math.cos(tempo_atual * 0.021) * 1)
+    combinado.blit(sombra_roxa, (8 + tremor_x - 2, 9 + tremor_y + 1))
+    combinado.blit(sprite, (8 + tremor_x, 8 + tremor_y))
+
+    aura = pygame.Surface((largura + 16, altura + 18), pygame.SRCALPHA)
+    centro_x = largura // 2 + 8
+    centro_y = altura // 2 + 9
+    raio_x = max(12, largura // 2 + int(4 + pulso * 5))
+    raio_y = max(12, altura // 2 + int(4 + pulso * 7))
+    pygame.draw.ellipse(
+        aura,
+        (80, 255, 115, int(38 + pulso * 34)),
+        (centro_x - raio_x, centro_y - raio_y, raio_x * 2, raio_y * 2),
+        2,
+    )
+    combinado.blit(aura, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+    return combinado
+
+
+def desenhar_personagem_miasma(tela, frame, x, y, tempo_atual, tempo_ultimo_hit, shake_x=0, shake_y=0):
+    if refragmentacao_rewind_esta_ativa(tempo_atual):
+        return
+
+    frame_miasma = processar_sprite_miasma_personagem(frame, tempo_atual)
+    if frame_miasma is None:
+        return
+
+    pos_x = x + shake_x - 8
+    pos_y = y + shake_y - 8
+    largura, altura = frame_miasma.get_size()
+
+    if not config_graficos.get("efeitos_visuais", True):
+        desenhar_personagem_com_dano(tela, frame_miasma, pos_x, pos_y, tempo_atual, tempo_ultimo_hit)
+        return
+
+    fumaca = pygame.Surface((largura + 20, altura + 18), pygame.SRCALPHA)
+    qualidade = config_graficos.get("qualidade_grafica", "media")
+    quantidade = 6 if qualidade == "alta" else 4
+    for i in range(quantidade):
+        fase = tempo_atual * 0.003 + i * 1.37
+        px = int(largura * (0.18 + ((math.sin(fase) + 1.0) * 0.32)))
+        py = int(altura * (0.70 - ((math.cos(fase * 0.8) + 1.0) * 0.22)))
+        raio = int(5 + (math.sin(fase * 1.6) + 1.0) * 4)
+        cor = (80, 255, 105, 42) if i % 2 == 0 else (130, 70, 175, 38)
+        pygame.draw.circle(fumaca, cor, (px + 10, py + 8), raio)
+    tela.blit(fumaca, (pos_x - 10, pos_y - 10))
+
+    desenhar_personagem_com_dano(tela, frame_miasma, pos_x, pos_y, tempo_atual, tempo_ultimo_hit)
 
 
 def obter_frame_refragmentacao_personagem(direcao=None):

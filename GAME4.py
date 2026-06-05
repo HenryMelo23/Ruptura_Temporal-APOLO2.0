@@ -42,6 +42,7 @@ from player_projectile import PlayerProjectileVFX, estourar_disparo_eletrico
 from onda_recoil import criar_estado_coice_onda, aplicar_coice_onda, atualizar_coice_onda
 from audio_manager import carregar_config_audio, aplicar_volume_som
 from Tela_Upgrade_Aureas import tela_upgrade_aureas
+import insana_aurea
 
 instalar_captura_global()
 instalar_filtro_prints()
@@ -813,6 +814,7 @@ def executar_jogo(game_manager=None):
         ondas_choque = []
         nivel_devota = upgrades.get("Devota", 0)
         nivel_vanguarda = upgrades.get("Vanguarda", 0)
+        estado_insana = insana_aurea.criar_estado_insana(upgrades.get("Insana", 0), pygame.time.get_ticks())
 
         if aurea == "Devota":
             escudo_devota_ativo = True
@@ -1389,6 +1391,8 @@ def executar_jogo(game_manager=None):
                         if Petro_active:
                             if vida_petro > vida_maxima_petro :
                                 vida_petro+= (vida_maxima_petro-vida_petro) *0.25    
+                        dano *= insana_aurea.dano_mult_disparo(disparo)
+
                         # Renderize o texto do dano
                         texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
 
@@ -1406,6 +1410,7 @@ def executar_jogo(game_manager=None):
                         if quantidade_roubo_vida > 0:
                             vida += (vida_maxima-vida)*quantidade_roubo_vida
                         if Ultimo_Estalo and inimigo["vida"] <= Executa_inimigo * inimigo["vida_maxima"]:
+                            insana_aurea.notificar_abate_insana(estado_insana, aurea, disparo)
                             if inimigo in inimigos_comum:
                                 gerar_fragmentos_morte(inimigo, 4)
                                 inimigos_comum.remove(inimigo)
@@ -1434,6 +1439,7 @@ def executar_jogo(game_manager=None):
                                 vida_maxima_boss4 = vida_boss4
 
                         elif inimigo["vida"] <= 0:
+                            insana_aurea.notificar_abate_insana(estado_insana, aurea, disparo)
                             posicao_inimigo = inimigo["rect"].center
                             soltar_moeda(posicao_inimigo)
                             Variaveis.tentar_soltar_carta(posicao_inimigo, tempo_atual, Chance_Sorte, inimigos_eliminados)
@@ -1611,6 +1617,11 @@ def executar_jogo(game_manager=None):
                         px_centro, py_centro, largura_disparo, altura_disparo,
                         angulo_disparo_preparado, velocidade_disparo, tempo_atual, impulsiva_ativa
                     ))
+                    insana_aurea.registrar_tiro_insana(
+                        estado_insana, aurea, tempo_atual,
+                        pos_x_personagem, pos_y_personagem, px_centro, py_centro,
+                        angulo_disparo_preparado, largura_disparo, altura_disparo, velocidade_disparo
+                    )
                     tempo_ultimo_disparo = tempo_atual
                     disparo_preparando = False
                     disparo_frame_atual = 0
@@ -1638,6 +1649,11 @@ def executar_jogo(game_manager=None):
                     desenhar_personagem_com_dano(tela, frame_para_desenhar, bx, by, tempo_atual, tempo_ultimo_hit_inimigo)
             else:
                 desenhar_personagem_com_dano(tela, imagem_personagem_congelada, pos_x_personagem, pos_y_personagem, tempo_atual, tempo_ultimo_hit_inimigo)
+
+            insana_aurea.desenhar_insana(
+                tela, estado_insana, aurea, tempo_atual,
+                pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, config_graficos
+            )
 
             # Desenhar zona de teleporte (se estiver mirando no modo mouse)
             Variaveis.desenhar_zona_teleporte(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, distancia_dash)
@@ -1851,6 +1867,11 @@ def executar_jogo(game_manager=None):
 
 
 
+
+            insana_aurea.atualizar_insana(estado_insana, aurea, tempo_atual, disparos, vfx_disparo_player)
+            if insana_aurea.consumir_penalidade_dash_insana(estado_insana):
+                cooldown_dash = True
+                tempo_ultimo_dash = max(tempo_ultimo_dash, tempo_atual + insana_aurea.INSANA_DEBUFF_DASH_MS)
 
             # Desenhar os disparos normais
             novos_disparos = []
@@ -2348,6 +2369,8 @@ def executar_jogo(game_manager=None):
                             duracao_veneno_boss = 8000 + cartas_compradas.get("Poison", 0) * 100
                             tempo_inicio_veneno_boss = pygame.time.get_ticks()
                             ultimo_tick_veneno_boss = pygame.time.get_ticks()
+
+                        dano *= insana_aurea.dano_mult_disparo(disparo)
 
                         # Renderizar texto do dano
                         texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)

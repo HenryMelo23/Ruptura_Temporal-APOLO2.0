@@ -13,13 +13,17 @@ SORTE_INCREMENTO_CARTA = 0.003
 SORTE_PESO_RARIDADE = 0.45
 SORTE_BONUS_RARIDADE_POR_CARTA = 0.0006
 
-DROP_CARTA_BASE_INICIAL = 0.02
+DROP_CARTA_BASE_INICIAL = 0.045
 DROP_CARTA_BASE_MAXIMA = 0.40
 DROP_CARTA_ESCALA_TEMPO_MS = 120 * 60 * 1000
 DROP_CARTA_SORTE_FATOR = 0.25
 DROP_CARTA_SORTE_TETO = 0.70
-DROP_CARTA_CERTEIRO_BASE_MS = 90 * 1000
-DROP_CARTA_CERTEIRO_MAX_MS = 5 * 60 * 1000
+DROP_CARTA_CERTEIRO_BASE_MS = 45 * 1000
+DROP_CARTA_CERTEIRO_MAX_MS = 3 * 60 * 1000
+DROP_CARTA_ASSISTENCIA_INICIO_ABATES = 55
+DROP_CARTA_ASSISTENCIA_INICIO_TEMPO_MS = 8 * 60 * 1000
+DROP_CARTA_ASSISTENCIA_INICIO_BONUS = 0.060
+DROP_CARTA_TETO_INICIO = 0.22
 
 VIDA_INIMIGO_HARD_MULTIPLICADOR = 0.90
 GANHO_VIDA_INIMIGO_HARD_MULTIPLICADOR = 0.84
@@ -92,15 +96,29 @@ def chance_carta_rara(chance_sorte, cartas_compradas=None):
     return _clamp(chance, CHANCE_RARA_BASE, CHANCE_RARA_MAXIMA)
 
 
-def chance_drop_carta_por_tempo(tempo_ms, chance_sorte):
+def chance_drop_carta_por_tempo(tempo_ms, chance_sorte, inimigos_eliminados=0):
     progresso = _clamp(float(tempo_ms or 0.0) / DROP_CARTA_ESCALA_TEMPO_MS, 0.0, 1.0)
     chance_base = DROP_CARTA_BASE_INICIAL + (DROP_CARTA_BASE_MAXIMA - DROP_CARTA_BASE_INICIAL) * progresso
-    return chance_com_sorte(
+
+    progresso_abates = _clamp(
+        float(max(0, int(inimigos_eliminados or 0))) / DROP_CARTA_ASSISTENCIA_INICIO_ABATES,
+        0.0,
+        1.0,
+    )
+    progresso_tempo_inicio = _clamp(float(tempo_ms or 0.0) / DROP_CARTA_ASSISTENCIA_INICIO_TEMPO_MS, 0.0, 1.0)
+    intensidade_inicio = 1.0 - max(progresso_abates, progresso_tempo_inicio)
+    chance_base += DROP_CARTA_ASSISTENCIA_INICIO_BONUS * intensidade_inicio
+
+    chance = chance_com_sorte(
         chance_base,
         chance_sorte,
         fator=DROP_CARTA_SORTE_FATOR,
         teto=DROP_CARTA_SORTE_TETO,
     )
+    if intensidade_inicio > 0:
+        teto_inicio = DROP_CARTA_TETO_INICIO + (DROP_CARTA_SORTE_TETO - DROP_CARTA_TETO_INICIO) * (1.0 - intensidade_inicio)
+        chance = min(chance, teto_inicio)
+    return chance
 
 
 def intervalo_drop_certeiro_ms(chance_drop):

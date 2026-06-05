@@ -2721,22 +2721,20 @@ def executar_jogo(game_manager=None):
             # Desenhar sombra do personagem
             desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
 
-            if estado_atual_ia.get('miasma_ativo'):
-                desenhar_personagem_com_dano(tela, imagem_personagem_doente, pos_x_personagem, pos_y_personagem, tempo_atual, tempo_ultimo_hit_inimigo)
+            frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
+            if direcao_atual == 'disp' and math.cos(angulo_disparo_preparado) < 0:
+                frame_para_desenhar = pygame.transform.flip(frame_para_desenhar, True, False)
+            desenhar_personagem_estado = desenhar_personagem_miasma if estado_atual_ia.get('miasma_ativo') else desenhar_personagem_com_dano
+            if angulo_inclinacao_personagem != 0:
+                # Rotaciona o frame pelo centro para manter o eixo
+                frame_rotacionado = pygame.transform.rotate(frame_para_desenhar, angulo_inclinacao_personagem)
+                novo_rect = frame_rotacionado.get_rect(center=(pos_x_personagem + largura_personagem//2, pos_y_personagem + altura_personagem//2))
+                desenhar_personagem_estado(tela, frame_rotacionado, novo_rect.x, novo_rect.y, tempo_atual, tempo_ultimo_hit_inimigo)
             else:
-                frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
-                if direcao_atual == 'disp' and math.cos(angulo_disparo_preparado) < 0:
-                    frame_para_desenhar = pygame.transform.flip(frame_para_desenhar, True, False)
-                if angulo_inclinacao_personagem != 0:
-                    # Rotaciona o frame pelo centro para manter o eixo
-                    frame_rotacionado = pygame.transform.rotate(frame_para_desenhar, angulo_inclinacao_personagem)
-                    novo_rect = frame_rotacionado.get_rect(center=(pos_x_personagem + largura_personagem//2, pos_y_personagem + altura_personagem//2))
-                    desenhar_personagem_com_dano(tela, frame_rotacionado, novo_rect.x, novo_rect.y, tempo_atual, tempo_ultimo_hit_inimigo)
-                else:
-                    w_f, h_f = frame_para_desenhar.get_size()
-                    bx = pos_x_personagem + (largura_personagem - w_f) // 2
-                    by = pos_y_personagem + (altura_personagem - h_f)
-                    desenhar_personagem_com_dano(tela, frame_para_desenhar, bx, by, tempo_atual, tempo_ultimo_hit_inimigo)
+                w_f, h_f = frame_para_desenhar.get_size()
+                bx = pos_x_personagem + (largura_personagem - w_f) // 2
+                by = pos_y_personagem + (altura_personagem - h_f)
+                desenhar_personagem_estado(tela, frame_para_desenhar, bx, by, tempo_atual, tempo_ultimo_hit_inimigo)
 
             # Desenhar zona de teleporte (se estiver mirando no modo mouse)
             Variaveis.desenhar_zona_teleporte(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, distancia_dash)

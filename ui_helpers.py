@@ -483,6 +483,7 @@ def racional_dilatacao_ativa(aurea, fim_ms, agora_ms=None):
 RACIONAL_DILATACAO_DURACAO_MS = 8000
 RACIONAL_DILATACAO_COOLDOWN_MS = 30000
 RACIONAL_REBOTE_DURACAO_MS = 3000
+RACIONAL_REBOTE_FATOR_MUNDO = 1.18
 
 def tentar_ativar_dilatacao_racional(aurea, agora_ms, proximo_uso_ms=0):
     if str(aurea).strip().lower() != "racional" or agora_ms < proximo_uso_ms:
@@ -508,7 +509,7 @@ def fator_mundo_racional(aurea, fim_ms, agora_ms=None):
     if racional_dilatacao_ativa(aurea, fim_ms, agora_ms):
         return 0.42
     if racional_rebote_ativo(aurea, fim_ms, agora_ms):
-        return 1.5
+        return RACIONAL_REBOTE_FATOR_MUNDO
     return 1.0
 
 IMPULSIVA_ABATES_POR_CICLO = 5

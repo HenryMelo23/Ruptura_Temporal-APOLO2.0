@@ -96,6 +96,31 @@ AUREAS_DADOS = [
             "- Queimadura causa dano por segundo e dura mais com upgrade.",
             "- Custo: cada inimigo queimando aumenta o cooldown do Teleporte em 15%."
         ]
+    },
+    {
+        "id": "Insana",
+        "nome": "INSANA",
+        "categoria": "Insanidade Temporal e Ecos",
+        "descricao": "Utilidade: duplicar pressao ofensiva em janelas curtas. A cada 20s, a aura fica pronta; quando Geovana atira, ecos temporais parados surgem no lugar dela e repetem tiros com 1s de atraso. Cada ativacao comeca com 4 ecos, podendo chegar a 5 se um eco finalizar um inimigo. Os disparos dos ecos causam dano reduzido e usam energia verde no centro com raios roxos. Depois que o ultimo eco e gasto, Geovana sofre desorientacao temporal: o Teleporte recebe 2s extras de recarga.",
+        "resumo": "Cria ecos temporais parados que repetem seus tiros com atraso. Se um eco matar, a proxima ativacao ganha +1 eco. Depois vem desorientacao: Teleporte recarrega mais lento por 2s.",
+        "lore": "\"Nem toda Geovana que atira ainda esta viva no mesmo segundo.\"",
+        "imagem_path": "Sprites/aurea_insana.png",
+        "cor": (160, 55, 255),
+        "estilo": "insana",
+        "beneficios": {
+            0: "Nenhum efeito ativo.",
+            1: "4 ecos por ativacao. Tiros dos ecos causam 48% do dano. Cooldown 19s apos o ultimo eco.",
+            2: "4 ecos por ativacao. Tiros dos ecos causam 51% do dano. Cooldown 18s apos o ultimo eco.",
+            3: "4 ecos por ativacao. Tiros dos ecos causam 54% do dano. Cooldown 17s apos o ultimo eco.",
+            4: "4 ecos por ativacao. Tiros dos ecos causam 57% do dano. Cooldown 16s apos o ultimo eco.",
+            5: "4 ecos por ativacao. Tiros dos ecos causam 60% do dano. Cooldown 15s apos o ultimo eco."
+        },
+        "destaques": [
+            "- A cada 20s, seus tiros criam ecos parados.",
+            "- Ecos repetem tiros com 1s de atraso e dano reduzido.",
+            "- Se um eco finalizar inimigo, a proxima ativacao tem 5 ecos.",
+            "- Custo: depois do ultimo eco, Teleporte recebe +2s de recarga."
+        ]
     }
 ]
 

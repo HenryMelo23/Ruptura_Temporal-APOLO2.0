@@ -35,8 +35,8 @@ def _quantizar_alpha(alpha):
     return max(0, min(255, int(alpha) // 12 * 12))
 
 
-def _surface_orbe(raio, perfil, impulsiva=False):
-    chave = (int(raio), perfil, bool(impulsiva))
+def _surface_orbe(raio, perfil, impulsiva=False, insana=False):
+    chave = (int(raio), perfil, bool(impulsiva), bool(insana))
     if chave in _ORB_CACHE:
         return _ORB_CACHE[chave]
 
@@ -45,9 +45,14 @@ def _surface_orbe(raio, perfil, impulsiva=False):
     surf = pygame.Surface((tamanho, tamanho), pygame.SRCALPHA)
     centro = tamanho // 2
 
-    cor_aura = (0, 185, 255) if not impulsiva else (70, 120, 255)
-    cor_core = (165, 235, 255) if not impulsiva else (210, 240, 255)
-    cor_profunda = (0, 42, 190) if not impulsiva else (30, 20, 210)
+    if insana:
+        cor_aura = (168, 55, 255)
+        cor_core = (95, 255, 135)
+        cor_profunda = (80, 20, 150)
+    else:
+        cor_aura = (0, 185, 255) if not impulsiva else (70, 120, 255)
+        cor_core = (165, 235, 255) if not impulsiva else (210, 240, 255)
+        cor_profunda = (0, 42, 190) if not impulsiva else (30, 20, 210)
 
     if perfil != "baixo":
         for i in range(4, 0, -1):
@@ -55,15 +60,15 @@ def _surface_orbe(raio, perfil, impulsiva=False):
             alpha = int(22 + i * 13)
             pygame.draw.circle(surf, (*cor_aura, alpha), (centro, centro), r)
 
-    pygame.draw.circle(surf, (0, 92, 230, 230), (centro, centro), raio + 4)
+    pygame.draw.circle(surf, (125, 36, 220, 230) if insana else (0, 92, 230, 230), (centro, centro), raio + 4)
     pygame.draw.circle(surf, (*cor_profunda, 220), (centro + 2, centro + 2), raio + 1)
-    pygame.draw.circle(surf, (0, 170, 255, 245), (centro, centro), raio)
+    pygame.draw.circle(surf, (50, 230, 120, 245) if insana else (0, 170, 255, 245), (centro, centro), raio)
     pygame.draw.circle(surf, (*cor_core, 255), (centro - max(1, raio // 3), centro - max(1, raio // 3)), max(2, raio // 2))
     pygame.draw.circle(surf, (235, 255, 255, 235), (centro - max(2, raio // 4), centro - max(2, raio // 4)), max(1, raio // 4))
 
     if perfil != "baixo":
-        pygame.draw.circle(surf, (80, 220, 255, 210), (centro, centro), raio + 3, 1)
-        pygame.draw.circle(surf, (0, 70, 255, 180), (centro + 1, centro + 1), raio + 6, 1)
+        pygame.draw.circle(surf, (120, 255, 160, 210) if insana else (80, 220, 255, 210), (centro, centro), raio + 3, 1)
+        pygame.draw.circle(surf, (170, 55, 255, 180) if insana else (0, 70, 255, 180), (centro + 1, centro + 1), raio + 6, 1)
 
     _ORB_CACHE[chave] = surf
     return surf
@@ -157,11 +162,11 @@ class PlayerProjectileVFX:
             fade = 1.0 - idx / max(1, p["rastro"])
             rr = max(2, int(raio * (0.45 + 0.34 * fade)))
             alpha = int(95 * fade)
-            cor = (0, 135 + int(90 * fade), 255)
+            cor = (140 + int(60 * fade), 45, 255) if disparo.get("insana_vfx", False) else (0, 135 + int(90 * fade), 255)
             surf = _surface_particula(rr, cor, alpha)
             tela.blit(surf, (int(tx + ox - rr * 2), int(ty + oy - rr * 2)))
 
-        surf_orbe = _surface_orbe(raio, perfil, disparo.get("impulsiva_vfx", False))
+        surf_orbe = _surface_orbe(raio, perfil, disparo.get("impulsiva_vfx", False), disparo.get("insana_vfx", False))
         tela.blit(surf_orbe, (int(cx - surf_orbe.get_width() / 2), int(cy - surf_orbe.get_height() / 2)))
 
         rng = random.Random(int(disparo.get("seed_vfx", 0)) + int(agora_ms // 42))
@@ -180,13 +185,13 @@ class PlayerProjectileVFX:
                 (sx + ex) * 0.5 + lado_x * rng.uniform(-4, 4) + tras_x * rng.uniform(0, recuo * 0.35),
                 (sy + ey) * 0.5 + lado_y * rng.uniform(-4, 4) + tras_y * rng.uniform(0, recuo * 0.35),
             )
-            cor = rng.choice(self._cores)
+            cor = rng.choice([(135, 45, 255), (165, 70, 255), (95, 255, 135), (210, 125, 255)]) if disparo.get("insana_vfx", False) else rng.choice(self._cores)
             pygame.draw.line(tela, cor, ponto((sx, sy)), ponto(meio), 2 if perfil == "alto" and i % 3 == 0 else 1)
-            pygame.draw.line(tela, (185, 245, 255), ponto(meio), ponto((ex, ey)), 1)
+            pygame.draw.line(tela, (95, 255, 145) if disparo.get("insana_vfx", False) else (185, 245, 255), ponto(meio), ponto((ex, ey)), 1)
             if p["ramo"] and i % 3 == 0:
                 bx = meio[0] + lado_x * rng.uniform(-9, 9) + tras_x * rng.uniform(2, 8)
                 by = meio[1] + lado_y * rng.uniform(-9, 9) + tras_y * rng.uniform(2, 8)
-                pygame.draw.line(tela, (80, 210, 255), ponto(meio), ponto((bx, by)), 1)
+                pygame.draw.line(tela, (175, 55, 255) if disparo.get("insana_vfx", False) else (80, 210, 255), ponto(meio), ponto((bx, by)), 1)
 
     def criar_impacto(self, disparo, config_graficos=None, multiplicador=1.0):
         if not (config_graficos or {}).get("particulas_ativas", True):

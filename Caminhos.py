@@ -82,7 +82,7 @@ if not hasattr(builtins, "_saves_redirected"):
         pasta_cofre = obter_pasta_saves()
         
         # Gera o hash dinâmico do upgrade de aureas padrão para a assinatura
-        upgrades_default = {"Racional": 0, "Impulsiva": 0, "Devota": 0, "Vanguarda": 0}
+        upgrades_default = {"Racional": 0, "Impulsiva": 0, "Devota": 0, "Vanguarda": 0, "Insana": 0}
         upgrades_str = json.dumps(upgrades_default, sort_keys=True)
         hash_val = hashlib.sha256(upgrades_str.encode()).hexdigest()
         

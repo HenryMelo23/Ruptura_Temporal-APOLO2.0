@@ -25,7 +25,7 @@ def salvar_upgrade_aureas(caminho, upgrades):
 
 
 def carregar_upgrade_aureas(caminho):
-    nomes_validos = ["Racional", "Impulsiva", "Devota", "Vanguarda"]
+    nomes_validos = ["Racional", "Impulsiva", "Devota", "Vanguarda", "Insana"]
     try:
         if not os.path.exists(caminho):
             return {nome: 0 for nome in nomes_validos}

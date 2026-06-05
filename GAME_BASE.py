@@ -661,7 +661,7 @@ def executar_jogo(game_manager=None):
                 {"nome": "Vanguarda", "imagem": "Sprites/aurea_vanguarda.png", "ativa": True},
                 {"nome": "?", "imagem": "Sprites/aurea_misteriosa.png", "ativa": False}
             ]
-            for nome in ["Racional", "Impulsiva", "Devota", "Vanguarda"]:
+            for nome in ["Racional", "Impulsiva", "Devota", "Vanguarda", "Insana"]:
                 if nome not in upgrades:
                     upgrades[nome] = 0
 

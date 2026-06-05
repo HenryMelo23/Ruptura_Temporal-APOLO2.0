@@ -1633,15 +1633,31 @@ def tela_selecao_aurea(tela, fonte):
             "cor_tema": (0, 255, 180),       # Verde Esmeralda / Neon
             "bg_tema": (8, 32, 24),          # Fundo Deep Green
             "categoria": "SURPRESA E DESTINO INCERTO",
-            "efeito": "Escolhe uma das quatro Ã¡ureas ativas ao iniciar a jornada, mudando a estratÃ©gia da partida.",
+            "efeito": "Escolhe uma das cinco Ã¡ureas ativas ao iniciar a jornada, mudando a estratÃ©gia da partida.",
             "atributos": [
-                "â€¢ Pode vir Racional, Impulsiva, Devota ou Vanguarda.",
+                "â€¢ Pode vir Racional, Impulsiva, Devota, Vanguarda ou Insana.",
                 "â€¢ A escolha Ã© definida ao confirmar.",
                 "â€¢ Boa para partidas de adaptaÃ§Ã£o."
             ],
             "lore": "O destino Ã© incerto, e o tempo se desdobra em infinitas possibilidades."
         }
     ]
+
+    aureas.insert(-1, {
+        "nome": "Insana",
+        "imagem": "Sprites/aurea_insana.png",
+        "ativa": True,
+        "cor_tema": (160, 55, 255),
+        "bg_tema": (24, 10, 38),
+        "categoria": "ECOS TEMPORAIS E DESORIENTACAO",
+        "efeito": "Cria ecos temporais parados que repetem seus disparos com atraso, causando dano reduzido.",
+        "atributos": [
+            "Comeca com 4 ecos, podendo chegar a 5.",
+            "Ecos disparam 1s depois do tiro original.",
+            "Depois da aura, o Teleporte sofre +2s de recarga."
+        ],
+        "lore": "A ruptura deixa Geovana ouvir versoes atrasadas de si mesma, todas atirando de volta para o presente."
+    })
 
     dados_aureas_por_id = {dado["id"]: dado for dado in AUREAS_DADOS}
     for item in aureas:
@@ -1778,7 +1794,7 @@ def tela_selecao_aurea(tela, fonte):
                         tocar_selecionar()
                         nome_aurea = aureas[selecionado]["nome"]
                         if nome_aurea == "AleatÃ³ria":
-                            nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda"])
+                            nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda", "Insana"])
                         
                         # Salva a escolha
                         os.makedirs("saves", exist_ok=True)
@@ -1824,7 +1840,7 @@ def tela_selecao_aurea(tela, fonte):
                         tocar_selecionar()
                         nome_aurea = aureas[selecionado]["nome"]
                         if nome_aurea == "AleatÃ³ria":
-                            nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda"])
+                            nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda", "Insana"])
                         os.makedirs("saves", exist_ok=True)
                         with open("saves/aurea_selecionada.json", "w") as file:
                             json.dump({"aurea": nome_aurea}, file)
@@ -1854,7 +1870,7 @@ def tela_selecao_aurea(tela, fonte):
                     tocar_selecionar()
                     nome_aurea = aurea["nome"]
                     if nome_aurea == "AleatÃ³ria":
-                        nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda"])
+                        nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda", "Insana"])
                     
                     os.makedirs("saves", exist_ok=True)
                     with open("saves/aurea_selecionada.json", "w") as file:
@@ -3077,7 +3093,8 @@ def _dados_catalogo_temporal():
             {"nome": "Aurea Impulsiva", "imagem": "Sprites/aurea_impulsiva.png", "funcionamento": "Agressao continua. A cada 5 abates sem sofrer dano, ativa Frenesi temporario de dano e/ou velocidade. Manter a sequencia renova a pressao; nas fases com sistema completo, renovar com tempo sobrando aumenta o nivel e sofrer hit durante o Frenesi arma Panico.", "historia": "Acao imediata. O instinto reage antes que o proprio tempo possa processar."},
             {"nome": "Aurea Devota", "imagem": "Sprites/aurea_devota.png", "funcionamento": "Sobrevivencia. Cria escudo automatico que anula dano quando ativo e recarrega sozinho. Upgrade reduz a recarga. Nas fases com sistema completo, sao 3 cargas; ao quebrar a ultima, Apolo fica 30% mais lento por 4s e causa 2x dano.", "historia": "A fe inabalavel manifesta uma barreira divina que desafia a propria causalidade."},
             {"nome": "Aurea Vanguarda", "imagem": "Sprites/aurea_vanguarda.png", "funcionamento": "Area e queimadura. Inimigos proximos ou tocados podem incendiar e sofrer dano por segundo baseado em vida maxima. Nas fases com sistema completo, sofrer hit abre um circulo de fogo por 5s. Cada inimigo queimando aumenta o cooldown do Teleporte em 15%.", "historia": "Liderando o avanco, a pioneira incendeia o solo para que nada a siga no fluxo temporal."},
-            {"nome": "Aurea Aleatoria", "imagem": "Sprites/aurea_misteriosa.png", "funcionamento": "Seleciona uma das quatro aureas ativas ao confirmar a jornada: Racional, Impulsiva, Devota ou Vanguarda. A utilidade muda conforme a sorte, exigindo adaptar movimentacao, agressividade, defesa ou controle de area.", "historia": "O destino e incerto, e o tempo se desdobra em infinitas possibilidades."},
+            {"nome": "Aurea Insana", "imagem": "Sprites/aurea_insana.png", "funcionamento": "Ecos temporais. A cada ciclo liberado, Geovana ganha 4 ecos parados que repetem seus disparos com 1s de atraso e dano reduzido. Se um eco finalizar inimigo, a proxima ativacao ganha +1 eco, ate 5. Depois da aura, o Teleporte sofre +2s de recarga.", "historia": "A insanidade temporal quebra a linha do presente e deixa copias atrasadas atirando no mesmo instante."},
+            {"nome": "Aurea Aleatoria", "imagem": "Sprites/aurea_misteriosa.png", "funcionamento": "Seleciona uma das cinco aureas ativas ao confirmar a jornada: Racional, Impulsiva, Devota, Vanguarda ou Insana. A utilidade muda conforme a sorte, exigindo adaptar movimentacao, agressividade, defesa, controle de area ou ecos temporais.", "historia": "O destino e incerto, e o tempo se desdobra em infinitas possibilidades."},
         ],
         "Fragmentos": [
             {"nome": "Speed Boost", "imagem": "Sprites/Deck/Speed_boost1.png", "funcionamento": "Fragmento dimensional que aumenta velocidade de movimento.", "historia": "Um fragmento para quem prefere vencer a ruptura antes que ela feche o cerco."},
