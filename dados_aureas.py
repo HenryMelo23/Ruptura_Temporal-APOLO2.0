@@ -53,24 +53,24 @@ AUREAS_DADOS = [
         "id": "Devota",
         "nome": "DEVOTA",
         "categoria": "Protecao e Sobrevivencia",
-        "descricao": "Utilidade: sobreviver a erro, colisao ou disparo perigoso. A aura cria um escudo automatico que anula dano quando esta ativo e depois entra em recarga reduzida por upgrade. Nas fases com sistema completo, o escudo tem 3 cargas; ao quebrar a ultima, Apolo fica 30% mais lento por 4s, mas causa 2x dano no mesmo periodo.",
-        "resumo": "Sobrevivencia: escudo automatico anula dano quando ativo e recarrega sozinho. Upgrade reduz a recarga; sistema completo usa 3 cargas.",
+        "descricao": "Utilidade: transformar erro em contra-ataque. A aura cria 3 cargas de escudo que anulam impactos. Cada bloqueio cura 10% da vida perdida e concede +25% dano por 3s. Ao quebrar a ultima carga, Apolo recebe Fe Ardente: +65% dano por 4.5s, com apenas -10% velocidade. Upgrade reduz a recarga.",
+        "resumo": "Sobrevivencia ofensiva: 3 cargas anulam hits, curam parte da vida perdida e viram janela de dano.",
         "lore": "\"O tempo e a melhor armadura. Ele consome tudo, exceto a fe.\"",
         "imagem_path": "Sprites/aurea_devota.png",
         "cor": (255, 200, 0),
         "estilo": "devota",
         "beneficios": {
             0: "Nenhum efeito ativo.",
-            1: "3 cargas anulam 3 hits. Na quebra: -30% velocidade e 2x dano por 4s. Depois recarrega em 27s.",
-            2: "3 cargas anulam 3 hits. Na quebra: -30% velocidade e 2x dano por 4s. Depois recarrega em 24s.",
-            3: "3 cargas anulam 3 hits. Na quebra: -30% velocidade e 2x dano por 4s. Depois recarrega em 21s.",
-            4: "3 cargas anulam 3 hits. Na quebra: -30% velocidade e 2x dano por 4s. Depois recarrega em 18s.",
-            5: "3 cargas anulam 3 hits. Na quebra: -30% velocidade e 2x dano por 4s. Depois recarrega em 15s."
+            1: "3 cargas anulam hits. Bloqueio cura 10% da vida perdida e da +25% dano por 3s. Recarga: 19.5s.",
+            2: "3 cargas anulam hits. Fe Ardente na ultima quebra: +65% dano por 4.5s e so -10% velocidade. Recarga: 17s.",
+            3: "3 cargas anulam hits. Bloqueios viram cura e janela de contra-ataque. Recarga: 14.5s.",
+            4: "3 cargas anulam hits. Mais uptime defensivo para lutas longas. Recarga: 12s.",
+            5: "3 cargas anulam hits. Devota sustenta erro, cura e resposta agressiva. Recarga: 9.5s."
         },
         "destaques": [
-            "- Escudo automatico bloqueia dano quando esta ativo.",
-            "- Upgrade reduz a recarga, de 27s ate 15s.",
-            "- Sistema completo: 3 cargas; quebra final da -30% velocidade e 2x dano."
+            "- 3 cargas de escudo anulam impactos.",
+            "- Cada bloqueio cura parte da vida perdida e aumenta o dano por poucos segundos.",
+            "- Quando a ultima carga quebra, Fe Ardente entrega um pico de dano com lentidao leve."
         ]
     },
     {
@@ -101,8 +101,8 @@ AUREAS_DADOS = [
         "id": "Insana",
         "nome": "INSANA",
         "categoria": "Insanidade Temporal e Ecos",
-        "descricao": "Utilidade: duplicar pressao ofensiva em janelas curtas. A cada 20s, a aura fica pronta; quando Geovana atira, ecos temporais parados surgem no lugar dela e repetem tiros com 1s de atraso. Cada ativacao comeca com 4 ecos, podendo chegar a 5 se um eco finalizar um inimigo. Os disparos dos ecos causam dano reduzido e usam energia verde no centro com raios roxos. Depois que o ultimo eco e gasto, Geovana sofre desorientacao temporal: o Teleporte recebe 2s extras de recarga.",
-        "resumo": "Cria ecos temporais parados que repetem seus tiros com atraso. Se um eco matar, a proxima ativacao ganha +1 eco. Depois vem desorientacao: Teleporte recarrega mais lento por 2s.",
+        "descricao": "Utilidade: duplicar pressao ofensiva e desviar pressao inimiga em janelas curtas. A cada 20s, a aura fica pronta; quando Geovana atira, ecos temporais parados surgem no lugar dela, atraem a prioridade dos inimigos e repetem tiros com 1s de atraso. Cada ativacao comeca com 4 ecos, podendo chegar a 5 se um eco finalizar um inimigo. Os disparos dos ecos causam dano reduzido e usam energia verde no centro com raios roxos. Depois que o ultimo eco e gasto, Geovana sofre desorientacao temporal: o Teleporte recebe 2s extras de recarga.",
+        "resumo": "Cria ecos temporais parados que atraem inimigos e repetem seus tiros com atraso. Se um eco matar, a proxima ativacao ganha +1 eco. Depois vem desorientacao: Teleporte recarrega mais lento por 2s.",
         "lore": "\"Nem toda Geovana que atira ainda esta viva no mesmo segundo.\"",
         "imagem_path": "Sprites/aurea_insana.png",
         "cor": (160, 55, 255),
@@ -117,9 +117,36 @@ AUREAS_DADOS = [
         },
         "destaques": [
             "- A cada 20s, seus tiros criam ecos parados.",
+            "- Inimigos priorizam os ecos enquanto eles existem.",
             "- Ecos repetem tiros com 1s de atraso e dano reduzido.",
             "- Se um eco finalizar inimigo, a proxima ativacao tem 5 ecos.",
             "- Custo: depois do ultimo eco, Teleporte recebe +2s de recarga."
+        ]
+    },
+    {
+        "id": "Voraz",
+        "nome": "VORAZ",
+        "categoria": "Fome, Consumo e Risco",
+        "descricao": "Utilidade: agressao sustentada por coleta ativa. Inimigos derrotados deixam poeira voraz por poucos segundos; coletar essa poeira enche a barra Fome e cura 5% da vida perdida. Ao completar a barra, ela sobe para X1, X2 e assim por diante: cada ciclo exige mais poeira e a Fome passa a cair mais rapido. Com Fome sustentada, os tiros ficam maiores e causam mais dano, habilidades recarregam um pouco mais rapido, inimigos proximos sao puxados levemente para Geovana e contato causa mordidas. Cada mordida recupera 25% da vida perdida; se finalizar um inimigo, recupera 35%; em boss, recupera 60%. Se ficar mais de 30s sem coletar poeira, a aura cobra 1% da vida a cada 1.5s.",
+        "resumo": "Coleta agressiva: abates deixam poeira voraz que enche Fome e cura 5% da vida perdida. Fome sustentada aumenta tiros/dano, acelera recargas, puxa inimigos e ativa mordidas; sem coleta por 30s drena vida.",
+        "lore": "\"A ruptura nao abre uma boca. Ela ensina Geovana a sentir uma.\"",
+        "imagem_path": "Sprites/aurea_voraz.png",
+        "cor": (255, 112, 24),
+        "estilo": "voraz",
+        "beneficios": {
+            0: "Nenhum efeito ativo.",
+            1: "Poeira alimenta Fome e cura 5% da vida perdida. Fome sustentada aumenta tiros, dano e mordidas que curam; sem coleta por 30s drena vida.",
+            2: "Mais dano por Fome e recargas um pouco mais rapidas. A barra escala ao completar ciclos XN.",
+            3: "Puxao e mordidas ficam mais relevantes em combate corpo a corpo.",
+            4: "Tiros crescem mais com Fome sustentada e a pressao ofensiva dura melhor.",
+            5: "Maior recompensa agressiva, mas ciclos altos decaem rapido e exigem coleta constante."
+        },
+        "destaques": [
+            "- Abates deixam poeira laranja voraz por poucos segundos.",
+            "- Coletar poeira enche Fome e cura 5% da vida perdida.",
+            "- Fome sustentada aumenta tiros/dano, acelera recargas e puxa inimigos.",
+            "- Mordidas curam 25% da vida perdida; se eliminarem inimigo, curam 35%; contra boss, curam 60%.",
+            "- Custo: 30s sem coletar poeira drena 1% de vida a cada 1.5s."
         ]
     }
 ]

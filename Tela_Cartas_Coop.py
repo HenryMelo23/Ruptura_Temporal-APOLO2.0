@@ -78,13 +78,13 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
     
     atributos_cartas = [
         {"nome": "Speed Boost", "Nick": "Vento Celeste", 
-         "descricao": "Aumenta a velocidade de movimento de Apolo em +0.035 (escala +0.005 a cada 50 abates na partida)."},
+         "descricao": "Aumenta a velocidade de movimento de Apolo em +0.065 (escala +0.008 a cada 50 abates na partida)."},
         
         {"nome": "Porção", "Nick": "Elixir Vital", 
          "descricao": "Cura Apolo em 45% da vida maxima e Petro em 30% da vida maxima (escala com abates). Cura excedente aumenta permanentemente a vida maxima de ambos."},
         
         {"nome": "Disparo crescente", "Nick": "Impacto Escalante", 
-         "descricao": "Aumenta o dano de ataque basico de Apolo em +13.5 (escala com +5 a cada 50 abates na partida)."},
+         "descricao": "Aumenta o dano de ataque basico em +8 no inicio, +4 a cada 50 abates e ganha escala extra depois de 300 abates."},
         
         {"nome": "Tempestade", "Nick": "Tempestade Crescente", 
          "descricao": "Aumenta a chance critica de Apolo em +2% (escala +0.5% a cada 100 abates) e o dano basico em +5 (escala +2 a cada 100 abates)."},
@@ -96,7 +96,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
          "descricao": "Ao sofrer dano fatal, revive Apolo com vida cheia. Concede bonus de regeneracao passiva (-5% de intervalo, +0.1% de cura). Acumular 2 Trembos melhora a regeneracao (-25% intervalo, +0.5% cura). Ao reviver, consome o companheiro e retem 50% dos bonus de regeneracao."},
 
         {"nome": "Speed Atack", "Nick": "Fluidez Letal", 
-         "descricao": "Aumenta a cadencia de disparo reduzindo o intervalo em -20ms (escala em -5ms a cada 100 abates). O intervalo minimo permitido e de 50ms."},
+         "descricao": "Aumenta a cadencia de disparo reduzindo o intervalo em -34ms (escala em -7ms a cada 100 abates). O intervalo minimo permitido e de 70ms."},
         
         {"nome": "Teleporte", "Nick": "Salto Espacial", 
          "descricao": "Reduz o tempo de recarga do Teleporte em 0.3% do valor atual (reducao extra de 0.05% a cada 50 abates). Recarga minima de 0.5s."},
@@ -288,7 +288,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
         
         nome = carta_sel["nome"]
         if nome == "Speed Boost":
-            velocidade_personagem += 0.035 + (inimigos_eliminados // 50) * 0.005
+            velocidade_personagem += incremento_carta_velocidade_movimento(inimigos_eliminados)
             cartas_compradas["Speed Boost"] += 1
         elif nome == "Porção":
             vida += int(vida_maxima * 0.45 + (inimigos_eliminados // 30) * 0.05)
@@ -320,9 +320,9 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
             quantidade_roubo_vida += 0.002 + (inimigos_eliminados // 80) * 0.0005
             cartas_compradas["Cura"] += 1
         elif nome == "Speed Atack":
-            intervalo_disparo -= 20 + (inimigos_eliminados // 100) * 5
-            if intervalo_disparo < 50:
-                intervalo_disparo = 50
+            intervalo_disparo -= reducao_intervalo_carta_speed_attack(inimigos_eliminados)
+            if intervalo_disparo < intervalo_minimo_speed_attack():
+                intervalo_disparo = intervalo_minimo_speed_attack()
             cartas_compradas["Speed Atack"] += 1
         elif nome == "Teleporte":
             tempo_cooldown_dash -= tempo_cooldown_dash * 0.003 + (inimigos_eliminados // 50) * 0.0005

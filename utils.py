@@ -25,7 +25,7 @@ def salvar_upgrade_aureas(caminho, upgrades):
 
 
 def carregar_upgrade_aureas(caminho):
-    nomes_validos = ["Racional", "Impulsiva", "Devota", "Vanguarda", "Insana"]
+    nomes_validos = ["Racional", "Impulsiva", "Devota", "Vanguarda", "Insana", "Voraz"]
     try:
         if not os.path.exists(caminho):
             return {nome: 0 for nome in nomes_validos}
@@ -588,3 +588,214 @@ def executar_animacao_morte_personagem(
         tela.blit(screen_temp, (0, 0))
         pygame.display.flip()
         clock.tick(60)
+
+
+def animar_spawn_portal(tela, mapa, pos_x, pos_y, largura, altura, duracao, frames_animacao, direcao_atual, Som_portal):
+    """
+    Exibe um efeito cinemático de portal dimensional e materialização de partículas para o spawn do personagem.
+    Duração recomendada: ~2000ms.
+    """
+    import pygame
+    import random
+    import math
+
+    inicio = pygame.time.get_ticks()
+    relogio = pygame.time.Clock()
+
+    qualidade = carregar_qualidade_grafica()
+    mult_particulas = 1.0
+    if qualidade == "media":
+        mult_particulas = 0.5
+    elif qualidade == "baixa":
+        mult_particulas = 0.2
+
+    centro_x = pos_x + largura // 2
+    centro_y = pos_y + altura // 2
+
+    # Toca o som do portal no início
+    if Som_portal:
+        try:
+            Som_portal.play()
+        except:
+            pass
+
+    # Lista de partículas
+    # Cada partícula: {"x", "y", "vx", "vy", "color", "size", "alpha", "life", "type"}
+    particulas = []
+
+    # Obter imagem base do jogador
+    player_img = None
+    if frames_animacao and direcao_atual in frames_animacao and len(frames_animacao[direcao_atual]) > 0:
+        player_img = frames_animacao[direcao_atual][0]
+
+    portal_max_raio_x = 65
+    portal_max_raio_y = 25
+
+    while True:
+        agora = pygame.time.get_ticks()
+        decorrido = agora - inicio
+        if decorrido >= duracao:
+            break
+
+        progresso = decorrido / duracao
+
+        # 1. Desenhar fundo do mapa completo
+        tela.blit(mapa, (0, 0))
+
+        # 2. Portal - Raio atual (abre nos primeiros 30%, fica aberto até 80%, depois fecha)
+        if progresso < 0.3:
+            fator_portal = progresso / 0.3
+        elif progresso < 0.8:
+            fator_portal = 1.0 + 0.05 * math.sin(agora * 0.02)
+        else:
+            fator_portal = max(0.0, 1.0 - (progresso - 0.8) / 0.2)
+
+        raio_x = portal_max_raio_x * fator_portal
+        raio_y = portal_max_raio_y * fator_portal
+
+        # Spawna partículas de energia do portal
+        if progresso < 0.8 and fator_portal > 0.1:
+            num_spawns = int(3 * mult_particulas)
+            for _ in range(max(1, num_spawns)):
+                angulo = random.uniform(0, 2 * math.pi)
+                px = centro_x + math.cos(angulo) * raio_x
+                py = (centro_y + altura // 2.5) + math.sin(angulo) * raio_y
+
+                velocidade = random.uniform(1.5, 3.5)
+                vx = -math.sin(angulo) * velocidade + random.uniform(-0.5, 0.5)
+                vy = math.cos(angulo) * (velocidade * 0.3) - random.uniform(0.5, 1.5)
+                partic_cor = random.choice([
+                    (0, 255, 255),  # Ciano
+                    (143, 33, 252), # Roxo
+                    (255, 255, 255) # Branco
+                ])
+                partic_size = random.uniform(2, 5)
+                particulas.append({
+                    "x": px,
+                    "y": py,
+                    "vx": vx,
+                    "vy": vy,
+                    "color": partic_cor,
+                    "size": partic_size,
+                    "life": random.randint(20, 40),
+                    "type": "portal"
+                })
+
+        # Spawna partículas de reconstrução (convergem para o corpo do jogador)
+        # Ocorre entre 20% e 75% da animação
+        if 0.2 <= progresso <= 0.75:
+            num_conv = int(5 * mult_particulas)
+            for _ in range(max(1, num_conv)):
+                angulo = random.uniform(0, 2 * math.pi)
+                dist_partida = random.uniform(90, 160)
+                px = centro_x + math.cos(angulo) * dist_partida
+                py = centro_y + math.sin(angulo) * dist_partida
+
+                tx = pos_x + random.uniform(0, largura)
+                ty = pos_y + random.uniform(0, altura)
+
+                frames_to_target = random.uniform(20, 35)
+                vx = (tx - px) / frames_to_target
+                vy = (ty - py) / frames_to_target
+
+                partic_cor = random.choice([
+                    (0, 255, 255),
+                    (200, 255, 255),
+                    (143, 33, 252)
+                ])
+                particulas.append({
+                    "x": px,
+                    "y": py,
+                    "vx": vx,
+                    "vy": vy,
+                    "color": partic_cor,
+                    "size": random.uniform(2, 4),
+                    "life": int(frames_to_target),
+                    "type": "reconstrucao",
+                    "tx": tx,
+                    "ty": ty
+                })
+
+        # Desenhar base do portal (concentric ellipses) no chão
+        if raio_x > 2 and raio_y > 2:
+            for i in range(3):
+                mult_r = 1.0 - i * 0.2
+                rx = int(raio_x * mult_r)
+                ry = int(raio_y * mult_r)
+                if rx > 1 and ry > 1:
+                    s_portal = pygame.Surface((rx * 2, ry * 2), pygame.SRCALPHA)
+                    cor_rgba = (
+                        143 if i == 1 else 0,
+                        33 if i == 1 else 255,
+                        252 if i == 1 else 255,
+                        int(150 * (1.0 - i * 0.2) * (1.0 if progresso < 0.8 else fator_portal))
+                    )
+                    pygame.draw.ellipse(s_portal, cor_rgba, (0, 0, rx * 2, ry * 2), int(2 + i))
+                    tela.blit(s_portal, (centro_x - rx, (centro_y + altura // 2.5) - ry))
+
+        # 3. Desenhar e atualizar partículas
+        novas_particulas = []
+        for p in particulas:
+            p["x"] += p["vx"]
+            p["y"] += p["vy"]
+            p["life"] -= 1
+
+            if p["type"] == "reconstrucao":
+                dx = p["tx"] - p["x"]
+                dy = p["ty"] - p["y"]
+                dist = math.hypot(dx, dy)
+                if dist < 6:
+                    p["vx"] = random.uniform(-0.5, 0.5)
+                    p["vy"] = random.uniform(-0.5, 0.5)
+                    p["type"] = "faisca"
+                    p["life"] = random.randint(5, 12)
+            elif p["type"] == "portal":
+                p["vx"] *= 0.96
+                p["vy"] += 0.02
+
+            if p["life"] > 0:
+                pygame.draw.circle(tela, p["color"], (int(p["x"]), int(p["y"])), int(p["size"]))
+                novas_particulas.append(p)
+        particulas = novas_particulas
+
+        # 4. Materialização do jogador (Geovana)
+        # Ocorre gradualmente a partir de 30% até 85%
+        if progresso >= 0.3 and player_img:
+            alpha_progresso = min(1.0, (progresso - 0.3) / 0.5)
+            player_alpha = int(255 * alpha_progresso)
+
+            surf_player = pygame.Surface((largura, altura), pygame.SRCALPHA)
+            surf_player.blit(player_img, (0, 0))
+            surf_player.set_alpha(player_alpha)
+
+            # Efeito de Glitch/Desalinhamento Temporal
+            chance_glitch = 0.5 * (1.0 - alpha_progresso)
+            if random.random() < chance_glitch and qualidade != "baixa":
+                fatias = random.randint(3, 7)
+                altura_fatia = altura // fatias
+                for f in range(fatias):
+                    fy = f * altura_fatia
+                    offset_x = random.randint(-12, 12)
+                    tela.blit(surf_player, (pos_x + offset_x, pos_y + fy), pygame.Rect(0, fy, largura, altura_fatia))
+                    if random.random() < 0.4:
+                        pygame.draw.line(
+                            tela,
+                            (0, 255, 255),
+                            (pos_x - 15, pos_y + fy + random.randint(0, altura_fatia)),
+                            (pos_x + largura + 15, pos_y + fy + random.randint(0, altura_fatia)),
+                            random.randint(1, 2)
+                        )
+            else:
+                tela.blit(surf_player, (pos_x, pos_y))
+
+            # Adiciona um contorno brilhante sutil de energia (neon)
+            if alpha_progresso < 0.95 and qualidade != "baixa":
+                try:
+                    mask = pygame.mask.from_surface(player_img)
+                    mask_surf = mask.to_surface(setcolor=(0, 255, 255, int(120 * (1.0 - alpha_progresso))), unsetcolor=(0, 0, 0, 0))
+                    tela.blit(mask_surf, (pos_x + random.randint(-2, 2), pos_y + random.randint(-2, 2)))
+                except:
+                    pass
+
+        pygame.display.flip()
+        relogio.tick(60)

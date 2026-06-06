@@ -3,6 +3,7 @@ import pygame
 import math
 import random
 import json
+import lacerante_manifestacao
 
 def calcular_corrente_eletrica_grafo(origem_inimigo, inimigos_comum):
     """
@@ -273,18 +274,43 @@ def processar_habilidade_onda(ondas, correntes_eletricas, inimigos_comum, boss_i
     inimigos_mortos_neste_frame = []
     
     for onda in ondas:
+        if onda.get("tipo_manifestacao") == "fenda_lacerante":
+            lacerante_manifestacao.desenhar_fenda(tela, onda, tempo_atual)
+            inimigos_mortos_neste_frame.extend(
+                lacerante_manifestacao.processar_fenda(onda, inimigos_comum, boss_info, tempo_atual)
+            )
+            if tempo_atual < int(onda.get("fim_ms", 0)):
+                novas_ondas.append(onda)
+            continue
+
         if "pos_x" not in onda:
             onda["pos_x"] = float(onda["rect"].x)
         if "pos_y" not in onda:
             onda["pos_y"] = float(onda["rect"].y)
             
-        onda["pos_x"] += velocidade_onda * math.cos(onda["angulo"]) * dt
-        onda["pos_y"] += velocidade_onda * math.sin(onda["angulo"]) * dt
+        distancia_passo = velocidade_onda * dt
+        if onda.get("falha_cooldown"):
+            distancia_restante = max(
+                0.0,
+                float(onda.get("distancia_maxima", 10.0)) - float(onda.get("distancia_percorrida", 0.0)),
+            )
+            distancia_passo = min(distancia_passo, distancia_restante)
+
+        onda["pos_x"] += distancia_passo * math.cos(onda["angulo"])
+        onda["pos_y"] += distancia_passo * math.sin(onda["angulo"])
+        if onda.get("falha_cooldown"):
+            onda["distancia_percorrida"] = float(onda.get("distancia_percorrida", 0.0)) + abs(distancia_passo)
         onda["rect"].x = int(onda["pos_x"])
         onda["rect"].y = int(onda["pos_y"])
         
         desenhar_onda(tela, onda)
         onda_consumida = False
+        if onda.get("falha_cooldown"):
+            if onda["distancia_percorrida"] >= float(onda.get("distancia_maxima", 10.0)):
+                criar_particulas_explosao_onda(tela, onda["rect"].centerx, onda["rect"].centery)
+            else:
+                novas_ondas.append(onda)
+            continue
         
         # Colisão com o Boss
         if boss_info and boss_info.get("vivo") and boss_info["rect"] and onda["rect"].colliderect(boss_info["rect"]):

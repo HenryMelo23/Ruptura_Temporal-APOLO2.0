@@ -8,6 +8,7 @@ import math
 import time
 import os
 import json
+import lacerante_manifestacao
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from Tela_Cartas import tela_de_pausa
 from Variaveis import *
@@ -24,6 +25,12 @@ from ui_helpers import (
     fator_mundo_racional,
     intervalo_disparo_racional,
     tentar_ativar_dilatacao_racional,
+    absorver_hit_devota,
+    consumir_cura_absorcao_devota,
+    criar_estado_devota,
+    fator_dano_devota,
+    fator_velocidade_devota,
+    restaurar_escudo_devota,
 )
 from post_boss_pressure import criar_estado_pressao_pos_boss, calcular_pressao_spawn_pos_boss
 from player_projectile import PlayerProjectileVFX, estourar_disparo_eletrico
@@ -31,7 +38,9 @@ from onda_recoil import criar_estado_coice_onda, aplicar_coice_onda, atualizar_c
 from audio_manager import carregar_config_audio, aplicar_volume_som
 from Tela_Upgrade_Aureas import tela_upgrade_aureas
 from Boss1_Ataques import gerenciador_ataques_boss1
+from boss_ui import desenhar_barra_vida_boss, registrar_dano_boss
 import insana_aurea
+import voraz_aurea
 
 instalar_captura_global()
 instalar_filtro_prints()
@@ -62,6 +71,7 @@ dt = 1.0
 botao_mouse = (False, False, False)
 sprite_moeda = None
 joystick = None
+aurea = None
 escudo_devota_ativo = True
 duracao_incendio_vanguarda = 5000
 intervalo_escudo = 30000
@@ -74,7 +84,28 @@ tempo_boss_entrada_fim = 0
 boss_empurrou_jogador = False
 racional_dilatacao_fim = 0
 racional_dilatacao_proximo_uso = 0
+estado_devota = criar_estado_devota(False)
 pressao_pos_boss_spawn = criar_estado_pressao_pos_boss()
+
+def fator_dano_aureas(agora_ms=None):
+    agora_ms = pygame.time.get_ticks() if agora_ms is None else agora_ms
+    return fator_dano_devota(aurea, estado_devota, agora_ms)
+
+def absorver_dano_devota_atual():
+    global vida, escudo_devota_ativo, tempo_ultimo_escudo
+    agora_ms = pygame.time.get_ticks()
+    absorvido, escudo_devota_ativo, escudo_quebrou = absorver_hit_devota(aurea, escudo_devota_ativo, estado_devota, agora_ms)
+    if not absorvido:
+        return False
+    vida, cura_devota = consumir_cura_absorcao_devota(aurea, estado_devota, vida, vida_maxima)
+    if cura_devota > 0:
+        efeitos_texto.append({"texto": f"+{cura_devota} FE", "x": pos_x_personagem + 8, "y": pos_y_personagem - 48, "tempo_inicio": agora_ms, "cor": (255, 225, 90)})
+    if escudo_quebrou:
+        tempo_ultimo_escudo = agora_ms
+        efeitos_texto.append({"texto": "FE ARDENTE: +DANO", "x": pos_x_personagem - 28, "y": pos_y_personagem - 28, "tempo_inicio": agora_ms, "cor": (80, 180, 255)})
+    else:
+        efeitos_texto.append({"texto": f"ESCUDO DEVOTA {estado_devota.get('cargas', 0)}/3", "x": pos_x_personagem - 28, "y": pos_y_personagem - 28, "tempo_inicio": agora_ms, "cor": (255, 210, 80)})
+    return True
 
 pygame.init()
 
@@ -207,13 +238,15 @@ def salvar_atributos():
         "moedas_totais": moedas_totais,
         "Chance_Sorte": Chance_Sorte,
         "cartas_compradas": cartas_compradas,
+        "largura_disparo": largura_disparo,
+        "altura_disparo": altura_disparo,
     }
 
     with open('saves/atributos.json', 'w') as file:
         json.dump(atributos, file)
 
 def carregar_atributos():
-    global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, moedas_totais, Chance_Sorte, cartas_compradas
+    global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, moedas_totais, Chance_Sorte, cartas_compradas, largura_disparo, altura_disparo
     if not os.path.exists('saves/atributos.json'):
         cartas_compradas = normalizar_cartas_compradas(cartas_compradas)
         return
@@ -249,6 +282,8 @@ def carregar_atributos():
         porcentagem_cura= atributos["porcentagem_cura"]
         moedas_totais = atributos["moedas_totais"]
         Chance_Sorte = atributos.get("Chance_Sorte", 0.01)
+        largura_disparo = atributos.get("largura_disparo", largura_disparo)
+        altura_disparo = atributos.get("altura_disparo", altura_disparo)
         if "cartas_compradas" in atributos:
             cartas_compradas.update(atributos["cartas_compradas"])
         cartas_compradas = normalizar_cartas_compradas(cartas_compradas)
@@ -421,6 +456,7 @@ class FragmentoTemporal(pygame.sprite.Sprite):
 
 def executar_jogo(game_manager=None):
     global dt
+    global aurea
     global tempo_boss_entrada_fim
     global tempo_stun_jogador_fim, knockback_x, knockback_y, boss_empurrou_jogador
     global boss_estagio_60_ativado, boss_estagio_40_ativado, tempo_boss_estagio_ataque_fim
@@ -451,6 +487,7 @@ def executar_jogo(game_manager=None):
     try:
         with open("saves/aurea_selecionada.json", "r") as file:
             aurea = json.load(file)["aurea"]
+        manifestacao_ativa = obter_manifestacao_ativa()
 
         with open("saves/tutorial_config.json", "r") as f:
             mostrar_tutorial = json.load(f).get("mostrar_tutorial", True)
@@ -549,6 +586,24 @@ def executar_jogo(game_manager=None):
         CURATER_INTERVALO_CURA = 1000
         CURATER_PERCENTUAL_VIDA_PERDIDA = CURATER_CURA_PERCENTUAL_VIDA_PERDIDA
         pulsos_cura_curater = []
+
+        def perfil_espreitador():
+            tempo_decorrido = Variaveis.obter_tempo_decorrido()
+            janela_escalada = max(1, (12 * 60) - ANOMALIA_ESPREITADOR_TEMPO)
+            progresso = max(0.0, min(1.0, (tempo_decorrido - ANOMALIA_ESPREITADOR_TEMPO) / janela_escalada))
+            return {
+                "base": 0.82 + progresso * 0.28,
+                "furtivo": 0.62 + progresso * 0.16,
+                "sprint": 1.24 + progresso * 0.46,
+                "duracao_ms": int(850 + progresso * 450),
+                "cooldown_ms": int(9200 - progresso * 2600),
+            }
+
+        def dano_inimigo_inicio_ajustado(dano_base):
+            if dano_base <= 0:
+                return 0
+            mult = multiplicador_dano_inimigo_por_tempo(Variaveis.obter_tempo_decorrido())
+            return max(1, int(dano_base * mult))
         
         # Announcement Banner variables
         aviso_evento_texto = ""
@@ -633,10 +688,29 @@ def executar_jogo(game_manager=None):
             pygame.draw.circle(tela, (70, 230, 105), inimigo["rect"].center, pulso, 1)
             
         def processar_morte_inimigo(inimigo):
+            global vida
             posicao_inimigo = inimigo["rect"].center
             soltar_moeda(posicao_inimigo)
             Variaveis.tentar_soltar_carta(posicao_inimigo, tempo_atual, Chance_Sorte, inimigos_eliminados)
             gerar_fragmentos_morte(inimigo, 1)
+
+            if inimigo.get("tipo", 1) == TIPO_CURATER:
+                vida_perdida = max(0, vida_maxima - vida)
+                cura = int(vida_perdida * CURATER_CURA_ABATE_VIDA_PERDIDA)
+                if cura > 0:
+                    vida = min(vida_maxima, vida + cura)
+                    efeitos_texto.append({
+                        "texto": f"CURATER +{cura}",
+                        "x": posicao_inimigo[0] - 22,
+                        "y": posicao_inimigo[1] - 42,
+                        "tempo_inicio": tempo_atual,
+                        "cor": (130, 255, 145)
+                    })
+                    pulsos_cura_curater.append({
+                        "origem": posicao_inimigo,
+                        "alvo": (int(pos_x_personagem + largura_personagem // 2), int(pos_y_personagem + altura_personagem // 2)),
+                        "inicio": tempo_atual,
+                    })
             
             # Se for Aglomerador (tipo 2), explode em 2 mini-inimigos
             if inimigo.get("tipo", 1) == 2:
@@ -663,25 +737,28 @@ def executar_jogo(game_manager=None):
                 inimigo["alpha_oscilation"] = 40
                 inimigo["alpha_dir"] = 1
                 
+            perfil = perfil_espreitador()
             if dist > 300:
                 inimigo["invisivel"] = True
-                inimigo["velocidade"] = Velocidade_Inimigos_1 * 0.8
+                inimigo["velocidade"] = Velocidade_Inimigos_1 * perfil["furtivo"]
             else:
                 inimigo["invisivel"] = False
                 # Sprint burst trigger
                 tempo_sprint = pygame.time.get_ticks()
-                if not inimigo.get("sprint_ativo", False) and tempo_sprint - inimigo.get("sprint_timer", 0) > 6000:
+                if not inimigo.get("sprint_ativo", False) and tempo_sprint - inimigo.get("sprint_timer", 0) > perfil["cooldown_ms"]:
                     inimigo["sprint_ativo"] = True
                     inimigo["sprint_timer"] = tempo_sprint
                     
                 if inimigo.get("sprint_ativo", False):
-                    if pygame.time.get_ticks() - inimigo["sprint_timer"] < 1500:
-                        inimigo["velocidade"] = Velocidade_Inimigos_1 * 2.0
+                    if pygame.time.get_ticks() - inimigo["sprint_timer"] < perfil["duracao_ms"]:
+                        inimigo["velocidade"] = Velocidade_Inimigos_1 * perfil["sprint"]
                         inimigo["alpha_oscilation"] = 255 # Visible
                     else:
                         inimigo["sprint_ativo"] = False
                         inimigo["sprint_timer"] = pygame.time.get_ticks() # Cooldown start
-                        inimigo["velocidade"] = Velocidade_Inimigos_1
+                        inimigo["velocidade"] = Velocidade_Inimigos_1 * perfil["base"]
+                else:
+                    inimigo["velocidade"] = Velocidade_Inimigos_1 * perfil["base"]
                         
         def atualizar_projetador(inimigo):
             # Projetador não age enquanto estiver stunado
@@ -771,7 +848,11 @@ def executar_jogo(game_manager=None):
 
             direcao_atual = 'stop'  # Por padrão, definimos a direção como 'stop'
             dx, dy = 0, 0
-            velocidade_movimento = velocidade_personagem * fator_movimento_racional(aurea, racional_dilatacao_fim, tempo_atual)
+            velocidade_movimento = (
+                velocidade_personagem
+                * fator_movimento_racional(aurea, racional_dilatacao_fim, tempo_atual)
+                * fator_velocidade_devota(aurea, estado_devota, tempo_atual)
+            )
 
             # ---- TECLADO ----
             if Variaveis.verificar_input("Mover para direita"): dx, ultima_tecla_movimento = 1, 'right'
@@ -896,7 +977,7 @@ def executar_jogo(game_manager=None):
                 cx_t = pos_x_personagem + largura_personagem // 2
                 cy_t = pos_y_personagem + altura_personagem // 2
                 raio_choque = 120
-                dano_choque = dano_person_hit * 0.3
+                dano_choque = dano_person_hit * fator_dano_aureas(tempo_atual) * 0.3
 
                 ondas_choque.append({
                     "cx": cx_t,
@@ -958,13 +1039,13 @@ def executar_jogo(game_manager=None):
 
                         if not boss_vivo1:
                             if vida_boss > 0:
-                                vida_boss += 15 + nivel_ameaca * 10
+                                vida_boss += ganho_progressao_boss(15 + nivel_ameaca * 10)
                                 vida_maxima_boss1 = vida_boss
-                                vida_boss2 += 20 + nivel_ameaca * 12
+                                vida_boss2 += ganho_progressao_boss(20 + nivel_ameaca * 12)
                                 vida_maxima_boss2 = vida_boss2
-                                vida_boss3 += 25 + nivel_ameaca * 15
+                                vida_boss3 += ganho_progressao_boss(25 + nivel_ameaca * 15)
                                 vida_maxima_boss3 = vida_boss3
-                                vida_boss4 += 30 + nivel_ameaca * 18
+                                vida_boss4 += ganho_progressao_boss(30 + nivel_ameaca * 18)
                                 vida_maxima_boss4 = vida_boss4
 
                 # Dano ao Boss (só se vivo e morte não processada)
@@ -1023,7 +1104,7 @@ def executar_jogo(game_manager=None):
                 a_inimigo = int(altura_inimigo * 1.6)
             elif tipo == 3:  # Espreitador
                 hp = vida_inimigo_maxima * 0.9
-                vel = Velocidade_Inimigos_1 * 1.0
+                vel = Velocidade_Inimigos_1 * perfil_espreitador()["base"]
             elif tipo == 4:  # Cristalizador
                 hp = vida_inimigo_maxima * 2.0
                 vel = Velocidade_Inimigos_1 * 0.5
@@ -1058,7 +1139,7 @@ def executar_jogo(game_manager=None):
             # Custom fields
             if tipo == 3: # Espreitador
                 enemy_dict["invisivel"] = False
-                enemy_dict["sprint_timer"] = 0
+                enemy_dict["sprint_timer"] = pygame.time.get_ticks()
                 enemy_dict["sprint_ativo"] = False
                 enemy_dict["alpha_oscilation"] = 120.0
                 enemy_dict["alpha_dir"] = 1
@@ -1292,12 +1373,17 @@ def executar_jogo(game_manager=None):
         nivel_devota = upgrades.get("Devota", 0)
         nivel_vanguarda = upgrades.get("Vanguarda", 0)
         estado_insana = insana_aurea.criar_estado_insana(upgrades.get("Insana", 0), pygame.time.get_ticks())
+        estado_voraz = voraz_aurea.criar_estado_voraz(upgrades.get("Voraz", 0), pygame.time.get_ticks())
 
         if aurea == "Devota":
             escudo_devota_ativo = True
-            intervalo_escudo = max(10000, 30000 - (nivel_devota * 3000))
+            intervalo_escudo = max(8000, 22000 - (nivel_devota * 2500))
+            estado_devota.clear()
+            estado_devota.update(criar_estado_devota(True, pygame.time.get_ticks()))
         else:
             escudo_devota_ativo = False
+            estado_devota.clear()
+            estado_devota.update(criar_estado_devota(False))
 
         if aurea == "Vanguarda":
             duracao_incendio_vanguarda = 5000 + (nivel_vanguarda * 1000)
@@ -1317,6 +1403,7 @@ def executar_jogo(game_manager=None):
         grupo_fragmentos = pygame.sprite.Group()
 
         def gerar_fragmentos_morte(inimigo, fase):
+            voraz_aurea.criar_fragmento_abate(estado_voraz, aurea, inimigo["rect"].center, pygame.time.get_ticks(), 1)
             if not (config_graficos.get("particulas_ativas", True) and config_graficos.get("efeitos_visuais", True)):
                 return
             rect_inimigo = inimigo["rect"]
@@ -1753,22 +1840,25 @@ def executar_jogo(game_manager=None):
                     tempo_ultimo_frame_preparo_disparo = tempo_atual
                     direcao_atual = 'disp'
                     frame_atual = 0
-                elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade and tempo_atual >= tempo_stun_jogador_fim:
+                elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) and tempo_atual >= tempo_stun_jogador_fim:
                     pos_mouse = obter_pos_mouse_jogo()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
                     angulo = calcular_angulo_disparo((px_centro, py_centro), pos_mouse)
 
-                    # Criar uma onda cinética com as novas propriedades
-                    nova_onda = {
-                        "rect": pygame.Rect(px_centro - largura_onda // 2, py_centro - altura_onda // 2, largura_onda, altura_onda),
-                        "angulo": angulo,
-                        "tempo_inicio": pygame.time.get_ticks(),
-                        "frame_atual": 0,
-                        "frames": frames_onda_cinetica  # Certifique-se de ter os frames para animação da onda
-                    }
-                    ondas.append(nova_onda)
-                    aplicar_coice_onda(coice_onda, angulo)
+                    if lacerante_manifestacao.ativa(manifestacao_ativa):
+                            ondas.append(lacerante_manifestacao.criar_fenda(px_centro, py_centro, angulo, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual)))
+                    else:
+                        # Criar uma onda cinética com as novas propriedades
+                        nova_onda = {
+                            "rect": pygame.Rect(px_centro - largura_onda // 2, py_centro - altura_onda // 2, largura_onda, altura_onda),
+                            "angulo": angulo,
+                            "tempo_inicio": pygame.time.get_ticks(),
+                            "frame_atual": 0,
+                            "frames": frames_onda_cinetica  # Certifique-se de ter os frames para animação da onda
+                        }
+                        ondas.append(nova_onda)
+                        aplicar_coice_onda(coice_onda, angulo)
                     tempo_ultimo_uso_habilidade = tempo_atual
 
             # Verificar eventos de teclado
@@ -1945,15 +2035,18 @@ def executar_jogo(game_manager=None):
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
                     Disparo_Geo.play()
-                    disparos.append(vfx_disparo_player.criar_disparo(
-                        px_centro, py_centro, largura_disparo, altura_disparo,
+                    largura_tiro, altura_tiro = voraz_aurea.dimensoes_disparo(estado_voraz, aurea, largura_disparo, altura_disparo)
+                    disparo_novo = lacerante_manifestacao.criar_auto_attack(manifestacao_ativa, vfx_disparo_player,
+                        px_centro, py_centro, largura_tiro, altura_tiro,
                         angulo_disparo_preparado, velocidade_disparo, tempo_atual, impulsiva_ativa
-                    ))
-                    insana_aurea.registrar_tiro_insana(
-                        estado_insana, aurea, tempo_atual,
-                        pos_x_personagem, pos_y_personagem, px_centro, py_centro,
-                        angulo_disparo_preparado, largura_disparo, altura_disparo, velocidade_disparo
                     )
+                    disparos.append(voraz_aurea.marcar_disparo_voraz(estado_voraz, aurea, disparo_novo))
+                    if not lacerante_manifestacao.ativa(manifestacao_ativa):
+                        insana_aurea.registrar_tiro_insana(
+                            estado_insana, aurea, tempo_atual,
+                            pos_x_personagem, pos_y_personagem, px_centro, py_centro,
+                            angulo_disparo_preparado, largura_tiro, altura_tiro, velocidade_disparo
+                        )
                     tempo_ultimo_disparo = tempo_atual
                     disparo_preparando = False
                     disparo_frame_atual = 0
@@ -1971,13 +2064,43 @@ def executar_jogo(game_manager=None):
                 cooldown_dash = True
                 tempo_ultimo_dash = max(tempo_ultimo_dash, tempo_atual + insana_aurea.INSANA_DEBUFF_DASH_MS)
 
+            boss_rect_voraz = pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura) if (boss_vivo1 and not boss_morte_processada) else None
+            vida, _ = voraz_aurea.atualizar_voraz(
+                estado_voraz, aurea, tempo_atual,
+                pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem,
+                boss_rect=boss_rect_voraz, vida=vida, vida_maxima=vida_maxima,
+                efeitos_texto=efeitos_texto
+            )
+            vida, _ = voraz_aurea.aplicar_custo_fome(estado_voraz, aurea, tempo_atual, vida, vida_maxima)
+            vida, _, mortos_voraz = voraz_aurea.aplicar_passiva_em_inimigos(
+                estado_voraz, aurea, tempo_atual,
+                pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem,
+                inimigos_comum, efeitos_texto, dano_person_hit * fator_dano_aureas(tempo_atual),
+                fator_tempo=dt, vida=vida, vida_maxima=vida_maxima
+            )
+            for morto_voraz in mortos_voraz:
+                if morto_voraz in inimigos_comum:
+                    gerar_fragmentos_morte(morto_voraz, 1)
+                    Variaveis.tentar_soltar_carta(morto_voraz["rect"].center, tempo_atual, Chance_Sorte, inimigos_eliminados)
+                    inimigos_comum.remove(morto_voraz)
+                    inimigos_eliminados += 1
+            if boss_rect_voraz is not None:
+                vida_boss, vida, _ = voraz_aurea.aplicar_mordida_boss(
+                    estado_voraz, aurea, tempo_atual,
+                    pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem,
+                    boss_rect_voraz, vida_boss, vida, vida_maxima, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
+                )
+
             # Desenhar os disparos normais
             novos_disparos = []
             for disparo in disparos:
                 vfx_disparo_player.atualizar_disparo(disparo, velocidade_disparo, dt)
 
                 # Verificar se o disparo está dentro do mapa
-                if 0 <= disparo["rect"].x < largura_mapa and 0 <= disparo["rect"].y < altura_mapa:
+                if disparo.get("tipo_manifestacao") == "lacerante_corte":
+                    if not disparo.get("expirado"):
+                        novos_disparos.append(disparo)
+                elif 0 <= disparo["rect"].x < largura_mapa and 0 <= disparo["rect"].y < altura_mapa:
                     novos_disparos.append(disparo)
 
             disparos = novos_disparos
@@ -1999,13 +2122,17 @@ def executar_jogo(game_manager=None):
                 ondas, correntes_eletricas, inimigos_comum, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda
             )
             if boss_info.get("hit_flag") and not boss_morte_processada:
-                vida_boss -= dano_boss_mitigado(dano_person_hit * 5, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
+                dano_onda = boss_info.get("dano_manifestacao", dano_person_hit * fator_dano_aureas(tempo_atual) * 5)
+                dano_onda_real = dano_boss_mitigado(dano_onda, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
+                vida_boss -= dano_onda_real
+                registrar_dano_boss(efeitos_texto, dano_onda_real, pos_x_chefe + chefe_largura // 2, pos_y_chefe - 22, tempo_atual, (180, 255, 255))
                 boss_atingido_por_onda = boss_info["atingido_por_onda"]
 
             # Atualizar e desenhar correntes elétricas
-            inimigos_mortos_correntes = atualizar_e_desenhar_correntes(tela, correntes_eletricas, inimigos_comum, tempo_atual, dano_person_hit)
+            inimigos_mortos_correntes = atualizar_e_desenhar_correntes(tela, correntes_eletricas, inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual))
+            inimigos_mortos_laceracao = lacerante_manifestacao.atualizar_laceracoes(inimigos_comum, tempo_atual, efeitos_texto)
             
-            inimigos_mortos = inimigos_mortos_neste_frame + inimigos_mortos_correntes
+            inimigos_mortos = inimigos_mortos_neste_frame + inimigos_mortos_correntes + inimigos_mortos_laceracao
             for morto in inimigos_mortos:
                 if morto in inimigos_comum:
                     gerar_fragmentos_morte(morto, 1)
@@ -2035,13 +2162,13 @@ def executar_jogo(game_manager=None):
                         vida_petro = min(vida_maxima_petro, vida_petro + (vida_maxima_petro * 0.2))
                         
                     if not boss_vivo1:
-                        vida_boss += 12 * mult
+                        vida_boss += ganho_progressao_boss(12 * mult)
                         vida_maxima_boss1 = vida_boss
-                        vida_boss2 += 15 * mult
+                        vida_boss2 += ganho_progressao_boss(15 * mult)
                         vida_maxima_boss2 = vida_boss2
-                        vida_boss3 += 18 * mult
+                        vida_boss3 += ganho_progressao_boss(18 * mult)
                         vida_maxima_boss3 = vida_boss3
-                        vida_boss4 += 22 * mult
+                        vida_boss4 += ganho_progressao_boss(22 * mult)
                         vida_maxima_boss4 = vida_boss4
 
             tempo_atual = pygame.time.get_ticks()
@@ -2181,6 +2308,7 @@ def executar_jogo(game_manager=None):
                 if disp["rect"].colliderect(player_rect):
                     if imune_tempo_restante <= 0:
                         Dano_pos_resistencia_person = int(((vida_maxima * 0.05) + dano_inimigo_longe) - Resistencia)
+                        Dano_pos_resistencia_person = dano_inimigo_inicio_ajustado(Dano_pos_resistencia_person)
                         if Dano_pos_resistencia_person > 0:
                             vida -= Dano_pos_resistencia_person
                             tempo_ultimo_hit_inimigo = tempo_atual
@@ -2203,6 +2331,8 @@ def executar_jogo(game_manager=None):
                 ax, ay = pulso["alvo"]
                 raio = int(8 + progresso * 18)
                 pygame.draw.circle(tela, (160, 255, 176), (ax, ay), raio, 2)
+
+            lacerante_manifestacao.atualizar_e_desenhar_sangue_lacerante(tela, inimigos_comum, config_graficos)
 
             # Desenhe os inimigos na tela
             for inimigo in inimigos_comum:
@@ -2229,6 +2359,11 @@ def executar_jogo(game_manager=None):
                     alpha_surf.blit(img_render, (0, 0))
                     alpha_surf.fill((255, 255, 255, alpha), special_flags=pygame.BLEND_RGBA_MULT)
                     img_render = alpha_surf
+                elif tipo == 5: # Projetador
+                    projetador_surf = pygame.Surface(img_render.get_size(), pygame.SRCALPHA)
+                    projetador_surf.blit(img_render, (0, 0))
+                    projetador_surf.fill((255, 216, 128, 255), special_flags=pygame.BLEND_RGBA_MULT)
+                    img_render = projetador_surf
                 elif tipo == TIPO_CURATER:
                     curater_surf = pygame.Surface(img_render.get_size(), pygame.SRCALPHA)
                     curater_surf.blit(img_render, (0, 0))
@@ -2258,6 +2393,21 @@ def executar_jogo(game_manager=None):
                         h_rad = int(35 + pulsar_hex)
                         pts_hex.append((cx + int(math.cos(ang_h) * h_rad), cy + int(math.sin(ang_h) * h_rad)))
                     pygame.draw.polygon(tela, (0, 191, 255), pts_hex, width=2)
+                elif tipo == 5: # Projetador focus marker
+                    tempo_proj = pygame.time.get_ticks()
+                    cx, cy = inimigo["rect"].centerx, inimigo["rect"].centery
+                    pulso_proj = int(3 * math.sin(tempo_proj * 0.009))
+                    raio_proj = 24 + pulso_proj
+                    pygame.draw.circle(tela, (255, 196, 70), (cx, cy), raio_proj, 2)
+                    pygame.draw.circle(tela, (110, 72, 38), (cx, cy), max(7, raio_proj - 12), 1)
+                    for m_i in range(4):
+                        ang_m = tempo_proj * 0.003 + m_i * (math.pi / 2)
+                        x1 = cx + int(math.cos(ang_m) * (raio_proj + 3))
+                        y1 = cy + int(math.sin(ang_m) * (raio_proj + 3))
+                        x2 = cx + int(math.cos(ang_m) * (raio_proj + 12))
+                        y2 = cy + int(math.sin(ang_m) * (raio_proj + 12))
+                        pygame.draw.line(tela, (255, 230, 128), (x1, y1), (x2, y2), 2)
+                    pygame.draw.circle(tela, (255, 245, 170), (cx, cy - 12), 4, 0)
                 elif tipo == TIPO_CURATER:
                     tempo_cura = pygame.time.get_ticks()
                     cx, cy = inimigo["rect"].centerx, inimigo["rect"].centery
@@ -2281,6 +2431,7 @@ def executar_jogo(game_manager=None):
 
                 if tempo_atual - tempo_ultimo_hit_inimigo >= intervalo_hit_inimigo:
                     Dano_pos_resistencia_person = int(((vida_maxima * 0.06)+dano_inimigo_perto) - Resistencia)
+                    Dano_pos_resistencia_person = dano_inimigo_inicio_ajustado(Dano_pos_resistencia_person)
                     if aurea == "Vanguarda":
                         for inimigo in inimigos_comum:
                             if personagem_rect.colliderect(inimigo["rect"]):
@@ -2289,8 +2440,7 @@ def executar_jogo(game_manager=None):
                                 inimigos_em_chamas[id_inimigo] = tempo_queimadura
 
 
-                    if escudo_devota_ativo:
-                        escudo_devota_ativo= False
+                    if absorver_dano_devota_atual():
                         pass
 
                     elif imune_tempo_restante <= 0 and Dano_pos_resistencia_person > 0:
@@ -2307,6 +2457,7 @@ def executar_jogo(game_manager=None):
 
             if aurea == "Devota" and not escudo_devota_ativo and tempo_atual - tempo_ultimo_escudo >= intervalo_escudo:
                 escudo_devota_ativo = True
+                restaurar_escudo_devota(estado_devota)
                 tempo_ultimo_escudo = tempo_atual
                 # adicionar um efeito visual de "escudo ativado"
 
@@ -2359,6 +2510,7 @@ def executar_jogo(game_manager=None):
                     Tempo_cura = min(2500, int(Tempo_cura * 1.5))
                     pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem)
                 else:
+                    largura_disparo, altura_disparo = 40, 40
                     from utils import executar_animacao_morte_personagem
                     frame_para_desenhar_morte = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
                     executar_animacao_morte_personagem(
@@ -2483,12 +2635,17 @@ def executar_jogo(game_manager=None):
                         }
                         boss_transicao_ondas.append(nova_onda)
                 else:
+                    escudo_devota_pre_boss = escudo_devota_ativo
+                    vida_pre_boss_devota = vida
                     pos_x_personagem, pos_y_personagem, vida, escudo_devota_ativo, slow_f, pos_chefe_nova, stun_req, kb_x_boss, kb_y_boss = gerenciador_ataques_boss1.update(
                         dt, [pos_x_personagem, pos_y_personagem], largura_personagem, altura_personagem,
                         vida, vida_maxima, escudo_devota_ativo, Dano_Boss_Habilit,
                         [pos_x_chefe, pos_y_chefe], chefe_largura, chefe_altura, vida_boss, vida_maxima_boss1,
                         largura_mapa, altura_mapa, tempo_atual
                     )
+                    if aurea == "Devota" and escudo_devota_pre_boss and not escudo_devota_ativo and vida == vida_pre_boss_devota:
+                        escudo_devota_ativo = True
+                        absorver_dano_devota_atual()
                     pos_x_chefe, pos_y_chefe = pos_chefe_nova
                     fator_lentidao_boss = min(fator_lentidao_boss, slow_f)
                     if stun_req > 0:
@@ -2535,8 +2692,8 @@ def executar_jogo(game_manager=None):
                         if not safe and not wave["atingiu_player"]:
                             wave["atingiu_player"] = True
                             dano_onda = wave["dano"]
-                            if escudo_devota_ativo:
-                                escudo_devota_ativo = False
+                            if absorver_dano_devota_atual():
+                                pass
                             elif imune_tempo_restante <= 0 and Resistencia < dano_onda:
                                 vida -= int(dano_onda - Resistencia)
                             
@@ -2905,29 +3062,33 @@ def executar_jogo(game_manager=None):
 
                 # Barra de vida do boss (só se vivo e morte não processada)
                 if vida_boss > 0 and not boss_morte_processada:
-                    pygame.draw.rect(tela, vermelho, (pos_x_barra_boss, pos_y_barra_boss, largura_barra_boss, altura_barra_boss))
-                    pygame.draw.rect(tela, (143,33,252), (pos_x_barra_boss, pos_y_barra_boss, largura_barra_boss, (vida_boss / vida_maxima_boss1) * altura_barra_boss))
-                    pygame.draw.rect(tela, (255, 255, 255), (pos_x_barra_boss, pos_y_barra_boss, largura_barra_boss, altura_barra_boss), 2)
+                    desenhar_barra_vida_boss(tela, vida_boss, vida_maxima_boss1, "CARANGUEJO COSMICO", 1, (143, 33, 252))
 
 
 
 
                 # Disparos contra o boss (só se não morreu)
                 if not boss_morte_processada:
-                    for disparo in disparos:
+                    for disparo in disparos[:]:
                         pos_x_disparo=disparo["rect"].x 
                         pos_y_disparo=disparo["rect"].y 
                         rect_disparo = pygame.Rect(pos_x_disparo, pos_y_disparo, largura_disparo, altura_disparo)
                         rect_boss = pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)
 
-                        if rect_disparo.colliderect(rect_boss):
+                        acertou_boss_disparo = (
+                            lacerante_manifestacao.colisao_corte(disparo, rect_boss, tempo_atual)
+                            if disparo.get("tipo_manifestacao") == "lacerante_corte"
+                            else rect_disparo.colliderect(rect_boss)
+                        )
+
+                        if acertou_boss_disparo:
                             if vida_boss > 0:  # Verifica se o chefe está vivo antes de aplicar dano
                                 if random.random() <= chance_critico:  # 10% de chance de dano crítico
-                                    dano = dano_person_hit * 3  # Valor do dano crítico é 3 vezes o dano normal
+                                    dano = dano_person_hit * fator_dano_aureas(tempo_atual) * 3  # Valor do dano crítico é 3 vezes o dano normal
                                     cor = (255, 255, 0)  # Amarelo (RGB)
                                     fonte_dano = fonte_dano_critico
                                 else:
-                                    dano = dano_person_hit
+                                    dano = dano_person_hit * fator_dano_aureas(tempo_atual)
                                     cor = (255, 0, 0)  # Vermelho (RGB)
                                     fonte_dano = fonte_dano_normal
 
@@ -2938,16 +3099,23 @@ def executar_jogo(game_manager=None):
                                 dano_por_tick_veneno_boss = vida_maxima_boss1 * Dano_Veneno_Acumulado
                                 duracao_veneno_boss = 8000 + cartas_compradas.get("Poison", 0) * 100
                                 tempo_inicio_veneno_boss = pygame.time.get_ticks()
-                                ultimo_tick_veneno_boss = pygame.time.get_ticks()
+                            ultimo_tick_veneno_boss = pygame.time.get_ticks()
 
                             dano *= insana_aurea.dano_mult_disparo(disparo)
+                            dano *= voraz_aurea.dano_mult_disparo(disparo)
+                            dano *= lacerante_manifestacao.multiplicador_dano_disparo(disparo)
 
                             # Renderizar texto do dano
                             texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
                             pos_texto = (pos_x_chefe + chefe_largura // 2 - texto_dano.get_width() // 2, pos_y_chefe - 20)
                             tempo_texto_dano = pygame.time.get_ticks()
                             dano = dano_boss_mitigado(dano, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
+                            registrar_dano_boss(efeitos_texto, dano, pos_x_chefe + chefe_largura // 2, pos_y_chefe - 24, tempo_atual, cor)
                             vida_boss -= dano
+                            if (vida_boss <= 0 or (Ultimo_Estalo and vida_boss <= limiar_execucao_boss(Executa_inimigo) * vida_maxima_boss1)) and not boss_morte_processada:
+                                if isinstance(disparo, dict) and disparo.get("tipo_manifestacao") == "lacerante_corte" and disparo.get("estagio_corte") == 2:
+                                    largura_disparo += 0.095
+                                    altura_disparo += 0.095
                             estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
 
                             # Roubo de vida
@@ -2989,8 +3157,7 @@ def executar_jogo(game_manager=None):
                         tempo_atual = pygame.time.get_ticks()
                         if tempo_atual - tempo_ultimo_ataque >= 2500:
                             dano_boss_total=int((vida_maxima*0.10)+150+dano_boss)
-                            if escudo_devota_ativo:
-                                escudo_devota_ativo= False
+                            if absorver_dano_devota_atual():
                                 pass
                             elif imune_tempo_restante <= 0 and Resistencia < dano_boss_total:
                                 vida -= int(dano_boss_total-Resistencia)
@@ -3101,25 +3268,24 @@ def executar_jogo(game_manager=None):
 
             # --- PARTÍCULAS DE VENENO PINGANDO ---
             Variaveis.atualizar_e_desenhar_particulas_veneno(tela, inimigos_comum, config_graficos)
-
             for inimigo in inimigos_comum:
                 inimigo_rect = inimigo["rect"]
                 inimigo_image = inimigo["image"]
 
                 inimigo_atingido = False
 
-                for disparo in disparos:
+                for disparo in disparos[:]:
                     if inimigo.get("invisivel", False):
                         continue
 
                     if verificar_colisao_disparo_inimigo(disparo, (inimigo["rect"].x, inimigo["rect"].y), largura_disparo, altura_disparo, largura_inimigo, altura_inimigo, inimigos_eliminados):
 
                         if random.random() <= chance_critico:  # chance de dano crítico
-                            dano = dano_person_hit * 3  # Valor do dano crítico é 3 vezes o dano normal
+                            dano = dano_person_hit * fator_dano_aureas(tempo_atual) * 3  # Valor do dano crítico é 3 vezes o dano normal
                             cor = (255, 255, 0)  # Amarelo (RGB)
                             fonte_dano=fonte_dano_critico
                         else:
-                            dano = dano_person_hit
+                            dano = dano_person_hit * fator_dano_aureas(tempo_atual)
                             cor = (255, 0, 0)  # Vermelho (RGB)
                             fonte_dano=fonte_dano_normal
                         if Petro_active:
@@ -3129,6 +3295,8 @@ def executar_jogo(game_manager=None):
                         mitigacao = obter_mitigacao_dano(inimigo)
                         dano_final = dano * mitigacao
                         dano_final *= insana_aurea.dano_mult_disparo(disparo)
+                        dano_final *= voraz_aurea.dano_mult_disparo(disparo)
+                        dano_final *= lacerante_manifestacao.multiplicador_dano_disparo(disparo)
                         if mitigacao < 1.0:
                             cor = (0, 255, 255) # Cyan indicating shielded damage
                             
@@ -3148,6 +3316,8 @@ def executar_jogo(game_manager=None):
                         # Rastreie o tempo de exibição do texto
                         tempo_texto_dano = pygame.time.get_ticks()
                         inimigo["vida"] -= dano_final
+                        if disparo.get("tipo_manifestacao") == "lacerante_corte":
+                            lacerante_manifestacao.aplicar_laceracao(inimigo, tempo_atual)
                         estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)  # Remover o disparo após colisão
                         # Adicionar uma chance de 50% de aumentar a vida em 20 pontos
 
@@ -3166,6 +3336,9 @@ def executar_jogo(game_manager=None):
                             processar_morte_inimigo(inimigo)
                             if inimigo in inimigos_comum:
                                 inimigos_comum.remove(inimigo)
+                            if isinstance(disparo, dict) and disparo.get("tipo_manifestacao") == "lacerante_corte" and disparo.get("estagio_corte") == 2:
+                                largura_disparo += 0.095
+                                altura_disparo += 0.095
 
                             inimigos_eliminados += 1
                             mult_exec = 1.0 + (nivel_ameaca * 0.12) # Execução dá 12% a mais de escala
@@ -3194,13 +3367,13 @@ def executar_jogo(game_manager=None):
                                 pontuacao_exib += ganho_pontos
 
                             if not boss_vivo1:
-                                vida_boss += 15 * mult_exec
+                                vida_boss += ganho_progressao_boss(15 * mult_exec)
                                 vida_maxima_boss1 = vida_boss
-                                vida_boss2 += 20 * mult_exec
+                                vida_boss2 += ganho_progressao_boss(20 * mult_exec)
                                 vida_maxima_boss2 = vida_boss2
-                                vida_boss3 += 25 * mult_exec
+                                vida_boss3 += ganho_progressao_boss(25 * mult_exec)
                                 vida_maxima_boss3 = vida_boss3
-                                vida_boss4 += 30 * mult_exec
+                                vida_boss4 += ganho_progressao_boss(30 * mult_exec)
                                 vida_maxima_boss4 = vida_boss4
 
                         elif inimigo["vida"] <= 0:
@@ -3208,6 +3381,9 @@ def executar_jogo(game_manager=None):
                             processar_morte_inimigo(inimigo)
                             if inimigo in inimigos_comum:
                                 inimigos_comum.remove(inimigo)
+                            if isinstance(disparo, dict) and disparo.get("tipo_manifestacao") == "lacerante_corte" and disparo.get("estagio_corte") == 2:
+                                largura_disparo += 0.095
+                                altura_disparo += 0.095
 
                             # Crescimento proporcional por nível de ameaça
                             vida_inimigo_maxima += ganho_vida_inimigo_comum(1.2 + nivel_ameaca * 0.8)
@@ -3238,13 +3414,13 @@ def executar_jogo(game_manager=None):
                             # Boss: aumento escalonado
                             if not boss_vivo1:
                                 if vida_boss > 0:
-                                    vida_boss += 15 + nivel_ameaca * 10
+                                    vida_boss += ganho_progressao_boss(15 + nivel_ameaca * 10)
                                     vida_maxima_boss1 = vida_boss
-                                    vida_boss2 += 20 + nivel_ameaca * 12
+                                    vida_boss2 += ganho_progressao_boss(20 + nivel_ameaca * 12)
                                     vida_maxima_boss2 = vida_boss2
-                                    vida_boss3 += 25 + nivel_ameaca * 15
+                                    vida_boss3 += ganho_progressao_boss(25 + nivel_ameaca * 15)
                                     vida_maxima_boss3 = vida_boss3
-                                    vida_boss4 += 30 + nivel_ameaca * 18
+                                    vida_boss4 += ganho_progressao_boss(30 + nivel_ameaca * 18)
                                     vida_maxima_boss4 = vida_boss4
 
 
@@ -3358,7 +3534,7 @@ def executar_jogo(game_manager=None):
             cooldowns = {
                 "disparo": max(0.0, (intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual) - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
                 "teleporte": max(0.0, (tempo_cooldown_dash - (pygame.time.get_ticks() - tempo_ultimo_dash)) / 1000.0),
-                "onda": max(0.0, (cooldown_habilidade - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
+                "onda": max(0.0, (cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
                 "loja": 1 if pontuacao_exib >= custo_carta_atual else 0,
             }
 
@@ -3724,8 +3900,14 @@ def executar_jogo(game_manager=None):
 
                         # Verificar colisão dos disparos com o inimigo do tutorial
                         for disparo in disparos[:]:
-                            if disparo["rect"].colliderect(tutorial_inimigo["rect"]):
-                                tutorial_inimigo["vida"] -= dano_person_hit
+                            acertou_tut_disparo = (
+                                lacerante_manifestacao.colisao_corte(disparo, tutorial_inimigo["rect"], tempo_atual)
+                                if disparo.get("tipo_manifestacao") == "lacerante_corte"
+                                else disparo["rect"].colliderect(tutorial_inimigo["rect"])
+                            )
+                            if acertou_tut_disparo:
+                                dano_tut = dano_person_hit * lacerante_manifestacao.multiplicador_dano_disparo(disparo)
+                                tutorial_inimigo["vida"] -= dano_tut
                                 if disparo in disparos:
                                     estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
                                 Hit_inimigo1.play()
@@ -4004,6 +4186,7 @@ def executar_jogo(game_manager=None):
                 escudo_devota_ativo, pos_x_personagem, pos_y_personagem,
                 largura_personagem, altura_personagem
             )
+            voraz_aurea.desenhar_voraz(tela, estado_voraz, aurea, tempo_atual, largura_tela, config_graficos)
 
             Variaveis.aplicar_tremor_dano_tela(tela, tempo_atual, tempo_ultimo_hit_inimigo, piscando_vida)
 

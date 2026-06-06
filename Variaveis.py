@@ -19,6 +19,10 @@ from balanceamento import (
     ANOMALIA_PROJETADOR_SEG,
     CARTAS_RARAS,
     GANHO_VIDA_INIMIGO_HARD_MULTIPLICADOR,
+    LIMITE_EXTRA_ABATES_MARCO_SEG,
+    LOJA_FORCADA_AVISO_SEG,
+    LOJA_FORCADA_CARTAS_MINIMAS,
+    LOJA_FORCADA_INTERVALO_SEG,
     VIDA_INIMIGO_HARD_MULTIPLICADOR,
     bonus_limite_inimigos_sem_boss,
     chance_carta_rara,
@@ -28,14 +32,25 @@ from balanceamento import (
     incremento_chance_carta_critico,
     incremento_carta_dano,
     incremento_dano_carta_critico,
+    incremento_carta_velocidade_movimento,
     incremento_sorte_carta,
     intervalo_drop_certeiro_ms,
+    intervalo_minimo_speed_attack,
     limiar_execucao_boss,
+    ganho_progressao_boss,
+    multiplicador_pontos_por_tempo,
+    pontos_inimigo_por_tempo,
+    reducao_intervalo_carta_speed_attack,
     vida_inicial_boss,
     CURATER_CHANCE_SPAWN,
     CURATER_CURA_PERCENTUAL_VIDA_PERDIDA,
+    CURATER_ORBE_CURA_VIDA_PERDIDA,
+    CURATER_ORBE_DURACAO_MS,
+    CURATER_ORBE_RAIO_COLETA,
     CURATER_MULTIPLICADOR_VIDA,
     CURATER_MITIGACAO_DANO,
+    CURATER_CURA_ABATE_VIDA_PERDIDA,
+    multiplicador_dano_inimigo_por_tempo,
 )
 
 
@@ -1237,7 +1252,7 @@ cooldown_dash = False
 
 tempo_ultimo_dash = 0
 
-tempo_cooldown_dash = 2800  #  segundos de cooldown
+tempo_cooldown_dash = 3500  # milissegundos de cooldown
 
 distancia_dash = 300
 
@@ -1255,7 +1270,7 @@ teleporte_duration = 500  # Duração da animação (em milissegundos)
 
 
 
-largura_disparo, altura_disparo = 40, 40
+largura_disparo, altura_disparo = 8, 8
 
 
 
@@ -1597,7 +1612,7 @@ frames_inimigo_direita4 = [pygame.transform.scale(pygame.image.load("Sprites/ini
 
 custo_base_carta = 500
 
-custo_por_carta = 150  # Aumenta 150 a cada compra
+custo_por_carta = 90  # Aumenta 90 a cada compra
 
 # Defina as variáveis de posição do quadrado e texto
 
@@ -2020,6 +2035,210 @@ def rotacionar_frames(frames, angulo):
 
 
 estado_mouse_botoes = {}
+teleporte_feedback_cooldown_pendente = False
+
+FALAS_ONDA_SEM_CARGA = [
+    "Minha bateria está esgotada",
+    "A onda nao quer sair inteira",
+    "Ainda nao juntei energia suficiente",
+    "So tenho faisca, nao tempestade",
+    "Preciso de mais um segundo",
+    "A carga ainda esta baixa",
+    "Nao da, o pulso morreu",
+    "Meu nucleo ainda esta frio",
+    "A energia falhou aqui",
+    "Ainda estou descarregada",
+    "A onda precisa respirar",
+    "Nao consigo sustentar isso agora",
+    "Faltou carga no disparo",
+    "O circuito ainda esta cansado",
+    "A descarga saiu fraca",
+    "Preciso recompor a energia",
+]
+
+_feedback_cooldown_estado = {
+    "particulas": [],
+    "falas_pendentes": [],
+    "teleporte_tentativas": [],
+    "teleporte_ultima_tentativa_ms": -9999,
+    "teleporte_ultima_faisca_ms": -9999,
+    "teleporte_ultima_fala_ms": -9999,
+    "onda_ultima_falha_ms": -9999,
+    "onda_ultima_fala_ms": -9999,
+}
+
+
+def _adicionar_fala_feedback(efeitos_texto, texto, x, y, tempo_atual, cor=(160, 230, 255), atraso_ms=0):
+    efeito = {
+        "texto": texto,
+        "x": int(x),
+        "y": int(y),
+        "tempo_inicio": int(tempo_atual) + int(atraso_ms),
+        "cor": cor,
+    }
+    if atraso_ms > 0:
+        _feedback_cooldown_estado["falas_pendentes"].append(efeito)
+    else:
+        efeitos_texto.append(efeito)
+
+
+def emitir_faiscas_cooldown_geovana(pos_x, pos_y, largura, altura, tempo_atual, quantidade=12):
+    centro_x = float(pos_x) + float(largura) * 0.5
+    centro_y = float(pos_y) + float(altura) * 0.52
+    for _ in range(max(1, int(quantidade))):
+        angulo = random.uniform(0, math.tau)
+        velocidade = random.uniform(1.2, 4.2)
+        _feedback_cooldown_estado["particulas"].append({
+            "x": centro_x + random.uniform(-largura * 0.22, largura * 0.22),
+            "y": centro_y + random.uniform(-altura * 0.30, altura * 0.18),
+            "vx": math.cos(angulo) * velocidade,
+            "vy": math.sin(angulo) * velocidade - random.uniform(0.4, 1.8),
+            "inicio": int(tempo_atual),
+            "duracao": random.randint(260, 520),
+            "cor": random.choice(((80, 220, 255), (180, 245, 255), (120, 120, 255), (255, 245, 150))),
+        })
+
+    limite_particulas = 90
+    if len(_feedback_cooldown_estado["particulas"]) > limite_particulas:
+        _feedback_cooldown_estado["particulas"] = _feedback_cooldown_estado["particulas"][-limite_particulas:]
+
+
+def emitir_feedback_teleporte_cooldown(efeitos_texto, pos_x, pos_y, largura, altura, tempo_atual):
+    estado = _feedback_cooldown_estado
+    if tempo_atual - estado["teleporte_ultima_tentativa_ms"] < 240:
+        return
+
+    estado["teleporte_ultima_tentativa_ms"] = tempo_atual
+    if tempo_atual - estado["teleporte_ultima_faisca_ms"] >= 140:
+        estado["teleporte_ultima_faisca_ms"] = tempo_atual
+        emitir_faiscas_cooldown_geovana(pos_x, pos_y, largura, altura, tempo_atual, quantidade=10)
+
+    estado["teleporte_tentativas"] = [
+        tentativa for tentativa in estado["teleporte_tentativas"]
+        if tempo_atual - tentativa <= 2600
+    ]
+    estado["teleporte_tentativas"].append(tempo_atual)
+
+    if len(estado["teleporte_tentativas"]) >= 4 and tempo_atual - estado["teleporte_ultima_fala_ms"] >= 5600:
+        estado["teleporte_ultima_fala_ms"] = tempo_atual
+        estado["teleporte_tentativas"].clear()
+        fala_x = pos_x - 34
+        fala_y = pos_y - 46
+        _adicionar_fala_feedback(
+            efeitos_texto,
+            "Parece que não consigo teleportar agora",
+            fala_x,
+            fala_y,
+            tempo_atual,
+            (150, 230, 255),
+        )
+        _adicionar_fala_feedback(
+            efeitos_texto,
+            "preciso me recarregar",
+            fala_x + 12,
+            fala_y + 22,
+            tempo_atual,
+            (180, 245, 255),
+            atraso_ms=850,
+        )
+
+
+def emitir_feedback_onda_cooldown(ondas, efeitos_texto, pos_x, pos_y, largura, altura, angulo, largura_onda, altura_onda, tempo_atual):
+    estado = _feedback_cooldown_estado
+    if tempo_atual - estado["onda_ultima_falha_ms"] >= 420:
+        estado["onda_ultima_falha_ms"] = tempo_atual
+        cx = int(pos_x + largura // 2)
+        cy = int(pos_y + altura // 2)
+        ondas.append({
+            "rect": pygame.Rect(cx - largura_onda // 2, cy - altura_onda // 2, largura_onda, altura_onda),
+            "angulo": angulo,
+            "tempo_inicio": tempo_atual,
+            "frame_atual": 0,
+            "frames": [],
+            "falha_cooldown": True,
+            "distancia_maxima": 10.0,
+            "distancia_percorrida": 0.0,
+        })
+
+    if tempo_atual - estado["onda_ultima_fala_ms"] >= 3600:
+        estado["onda_ultima_fala_ms"] = tempo_atual
+        _adicionar_fala_feedback(
+            efeitos_texto,
+            random.choice(FALAS_ONDA_SEM_CARGA),
+            pos_x - 28,
+            pos_y - 44,
+            tempo_atual,
+            (170, 220, 255),
+        )
+
+
+def atualizar_e_desenhar_feedback_cooldown(tela, tempo_atual, efeitos_texto=None):
+    if efeitos_texto is not None:
+        pendentes = []
+        for fala in _feedback_cooldown_estado["falas_pendentes"]:
+            if tempo_atual >= fala["tempo_inicio"]:
+                efeitos_texto.append(fala)
+            else:
+                pendentes.append(fala)
+        _feedback_cooldown_estado["falas_pendentes"] = pendentes
+
+    novas_particulas = []
+    for particula in _feedback_cooldown_estado["particulas"]:
+        idade = tempo_atual - particula["inicio"]
+        if idade > particula["duracao"]:
+            continue
+        progresso = max(0.0, min(1.0, idade / max(1, particula["duracao"])))
+        x = particula["x"] + particula["vx"] * idade / 16.0
+        y = particula["y"] + particula["vy"] * idade / 16.0 + 18.0 * progresso * progresso
+        alpha = int(255 * (1.0 - progresso))
+        cor = particula["cor"]
+        pygame.draw.circle(tela, cor, (int(x), int(y)), max(1, int(3 * (1.0 - progresso))))
+        if alpha > 90:
+            pygame.draw.line(tela, (255, 255, 255), (int(x), int(y)), (int(x - particula["vx"] * 2), int(y - particula["vy"] * 2)), 1)
+        novas_particulas.append(particula)
+    _feedback_cooldown_estado["particulas"] = novas_particulas
+
+
+_EVENTOS_AUTO_PAUSE_MOUSE = {
+    tipo_evento
+    for tipo_evento in (
+        getattr(pygame, "WINDOWLEAVE", None),
+        getattr(pygame, "WINDOWFOCUSLOST", None),
+        getattr(pygame, "WINDOWMINIMIZED", None),
+    )
+    if tipo_evento is not None
+}
+
+
+def evento_deve_pausar_por_fuga_mouse(evento):
+    if evento.type in _EVENTOS_AUTO_PAUSE_MOUSE:
+        return True
+    if getattr(pygame, "ACTIVEEVENT", None) is not None and evento.type == pygame.ACTIVEEVENT and getattr(evento, "gain", 1) == 0:
+        return True
+    return False
+
+
+def deve_pausar_por_fuga_mouse(pos_mouse=None, largura_area=None, altura_area=None, margem=2):
+    superficie = pygame.display.get_surface()
+    if superficie is None:
+        return False
+
+    if largura_area is None or altura_area is None:
+        largura_area, altura_area = superficie.get_size()
+
+    x, y = pos_mouse if pos_mouse is not None else pygame.mouse.get_pos()
+    if x < -margem or y < -margem or x > largura_area + margem or y > altura_area + margem:
+        return True
+
+    mouse_com_foco = True
+    if hasattr(pygame.mouse, "get_focused"):
+        mouse_com_foco = pygame.mouse.get_focused()
+
+    teclado_com_foco = True
+    if hasattr(pygame.key, "get_focused"):
+        teclado_com_foco = pygame.key.get_focused()
+
+    return not mouse_com_foco or not teclado_com_foco
 
 
 
@@ -2644,9 +2863,48 @@ def atualizar_e_desenhar_particulas_veneno(tela, inimigos_comum, config_graficos
 
 
 
-def atualizar_movimento_inimigos(inimigos, pos_x_p, pos_y_p, direcao_j, vel_p, tempo_p, movendo_agora, larg_p=60, alt_p=90, fator_tempo=1.0):
+def _inimigo_totalmente_no_mapa(inimigo):
+    rect = inimigo["rect"]
+    return (
+        rect.left >= 0
+        and rect.right <= largura_mapa
+        and rect.top >= 0
+        and rect.bottom <= altura_mapa
+    )
+
+
+def _prender_inimigo_apos_entrada(inimigo):
+    if not inimigo.get("spawn_fora_mapa"):
+        return
+
+    if not inimigo.get("entrou_no_mapa") and _inimigo_totalmente_no_mapa(inimigo):
+        inimigo["entrou_no_mapa"] = True
+        if inimigo.pop("curater_plantar_ao_entrar", False):
+            inimigo["parado"] = True
+
+    if not inimigo.get("entrou_no_mapa"):
+        return
+
+    rect = inimigo["rect"]
+    max_x = max(0, largura_mapa - rect.width)
+    max_y = max(0, altura_mapa - rect.height)
+    novo_x = max(0.0, min(float(inimigo.get("pos_x", rect.x)), float(max_x)))
+    novo_y = max(0.0, min(float(inimigo.get("pos_y", rect.y)), float(max_y)))
+    inimigo["pos_x"] = novo_x
+    inimigo["pos_y"] = novo_y
+    rect.x = int(novo_x)
+    rect.y = int(novo_y)
+
+
+def _prender_inimigos_apos_entrada(inimigos):
+    for inimigo in inimigos:
+        _prender_inimigo_apos_entrada(inimigo)
+
+
+def atualizar_movimento_inimigos(inimigos, pos_x_p, pos_y_p, direcao_j, vel_p, tempo_p, movendo_agora, larg_p=60, alt_p=90, fator_tempo=1.0, alvo_prioritario=None):
 
     for inimigo in inimigos:
+        _prender_inimigo_apos_entrada(inimigo)
 
         # Se o inimigo estiver stunado pela onda cinética, nao se move
 
@@ -2675,8 +2933,10 @@ def atualizar_movimento_inimigos(inimigos, pos_x_p, pos_y_p, direcao_j, vel_p, t
         
 
         # Calculo da posicao prevista (Alvo)
-
-        if movendo_agora:
+        alvo = alvo_prioritario(inimigo) if callable(alvo_prioritario) else None
+        if alvo is not None:
+            alvo_x, alvo_y = alvo
+        elif movendo_agora:
 
             alvo_x, alvo_y = calcular_posicao_prevista(pos_x_p, pos_y_p, direcao_j, vel_p, tempo_p)
 
@@ -2712,6 +2972,7 @@ def atualizar_movimento_inimigos(inimigos, pos_x_p, pos_y_p, direcao_j, vel_p, t
             inimigo["rect"].x = int(inimigo["pos_x"])
 
             inimigo["rect"].y = int(inimigo["pos_y"])
+            _prender_inimigo_apos_entrada(inimigo)
 
 
     # Resolve colisão do jogador com inimigos (jogador é empurrado de volta)
@@ -2721,6 +2982,7 @@ def atualizar_movimento_inimigos(inimigos, pos_x_p, pos_y_p, direcao_j, vel_p, t
     # Resolve colisões e separação entre inimigos e jogador (inimigos são empurrados de volta)
 
     resolver_colisoes_e_separacao(inimigos, pos_x_p, pos_y_p, larg_p, alt_p)
+    _prender_inimigos_apos_entrada(inimigos)
 
     return pos_x_p, pos_y_p
 
@@ -3000,6 +3262,13 @@ def verificar_colisao_disparo_inimigo(disparo, pos_inimigo, largura_disparo, alt
     rect_disparo = disparo["rect"]  # Use o rect do disparo diretamente
 
     rect_inimigo = pygame.Rect(pos_inimigo[0], pos_inimigo[1], largura_inimigo, altura_inimigo)
+
+    if isinstance(disparo, dict) and disparo.get("tipo_manifestacao") == "lacerante_corte":
+        try:
+            import lacerante_manifestacao
+            return lacerante_manifestacao.colisao_corte(disparo, rect_inimigo, pygame.time.get_ticks())
+        except Exception:
+            return False
 
     return rect_disparo.colliderect(rect_inimigo)
 
@@ -3397,6 +3666,87 @@ executar_teleporte_pendente = False
 
 _cached_modo_teleporte = None
 
+CONFIG_JOGABILIDADE_PADRAO = {
+    "loja_forcada": True,
+}
+
+_cached_config_jogabilidade = None
+
+
+def obter_config_jogabilidade(forcar_recarregar=False):
+
+    global _cached_config_jogabilidade
+
+    if _cached_config_jogabilidade is None or forcar_recarregar:
+
+        config = dict(CONFIG_JOGABILIDADE_PADRAO)
+
+        try:
+
+            if os.path.exists("saves/config_jogabilidade.json"):
+
+                with open("saves/config_jogabilidade.json", "r") as f:
+
+                    dados = json.load(f)
+
+                if isinstance(dados, dict):
+
+                    config.update({k: dados[k] for k in CONFIG_JOGABILIDADE_PADRAO if k in dados})
+
+        except:
+
+            config = dict(CONFIG_JOGABILIDADE_PADRAO)
+
+        _cached_config_jogabilidade = config
+
+    return dict(_cached_config_jogabilidade)
+
+
+def salvar_config_jogabilidade(config):
+
+    global _cached_config_jogabilidade
+
+    dados = dict(CONFIG_JOGABILIDADE_PADRAO)
+
+    if isinstance(config, dict):
+
+        dados.update({k: config[k] for k in CONFIG_JOGABILIDADE_PADRAO if k in config})
+
+    os.makedirs("saves", exist_ok=True)
+
+    with open("saves/config_jogabilidade.json", "w") as f:
+
+        json.dump(dados, f)
+
+    _cached_config_jogabilidade = dict(dados)
+
+    return dict(dados)
+
+
+def loja_forcada_ativa(forcar_recarregar=False):
+
+    return bool(obter_config_jogabilidade(forcar_recarregar).get("loja_forcada", True))
+
+
+manifestacao_ativa = "eletrica"
+
+
+def obter_manifestacao_ativa():
+
+    global manifestacao_ativa
+
+    try:
+
+        from dados_manifestacoes import obter_manifestacao_ativa as _obter_manifestacao_ativa
+
+        manifestacao_ativa = _obter_manifestacao_ativa()
+
+    except Exception:
+
+        manifestacao_ativa = "eletrica"
+
+    return manifestacao_ativa
+
 
 
 def obter_modo_teleporte(forcar_recarregar=False):
@@ -3457,7 +3807,8 @@ def verificar_evento_release(evento, acao):
 
 def processar_eventos_teleporte(evento, cooldown_dash):
 
-    global teleport_pressionado, tempo_teleport_press, mostrar_zona_teleporte, executar_teleporte_pendente
+    global teleport_pressionado, tempo_teleport_press, mostrar_zona_teleporte
+    global executar_teleporte_pendente, teleporte_feedback_cooldown_pendente
 
     
 
@@ -3477,6 +3828,13 @@ def processar_eventos_teleporte(evento, cooldown_dash):
 
             mostrar_zona_teleporte = False
 
+            executar_teleporte_pendente = False
+
+        else:
+
+            teleporte_feedback_cooldown_pendente = True
+            teleport_pressionado = False
+            mostrar_zona_teleporte = False
             executar_teleporte_pendente = False
 
             
@@ -3615,6 +3973,10 @@ def desenhar_zona_teleporte(tela, player_x, player_y, player_w, player_h, max_di
 
 cartas_no_chao = []
 ultimo_drop_carta_ms = 0.0
+CARTA_DROP_DURACAO_MS = 8000
+CARTA_DROP_DESFRAGMENTACAO_MS = 4000
+CARTA_DROP_FRAGMENTOS_COLS = 4
+CARTA_DROP_FRAGMENTOS_ROWS = 5
 
 
 
@@ -3661,6 +4023,111 @@ def limpar_cartas_no_chao():
 
     cartas_no_chao = []
 
+
+
+def _criar_vfx_desfragmentacao_carta(image):
+    largura, altura = image.get_size()
+    fragmentos = []
+    frag_w = max(1, largura // CARTA_DROP_FRAGMENTOS_COLS)
+    frag_h = max(1, altura // CARTA_DROP_FRAGMENTOS_ROWS)
+
+    for row in range(CARTA_DROP_FRAGMENTOS_ROWS):
+        for col in range(CARTA_DROP_FRAGMENTOS_COLS):
+            x = col * frag_w
+            y = row * frag_h
+            w = frag_w if col < CARTA_DROP_FRAGMENTOS_COLS - 1 else largura - x
+            h = frag_h if row < CARTA_DROP_FRAGMENTOS_ROWS - 1 else altura - y
+            rect = pygame.Rect(x, y, max(1, w), max(1, h))
+            fragmentos.append({
+                "surf": image.subsurface(rect).copy(),
+                "rx": x,
+                "ry": y,
+                "delay": random.uniform(0.12, 0.70),
+                "vx": random.uniform(-18, 18),
+                "vy": random.uniform(24, 58),
+                "rot": random.uniform(-28, 28),
+                "giro": random.uniform(-55, 55),
+            })
+
+    rachaduras = [
+        ((0.50, 0.10), (0.46, 0.42), 0.02),
+        ((0.46, 0.42), (0.26, 0.64), 0.11),
+        ((0.46, 0.42), (0.67, 0.68), 0.18),
+        ((0.38, 0.22), (0.15, 0.34), 0.25),
+        ((0.61, 0.30), (0.84, 0.18), 0.32),
+        ((0.56, 0.58), (0.48, 0.92), 0.40),
+        ((0.32, 0.74), (0.10, 0.88), 0.50),
+    ]
+
+    poeira = []
+    for _ in range(24):
+        poeira.append({
+            "rx": random.uniform(0, largura),
+            "ry": random.uniform(altura * 0.15, altura),
+            "delay": random.uniform(0.18, 0.92),
+            "vx": random.uniform(-15, 15),
+            "vy": random.uniform(28, 72),
+            "tamanho": random.choice((1, 1, 2)),
+        })
+
+    return {
+        "fragmentos": fragmentos,
+        "rachaduras": rachaduras,
+        "poeira": poeira,
+    }
+
+
+def _desenhar_desfragmentacao_carta(tela, carta, progresso):
+    image = carta["image"]
+    rect = carta["rect"]
+    vfx = carta.get("vfx_desfragmentacao") or {}
+
+    alpha_corpo = int(255 * max(0.0, 1.0 - max(0.0, progresso - 0.18) / 0.62))
+    if alpha_corpo > 0:
+        corpo = image.copy()
+        corpo.set_alpha(alpha_corpo)
+        tela.blit(corpo, rect.topleft)
+
+    crack_alpha = int(235 * min(1.0, progresso / 0.36))
+    if crack_alpha > 0:
+        rachadura_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+        for inicio, fim, delay in vfx.get("rachaduras", []):
+            local_t = max(0.0, min(1.0, (progresso - delay) / 0.28))
+            if local_t <= 0:
+                continue
+            x1 = inicio[0] * rect.width
+            y1 = inicio[1] * rect.height
+            x2_total = fim[0] * rect.width
+            y2_total = fim[1] * rect.height
+            x2 = x1 + (x2_total - x1) * local_t
+            y2 = y1 + (y2_total - y1) * local_t
+            pygame.draw.line(rachadura_surf, (20, 12, 34, crack_alpha), (int(x1), int(y1)), (int(x2), int(y2)), 2)
+            pygame.draw.line(rachadura_surf, (225, 255, 250, int(crack_alpha * 0.45)), (int(x1), int(y1)), (int(x2), int(y2)), 1)
+        tela.blit(rachadura_surf, rect.topleft)
+
+    for frag in vfx.get("fragmentos", []):
+        local_t = max(0.0, min(1.0, (progresso - frag["delay"]) / max(0.01, 1.0 - frag["delay"])))
+        if local_t <= 0:
+            continue
+        ease = 1.0 - (1.0 - local_t) ** 3
+        px = rect.x + frag["rx"] + frag["vx"] * ease
+        py = rect.y + frag["ry"] - frag["vy"] * ease
+        parte = pygame.transform.rotate(frag["surf"], frag["rot"] + frag["giro"] * ease)
+        parte.set_alpha(int(230 * (1.0 - local_t)))
+        tela.blit(parte, parte.get_rect(center=(int(px + frag["surf"].get_width() / 2), int(py + frag["surf"].get_height() / 2))).topleft)
+
+    for p in vfx.get("poeira", []):
+        local_t = max(0.0, min(1.0, (progresso - p["delay"]) / max(0.01, 1.0 - p["delay"])))
+        if local_t <= 0:
+            continue
+        ease = 1.0 - (1.0 - local_t) ** 2
+        px = rect.x + p["rx"] + p["vx"] * ease
+        py = rect.y + p["ry"] - p["vy"] * ease
+        alpha = int(145 * (1.0 - local_t))
+        raio = max(1, p["tamanho"])
+        poeira_surf = pygame.Surface((raio * 2 + 2, raio * 2 + 2), pygame.SRCALPHA)
+        pygame.draw.circle(poeira_surf, (205, 245, 240, alpha), (raio + 1, raio + 1), raio)
+        tela.blit(poeira_surf, (int(px) - raio - 1, int(py) - raio - 1))
 
 
 def tentar_soltar_carta(posicao, tempo_atual, chance_sorte_jogador, inimigos_eliminados):
@@ -3714,7 +4181,11 @@ def tentar_soltar_carta(posicao, tempo_atual, chance_sorte_jogador, inimigos_eli
 
             "image": img_pequena,
 
-            "tempo_desaparecer": tempo_atual + 4000  # disappears after 4 seconds
+            "tempo_criado": tempo_atual,
+
+            "tempo_desaparecer": tempo_atual + CARTA_DROP_DURACAO_MS,
+
+            "vfx_desfragmentacao": _criar_vfx_desfragmentacao_carta(img_pequena),
 
         })
 
@@ -3736,7 +4207,9 @@ def atualizar_e_desenhar_cartas_no_chao(tela, tempo_atual):
 
     for c in cartas_no_chao:
 
-        progresso_tempo = (c["tempo_desaparecer"] - tempo_atual) / 4000.0
+        tempo_restante = c["tempo_desaparecer"] - tempo_atual
+
+        progresso_desfragmentacao = 1.0 - min(1.0, max(0.0, tempo_restante / float(CARTA_DROP_DESFRAGMENTACAO_MS)))
 
         pulso = int(math.sin(tempo_atual * 0.01) * 3 + 5)
 
@@ -3748,7 +4221,7 @@ def atualizar_e_desenhar_cartas_no_chao(tela, tempo_atual):
 
         
 
-        alpha = max(0, min(255, int(progresso_tempo * 255)))
+        alpha = 255 if progresso_desfragmentacao <= 0 else max(0, min(255, int((1.0 - progresso_desfragmentacao) * 255)))
 
         surf_glow = pygame.Surface((rect_glow.width, rect_glow.height), pygame.SRCALPHA)
 
@@ -3760,7 +4233,10 @@ def atualizar_e_desenhar_cartas_no_chao(tela, tempo_atual):
 
         tela.blit(surf_glow, rect_glow.topleft)
 
-        tela.blit(c["image"], c["rect"].topleft)
+        if progresso_desfragmentacao > 0:
+            _desenhar_desfragmentacao_carta(tela, c, progresso_desfragmentacao)
+        else:
+            tela.blit(c["image"], c["rect"].topleft)
 
 
 
@@ -3779,7 +4255,7 @@ def aplicar_carta_drop(nome, stats):
 
     if nome == "Speed Boost":
 
-        stats["velocidade_personagem"] += 0.035 + (ie // 50) * 0.005
+        stats["velocidade_personagem"] += incremento_carta_velocidade_movimento(ie)
 
         stats["cartas_compradas"]["Speed Boost"] += 1
 
@@ -3841,11 +4317,11 @@ def aplicar_carta_drop(nome, stats):
 
     elif nome == "Speed Atack":
 
-        stats["intervalo_disparo"] -= 20 + (ie // 100) * 5
+        stats["intervalo_disparo"] -= reducao_intervalo_carta_speed_attack(ie)
 
-        if stats["intervalo_disparo"] < 50:
+        if stats["intervalo_disparo"] < intervalo_minimo_speed_attack():
 
-            stats["intervalo_disparo"] = 50
+            stats["intervalo_disparo"] = intervalo_minimo_speed_attack()
 
         stats["cartas_compradas"]["Speed Atack"] += 1
 

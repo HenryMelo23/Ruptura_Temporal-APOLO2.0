@@ -7,6 +7,7 @@ import math
 import time
 import os
 import json
+import lacerante_manifestacao
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from Tela_Cartas import tela_de_pausa
 from Variaveis import *
@@ -154,13 +155,15 @@ def salvar_atributos():
         "porcentagem_cura": porcentagem_cura,
         # 🪙 novo campo
         "moedas_totais": moedas_totais,
+        "largura_disparo": largura_disparo,
+        "altura_disparo": altura_disparo,
     }
 
     with open('saves/atributos.json', 'w') as file:
         json.dump(atributos, file)
 
 def carregar_atributos():
-    global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, moedas_totais
+    global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, moedas_totais, largura_disparo, altura_disparo
     if not os.path.exists('saves/atributos.json'):
         return
     with open('saves/atributos.json', 'r') as file:
@@ -194,6 +197,10 @@ def carregar_atributos():
         Tempo_cura= atributos["Tempo_cura"]
         porcentagem_cura= atributos["porcentagem_cura"]
         moedas_totais = atributos["moedas_totais"]
+        largura_disparo = atributos.get("largura_disparo", largura_disparo)
+        altura_disparo = atributos.get("altura_disparo", altura_disparo)
+        largura_disparo = atributos.get("largura_disparo", largura_disparo)
+        altura_disparo = atributos.get("altura_disparo", altura_disparo)
 
         
 movimento_pressionado = False
@@ -236,6 +243,7 @@ def executar_jogo(game_manager=None):
     try:
         with open("saves/aurea_selecionada.json", "r") as file:
             aurea = json.load(file)["aurea"]
+        manifestacao_ativa = obter_manifestacao_ativa()
 
         with open("saves/tutorial_config.json", "r") as f:
             mostrar_tutorial = json.load(f).get("mostrar_tutorial", True)
@@ -831,7 +839,7 @@ def executar_jogo(game_manager=None):
                         retomar_cronometro()
                         pygame.event.set_grab(True)  # Travar mouse de novo
                         pygame.mouse.set_visible(False)  # Esconder cursor do sistema
-                elif botao_mouse[0] and not disparo_preparando and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo:  # Botão esquerdo do mouse
+                elif False:
                     pos_mouse = pygame.mouse.get_pos()
                     angulo_disparo_preparado = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
                     disparo_preparando = True
@@ -843,16 +851,19 @@ def executar_jogo(game_manager=None):
                     pos_mouse = pygame.mouse.get_pos()
                     angulo = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
 
-                    # Criar uma onda cinética com as novas propriedades
-                    nova_onda = {
-                        "rect": pygame.Rect(pos_x_personagem, pos_y_personagem, largura_onda, altura_onda),
-                        "angulo": angulo,
-                        "tempo_inicio": pygame.time.get_ticks(),
-                        "frame_atual": 0,
-                        "frames": frames_onda_cinetica  # Certifique-se de ter os frames para animação da onda
-                    }
-                    ondas.append(nova_onda)
-                    aplicar_coice_onda(coice_onda, angulo)
+                    if lacerante_manifestacao.ativa(manifestacao_ativa):
+                        ondas.append(lacerante_manifestacao.criar_fenda(pos_x_personagem, pos_y_personagem, angulo, tempo_atual, dano_person_hit))
+                    else:
+                        # Criar uma onda cinética com as novas propriedades
+                        nova_onda = {
+                            "rect": pygame.Rect(pos_x_personagem, pos_y_personagem, largura_onda, altura_onda),
+                            "angulo": angulo,
+                            "tempo_inicio": pygame.time.get_ticks(),
+                            "frame_atual": 0,
+                            "frames": frames_onda_cinetica  # Certifique-se de ter os frames para animação da onda
+                        }
+                        ondas.append(nova_onda)
+                        aplicar_coice_onda(coice_onda, angulo)
                     tempo_ultimo_uso_habilidade = tempo_atual
 
             # Verificar eventos de teclado
@@ -877,6 +888,15 @@ def executar_jogo(game_manager=None):
                 pygame.display.flip()
                 FPS.tick(30)
                 continue  # Pula o resto do loop enquanto pausado
+
+            if not pausa_por_fuga_mouse and botao_mouse[0] and not disparo_preparando and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo:
+                pos_mouse = pygame.mouse.get_pos()
+                angulo_disparo_preparado = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
+                disparo_preparando = True
+                disparo_frame_atual = 0
+                tempo_ultimo_frame_preparo_disparo = tempo_atual
+                direcao_atual = 'disp'
+                frame_atual = 0
 
             keys = pygame.key.get_pressed()
 
@@ -988,7 +1008,7 @@ def executar_jogo(game_manager=None):
                     Disparo_Geo.play()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
-                    disparos.append(vfx_disparo_player.criar_disparo(
+                    disparos.append(lacerante_manifestacao.criar_auto_attack(manifestacao_ativa, vfx_disparo_player,
                         px_centro, py_centro, largura_disparo, altura_disparo,
                         angulo_disparo_preparado, velocidade_disparo, tempo_atual, impulsiva_ativa
                     ))
@@ -1009,7 +1029,10 @@ def executar_jogo(game_manager=None):
                 vfx_disparo_player.atualizar_disparo(disparo, velocidade_disparo, 1.0)
 
                 # Verificar se o disparo está dentro do mapa
-                if 0 <= disparo["rect"].x < largura_mapa and 0 <= disparo["rect"].y < altura_mapa:
+                if disparo.get("tipo_manifestacao") == "lacerante_corte":
+                    if not disparo.get("expirado"):
+                        novos_disparos.append(disparo)
+                elif 0 <= disparo["rect"].x < largura_mapa and 0 <= disparo["rect"].y < altura_mapa:
                     novos_disparos.append(disparo)
 
             disparos = novos_disparos
@@ -1022,7 +1045,17 @@ def executar_jogo(game_manager=None):
 
 
             novas_ondas = []
+            inimigos_mortos_fenda = []
             for onda in ondas:
+                if onda.get("tipo_manifestacao") == "fenda_lacerante":
+                    lacerante_manifestacao.desenhar_fenda(tela, onda, tempo_atual)
+                    inimigos_mortos_fenda.extend(
+                        lacerante_manifestacao.processar_fenda(onda, inimigos_comum, None, tempo_atual)
+                    )
+                    if tempo_atual < int(onda.get("fim_ms", 0)):
+                        novas_ondas.append(onda)
+                    continue
+
                 onda["rect"].x += velocidade_onda * math.cos(onda["angulo"])
                 onda["rect"].y += velocidade_onda * math.sin(onda["angulo"])
 
@@ -1041,6 +1074,20 @@ def executar_jogo(game_manager=None):
                     novas_ondas.append(onda)
 
             ondas = novas_ondas
+            for morto in inimigos_mortos_fenda:
+                if morto in inimigos_comum:
+                    inimigos_comum.remove(morto)
+                    inimigos_eliminados += 1
+                    ganho = int(120 * (1 + math.log10(inimigos_eliminados + 1)))
+                    pontuacao += ganho
+                    pontuacao_exib += ganho
+            for morto in lacerante_manifestacao.atualizar_laceracoes(inimigos_comum, tempo_atual, efeitos_texto):
+                if morto in inimigos_comum:
+                    inimigos_comum.remove(morto)
+                    inimigos_eliminados += 1
+                    ganho = int(120 * (1 + math.log10(inimigos_eliminados + 1)))
+                    pontuacao += ganho
+                    pontuacao_exib += ganho
 
             for onda in ondas:
                 for inimigo in inimigos_comum:
@@ -1133,6 +1180,8 @@ def executar_jogo(game_manager=None):
 
 
 
+            lacerante_manifestacao.atualizar_e_desenhar_sangue_lacerante(tela, inimigos_comum, config_graficos)
+
             # Desenhe os inimigos na tela
             for inimigo in inimigos_comum:
                 inimigo["image"] = frames_inimigo[frame_atual % len(frames_inimigo)]
@@ -1197,6 +1246,7 @@ def executar_jogo(game_manager=None):
                     Tempo_cura=2500
                     pos_x_personagem, pos_y_personagem = gerar_posicao_aleatoria(largura_mapa, altura_mapa, largura_personagem, altura_personagem)
                 else:
+                    largura_disparo, altura_disparo = 40, 40
                     mostrar_tutorial=False
                     pausar_cronometro()
                     Musica_tema_fases.stop()
@@ -1567,7 +1617,12 @@ def executar_jogo(game_manager=None):
                     rect_disparo = pygame.Rect(pos_x_disparo, pos_y_disparo, largura_disparo, altura_disparo)
                     rect_boss = pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)
 
-                    if rect_disparo.colliderect(rect_boss):
+                    acertou_boss_disparo = (
+                        lacerante_manifestacao.colisao_corte(disparo, rect_boss, tempo_atual)
+                        if disparo.get("tipo_manifestacao") == "lacerante_corte"
+                        else rect_disparo.colliderect(rect_boss)
+                    )
+                    if acertou_boss_disparo:
                         if vida_boss > 0:  # Verifica se o chefe está vivo antes de aplicar dano
                             if random.random() <= chance_critico:  # 10% de chance de dano crítico
                                 dano = dano_person_hit * 3  # Valor do dano crítico é 3 vezes o dano normal
@@ -1593,6 +1648,10 @@ def executar_jogo(game_manager=None):
                         tempo_texto_dano = pygame.time.get_ticks()
                         dano = dano_boss_mitigado(dano, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                         vida_boss -= dano
+                        if (vida_boss <= 0 or (Ultimo_Estalo and vida_boss <= limiar_execucao_boss(Executa_inimigo) * vida_maxima_boss1)):
+                            if isinstance(disparo, dict) and disparo.get("tipo_manifestacao") == "lacerante_corte" and disparo.get("estagio_corte") == 2:
+                                largura_disparo += 0.095
+                                altura_disparo += 0.095
                         estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
 
                         # Roubo de vida
@@ -1683,6 +1742,7 @@ def executar_jogo(game_manager=None):
                         if Petro_active:
                             if vida_petro > vida_maxima_petro :
                                 vida_petro+= (vida_maxima_petro-vida_petro) *0.25
+                        dano *= lacerante_manifestacao.multiplicador_dano_disparo(disparo)
                         # Renderize o texto do dano
                         texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
 
@@ -1692,6 +1752,8 @@ def executar_jogo(game_manager=None):
                         # Rastreie o tempo de exibição do texto
                         tempo_texto_dano = pygame.time.get_ticks()
                         inimigo["vida"] -= dano
+                        if disparo.get("tipo_manifestacao") == "lacerante_corte":
+                            lacerante_manifestacao.aplicar_laceracao(inimigo, tempo_atual)
                         estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)  # Remover o disparo após colisão
                         # Adicionar uma chance de 50% de aumentar a vida em 20 pontos
 
@@ -1709,6 +1771,9 @@ def executar_jogo(game_manager=None):
                             posicao_inimigo = inimigo["rect"].center
                             soltar_moeda(posicao_inimigo)
                             if inimigo in inimigos_comum: inimigos_comum.remove(inimigo)
+                            if isinstance(disparo, dict) and disparo.get("tipo_manifestacao") == "lacerante_corte" and disparo.get("estagio_corte") == 2:
+                                largura_disparo += 0.095
+                                altura_disparo += 0.095
 
                             inimigos_eliminados += 1
                             mult_exec = 1.0 + (nivel_ameaca * 0.12) # Execução dá 12% a mais de escala
@@ -1750,6 +1815,9 @@ def executar_jogo(game_manager=None):
                             posicao_inimigo = inimigo["rect"].center
                             soltar_moeda(posicao_inimigo)
                             inimigos_comum.remove(inimigo)
+                            if isinstance(disparo, dict) and disparo.get("tipo_manifestacao") == "lacerante_corte" and disparo.get("estagio_corte") == 2:
+                                largura_disparo += 0.095
+                                altura_disparo += 0.095
 
                             # Crescimento proporcional por nível de ameaça
                             vida_inimigo_maxima += ganho_vida_inimigo_comum(1.2 + nivel_ameaca * 0.8)

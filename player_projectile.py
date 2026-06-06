@@ -101,7 +101,7 @@ class PlayerProjectileVFX:
         ]
 
     def criar_disparo(self, centro_x, centro_y, largura, altura, angulo, velocidade, agora_ms, impulsiva=False):
-        raio = max(7, min(18, int(min(largura, altura) * 0.34)))
+        raio = max(3, min(18, int(min(largura, altura) * 0.34)))
         rect = pygame.Rect(int(centro_x - largura // 2), int(centro_y - altura // 2), int(largura), int(altura))
         disparo = {
             "rect": rect,
@@ -121,6 +121,12 @@ class PlayerProjectileVFX:
         return disparo
 
     def atualizar_disparo(self, disparo, velocidade, dt):
+        if disparo.get("tipo_manifestacao") == "lacerante_corte":
+            if pygame.time.get_ticks() - int(disparo.get("nascimento_ms", 0)) > int(disparo.get("duracao_ms", 1)):
+                disparo["expirado"] = True
+                disparo["rect"].x = -999999
+            return
+
         angulo = disparo.get("angulo", 0.0)
         vx = math.cos(angulo) * float(velocidade)
         vy = math.sin(angulo) * float(velocidade)
@@ -138,6 +144,14 @@ class PlayerProjectileVFX:
             del trail[:-8]
 
     def desenhar_disparo(self, tela, disparo, agora_ms, config_graficos=None, offset=(0, 0)):
+        if disparo.get("tipo_manifestacao") == "lacerante_corte":
+            try:
+                import lacerante_manifestacao
+                lacerante_manifestacao.desenhar_corte(tela, disparo, agora_ms)
+            except Exception:
+                pass
+            return
+
         perfil = _perfil_grafico(config_graficos)
         p = _parametros(perfil)
         ox, oy = offset
@@ -257,6 +271,8 @@ class PlayerProjectileVFX:
 
 def estourar_disparo_eletrico(disparos, disparo, vfx, config_graficos=None):
     if disparo not in disparos:
+        return
+    if isinstance(disparo, dict) and disparo.get("tipo_manifestacao") == "lacerante_corte":
         return
     if vfx is not None:
         vfx.criar_impacto(disparo, config_graficos)

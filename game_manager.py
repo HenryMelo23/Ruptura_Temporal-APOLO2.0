@@ -8,6 +8,7 @@ import pygame
 import sys
 import importlib
 from enum import Enum
+from build_runtime import fase_disponivel
 from qa_logger import instalar_captura_global, instalar_filtro_prints
 
 instalar_captura_global()
@@ -48,6 +49,8 @@ class GameManager:
             novo_estado: Próximo estado do jogo
             dados: Dados opcionais para passar ao próximo estado
         """
+        if novo_estado == EstadoJogo.JOGO_FASE_5 and not fase_disponivel(5):
+            novo_estado = EstadoJogo.MENU_PRINCIPAL
         self.proximo_estado = novo_estado
         if novo_estado == EstadoJogo.SAIR:
             self.rodando = False

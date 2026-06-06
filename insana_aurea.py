@@ -12,6 +12,7 @@ INSANA_COOLDOWN_MIN_MS = 15000
 INSANA_DEBUFF_DASH_MS = 2000
 INSANA_DANO_ECO_BASE = 0.45
 INSANA_DANO_ECO_POR_NIVEL = 0.03
+INSANA_SPRITES_ECO = ("Sprites/Geo_ECO1.png", "Sprites/Geo_ECO2.png")
 
 _SPRITES_ECO_CACHE = {}
 
@@ -82,19 +83,22 @@ def registrar_tiro_insana(
 
     indice = estado["ecos_restantes"]
     estado["ecos_restantes"] -= 1
+    angulo = float(angulo)
     estado.setdefault("ecos", []).append({
         "x": float(x_player),
         "y": float(y_player),
         "centro_x": float(centro_x),
         "centro_y": float(centro_y),
-        "angulo": float(angulo),
+        "angulo": angulo,
         "largura_disparo": int(largura_disparo),
         "altura_disparo": int(altura_disparo),
         "velocidade_disparo": float(velocidade_disparo),
         "criado_ms": int(tempo_atual),
         "disparar_ms": int(tempo_atual + INSANA_DELAY_MS),
         "disparou_ms": 0,
-        "sprite_idx": indice % 2,
+        "sprite_idx": 0,
+        "fase_pulso": indice,
+        "virado_esquerda": math.cos(angulo) < 0,
         "ativacao_id": estado.get("ativacao_id", 0),
     })
 
@@ -150,7 +154,7 @@ def _carregar_sprites_eco(largura, altura):
         return _SPRITES_ECO_CACHE[chave]
 
     sprites = []
-    for caminho in ("Sprites/Geo_ECO1.png", "Sprites/Geo_ECO2.png"):
+    for caminho in INSANA_SPRITES_ECO:
         try:
             img = pygame.image.load(caminho).convert_alpha()
             img = pygame.transform.smoothscale(img, chave)
@@ -162,6 +166,49 @@ def _carregar_sprites_eco(largura, altura):
 
     _SPRITES_ECO_CACHE[chave] = sprites
     return sprites
+
+
+def _indice_sprite_eco(eco, tempo_atual, total_sprites):
+    if total_sprites <= 1:
+        return 0
+    if eco.get("disparou_ms"):
+        return total_sprites - 1
+
+    criado_ms = int(eco.get("criado_ms", tempo_atual))
+    disparar_ms = int(eco.get("disparar_ms", criado_ms + INSANA_DELAY_MS))
+    duracao_preparo = max(1, disparar_ms - criado_ms)
+    idade = max(0, min(duracao_preparo - 1, tempo_atual - criado_ms))
+    return min(total_sprites - 1, int(idade * total_sprites / duracao_preparo))
+
+
+def obter_alvo_eco_mais_proximo(estado, origem_x, origem_y, largura_player, altura_player):
+    if not estado:
+        return None
+
+    ecos = estado.get("ecos") or []
+    if not ecos:
+        return None
+
+    melhor_eco = None
+    melhor_dist = None
+    for eco in ecos:
+        eco_cx = float(eco.get("x", 0.0)) + largura_player / 2
+        eco_cy = float(eco.get("y", 0.0)) + altura_player / 2
+        dist = (eco_cx - origem_x) ** 2 + (eco_cy - origem_y) ** 2
+        if melhor_dist is None or dist < melhor_dist:
+            melhor_dist = dist
+            melhor_eco = eco
+
+    if melhor_eco is None:
+        return None
+    return float(melhor_eco.get("x", 0.0)), float(melhor_eco.get("y", 0.0))
+
+
+def obter_retangulo_alvo_inimigo(estado, origem_x, origem_y, pos_x_player, pos_y_player, largura_player, altura_player):
+    alvo_eco = obter_alvo_eco_mais_proximo(estado, origem_x, origem_y, largura_player, altura_player)
+    if alvo_eco is None:
+        return (pos_x_player, pos_y_player, largura_player, altura_player)
+    return (alvo_eco[0], alvo_eco[1], largura_player, altura_player)
 
 
 def desenhar_insana(tela, estado, aurea, tempo_atual, x_player, y_player, largura_player, altura_player, config_graficos=None):
@@ -189,9 +236,11 @@ def desenhar_insana(tela, estado, aurea, tempo_atual, x_player, y_player, largur
         if eco.get("disparou_ms"):
             alpha = max(0, int(118 * (1.0 - (tempo_atual - eco["disparou_ms"]) / 520.0)))
         else:
-            alpha = int(92 + 55 * ((math.sin(tempo_atual * 0.024 + eco.get("sprite_idx", 0)) + 1.0) * 0.5))
+            alpha = int(92 + 55 * ((math.sin(tempo_atual * 0.024 + eco.get("fase_pulso", 0)) + 1.0) * 0.5))
 
-        sprite = sprites[eco.get("sprite_idx", 0) % len(sprites)].copy()
+        sprite = sprites[_indice_sprite_eco(eco, tempo_atual, len(sprites))].copy()
+        if eco.get("virado_esquerda", math.cos(float(eco.get("angulo", 0.0))) < 0):
+            sprite = pygame.transform.flip(sprite, True, False)
         sprite.set_alpha(alpha)
         jitter_x = int(math.sin(tempo_atual * 0.030 + eco["x"]) * 2)
         jitter_y = int(math.cos(tempo_atual * 0.025 + eco["y"]) * 2)

@@ -1,4 +1,4 @@
-﻿import pygame
+import pygame
 import math
 import random
 from Variaveis import espacamento, largura_mapa, altura_mapa, largura_personagem, altura_personagem, largura_boss, altura_boss

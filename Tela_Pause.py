@@ -218,6 +218,7 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
     config.setdefault("particulas_ativas", True)
     config.setdefault("efeitos_visuais", True)
     config.setdefault("tela_cheia", False)
+    config.setdefault("sangue_lacerante", "alto")
     
     config_salva = json.loads(json.dumps(config))
     
@@ -229,6 +230,7 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
         {"nome": "Efeitos Visuais", "chave": "efeitos_visuais", "valores": [True, False], "labels": ["Ativados", "Desativados"]},
         {"nome": "Limite de FPS", "chave": "fps_limite", "valores": [30, 60, 120, 0], "labels": ["30 FPS", "60 FPS", "120 FPS", "Ilimitado"]},
         {"nome": "Tela Cheia", "chave": "tela_cheia", "valores": [False, True], "labels": ["Janela", "Tela Cheia"]},
+        {"nome": "Sangue Lacerante", "chave": "sangue_lacerante", "valores": ["alto", "reduzido", "desativado"], "labels": ["Completo", "Reduzido", "Desativado"]},
         {"nome": "Aplicar Alteracoes", "chave": "aplicar", "valores": None, "labels": None},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
     ]
@@ -266,6 +268,11 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
         "tela_cheia": {
             False: "Modo Janela: Executa o jogo em uma janela redimensionavel.",
             True: "Modo Tela Cheia: Ocupa toda a tela do monitor para maior imersao."
+        },
+        "sangue_lacerante": {
+            "alto": "Efeito de sangue completo na passiva Lacerante. Maxima fidelidade.",
+            "reduzido": "Efeito de sangue simplificado para economizar desempenho.",
+            "desativado": "Remove as gotas e o rastro de sangue da passiva Lacerante."
         }
     }
     
@@ -685,9 +692,16 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
     except:
         modo_teleporte = "fixo"
 
+    try:
+        import Variaveis
+        loja_forcada = Variaveis.loja_forcada_ativa(forcar_recarregar=True)
+    except:
+        loja_forcada = True
+
     config = {
         "mostrar_tutorial": mostrar_tut,
-        "modo_teleporte": modo_teleporte
+        "modo_teleporte": modo_teleporte,
+        "loja_forcada": loja_forcada
     }
     
     config_salva = json.loads(json.dumps(config))
@@ -695,6 +709,7 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
     opcoes_config = [
         {"nome": "Tutorial", "chave": "mostrar_tutorial", "valores": [True, False], "labels": ["Ativado", "Desativado"]},
         {"nome": "Modo de Teleporte", "chave": "modo_teleporte", "valores": ["fixo", "mouse"], "labels": ["Fixo", "Mouse Target"]},
+        {"nome": "Loja Forcada", "chave": "loja_forcada", "valores": [True, False], "labels": ["Ativada", "Desativada"]},
         {"nome": "Aplicar Alteracoes", "chave": "aplicar", "valores": None, "labels": None},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
     ]
@@ -707,6 +722,10 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
         "modo_teleporte": {
             "fixo": "Modo Fixo: Teleporta na direcao do movimento. Rapido e instantaneo.",
             "mouse": "Modo Mouse: Segure a tecla para mirar na posicao do cursor e solte para teleportar."
+        },
+        "loja_forcada": {
+            True: "A loja abre sozinha apos aviso quando voce acumula pontos para 5 cartas.",
+            False: "A loja nunca abre sozinha; voce decide quando gastar seus pontos."
         }
     }
     
@@ -728,6 +747,7 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
             json.dump({"modo": config["modo_teleporte"]}, f)
         try:
             import Variaveis
+            Variaveis.salvar_config_jogabilidade({"loja_forcada": config["loja_forcada"]})
             Variaveis.obter_modo_teleporte(forcar_recarregar=True)
         except:
             pass
@@ -960,7 +980,7 @@ def abrir_analise_atributos(tela, fontes, fundo_pausa=None):
     roubo_vida = attrs.get("roubo_de_vida", 0.0)
     sorte = attrs.get("Chance_Sorte", 0.01)
     resistencia = attrs.get("resistencia_personagem", 0)
-    dash_cd = attrs.get("tempo_cooldown_dash", 2000)
+    dash_cd = attrs.get("tempo_cooldown_dash", 3500)
     moedas = attrs.get("moedas_totais", 0)
     poison = attrs.get("Poison_Active", False)
     executa = attrs.get("Executa_inimigo", False)

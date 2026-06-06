@@ -8,6 +8,7 @@ import time
 import os
 import sys
 import json
+import lacerante_manifestacao
 import threading
 import queue
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
@@ -461,12 +462,14 @@ def salvar_atributos():
         "porcentagem_cura":porcentagem_cura,
         "Chance_Sorte": Chance_Sorte,
         "cartas_compradas": cartas_compradas,
+        "largura_disparo": largura_disparo,
+        "altura_disparo": altura_disparo,
     }
     with open('saves/atributos.json', 'w') as file:
         json.dump(atributos, file)
 
 def carregar_atributos():
-    global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, Chance_Sorte, cartas_compradas
+    global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, Chance_Sorte, cartas_compradas, largura_disparo, altura_disparo
     if not os.path.exists('saves/atributos.json'):
         cartas_compradas = normalizar_cartas_compradas(cartas_compradas)
         return
@@ -501,12 +504,15 @@ def carregar_atributos():
         Tempo_cura= atributos["Tempo_cura"]
         porcentagem_cura= atributos["porcentagem_cura"]
         Chance_Sorte = atributos.get("Chance_Sorte", 0.01)
+        largura_disparo = atributos.get("largura_disparo", largura_disparo)
+        altura_disparo = atributos.get("altura_disparo", altura_disparo)
         if "cartas_compradas" in atributos:
             cartas_compradas.update(atributos["cartas_compradas"])
         cartas_compradas = normalizar_cartas_compradas(cartas_compradas)
         
 with open("saves/aurea_selecionada.json", "r") as file:
     aurea = json.load(file)["aurea"]
+manifestacao_ativa = Variaveis.obter_manifestacao_ativa()
 
 with open("saves/tutorial_config.json", "r") as f:
     mostrar_tutorial = json.load(f).get("mostrar_tutorial", True)
@@ -521,7 +527,7 @@ tempo_inicial = time.time()
 boss_vivo1=False
 relogio = pygame.time.Clock()
 ultimo_tempo_reducao = time.time()
-largura_disparo, altura_disparo = 40, 40
+largura_disparo, altura_disparo = 8, 8
 velocidade_disparo = 10
 disparos = []
 
@@ -1048,6 +1054,7 @@ def executar_jogo(game_manager=None):
     try:
         global tela
         tela = configurar_tela(largura_mapa, altura_mapa)
+        manifestacao_ativa = obter_manifestacao_ativa()
 
         vfx_disparo_player = PlayerProjectileVFX()
         
@@ -1230,6 +1237,17 @@ def executar_jogo(game_manager=None):
             joystick.init()
         else:
             joystick = None
+
+        if Variaveis.snapshot_para_carregar is None:
+            try:
+                from utils import animar_spawn_portal
+                animar_spawn_portal(
+                    tela, mapa, pos_x_personagem, pos_y_personagem,
+                    largura_personagem, altura_personagem, 2000,
+                    frames_animacao, direcao_atual, Som_portal
+                )
+            except Exception as e:
+                registrar_erro("Erro ao executar animacao de spawn do portal", e)
 
         running = True
         while running:
@@ -1692,6 +1710,7 @@ def executar_jogo(game_manager=None):
 
                 # Atualizar e desenhar correntes elétricas
                 inimigos_mortos = atualizar_e_desenhar_correntes(tela, correntes_eletricas, inimigos_comum, tempo_atual, dano_person_hit)
+                inimigos_mortos += lacerante_manifestacao.atualizar_laceracoes(inimigos_comum, tempo_atual, efeitos_texto)
                 for morto in inimigos_mortos:
                     if morto in inimigos_comum:
                         inimigos_comum.remove(morto)
@@ -1778,6 +1797,8 @@ def executar_jogo(game_manager=None):
 
 
 
+            lacerante_manifestacao.atualizar_e_desenhar_sangue_lacerante(tela, inimigos_comum, None)
+
             # Desenhe os inimigos na tela
             with lock_inimigos: # Evita ler enqaunto a threading escreve
                 for inimigo in inimigos_comum:
@@ -1785,7 +1806,6 @@ def executar_jogo(game_manager=None):
 
                     tela.blit(inimigo["image"], inimigo["rect"])
                     desenhar_barra_de_vida(tela, inimigo["rect"].x, inimigo["rect"].y - 10, largura_inimigo, 5, inimigo["vida"], inimigo["vida_maxima"], inimigo.get("eletrocutado", False), Executa_inimigo if Ultimo_Estalo else None)
-
             personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem*0.5, altura_personagem*0.8)
             inimigos_rects = [inimigo["rect"] for inimigo in inimigos_comum]
 
@@ -1885,6 +1905,7 @@ def executar_jogo(game_manager=None):
                         largura_mapa, altura_mapa, largura_personagem, altura_personagem
                     )
                 else:
+                    largura_disparo, altura_disparo = 8, 8
                     # Marca jogador como morto (revival temporário)
                     jogador_morto = True
                     tempo_morte = pygame.time.get_ticks()
@@ -2344,7 +2365,12 @@ def executar_jogo(game_manager=None):
                 for disparo in disparos[:]:
                     rect_disparo = disparo["rect"]
                     rect_boss = pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)
-                    if rect_disparo.colliderect(rect_boss):
+                    acertou_boss_disparo = (
+                        lacerante_manifestacao.colisao_corte(disparo, rect_boss, tempo_atual)
+                        if disparo.get("tipo_manifestacao") == "lacerante_corte"
+                        else rect_disparo.colliderect(rect_boss)
+                    )
+                    if acertou_boss_disparo:
                         if vida_boss > 0:
                             if random.random() <= chance_critico:
                                 dano = dano_person_hit * 3
@@ -2364,11 +2390,17 @@ def executar_jogo(game_manager=None):
                             tempo_inicio_veneno_boss = pygame.time.get_ticks()
                             ultimo_tick_veneno_boss = pygame.time.get_ticks()
 
+                        dano *= lacerante_manifestacao.multiplicador_dano_disparo(disparo)
+
                         # Aplica dano e roubo de vida
                         texto_dano = fonte_dano.render(f"-{int(dano)}", True, cor)
                         tela.blit(texto_dano, (pos_x_chefe + chefe_largura // 2, pos_y_chefe - 20))
                         dano = dano_boss_mitigado(dano, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                         vida_boss -= dano
+                        if (vida_boss <= 0 or (Ultimo_Estalo and vida_boss <= limiar_execucao_boss(Executa_inimigo) * vida_maxima_boss1)):
+                            if isinstance(disparo, dict) and disparo.get("tipo_manifestacao") == "lacerante_corte" and disparo.get("estagio_corte") == 2:
+                                largura_disparo += 0.095
+                                altura_disparo += 0.095
                         estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
                         if quantidade_roubo_vida > 0:
                             vida += (vida_maxima - vida) * quantidade_roubo_vida
@@ -2434,7 +2466,12 @@ def executar_jogo(game_manager=None):
                     rect_disparo = disparo["rect"]
                     rect_boss = pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)
                     # Se o disparo colidir com o boss
-                    if rect_disparo.colliderect(rect_boss):
+                    acertou_boss_disparo = (
+                        lacerante_manifestacao.colisao_corte(disparo, rect_boss, tempo_atual)
+                        if disparo.get("tipo_manifestacao") == "lacerante_corte"
+                        else rect_disparo.colliderect(rect_boss)
+                    )
+                    if acertou_boss_disparo:
                         try:
                             fila_envio.put({"hit_boss": True})
                         except:
@@ -2495,6 +2532,8 @@ def executar_jogo(game_manager=None):
                                 if vida_petro < vida_maxima_petro:
                                     vida_petro += (vida_maxima_petro - vida_petro) * 0.25
 
+                            dano *= lacerante_manifestacao.multiplicador_dano_disparo(disparo)
+
                             # Renderize o texto do dano
                             texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
                             # Desenhe o texto na tela perto do chefe
@@ -2506,6 +2545,8 @@ def executar_jogo(game_manager=None):
                             tempo_texto_dano = pygame.time.get_ticks()
 
                             inimigo["vida"] -= dano
+                            if disparo.get("tipo_manifestacao") == "lacerante_corte":
+                                lacerante_manifestacao.aplicar_laceracao(inimigo, tempo_atual)
                             estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)  # Remover o disparo após colisão
 
 
@@ -2519,6 +2560,9 @@ def executar_jogo(game_manager=None):
                                 except:
                                     pass
                                 inimigos_comum.remove(inimigo)
+                                if isinstance(disparo, dict) and disparo.get("tipo_manifestacao") == "lacerante_corte" and disparo.get("estagio_corte") == 2:
+                                    largura_disparo += 0.095
+                                    altura_disparo += 0.095
 
                                 # Crescimento proporcional por nível de ameaça
                                 aplicar_crescimento_personalizado()

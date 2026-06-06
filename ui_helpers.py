@@ -587,39 +587,71 @@ def consumir_multiplicador_panico_impulsiva(aurea, estado):
     return 2.0 + 0.5 * nivel
 
 DEVOTA_CARGAS_ESCUDO = 3
-DEVOTA_DURACAO_EFEITOS_MS = 4000
+DEVOTA_DURACAO_PULSO_MS = 3000
+DEVOTA_DURACAO_ROMPIMENTO_MS = 4500
+DEVOTA_CURA_VIDA_PERDIDA = 0.10
+DEVOTA_DANO_PULSO = 1.25
+DEVOTA_DANO_ROMPIMENTO = 1.65
+DEVOTA_VELOCIDADE_ROMPIMENTO = 0.9
 
 def criar_estado_devota(ativa=False, agora_ms=0):
     return {
         "cargas": DEVOTA_CARGAS_ESCUDO if ativa else 0,
         "debuff_velocidade_fim_ms": 0,
         "buff_dano_fim_ms": 0,
+        "buff_dano_multiplicador": 1.0,
+        "cura_absorcao_pronta": False,
     }
 
 def restaurar_escudo_devota(estado):
     estado["cargas"] = DEVOTA_CARGAS_ESCUDO
+    estado["cura_absorcao_pronta"] = False
 
 def absorver_hit_devota(aurea, escudo_ativo, estado, agora_ms):
     if str(aurea).strip().lower() != "devota" or not escudo_ativo:
         return False, escudo_ativo, False
     estado["cargas"] = max(0, int(estado.get("cargas", DEVOTA_CARGAS_ESCUDO)) - 1)
+    estado["cura_absorcao_pronta"] = True
+    estado["buff_dano_fim_ms"] = max(
+        int(estado.get("buff_dano_fim_ms", 0)),
+        agora_ms + DEVOTA_DURACAO_PULSO_MS,
+    )
+    estado["buff_dano_multiplicador"] = max(
+        float(estado.get("buff_dano_multiplicador", 1.0)),
+        DEVOTA_DANO_PULSO,
+    )
     quebrado = estado["cargas"] <= 0
     if quebrado:
         escudo_ativo = False
-        estado["debuff_velocidade_fim_ms"] = agora_ms + DEVOTA_DURACAO_EFEITOS_MS
-        estado["buff_dano_fim_ms"] = agora_ms + DEVOTA_DURACAO_EFEITOS_MS
+        estado["debuff_velocidade_fim_ms"] = agora_ms + DEVOTA_DURACAO_ROMPIMENTO_MS
+        estado["buff_dano_fim_ms"] = agora_ms + DEVOTA_DURACAO_ROMPIMENTO_MS
+        estado["buff_dano_multiplicador"] = DEVOTA_DANO_ROMPIMENTO
     return True, escudo_ativo, quebrado
+
+def consumir_cura_absorcao_devota(aurea, estado, vida_atual, vida_maxima_atual):
+    if str(aurea).strip().lower() != "devota" or not estado.get("cura_absorcao_pronta"):
+        return vida_atual, 0
+    estado["cura_absorcao_pronta"] = False
+    vida_maxima_segura = max(1, int(vida_maxima_atual))
+    vida_atual = int(vida_atual)
+    vida_perdida = max(0, vida_maxima_segura - vida_atual)
+    if vida_perdida <= 0:
+        return vida_atual, 0
+    cura = max(3, int(vida_perdida * DEVOTA_CURA_VIDA_PERDIDA))
+    nova_vida = min(vida_maxima_segura, vida_atual + cura)
+    return nova_vida, nova_vida - vida_atual
 
 def fator_velocidade_devota(aurea, estado, agora_ms=None):
     agora_ms = pygame.time.get_ticks() if agora_ms is None else agora_ms
     if str(aurea).strip().lower() == "devota" and agora_ms < estado.get("debuff_velocidade_fim_ms", 0):
-        return 0.7
+        return DEVOTA_VELOCIDADE_ROMPIMENTO
     return 1.0
 
 def fator_dano_devota(aurea, estado, agora_ms=None):
     agora_ms = pygame.time.get_ticks() if agora_ms is None else agora_ms
     if str(aurea).strip().lower() == "devota" and agora_ms < estado.get("buff_dano_fim_ms", 0):
-        return 2.0
+        return float(estado.get("buff_dano_multiplicador", DEVOTA_DANO_PULSO))
+    estado["buff_dano_multiplicador"] = 1.0
     return 1.0
 
 def contar_inimigos_em_chamas_ativos(inimigos, inimigos_em_chamas, duracao_incendio_ms, agora_ms=None):

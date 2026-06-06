@@ -82,7 +82,7 @@ if not hasattr(builtins, "_saves_redirected"):
         pasta_cofre = obter_pasta_saves()
         
         # Gera o hash dinâmico do upgrade de aureas padrão para a assinatura
-        upgrades_default = {"Racional": 0, "Impulsiva": 0, "Devota": 0, "Vanguarda": 0, "Insana": 0}
+        upgrades_default = {"Racional": 0, "Impulsiva": 0, "Devota": 0, "Vanguarda": 0, "Insana": 0, "Voraz": 0}
         upgrades_str = json.dumps(upgrades_default, sort_keys=True)
         hash_val = hashlib.sha256(upgrades_str.encode()).hexdigest()
         
@@ -90,6 +90,7 @@ if not hasattr(builtins, "_saves_redirected"):
         defaults = {
             "nome_jogador.json": {"nome": "Apolo"},
             "aurea_selecionada.json": {"aurea": "Racional"},
+            "manifestacao_selecionada.json": {"manifestacao_ativa": "eletrica"},
             "aureas_upgrade.json": {
                 "upgrades": upgrades_default,
                 "assinatura": hash_val
@@ -118,6 +119,7 @@ if not hasattr(builtins, "_saves_redirected"):
                 "Habilidade Onda": "MOUSE_3"
             },
             "config_teleporte.json": {"modo": "fixo"},
+            "config_jogabilidade.json": {"loja_forcada": True},
             "modo_jogo.json": {"modo": "offline", "ip": None},
             "trailer_config.json": {"trailer_assistido": False},
             "tutorial_config.json": {"mostrar_tutorial": True}
