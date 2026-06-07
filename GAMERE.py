@@ -504,7 +504,7 @@ def carregar_atributos():
         Dano_Veneno_Acumulado= atributos["Dano_Veneno_Acumulado"]
         Tempo_cura= atributos["Tempo_cura"]
         porcentagem_cura= atributos["porcentagem_cura"]
-        Chance_Sorte = atributos.get("Chance_Sorte", 0.01)
+        Chance_Sorte = atributos.get("Chance_Sorte", 0.0)
         largura_disparo = atributos.get("largura_disparo", largura_disparo)
         altura_disparo = atributos.get("altura_disparo", altura_disparo)
         if "cartas_compradas" in atributos:

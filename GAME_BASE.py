@@ -826,7 +826,11 @@ def executar_jogo(game_manager=None):
             botao_mouse = pygame.mouse.get_pressed()
             mouse_x = max(0, min(pos_mouse[0], largura_mapa - cursor_tamanho[0]))
             mouse_y = max(0, min(pos_mouse[1], altura_mapa - cursor_tamanho[1]))
+            pausa_por_fuga_mouse = Variaveis.deve_pausar_por_fuga_mouse(pos_mouse, largura_mapa, altura_mapa)
             for event in pygame.event.get():
+                if Variaveis.evento_deve_pausar_por_fuga_mouse(event):
+                    pausa_por_fuga_mouse = True
+                    jogo_pausado = True
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:

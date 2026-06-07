@@ -32,7 +32,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
                   tempo_cooldown_dash, vida_maxima, Petro_active, Resistencia, vida_petro, vida_maxima_petro, dano_petro, xp_petro, petro_evolucao, Resistencia_petro, Chance_Sorte, Poison_Active, Dano_Veneno_Acumulado, Executa_inimigo, Ultimo_Estalo, mostrar_info, Mercenaria_Active, Valor_Bonus, dispositivo_ativo, Tempo_cura,
                   porcentagem_cura, cartas_compradas, pontuacao_exib, max_cartas_compraveis=1, inimigos_eliminados=0):
     
-    cartas_compradas.setdefault("Mercenaria", 0)
+    cartas_compradas = normalizar_cartas_compradas(cartas_compradas)
 
     Rolagens_possiveis = 3
     Rolagens_Dadas = 0

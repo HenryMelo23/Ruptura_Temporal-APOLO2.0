@@ -531,7 +531,7 @@ def executar_jogo(game_manager=None):
                 Tempo_cura= atributos["Tempo_cura"]
                 porcentagem_cura= atributos["porcentagem_cura"]
                 moedas_totais = atributos["moedas_totais"]
-                Chance_Sorte = atributos.get("Chance_Sorte", 0.01)
+                Chance_Sorte = atributos.get("Chance_Sorte", 0.0)
                 if "cartas_compradas" in atributos:
                     cartas_compradas.update(atributos["cartas_compradas"])
                 cartas_compradas = normalizar_cartas_compradas(cartas_compradas)

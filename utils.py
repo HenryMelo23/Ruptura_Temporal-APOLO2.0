@@ -226,6 +226,31 @@ def tocar_trailer_se_necessario(tela):
     import pygame
     import sys
     
+    def _salvar_trailer_assistido(motivo_indisponivel=None):
+        try:
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            dados = {"trailer_assistido": True}
+            if motivo_indisponivel:
+                dados["trailer_indisponivel"] = motivo_indisponivel
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(dados, f)
+            return True
+        except Exception as e:
+            registrar_erro("Trailer: erro ao salvar config", e)
+            return False
+
+    def _erro_vlc_esperado(erro):
+        texto = str(erro).lower()
+        termos = (
+            "vlc",
+            "libvlc",
+            "could not find module",
+            "no module named",
+            "cannot find",
+            "dll",
+        )
+        return any(termo in texto for termo in termos)
+
     # 1. Verifica se ja foi assistido
     config_path = "saves/trailer_config.json"
     if os.path.exists(config_path):
@@ -246,13 +271,21 @@ def tocar_trailer_se_necessario(tela):
     try:
         import vlc
     except Exception as e:
-        if "vlc" not in str(e).lower():
+        if not _erro_vlc_esperado(e):
             registrar_erro("Trailer: erro ao carregar python-vlc", e)
+        _salvar_trailer_assistido("python-vlc indisponivel")
         return
 
     # 3. Executa a reproducao
     try:
-        vlc_instance = vlc.Instance('--quiet')
+        try:
+            vlc_instance = vlc.Instance('--quiet')
+        except Exception as e:
+            if not _erro_vlc_esperado(e):
+                registrar_erro("Trailer: erro ao iniciar VLC", e)
+            _salvar_trailer_assistido("libvlc indisponivel")
+            return
+
         player = vlc_instance.media_player_new()
         
         # Vincula a tela do Pygame
@@ -377,15 +410,11 @@ def tocar_trailer_se_necessario(tela):
         pygame.display.flip()
         
     except Exception as e:
-        if "vlc" not in str(e).lower():
+        if not _erro_vlc_esperado(e):
             registrar_erro("Trailer: erro ao reproduzir", e)
         
     # Salva nas configuracoes para nao repetir
-    try:
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump({"trailer_assistido": True}, f)
-    except Exception as e:
-        registrar_erro("Trailer: erro ao salvar config", e)
+    _salvar_trailer_assistido()
 
 
 def redimensionar_cover(imagem, largura_dest, altura_dest):

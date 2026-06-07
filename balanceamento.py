@@ -6,9 +6,9 @@ precisar procurar numeros soltos nas fases.
 
 CARTAS_RARAS = {"Trembo", "Petro", "Poison", "Coletora", "Mercenaria"}
 
-CHANCE_RARA_BASE = 0.01
+CHANCE_RARA_BASE = 0.0
 CHANCE_RARA_MAXIMA = 0.08
-SORTE_BASE = 0.01
+SORTE_BASE = 0.0
 SORTE_INCREMENTO_CARTA = 0.003
 SORTE_PESO_RARIDADE = 0.45
 SORTE_BONUS_RARIDADE_POR_CARTA = 0.0006
@@ -119,13 +119,18 @@ def chance_com_sorte(chance_base, chance_sorte, fator=0.35, teto=0.95):
 
 def chance_carta_rara(chance_sorte, cartas_compradas=None):
     cartas_compradas = cartas_compradas or {}
+    sorte = float(chance_sorte or 0.0)
+    if sorte <= 0.0:
+        return 0.0
     qtd_sorte = int(cartas_compradas.get("Sorte", 0) or 0)
     chance = (
         CHANCE_RARA_BASE
-        + bonus_sorte(chance_sorte) * SORTE_PESO_RARIDADE
+        + bonus_sorte(sorte) * SORTE_PESO_RARIDADE
         + qtd_sorte * SORTE_BONUS_RARIDADE_POR_CARTA
     )
-    return _clamp(chance, CHANCE_RARA_BASE, CHANCE_RARA_MAXIMA)
+    if chance <= 0.0:
+        return 0.0
+    return _clamp(chance, 0.0, CHANCE_RARA_MAXIMA)
 
 
 def multiplicador_dano_inimigo_por_tempo(tempo_decorrido_seg):
@@ -274,4 +279,3 @@ def bonus_limite_inimigos_sem_boss(
 
 # Balanceamento da Manifestação Retornante
 RETORNANTE_ATTACK_SPEED_MULTIPLIER = 1.45
-

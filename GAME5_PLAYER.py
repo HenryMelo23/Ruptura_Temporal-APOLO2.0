@@ -408,7 +408,7 @@ def executar_jogo(game_manager=None):
                 Tempo_cura= atributos["Tempo_cura"]
                 porcentagem_cura= atributos["porcentagem_cura"]
                 moedas_totais = atributos["moedas_totais"]
-                Chance_Sorte = atributos.get("Chance_Sorte", 0.01)
+                Chance_Sorte = atributos.get("Chance_Sorte", 0.0)
                 if "cartas_compradas" in atributos:
                     cartas_compradas.update(atributos["cartas_compradas"])
                 cartas_compradas = normalizar_cartas_compradas(cartas_compradas)
@@ -1247,10 +1247,13 @@ def executar_jogo(game_manager=None):
             mouse_x = max(0, min(pos_mouse[0], largura_mapa - cursor_tamanho[0]))
             mouse_y = max(0, min(pos_mouse[1], altura_mapa - cursor_tamanho[1]))
             tempo_fim_stun = estado_atual_ia.get('fim_stun', 0) if 'estado_atual_ia' in globals() else 0
+            pausa_por_fuga_mouse = Variaveis.deve_pausar_por_fuga_mouse(pos_mouse, largura_mapa, altura_mapa)
 
             for event in pygame.event.get():
                 Variaveis.atualizar_estado_mouse(event)
                 Variaveis.processar_eventos_teleporte(event, cooldown_dash)
+                if Variaveis.evento_deve_pausar_por_fuga_mouse(event):
+                    pausa_por_fuga_mouse = True
                 if event.type == pygame.QUIT:
                     running = False
                     pass

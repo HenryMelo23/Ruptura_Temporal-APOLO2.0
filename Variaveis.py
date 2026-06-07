@@ -608,7 +608,7 @@ imagem_vida = pygame.transform.scale(imagem_vida, (largura_tela* 0.25, altura_te
 
 posicao_vida = (13, -40)  
 
-Chance_Sorte=0.01
+Chance_Sorte=0.0
 
 Poison_Active=False
 
@@ -1728,7 +1728,7 @@ cartas_disponiveis_nomes = [
 
 
 def normalizar_cartas_compradas(cartas):
-    if cartas is None:
+    if not isinstance(cartas, dict):
         cartas = {}
     for nome in cartas_imagens.keys():
         cartas.setdefault(nome, 0)
@@ -4958,7 +4958,7 @@ def reset_game_session():
 
     # Habilidades / Atributos Especiais
 
-    Chance_Sorte = 0.01
+    Chance_Sorte = 0.0
 
     Poison_Active = False
 
