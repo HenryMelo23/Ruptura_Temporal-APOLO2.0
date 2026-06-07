@@ -11,6 +11,7 @@ import lacerante_manifestacao
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from Tela_Cartas import tela_de_pausa
 from Variaveis import *
+import Variaveis
 from utils import *
 from ui_helpers import tela_transicao_dimensional, desenhar_efeitos_vanguarda
 from onda_recoil import criar_estado_coice_onda, aplicar_coice_onda, atualizar_coice_onda
@@ -1342,27 +1343,7 @@ def executar_jogo(game_manager=None):
                     moedas_soltadas.remove(moeda)
                     salvar_atributos()   # 💾 salva imediatamente
 
-            nova_lista = []
-            for efeito in efeitos_texto:
-                tempo_passado_efeito = tempo_atual - efeito["tempo_inicio"]
-                if tempo_passado_efeito <= 800:  # mostra por 2 segundos
-                    if config_graficos.get("efeitos_visuais", True):
-                        fonte_efeito = pygame.font.Font(None, 28)
-                        x = efeito["x"]
-                        y = efeito["y"] - (tempo_passado_efeito // 25)
-                        texto_principal = fonte_efeito.render(efeito["texto"], True, efeito["cor"])
-
-                        # Contorno preto em 8 direções
-                        for dx in [-1, 0, 1]:
-                            for dy in [-1, 0, 1]:
-                                if dx != 0 or dy != 0:
-                                    contorno = fonte_efeito.render(efeito["texto"], True, (0, 0, 0))
-                                    tela.blit(contorno, (x + dx, y + dy))
-
-                        # Texto principal
-                        tela.blit(texto_principal, (x, y))
-                    nova_lista.append(efeito)
-            efeitos_texto = nova_lista
+            efeitos_texto = Variaveis.atualizar_e_desenhar_efeitos_texto(tela, tempo_atual, efeitos_texto, config_graficos)
             if trembo:
                 # Desenhar o segundo personagem ao lado do personagem original
                 pos_x_segundo_personagem = pos_x_personagem + largura_personagem + 4
@@ -1642,11 +1623,19 @@ def executar_jogo(game_manager=None):
                             tempo_inicio_veneno_boss = pygame.time.get_ticks()
                             ultimo_tick_veneno_boss = pygame.time.get_ticks()
 
-                        # Renderizar texto do dano
-                        texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
-                        pos_texto = (pos_x_chefe + chefe_largura // 2 - texto_dano.get_width() // 2, pos_y_chefe - 20)
-                        tempo_texto_dano = pygame.time.get_ticks()
                         dano = dano_boss_mitigado(dano, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
+                        texto_hit = "-" + str(int(dano))
+                        pos_texto = (pos_x_chefe + chefe_largura // 2 - fonte_dano.size(texto_hit)[0] // 2, pos_y_chefe - 20)
+                        Variaveis.registrar_efeito_texto(
+                            efeitos_texto,
+                            texto_hit,
+                            pos_texto[0],
+                            pos_texto[1],
+                            tempo_atual,
+                            cor,
+                            chave=("boss-dano", "base", int(tempo_atual) // 90, int(dano)),
+                        )
+                        tempo_texto_dano = pygame.time.get_ticks()
                         vida_boss -= dano
                         if (vida_boss <= 0 or (Ultimo_Estalo and vida_boss <= limiar_execucao_boss(Executa_inimigo) * vida_maxima_boss1)):
                             if isinstance(disparo, dict) and disparo.get("tipo_manifestacao") == "lacerante_corte" and disparo.get("estagio_corte") == 2:
@@ -1744,11 +1733,17 @@ def executar_jogo(game_manager=None):
                                 vida_petro+= (vida_maxima_petro-vida_petro) *0.25
                         dano *= lacerante_manifestacao.multiplicador_dano_disparo(disparo)
                         # Renderize o texto do dano
-                        texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
-
-                        # Desenhe o texto na tela perto do chefe
-                        pos_texto = (inimigo["rect"].x + largura_inimigo // 2 - texto_dano.get_width() // 2,  inimigo["rect"].y - 20)
-
+                        texto_hit = "-" + str(int(dano))
+                        pos_texto = (inimigo["rect"].x + largura_inimigo // 2 - fonte_dano.size(texto_hit)[0] // 2, inimigo["rect"].y - 20)
+                        Variaveis.registrar_efeito_texto(
+                            efeitos_texto,
+                            texto_hit,
+                            pos_texto[0],
+                            pos_texto[1],
+                            tempo_atual,
+                            cor,
+                            chave=("disparo-inimigo", id(disparo), id(inimigo)),
+                        )
                         # Rastreie o tempo de exibição do texto
                         tempo_texto_dano = pygame.time.get_ticks()
                         inimigo["vida"] -= dano
@@ -2076,9 +2071,6 @@ def executar_jogo(game_manager=None):
                 posicao_bonus = (largura_mapa - 330, 90)
                 desenhar_texto_com_contorno(tela, texto_bonus, fonte_bonus, (255, 245, 190), (0, 0, 0), posicao_bonus)
 
-            # Desenhe o texto na tela
-            if texto_dano is not None:
-                tela.blit(texto_dano, pos_texto)
             # Controle de exibição
             if mostrar_tutorial:
                 cx = largura_mapa // 2

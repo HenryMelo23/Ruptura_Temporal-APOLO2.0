@@ -4,6 +4,10 @@ import math
 import random
 import json
 import lacerante_manifestacao
+import prismatica_manifestacao
+import retornante_manifestacao
+import parasitica_manifestacao
+import condutora_manifestacao
 
 def calcular_corrente_eletrica_grafo(origem_inimigo, inimigos_comum):
     """
@@ -265,7 +269,7 @@ def atualizar_e_desenhar_correntes(tela, correntes_eletricas, inimigos_comum, te
     correntes_eletricas[:] = novas_correntes
     return inimigos_mortos
 
-def processar_habilidade_onda(ondas, correntes_eletricas, inimigos_comum, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda):
+def processar_habilidade_onda(ondas, correntes_eletricas, inimigos_comum, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda, disparos=None, config_graficos=None):
     """
     Processa movimento e colisão da onda, e inicializa as correntes elétricas.
     `boss_info` é um dict com: {"vivo": bool, "rect": pygame.Rect, "atingido_por_onda": int} e atualizará o int de hit
@@ -274,6 +278,31 @@ def processar_habilidade_onda(ondas, correntes_eletricas, inimigos_comum, boss_i
     inimigos_mortos_neste_frame = []
     
     for onda in ondas:
+        if onda.get("tipo_manifestacao") == "chamado_reverso":
+            retornante_manifestacao.desenhar_chamado(tela, onda, tempo_atual, config_graficos)
+            if tempo_atual < int(onda.get("fim_ms", 0)):
+                novas_ondas.append(onda)
+            continue
+        if onda.get("tipo_manifestacao") == "eclosao_parasitica":
+            parasitica_manifestacao.desenhar_eclosao(tela, onda, tempo_atual, config_graficos)
+            if tempo_atual < int(onda.get("fim_ms", 0)):
+                novas_ondas.append(onda)
+            continue
+        if onda.get("tipo_manifestacao") == "fechamento_condutor":
+            condutora_manifestacao.desenhar_fechamento(tela, onda, tempo_atual, config_graficos)
+            if tempo_atual < int(onda.get("fim_ms", 0)):
+                novas_ondas.append(onda)
+            continue
+
+        if onda.get("tipo_manifestacao") == "prisma_refracao":
+            manter, mortos_prisma = prismatica_manifestacao.processar_prisma(
+                onda, disparos or [], inimigos_comum, boss_info, tela, tempo_atual
+            )
+            inimigos_mortos_neste_frame.extend(mortos_prisma)
+            if manter:
+                novas_ondas.append(onda)
+            continue
+
         if onda.get("tipo_manifestacao") == "fenda_lacerante":
             lacerante_manifestacao.desenhar_fenda(tela, onda, tempo_atual)
             inimigos_mortos_neste_frame.extend(

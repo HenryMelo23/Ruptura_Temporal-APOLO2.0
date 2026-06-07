@@ -1,4 +1,5 @@
 import pygame
+import Variaveis
 
 
 def _texto_contornado(superficie, texto, fonte, cor, pos, contorno=(0, 0, 0)):
@@ -12,13 +13,15 @@ def registrar_dano_boss(efeitos_texto, dano, x, y, tempo_atual, cor=(255, 230, 1
     if efeitos_texto is None or dano is None:
         return
     valor = max(1, int(dano))
-    efeitos_texto.append({
-        "texto": f"-{valor}",
-        "x": int(x),
-        "y": int(y),
-        "tempo_inicio": int(tempo_atual),
-        "cor": (255, 248, 120) if critico else cor,
-    })
+    Variaveis.registrar_efeito_texto(
+        efeitos_texto,
+        f"-{valor}",
+        int(x),
+        int(y),
+        int(tempo_atual),
+        (255, 248, 120) if critico else cor,
+        chave=("boss-dano", int(x) // 12, int(y) // 12, valor),
+    )
 
 
 def desenhar_barra_vida_boss(

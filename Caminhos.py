@@ -106,6 +106,7 @@ if not hasattr(builtins, "_saves_redirected"):
                 "nivel_detalhes": "alto",
                 "particulas_ativas": True,
                 "efeitos_visuais": True,
+                "efeitos_manifestacoes": "alto",
                 "fps_limite": 60,
                 "tela_cheia": False
             },

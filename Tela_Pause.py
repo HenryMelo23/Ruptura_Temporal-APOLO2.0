@@ -210,6 +210,7 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
             "nivel_detalhes": "alto",
             "particulas_ativas": True,
             "efeitos_visuais": True,
+            "efeitos_manifestacoes": "alto",
             "fps_limite": 60,
             "tela_cheia": False
         }
@@ -217,6 +218,7 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
     config.setdefault("nivel_detalhes", "alto")
     config.setdefault("particulas_ativas", True)
     config.setdefault("efeitos_visuais", True)
+    config.setdefault("efeitos_manifestacoes", "alto")
     config.setdefault("tela_cheia", False)
     config.setdefault("sangue_lacerante", "alto")
     
@@ -228,6 +230,7 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
         {"nome": "Detalhes dos Efeitos", "chave": "nivel_detalhes", "valores": ["alto", "medio", "baixo"], "labels": ["Alto", "Medio", "Baixo"]},
         {"nome": "Particulas", "chave": "particulas_ativas", "valores": [True, False], "labels": ["Ativadas", "Desativadas"]},
         {"nome": "Efeitos Visuais", "chave": "efeitos_visuais", "valores": [True, False], "labels": ["Ativados", "Desativados"]},
+        {"nome": "Efeitos Manifestacoes", "chave": "efeitos_manifestacoes", "valores": ["alto", "medio", "baixo", "desativado"], "labels": ["Alto", "Medio", "Baixo", "Desativado"]},
         {"nome": "Limite de FPS", "chave": "fps_limite", "valores": [30, 60, 120, 0], "labels": ["30 FPS", "60 FPS", "120 FPS", "Ilimitado"]},
         {"nome": "Tela Cheia", "chave": "tela_cheia", "valores": [False, True], "labels": ["Janela", "Tela Cheia"]},
         {"nome": "Sangue Lacerante", "chave": "sangue_lacerante", "valores": ["alto", "reduzido", "desativado"], "labels": ["Completo", "Reduzido", "Desativado"]},
@@ -258,6 +261,12 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
         "efeitos_visuais": {
             True: "Ativa brilhos, distorcoes de tempo e glows premium.",
             False: "Desativa pos-processamento pesado para evitar lentidao."
+        },
+        "efeitos_manifestacoes": {
+            "alto": "Mostra efeitos completos de manifestacoes, como marcas, vinhas e parasitas.",
+            "medio": "Reduz quantidade de vinhas, marcas e particulas das manifestacoes.",
+            "baixo": "Mantem leitura essencial com poucos efeitos ao redor de inimigos e projeteis.",
+            "desativado": "Remove efeitos extras das manifestacoes sem desligar toda a interface."
         },
         "fps_limite": {
             30: "Limita a 30 FPS. Reduz consumo de energia e aquecimento.",

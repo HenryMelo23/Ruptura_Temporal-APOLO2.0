@@ -13,7 +13,7 @@ MANIFESTACOES_DADOS = {
     "eletrica": {
         "nome": "Manifestação Elétrica",
         "icone": "Sprites/manifestacao_eletrica.png",
-        "estado": "dominada",
+        "estado": "encontrado",
         "funcao": "Disparo padrão equilibrado.",
         "descricao_curta": (
             "A primeira forma que Geovana aprendeu a dar à Ruptura: energia "
@@ -38,7 +38,7 @@ MANIFESTACOES_DADOS = {
     "lacerante": {
         "nome": "Manifestação Lacerante",
         "icone": "Sprites/manifestacao_lacerante.png",
-        "estado": "dominada",
+        "estado": "encontrado",
         "funcao": "Agressiva de médio alcance, feita para cortar hordas alinhadas e elites móveis.",
         "descricao_curta": (
             "Geovana não dispara energia. Ela rasga o espaço entre ela e o alvo "
@@ -62,6 +62,113 @@ MANIFESTACOES_DADOS = {
         "ativa": True,
         "cor": (255, 54, 72),
         "cor_secundaria": (255, 150, 170),
+    },
+    "prismatica": {
+        "nome": "Manifestação Prismática",
+        "icone": "Sprites/manifestacao_prismatica.png",
+        "estado": "encontrado",
+        "funcao": "Técnica de precisão que recompensa ângulo, preparo e geometria.",
+        "descricao_curta": (
+            "Geovana aprende a fragmentar energia em feixes de luz instável. "
+            "Cada disparo é menos bruto, mas muito mais inteligente no espaço."
+        ),
+        "disparo": (
+            "Feixe Prismático: tiro fino, veloz e de dano base menor. Ricocheteia "
+            "uma vez em parede ou inimigo marcado; após ricochetear ganha dano e, "
+            "se voltar ao mesmo alvo, causa crítico prismático."
+        ),
+        "habilidade": "Prisma de Refração",
+        "descricao_habilidade": (
+            "Cria um pequeno prisma no cursor por alguns segundos. Disparos que "
+            "atravessam o prisma se dividem em 3 feixes menores. Inimigos que "
+            "tocam o prisma recebem dano leve e quebram a estrutura."
+        ),
+        "traco": "Excelente contra chefes previsíveis, paredes úteis e jogadores que calculam ângulos.",
+        "risco": "Dano direto menor; depende de mira, posicionamento e preparação do campo.",
+        "frase": "Geovana descobriu que a Ruptura também obedece à luz quando o ângulo está certo.",
+        "desbloqueada": True,
+        "ativa": True,
+        "cor": (70, 245, 255),
+        "cor_secundaria": (255, 115, 185),
+    },
+    "retornante": {
+        "nome": "Manifestação Retornante",
+        "icone": "Sprites/manifestacao_retornante.png",
+        "estado": "encontrado",
+        "funcao": "Técnica de retorno: o dano real acontece quando o disparo volta para Geovana.",
+        "descricao_curta": (
+            "Geovana aprende a lançar energia que não termina no impacto. "
+            "O pulso atravessa o campo, reconhece a distância e retorna como uma lâmina puxada de volta."
+        ),
+        "disparo": (
+            "Pulso Retornante: na ida causa dano baixo e atravessa inimigos. "
+            "Na volta causa dano alto, aplica bônus de retorno e pode critar quando atravessa o alvo pelas costas."
+        ),
+        "habilidade": "Chamado Reverso",
+        "descricao_habilidade": (
+            "Marca todos os projéteis retornantes ativos e força o retorno imediato. "
+            "Projéteis chamados voltam com dano aumentado."
+        ),
+        "traco": "Excelente para kiting e posicionamento: o jogador quer colocar inimigos entre Geovana e o pulso voltando.",
+        "risco": "Se Geovana fica parada ou mal posicionada, metade do dano da manifestação se perde.",
+        "frase": "Geovana não mira onde o inimigo está. Ela caminha para onde a volta vai cortar.",
+        "desbloqueada": True,
+        "ativa": True,
+        "cor": (145, 95, 255),
+        "cor_secundaria": (255, 95, 175),
+    },
+    "parasitica": {
+        "nome": "Manifestação Parasítica",
+        "icone": "Sprites/manifestacao_parasitica.png",
+        "estado": "encontrado",
+        "funcao": "Manifestação de preparação: planta energia em inimigos e colhe explosões no momento certo.",
+        "descricao_curta": (
+            "Geovana usa o corpo dos inimigos como catalisador, implantando sementes "
+            "dimensionais que crescem com aproximação, agressão e novos acertos."
+        ),
+        "disparo": (
+            "Semente Parasítica: causa pouco dano inicial e implanta uma semente. "
+            "Acertar o mesmo alvo fortalece a infecção; inimigos agrupados ou atacando aceleram a maturação."
+        ),
+        "habilidade": "Eclosão",
+        "descricao_habilidade": (
+            "Força todas as sementes ativas a explodirem imediatamente. Sementes maduras "
+            "causam dano alto em área e espalham novas sementes menores; imaturas causam dano baixo."
+        ),
+        "traco": "Ideal para infectar alvos certos, controlar hordas e esperar o melhor momento de colher.",
+        "risco": "Dano imediato baixo; perde valor contra inimigos que morrem antes da semente crescer.",
+        "frase": "Geovana não destrói o inimigo de fora. Ela deixa a Ruptura crescer por dentro.",
+        "desbloqueada": True,
+        "ativa": True,
+        "cor": (105, 255, 130),
+        "cor_secundaria": (215, 255, 95),
+    },
+    "condutora": {
+        "nome": "Manifestacao Condutora",
+        "icone": "Sprites/manifestacao_condutora.png",
+        "estado": "encontrado",
+        "funcao": "Tecnica de rede: marca inimigos, cria circuitos entre eles e recompensa preparo coletivo.",
+        "descricao_curta": (
+            "Geovana aprende a usar os inimigos como parte do circuito. A energia nao procura "
+            "apenas um alvo: ela monta caminhos, fecha conexoes e transforma a horda em uma rede instavel."
+        ),
+        "disparo": (
+            "Fio Condutor: disparo de dano baixo que aplica um fio no alvo atingido. "
+            "Inimigos marcados proximos criam linhas de energia entre si; essas linhas dao ticks "
+            "nos conectados e ferem quem atravessa o circuito."
+        ),
+        "habilidade": "Fechamento de Circuito",
+        "descricao_habilidade": (
+            "Fecha todos os fios ativos. Cada componente conectado explode; quanto mais inimigos "
+            "e conexoes existirem na rede, maior o dano. Alvos isolados recebem dano fraco."
+        ),
+        "traco": "Ideal para preparar o campo, manter inimigos vivos por tempo suficiente e explodir a rede inteira no momento certo.",
+        "risco": "Ruim contra alvo unico; exige construir o circuito antes de colher dano alto.",
+        "frase": "Geovana nao persegue um inimigo. Ela ensina a horda inteira a conduzir a propria queda.",
+        "desbloqueada": True,
+        "ativa": True,
+        "cor": (255, 210, 80),
+        "cor_secundaria": (80, 235, 255),
     },
     "eco_grav": {
         "nome": "Eco não estabilizado",
@@ -126,7 +233,7 @@ MANIFESTACOES_DADOS = {
 }
 
 
-ORDEM_MANIFESTACOES = ["eletrica", "lacerante", "eco_grav", "eco_vazio", "eco_quinto"]
+ORDEM_MANIFESTACOES = ["eletrica", "lacerante", "prismatica", "retornante", "parasitica", "condutora", "eco_grav"]
 
 
 def obter_manifestacoes():

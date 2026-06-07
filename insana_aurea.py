@@ -2,6 +2,11 @@ import math
 import random
 
 import pygame
+import lacerante_manifestacao
+import prismatica_manifestacao
+import retornante_manifestacao
+import parasitica_manifestacao
+import condutora_manifestacao
 
 
 INSANA_ECOS_BASE = 4
@@ -66,6 +71,7 @@ def registrar_tiro_insana(
     largura_disparo,
     altura_disparo,
     velocidade_disparo,
+    manifestacao_ativa=None,
 ):
     if not _eh_insana(aurea) or not estado:
         return
@@ -93,6 +99,7 @@ def registrar_tiro_insana(
         "largura_disparo": int(largura_disparo),
         "altura_disparo": int(altura_disparo),
         "velocidade_disparo": float(velocidade_disparo),
+        "manifestacao_ativa": manifestacao_ativa,
         "criado_ms": int(tempo_atual),
         "disparar_ms": int(tempo_atual + INSANA_DELAY_MS),
         "disparou_ms": 0,
@@ -110,16 +117,37 @@ def atualizar_insana(estado, aurea, tempo_atual, disparos, vfx_disparo_player):
     ecos_vivos = []
     for eco in estado.get("ecos", []):
         if not eco.get("disparou_ms") and tempo_atual >= eco.get("disparar_ms", 0):
-            disparo = vfx_disparo_player.criar_disparo(
-                eco["centro_x"],
-                eco["centro_y"],
-                eco["largura_disparo"],
-                eco["altura_disparo"],
-                eco["angulo"],
-                eco["velocidade_disparo"] * 0.92,
-                tempo_atual,
-                False,
-            )
+            velocidade_eco = eco["velocidade_disparo"] * 0.92
+            if (
+                lacerante_manifestacao.ativa(eco.get("manifestacao_ativa"))
+                or prismatica_manifestacao.ativa(eco.get("manifestacao_ativa"))
+                or retornante_manifestacao.ativa(eco.get("manifestacao_ativa"))
+                or parasitica_manifestacao.ativa(eco.get("manifestacao_ativa"))
+                or condutora_manifestacao.ativa(eco.get("manifestacao_ativa"))
+            ):
+                disparo = condutora_manifestacao.criar_auto_attack(
+                    eco.get("manifestacao_ativa"),
+                    vfx_disparo_player,
+                    eco["centro_x"],
+                    eco["centro_y"],
+                    eco["largura_disparo"],
+                    eco["altura_disparo"],
+                    eco["angulo"],
+                    velocidade_eco,
+                    tempo_atual,
+                    False,
+                )
+            else:
+                disparo = vfx_disparo_player.criar_disparo(
+                    eco["centro_x"],
+                    eco["centro_y"],
+                    eco["largura_disparo"],
+                    eco["altura_disparo"],
+                    eco["angulo"],
+                    velocidade_eco,
+                    tempo_atual,
+                    False,
+                )
             nivel = int(estado.get("nivel", 0))
             disparo["eco_insana"] = True
             disparo["insana_vfx"] = True

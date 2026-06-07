@@ -2056,6 +2056,134 @@ FALAS_ONDA_SEM_CARGA = [
     "Preciso recompor a energia",
 ]
 
+EFEITO_TEXTO_DURACAO_MS = 800
+EFEITO_TEXTO_LIMITE = 36
+_efeito_texto_fonte_cache = {}
+_efeito_texto_surface_cache = {}
+
+
+def _obter_fonte_efeito_texto(tamanho):
+    tamanho = int(tamanho or 28)
+    fonte = _efeito_texto_fonte_cache.get(tamanho)
+    if fonte is None:
+        fonte = pygame.font.Font(None, tamanho)
+        _efeito_texto_fonte_cache[tamanho] = fonte
+    return fonte
+
+
+def _surface_texto_contornado(texto, cor, tamanho=28):
+    texto = str(texto)
+    cor = tuple(cor)
+    chave = (texto, cor, int(tamanho or 28))
+    surface = _efeito_texto_surface_cache.get(chave)
+    if surface is not None:
+        return surface
+
+    fonte = _obter_fonte_efeito_texto(chave[2])
+    base = fonte.render(texto, True, cor)
+    contorno = fonte.render(texto, True, (0, 0, 0))
+    surface = pygame.Surface((base.get_width() + 2, base.get_height() + 2), pygame.SRCALPHA)
+    for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, 1), (-1, 1), (1, -1)):
+        surface.blit(contorno, (dx + 1, dy + 1))
+    surface.blit(base, (1, 1))
+
+    if len(_efeito_texto_surface_cache) > 256:
+        _efeito_texto_surface_cache.clear()
+    _efeito_texto_surface_cache[chave] = surface
+    return surface
+
+
+def preparar_efeito_texto(efeito):
+    if not isinstance(efeito, dict) or efeito.get("fala_boss"):
+        return efeito
+    texto = str(efeito.get("texto", ""))
+    cor = tuple(efeito.get("cor", (255, 255, 255)))
+    tamanho = int(efeito.get("tamanho", 28))
+    chave = (texto, cor, tamanho)
+    if efeito.get("_surface_chave") != chave:
+        efeito["_surface"] = _surface_texto_contornado(texto, cor, tamanho)
+        efeito["_surface_chave"] = chave
+    return efeito
+
+
+def registrar_efeito_texto(efeitos_texto, texto, x, y, tempo_atual, cor=(255, 255, 255), chave=None, intervalo_ms=90, limite=EFEITO_TEXTO_LIMITE, **extras):
+    if efeitos_texto is None:
+        return None
+
+    tempo_atual = int(tempo_atual)
+    texto = str(texto)
+    efeito = {
+        "texto": texto,
+        "x": int(x),
+        "y": int(y),
+        "tempo_inicio": tempo_atual,
+        "cor": tuple(cor),
+    }
+    efeito.update(extras)
+
+    if chave is not None:
+        efeito["_chave_hit"] = chave
+        for existente in reversed(efeitos_texto[-12:]):
+            if not isinstance(existente, dict) or existente.get("_chave_hit") != chave:
+                continue
+            if tempo_atual - int(existente.get("tempo_inicio", tempo_atual)) > int(intervalo_ms):
+                continue
+            existente.update(efeito)
+            preparar_efeito_texto(existente)
+            return existente
+
+    preparar_efeito_texto(efeito)
+    efeitos_texto.append(efeito)
+    excesso = len(efeitos_texto) - int(limite)
+    if excesso > 0:
+        del efeitos_texto[:excesso]
+    return efeito
+
+
+def atualizar_e_desenhar_efeitos_texto(tela, tempo_atual, efeitos_texto, config_graficos=None, duracao_padrao=EFEITO_TEXTO_DURACAO_MS, limite=EFEITO_TEXTO_LIMITE):
+    if efeitos_texto is None:
+        return []
+    if len(efeitos_texto) > int(limite) * 2:
+        del efeitos_texto[:-int(limite)]
+
+    mostrar = True if config_graficos is None else config_graficos.get("efeitos_visuais", True)
+    nova_lista = []
+    for efeito in efeitos_texto:
+        if not isinstance(efeito, dict):
+            continue
+        tempo_inicio = int(efeito.get("tempo_inicio", tempo_atual))
+        tempo_passado_efeito = int(tempo_atual) - tempo_inicio
+        duracao_efeito = int(efeito.get("duracao", duracao_padrao))
+        if tempo_passado_efeito < 0:
+            nova_lista.append(efeito)
+            continue
+        if tempo_passado_efeito > duracao_efeito:
+            continue
+        if mostrar:
+            x = int(efeito.get("x", 0))
+            y_base = int(efeito.get("y", 0))
+            y = y_base if efeito.get("fala_boss") else y_base - (tempo_passado_efeito // 25)
+            if efeito.get("fala_boss"):
+                fonte_efeito = _obter_fonte_efeito_texto(efeito.get("tamanho", 28))
+                linhas_efeito = efeito.get("linhas") or [efeito.get("texto", "")]
+                largura_texto = max(fonte_efeito.size(linha)[0] for linha in linhas_efeito)
+                altura_texto = len(linhas_efeito) * 22 + 12
+                caixa = pygame.Surface((largura_texto + 24, altura_texto), pygame.SRCALPHA)
+                caixa.fill((18, 8, 22, 165))
+                pygame.draw.rect(caixa, (120, 255, 120, 120), caixa.get_rect(), 1, border_radius=6)
+                tela.blit(caixa, (x - 12, y - 8))
+                for indice_linha, linha in enumerate(linhas_efeito):
+                    y_linha = y + indice_linha * 22
+                    surface = _surface_texto_contornado(linha, efeito.get("cor", (255, 255, 255)), efeito.get("tamanho", 28))
+                    tela.blit(surface, (x - 1, y_linha - 1))
+            else:
+                surface = preparar_efeito_texto(efeito).get("_surface")
+                if surface is not None:
+                    tela.blit(surface, (x - 1, y - 1))
+        nova_lista.append(efeito)
+    return nova_lista
+
+
 _feedback_cooldown_estado = {
     "particulas": [],
     "falas_pendentes": [],
@@ -2069,13 +2197,13 @@ _feedback_cooldown_estado = {
 
 
 def _adicionar_fala_feedback(efeitos_texto, texto, x, y, tempo_atual, cor=(160, 230, 255), atraso_ms=0):
-    efeito = {
+    efeito = preparar_efeito_texto({
         "texto": texto,
         "x": int(x),
         "y": int(y),
         "tempo_inicio": int(tempo_atual) + int(atraso_ms),
         "cor": cor,
-    }
+    })
     if atraso_ms > 0:
         _feedback_cooldown_estado["falas_pendentes"].append(efeito)
     else:
@@ -3269,6 +3397,18 @@ def verificar_colisao_disparo_inimigo(disparo, pos_inimigo, largura_disparo, alt
             return lacerante_manifestacao.colisao_corte(disparo, rect_inimigo, pygame.time.get_ticks())
         except Exception:
             return False
+    if isinstance(disparo, dict) and disparo.get("tipo_manifestacao") == "prismatica_feixe":
+        try:
+            import prismatica_manifestacao
+            return prismatica_manifestacao.colisao_feixe(disparo, rect_inimigo, pygame.time.get_ticks())
+        except Exception:
+            return rect_disparo.colliderect(rect_inimigo)
+    if isinstance(disparo, dict) and disparo.get("tipo_manifestacao") == "retornante_pulso":
+        try:
+            import retornante_manifestacao
+            return retornante_manifestacao.colisao_pulso(disparo, rect_inimigo)
+        except Exception:
+            return rect_disparo.colliderect(rect_inimigo)
 
     return rect_disparo.colliderect(rect_inimigo)
 

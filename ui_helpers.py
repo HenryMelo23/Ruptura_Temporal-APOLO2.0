@@ -500,7 +500,33 @@ def racional_rebote_ativo(aurea, fim_ms, agora_ms=None):
 def fator_movimento_racional(aurea, fim_ms, agora_ms=None):
     return 1.35 if racional_dilatacao_ativa(aurea, fim_ms, agora_ms) else 1.0
 
+_manifestacao_ativa_cached = None
+_manifestacao_cache_ultimo_tick = 0
+
+def obter_manifestacao_cached():
+    global _manifestacao_ativa_cached, _manifestacao_cache_ultimo_tick
+    try:
+        agora = pygame.time.get_ticks()
+    except Exception:
+        agora = 0
+    if _manifestacao_ativa_cached is None or (agora - _manifestacao_cache_ultimo_tick > 1000):
+        try:
+            from dados_manifestacoes import obter_manifestacao_ativa
+            _manifestacao_ativa_cached = obter_manifestacao_ativa()
+        except Exception:
+            _manifestacao_ativa_cached = "eletrica"
+        _manifestacao_cache_ultimo_tick = agora
+    return _manifestacao_ativa_cached
+
 def intervalo_disparo_racional(intervalo_base, aurea, fim_ms, agora_ms=None):
+    if obter_manifestacao_cached() == "retornante":
+        try:
+            import balanceamento
+            mult = getattr(balanceamento, "RETORNANTE_ATTACK_SPEED_MULTIPLIER", 1.45)
+            intervalo_base = int(intervalo_base * mult)
+        except Exception:
+            intervalo_base = int(intervalo_base * 1.45)
+
     if not racional_dilatacao_ativa(aurea, fim_ms, agora_ms):
         return intervalo_base
     return max(50, int(intervalo_base * 0.72))

@@ -49,6 +49,14 @@ def _desenhar_texto_wrap(superficie, texto, rect, fonte, cor, gap=2):
     return y
 
 
+def _nome_curto_manifestacao(dados):
+    nome = str(dados.get("nome", "Manifestacao"))
+    for prefixo in ("Manifestação ", "Manifestacao "):
+        if nome.startswith(prefixo):
+            return nome[len(prefixo):]
+    return nome
+
+
 def _carregar_icone_manifestacao(caminho, tamanho):
     chave = (caminho, tamanho)
     if chave in _ICONE_CACHE:
@@ -68,21 +76,21 @@ def _carregar_icone_manifestacao(caminho, tamanho):
 
 def _desenhar_fundo(tela, agora, particulas):
     largura, altura = tela.get_size()
-    tela.fill((5, 7, 15))
+    tela.fill((4, 6, 13))
 
-    for y in range(0, altura, 46):
-        alpha = 15 + int(8 * math.sin(agora * 0.0014 + y * 0.03))
-        pygame.draw.line(tela, (0, 150, 190), (0, y), (largura, y), 1)
-        if alpha > 0:
-            pygame.draw.line(tela, (10, 30, 48), (0, y + 1), (largura, y + 1), 1)
+    for y in range(0, altura, 48):
+        pygame.draw.line(tela, (8, 22, 35), (0, y), (largura, y), 1)
 
     for x in range(0, largura, 64):
-        pygame.draw.line(tela, (7, 24, 42), (x, 0), (x, altura), 1)
+        pygame.draw.line(tela, (7, 20, 33), (x, 0), (x, altura), 1)
+
+    for i in range(-altura, largura, 160):
+        pygame.draw.line(tela, (10, 28, 42), (i, altura), (i + altura, 0), 1)
 
     cx, cy = largura // 2, altura // 2
-    for raio, alpha in ((360, 16), (250, 22), (120, 28)):
+    for raio, alpha in ((420, 10), (285, 16), (132, 22)):
         surf = pygame.Surface((raio * 2, raio * 2), pygame.SRCALPHA)
-        pygame.draw.circle(surf, (0, 220, 255, alpha), (raio, raio), raio, 2)
+        pygame.draw.circle(surf, (0, 160, 210, alpha), (raio, raio), raio, 1)
         tela.blit(surf, (cx - raio, cy - raio))
 
     for p in particulas:
@@ -92,10 +100,16 @@ def _desenhar_fundo(tela, agora, particulas):
         if p["x"] < -20 or p["x"] > largura + 20 or p["y"] < -20 or p["y"] > altura + 20:
             p["x"] = random.uniform(0, largura)
             p["y"] = altura + random.uniform(0, 60)
-        alpha = max(20, min(150, int(p["alpha"] + math.sin(p["fase"]) * 40)))
-        pygame.draw.circle(tela, (0, 230, 255), (int(p["x"]), int(p["y"])), p["r"])
-        if alpha > 90:
-            pygame.draw.line(tela, (110, 245, 255), (int(p["x"]), int(p["y"])), (int(p["x"] - p["vx"] * 12), int(p["y"] - p["vy"] * 12)), 1)
+        alpha = max(16, min(90, int(p["alpha"] + math.sin(p["fase"]) * 24)))
+        pygame.draw.line(
+            tela,
+            (28, 86, 110),
+            (int(p["x"]), int(p["y"])),
+            (int(p["x"] - p["vx"] * 18), int(p["y"] - p["vy"] * 18)),
+            1,
+        )
+        if alpha > 65:
+            pygame.draw.circle(tela, (58, 128, 150), (int(p["x"]), int(p["y"])), p["r"])
 
 
 def _desenhar_icone(tela, rect, dados, selecionado, desbloqueada, agora, entrada):
@@ -135,58 +149,78 @@ def _desenhar_icone(tela, rect, dados, selecionado, desbloqueada, agora, entrada
         pygame.draw.arc(tela, (95, 100, 115), (centro[0] - 9, centro[1] - 16, 18, 20), math.pi, math.tau, 3)
 
     if selecionado and desbloqueada:
-        for i in range(9):
-            ang = agora * 0.004 + i * math.tau / 9
-            px = centro[0] + math.cos(ang) * (raio + 15)
-            py = centro[1] + math.sin(ang) * (raio + 15)
-            pygame.draw.circle(tela, cor, (int(px), int(py)), 2)
+        pygame.draw.line(tela, cor, (centro[0] - raio - 10, centro[1]), (centro[0] - raio - 2, centro[1]), 2)
+        pygame.draw.line(tela, cor, (centro[0] + raio + 2, centro[1]), (centro[0] + raio + 10, centro[1]), 2)
 
 
 def _desenhar_slot_matriz(tela, rect, dados, selecionado, desbloqueada, agora, entrada, fontes):
     cor = dados["cor"] if desbloqueada else (92, 102, 122)
-    pulso = 1.0 + (0.045 * math.sin(agora * 0.008) if selecionado else 0.0)
     slot = rect.copy()
-    if selecionado:
-        slot.inflate_ip(int(rect.w * (pulso - 1.0)), int(rect.h * (pulso - 1.0)))
+    slot.y += int((1.0 - entrada) * 18)
 
     surf = pygame.Surface((slot.w, slot.h), pygame.SRCALPHA)
-    pygame.draw.rect(surf, (8, 11, 22, int(210 * entrada)), (0, 0, slot.w, slot.h), border_radius=8)
-    pygame.draw.rect(surf, (*cor[:3], 245 if selecionado else 95), (0, 0, slot.w, slot.h), 2 if selecionado else 1, border_radius=8)
-    pygame.draw.rect(surf, (255, 255, 255, 22 if selecionado else 10), (7, 7, slot.w - 14, slot.h - 14), 1, border_radius=6)
+    alpha_base = int(218 * entrada)
+    pygame.draw.rect(surf, (7, 10, 18, alpha_base), (0, 0, slot.w, slot.h), border_radius=8)
+    pygame.draw.rect(surf, (255, 255, 255, 16), (6, 6, slot.w - 12, slot.h - 12), 1, border_radius=6)
+    pygame.draw.rect(surf, (*cor[:3], 230 if selecionado else 86), (0, 0, slot.w, slot.h), 2 if selecionado else 1, border_radius=8)
 
     if selecionado:
-        for i in range(8):
-            ang = agora * 0.006 + i * math.tau / 8
-            px = slot.w // 2 + math.cos(ang) * (slot.w * 0.43)
-            py = slot.h // 2 + math.sin(ang) * (slot.h * 0.43)
-            pygame.draw.circle(surf, (*cor[:3], 180), (int(px), int(py)), 2)
+        brilho = pygame.Surface((slot.w, slot.h), pygame.SRCALPHA)
+        pygame.draw.rect(brilho, (*cor[:3], 35), (0, 0, slot.w, slot.h), border_radius=8)
+        surf.blit(brilho, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+        pygame.draw.rect(surf, (*cor[:3], 220), (0, 0, 5, slot.h), border_radius=4)
+        canto = 17
+        for x1, y1, sx, sy in ((7, 7, 1, 1), (slot.w - 8, 7, -1, 1), (7, slot.h - 8, 1, -1), (slot.w - 8, slot.h - 8, -1, -1)):
+            pygame.draw.line(surf, (235, 255, 255, 170), (x1, y1), (x1 + sx * canto, y1), 1)
+            pygame.draw.line(surf, (235, 255, 255, 170), (x1, y1), (x1, y1 + sy * canto), 1)
+
+    pygame.draw.line(surf, (255, 255, 255, 18), (14, 34), (slot.w - 14, 34), 1)
+    status = "ENCONTRADO" if desbloqueada else "BLOQUEADA"
+    badge_w = max(68, fontes["pequena"].size(status)[0] + 16)
+    badge = pygame.Rect(slot.w - badge_w - 10, 10, badge_w, 22)
+    pygame.draw.rect(surf, (*cor[:3], 34 if desbloqueada else 22), badge, border_radius=4)
+    pygame.draw.rect(surf, (*cor[:3], 140 if desbloqueada else 70), badge, 1, border_radius=4)
+    txt_status = fontes["pequena"].render(status, True, (220, 245, 250) if desbloqueada else (130, 138, 152))
+    surf.blit(txt_status, txt_status.get_rect(center=badge.center))
 
     if desbloqueada:
-        icone = _carregar_icone_manifestacao(dados.get("icone", ""), int(min(slot.w, slot.h) * 0.66))
-        surf.blit(icone, icone.get_rect(center=(slot.w // 2, slot.h // 2 - 8)))
-        nome = fontes["pequena"].render(dados["nome"], True, (220, 250, 255))
-        surf.blit(nome, nome.get_rect(center=(slot.w // 2, slot.h - 20)))
+        icone = _carregar_icone_manifestacao(dados.get("icone", ""), int(min(slot.w, slot.h) * 0.52))
+        placa = pygame.Rect(16, 40, slot.w - 32, slot.h - 72)
+        pygame.draw.rect(surf, (0, 0, 0, 70), placa, border_radius=6)
+        pygame.draw.rect(surf, (*cor[:3], 58), placa, 1, border_radius=6)
+        surf.blit(icone, icone.get_rect(center=placa.center))
+        nome_curto = _nome_curto_manifestacao(dados)
+        fonte_nome = fontes["rotulo"] if fontes["rotulo"].size(nome_curto)[0] <= slot.w - 22 else fontes["pequena"]
+        nome_sombra = fonte_nome.render(nome_curto, True, (0, 0, 0))
+        nome = fonte_nome.render(nome_curto, True, (235, 255, 255))
+        nome_rect = nome.get_rect(center=(slot.w // 2, slot.h - 17))
+        surf.blit(nome_sombra, nome_rect.move(1, 1))
+        surf.blit(nome, nome_rect)
     else:
         texto = fontes["titulo_slot"].render("?", True, (155, 165, 185))
-        surf.blit(texto, texto.get_rect(center=(slot.w // 2, slot.h // 2 - 4)))
+        surf.blit(texto, texto.get_rect(center=(slot.w // 2, slot.h // 2 - 2)))
         futuro = fontes["pequena"].render("Futura", True, (115, 125, 145))
-        surf.blit(futuro, futuro.get_rect(center=(slot.w // 2, slot.h - 20)))
+        surf.blit(futuro, futuro.get_rect(center=(slot.w // 2, slot.h - 17)))
 
     tela.blit(surf, slot.topleft)
 
 
 def _desenhar_painel(tela, rect, dados, desbloqueada, fontes, fade):
     surf = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
-    surf.fill((8, 10, 20, int(220 * fade)))
-    pygame.draw.rect(surf, (0, 210, 255, int(90 * fade)), (0, 0, rect.w, rect.h), 1, border_radius=8)
-    pygame.draw.rect(surf, (120, 80, 255, int(35 * fade)), (7, 7, rect.w - 14, rect.h - 14), 1, border_radius=6)
+    cor = dados.get("cor", (120, 130, 150)) if desbloqueada else (95, 102, 118)
+    surf.fill((7, 9, 18, int(228 * fade)))
+    pygame.draw.rect(surf, (*cor[:3], int(120 * fade)), (0, 0, rect.w, rect.h), 1, border_radius=8)
+    pygame.draw.rect(surf, (255, 255, 255, int(20 * fade)), (8, 8, rect.w - 16, rect.h - 16), 1, border_radius=6)
+    pygame.draw.rect(surf, (*cor[:3], int(210 * fade)), (0, 0, 5, rect.h), border_radius=4)
 
     x = 24
     y = 20
     titulo = dados["nome"] if desbloqueada else "Manifestação não estabilizada"
     cor_titulo = (230, 255, 255) if desbloqueada else (155, 160, 175)
     surf.blit(fontes["nome"].render(titulo, True, cor_titulo), (x, y))
-    y += 46
+    y += 42
+    pygame.draw.line(surf, (*cor[:3], 125), (x, y), (rect.w - 24, y), 1)
+    y += 18
 
     if not desbloqueada:
         _desenhar_texto_wrap(
@@ -201,8 +235,11 @@ def _desenhar_painel(tela, rect, dados, desbloqueada, fontes, fade):
 
     descricao = dados.get("frase") or dados.get("descricao_curta")
     if descricao:
-        y = _desenhar_texto_wrap(surf, descricao, pygame.Rect(x, y, rect.w - 48, 58), fontes["texto"], (170, 205, 215), 1)
-        y += 10
+        caixa_desc = pygame.Rect(x, y, rect.w - 48, 74)
+        pygame.draw.rect(surf, (255, 255, 255, 10), caixa_desc, border_radius=6)
+        pygame.draw.rect(surf, (*cor[:3], 42), caixa_desc, 1, border_radius=6)
+        _desenhar_texto_wrap(surf, descricao, pygame.Rect(x + 12, y + 10, rect.w - 72, 52), fontes["texto"], (178, 212, 220), 1)
+        y = caixa_desc.bottom + 14
 
     itens = [
         ("Função", dados["funcao"]),
@@ -213,12 +250,14 @@ def _desenhar_painel(tela, rect, dados, desbloqueada, fontes, fade):
     ]
 
     for rotulo, texto in itens:
-        if y > rect.h - 55:
+        if y > rect.h - 62:
             break
-        surf.blit(fontes["rotulo"].render(rotulo.upper(), True, dados["cor"]), (x, y))
-        y += 22
+        pygame.draw.line(surf, (255, 255, 255, 24), (x, y), (rect.w - 24, y), 1)
+        y += 9
+        surf.blit(fontes["rotulo"].render(rotulo.upper(), True, cor), (x, y))
+        y += 20
         y = _desenhar_texto_wrap(surf, texto, pygame.Rect(x, y, rect.w - 48, rect.h - y - 12), fontes["texto"], (210, 225, 236), 1)
-        y += 10
+        y += 12
 
     tela.blit(surf, rect.topleft)
 
@@ -226,13 +265,32 @@ def _desenhar_painel(tela, rect, dados, desbloqueada, fontes, fade):
 def _desenhar_preview_em_preparo(tela, rect, fontes, dados):
     cor = dados.get("cor", (120, 130, 150))
     surf = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
-    pygame.draw.rect(surf, (7, 9, 18, 225), (0, 0, rect.w, rect.h), border_radius=8)
-    pygame.draw.rect(surf, (*cor[:3], 100), (0, 0, rect.w, rect.h), 1, border_radius=8)
-    surf.blit(fontes["rotulo"].render("PREVIEW", True, cor), (20, 16))
-    texto = fontes["titulo_slot"].render("?", True, (175, 180, 195))
-    surf.blit(texto, texto.get_rect(center=(rect.w // 2, rect.h // 2 - 4)))
-    aviso = fontes["texto"].render("Preview em preparo", True, (145, 150, 165))
-    surf.blit(aviso, aviso.get_rect(center=(rect.w // 2, rect.h - 34)))
+    pygame.draw.rect(surf, (7, 9, 18, 230), (0, 0, rect.w, rect.h), border_radius=8)
+    pygame.draw.rect(surf, (*cor[:3], 115), (0, 0, rect.w, rect.h), 1, border_radius=8)
+    pygame.draw.rect(surf, (255, 255, 255, 16), (8, 8, rect.w - 16, rect.h - 16), 1, border_radius=6)
+    surf.blit(fontes["rotulo"].render("LEITURA TÁTICA", True, cor), (20, 16))
+
+    centro = (rect.w // 2, rect.h // 2 + 4)
+    trilho = pygame.Rect(48, centro[1] - 22, rect.w - 96, 44)
+    pygame.draw.rect(surf, (0, 0, 0, 80), trilho, border_radius=6)
+    pygame.draw.line(surf, (*cor[:3], 145), (trilho.left + 14, centro[1]), (trilho.right - 14, centro[1]), 2)
+    for i in range(5):
+        x = trilho.left + 26 + i * max(1, (trilho.w - 52) // 4)
+        pygame.draw.circle(surf, (*cor[:3], 150), (x, centro[1]), 5)
+        pygame.draw.circle(surf, (230, 245, 250, 210), (x, centro[1]), 2)
+
+    icone = _carregar_icone_manifestacao(dados.get("icone", ""), 70)
+    pygame.draw.circle(surf, (0, 0, 0, 120), centro, 45)
+    pygame.draw.circle(surf, (*cor[:3], 150), centro, 45, 2)
+    surf.blit(icone, icone.get_rect(center=centro))
+
+    resumo = dados.get("funcao", "Forma em leitura.")
+    linhas = _linhas_wrap(resumo, fontes["texto"], rect.w - 56)[:2]
+    y = rect.h - 52
+    for linha in linhas:
+        txt = fontes["texto"].render(linha, True, (190, 212, 220))
+        surf.blit(txt, txt.get_rect(center=(rect.w // 2, y)))
+        y += fontes["texto"].get_linesize()
     tela.blit(surf, rect.topleft)
 
 
@@ -356,9 +414,11 @@ def tela_manifestacoes(tela, fonte_base):
     entrada_inicio = pygame.time.get_ticks()
     troca_inicio = entrada_inicio
     modo_interacao = "teclado"
-    analogo_movido = False
+    colunas = 3
+    analogo_x_movido = False
+    analogo_y_movido = False
 
-    # Carrega os frames do preview de vídeo para as manifestações dominadas
+    # Carrega os frames do preview de vídeo para as manifestações encontradas.
     frames_previews = {}
     for chave, dados in manifestacoes:
         if dados.get("desbloqueada", False):
@@ -403,14 +463,47 @@ def tela_manifestacoes(tela, fonte_base):
             "alpha": random.randint(40, 120),
             "fase": random.uniform(0, math.tau),
         }
-        for _ in range(80)
+        for _ in range(36)
     ]
 
-    def mover(delta):
+    def mover_para(novo_indice):
         nonlocal selecionado, troca_inicio
-        selecionado = (selecionado + delta) % len(manifestacoes)
+        if not manifestacoes:
+            return
+        novo_indice = max(0, min(len(manifestacoes) - 1, int(novo_indice)))
+        if novo_indice == selecionado:
+            return
+        selecionado = novo_indice
         troca_inicio = pygame.time.get_ticks()
         tocar_hover()
+
+    def indice_na_grade(linha, coluna):
+        total = len(manifestacoes)
+        if total <= 0:
+            return 0
+        total_linhas = (total + colunas - 1) // colunas
+        linha = max(0, min(total_linhas - 1, int(linha)))
+        inicio = linha * colunas
+        fim = min(inicio + colunas, total) - 1
+        return max(inicio, min(fim, inicio + int(coluna)))
+
+    def mover_linear(delta):
+        if manifestacoes:
+            mover_para((selecionado + delta) % len(manifestacoes))
+
+    def mover_grade(delta_coluna=0, delta_linha=0):
+        if not manifestacoes:
+            return
+        linha_atual = selecionado // colunas
+        coluna_atual = selecionado % colunas
+        total_linhas = (len(manifestacoes) + colunas - 1) // colunas
+        nova_linha = linha_atual + int(delta_linha)
+        if delta_linha and (nova_linha < 0 or nova_linha >= total_linhas):
+            return
+        if delta_linha:
+            mover_para(indice_na_grade(nova_linha, coluna_atual))
+            return
+        mover_linear(delta_coluna)
 
     def confirmar():
         chave, dados = manifestacoes[selecionado]
@@ -443,9 +536,13 @@ def tela_manifestacoes(tela, fonte_base):
                     tocar_selecionar()
                     return "voltar"
                 if evento.key in (pygame.K_RIGHT, pygame.K_d):
-                    mover(1)
+                    mover_grade(delta_coluna=1)
                 elif evento.key in (pygame.K_LEFT, pygame.K_a):
-                    mover(-1)
+                    mover_grade(delta_coluna=-1)
+                elif evento.key in (pygame.K_DOWN, pygame.K_s):
+                    mover_grade(delta_linha=1)
+                elif evento.key in (pygame.K_UP, pygame.K_w):
+                    mover_grade(delta_linha=-1)
                 elif evento.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
                     resultado = confirmar()
                     if resultado:
@@ -453,20 +550,33 @@ def tela_manifestacoes(tela, fonte_base):
             elif evento.type == pygame.JOYAXISMOTION:
                 modo_interacao = "teclado"
                 if evento.axis == 0:
-                    if evento.value > 0.55 and not analogo_movido:
-                        mover(1)
-                        analogo_movido = True
-                    elif evento.value < -0.55 and not analogo_movido:
-                        mover(-1)
-                        analogo_movido = True
+                    if evento.value > 0.55 and not analogo_x_movido:
+                        mover_grade(delta_coluna=1)
+                        analogo_x_movido = True
+                    elif evento.value < -0.55 and not analogo_x_movido:
+                        mover_grade(delta_coluna=-1)
+                        analogo_x_movido = True
                     elif abs(evento.value) < 0.25:
-                        analogo_movido = False
+                        analogo_x_movido = False
+                elif evento.axis == 1:
+                    if evento.value > 0.55 and not analogo_y_movido:
+                        mover_grade(delta_linha=1)
+                        analogo_y_movido = True
+                    elif evento.value < -0.55 and not analogo_y_movido:
+                        mover_grade(delta_linha=-1)
+                        analogo_y_movido = True
+                    elif abs(evento.value) < 0.25:
+                        analogo_y_movido = False
             elif evento.type == pygame.JOYHATMOTION:
-                dx, _ = evento.value
+                dx, dy = evento.value
                 if dx > 0:
-                    mover(1)
+                    mover_grade(delta_coluna=1)
                 elif dx < 0:
-                    mover(-1)
+                    mover_grade(delta_coluna=-1)
+                elif dy > 0:
+                    mover_grade(delta_linha=-1)
+                elif dy < 0:
+                    mover_grade(delta_linha=1)
             elif evento.type == pygame.JOYBUTTONDOWN:
                 if evento.button == 0:
                     resultado = confirmar()
@@ -491,7 +601,6 @@ def tela_manifestacoes(tela, fonte_base):
 
         titulo_grade = fontes["rotulo"].render("MATRIZ DE MANIFESTAÇÕES", True, (0, 225, 255))
         tela.blit(titulo_grade, (grade_rect.x + 4, grade_rect.y - 30))
-        colunas = 3
         slot_w = min(150, max(112, (grade_rect.w - 56) // colunas))
         slot_h = 118
         gap_x = 28
@@ -564,7 +673,7 @@ def tela_manifestacoes(tela, fonte_base):
             tocar_selecionar()
             return "voltar"
 
-        rodape = "A/D ou setas navegam  |  ENTER manifesta  |  Mouse seleciona"
+        rodape = "WASD ou setas navegam na matriz  |  ENTER manifesta  |  Mouse seleciona"
         if modo_interacao == "mouse":
             rodape = "Clique no ícone para selecionar, clique em Manifestar para confirmar"
         txt_rodape = fontes["pequena"].render(rodape, True, (115, 165, 185))

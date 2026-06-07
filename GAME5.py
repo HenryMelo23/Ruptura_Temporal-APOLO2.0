@@ -4624,27 +4624,8 @@ def executar_jogo(game_manager=None):
                     moedas_soltadas.remove(moeda)
                     salvar_atributos()   #salva imediatamente
 
-            # Cap: maximos 12 efeitos simultaneos para evitar acumulo em combate
-            if len(efeitos_texto) > 12:
-                efeitos_texto = efeitos_texto[-12:]
-
             Variaveis.atualizar_e_desenhar_feedback_cooldown(tela, tempo_atual, efeitos_texto)
-            nova_lista = []
-            for efeito in efeitos_texto:
-                tempo_passado_efeito = tempo_atual - efeito["tempo_inicio"]
-                if tempo_passado_efeito <= 800:
-                    if config_graficos.get("efeitos_visuais", True):
-                        x = efeito["x"]
-                        y = efeito["y"] - (tempo_passado_efeito // 25)
-                        # Render feito UMA vez com a fonte cacheada (era Font(None,28) a cada frame!)
-                        texto_principal = render_cached_text(efeito["texto"], _FONTE_EFEITO, efeito["cor"])
-                        # Contorno: 1 render + 8 blits (era 8 renders separados)
-                        contorno = render_cached_text(efeito["texto"], _FONTE_EFEITO, (0, 0, 0))
-                        for ox, oy in _CONTORNO_OFFSETS:
-                            tela.blit(contorno, (x + ox, y + oy))
-                        tela.blit(texto_principal, (x, y))
-                    nova_lista.append(efeito)
-            efeitos_texto = nova_lista
+            efeitos_texto = Variaveis.atualizar_e_desenhar_efeitos_texto(tela, tempo_atual, efeitos_texto, config_graficos)
 
             if trembo:
                 if 'trembo_lado' not in locals() and 'trembo_lado' not in globals():

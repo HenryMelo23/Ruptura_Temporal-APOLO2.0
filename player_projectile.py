@@ -126,13 +126,16 @@ class PlayerProjectileVFX:
                 disparo["expirado"] = True
                 disparo["rect"].x = -999999
             return
+        if disparo.get("tipo_manifestacao") == "retornante_pulso":
+            return
 
         angulo = disparo.get("angulo", 0.0)
-        vx = math.cos(angulo) * float(velocidade)
-        vy = math.sin(angulo) * float(velocidade)
+        velocidade_real = float(disparo.get("velocidade_prismatica", velocidade))
+        vx = math.cos(angulo) * velocidade_real
+        vy = math.sin(angulo) * velocidade_real
         disparo["vx"] = vx
         disparo["vy"] = vy
-        disparo["velocidade_base_vfx"] = float(velocidade)
+        disparo["velocidade_base_vfx"] = velocidade_real
         disparo["pos_x"] = float(disparo.get("pos_x", disparo["rect"].x)) + vx * dt
         disparo["pos_y"] = float(disparo.get("pos_y", disparo["rect"].y)) + vy * dt
         disparo["rect"].x = int(disparo["pos_x"])
@@ -148,6 +151,34 @@ class PlayerProjectileVFX:
             try:
                 import lacerante_manifestacao
                 lacerante_manifestacao.desenhar_corte(tela, disparo, agora_ms)
+            except Exception:
+                pass
+            return
+        if disparo.get("tipo_manifestacao") == "prismatica_feixe":
+            try:
+                import prismatica_manifestacao
+                prismatica_manifestacao.desenhar_feixe(tela, disparo, agora_ms, offset)
+            except Exception:
+                pass
+            return
+        if disparo.get("tipo_manifestacao") == "retornante_pulso":
+            try:
+                import retornante_manifestacao
+                retornante_manifestacao.desenhar_pulso(tela, disparo, agora_ms, offset, config_graficos)
+            except Exception:
+                pass
+            return
+        if disparo.get("tipo_manifestacao") == "parasitica_semente":
+            try:
+                import parasitica_manifestacao
+                parasitica_manifestacao.desenhar_semente_disparo(tela, disparo, agora_ms, offset, config_graficos)
+            except Exception:
+                pass
+            return
+        if disparo.get("tipo_manifestacao") == "condutora_fio":
+            try:
+                import condutora_manifestacao
+                condutora_manifestacao.desenhar_fio_disparo(tela, disparo, agora_ms, offset, config_graficos)
             except Exception:
                 pass
             return

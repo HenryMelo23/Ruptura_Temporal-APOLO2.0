@@ -270,3 +270,8 @@ def bonus_limite_inimigos_sem_boss(
         inimigos_eliminados_no_marco = inimigos_eliminados
     abates_apos_marco = max(0, int(inimigos_eliminados or 0) - int(inimigos_eliminados_no_marco or 0))
     return abates_apos_marco // LIMITE_EXTRA_ABATES_POR_INIMIGO
+
+
+# Balanceamento da Manifestação Retornante
+RETORNANTE_ATTACK_SPEED_MULTIPLIER = 1.45
+

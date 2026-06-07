@@ -8,6 +8,10 @@ import subprocess
 import json
 import os
 import lacerante_manifestacao
+import prismatica_manifestacao
+import retornante_manifestacao
+import parasitica_manifestacao
+import condutora_manifestacao
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from Tela_Cartas import tela_de_pausa
 from Variaveis import *
@@ -2603,13 +2607,41 @@ def executar_jogo(game_manager=None):
                         retomar_cronometro()
                         pygame.event.set_grab(True)  # Travar mouse de novo
                         pygame.mouse.set_visible(False)  # Esconder cursor do sistema
-                elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea):
+                elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) * parasitica_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa):
                     pos_mouse = obter_pos_mouse_jogo()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
                     angulo = calcular_angulo_disparo((px_centro, py_centro), pos_mouse)
 
-                    if lacerante_manifestacao.ativa(manifestacao_ativa):
+                    if condutora_manifestacao.ativa(manifestacao_ativa):
+                        mortos_circuito, total_alvos, total_links = condutora_manifestacao.fechar_circuitos(
+                            inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
+                        )
+                        ondas.append(condutora_manifestacao.criar_fechamento(px_centro, py_centro, tempo_atual, total_alvos, total_links))
+                        for morto_circuito in mortos_circuito:
+                            if morto_circuito in inimigos_comum:
+                                gerar_fragmentos_morte(morto_circuito, 3)
+                                Variaveis.tentar_soltar_carta(morto_circuito["rect"].center, tempo_atual, Chance_Sorte, inimigos_eliminados)
+                                inimigos_comum.remove(morto_circuito)
+                                inimigos_eliminados += 1
+                    elif parasitica_manifestacao.ativa(manifestacao_ativa):
+                        mortos_eclosao, total_eclosao = parasitica_manifestacao.eclodir_todas(inimigos_comum, tempo_atual, efeitos_texto)
+                        ondas.append(parasitica_manifestacao.criar_eclosao(px_centro, py_centro, tempo_atual, total_eclosao))
+                        for morto_eclosao in mortos_eclosao:
+                            if morto_eclosao in inimigos_comum:
+                                gerar_fragmentos_morte(morto_eclosao, 3)
+                                Variaveis.tentar_soltar_carta(morto_eclosao["rect"].center, tempo_atual, Chance_Sorte, inimigos_eliminados)
+                                inimigos_comum.remove(morto_eclosao)
+                                inimigos_eliminados += 1
+                    elif retornante_manifestacao.ativa(manifestacao_ativa):
+                        total_chamado = retornante_manifestacao.chamado_reverso(disparos, tempo_atual)
+                        ondas.append(retornante_manifestacao.criar_chamado(px_centro, py_centro, tempo_atual, total_chamado))
+                    elif prismatica_manifestacao.ativa(manifestacao_ativa):
+                        ondas.append(prismatica_manifestacao.criar_prisma(
+                            pos_mouse[0], pos_mouse[1], tempo_atual,
+                            dano_person_hit * fator_dano_aureas(tempo_atual), largura_mapa, altura_mapa
+                        ))
+                    elif lacerante_manifestacao.ativa(manifestacao_ativa):
                         ondas.append(lacerante_manifestacao.criar_fenda(px_centro, py_centro, angulo, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual)))
                     else:
                         # Criar uma onda cinética com as novas propriedades
@@ -2715,7 +2747,11 @@ def executar_jogo(game_manager=None):
 
                 for disparo in disparos:
 
-                    if verificar_colisao_disparo_inimigo(disparo, (inimigo["rect"].x, inimigo["rect"].y), largura_disparo, altura_disparo, inimigo["rect"].width, inimigo["rect"].height, inimigos_eliminados):
+                    if (
+                        retornante_manifestacao.colisao_alvo(disparo, inimigo)
+                        if disparo.get("tipo_manifestacao") == "retornante_pulso"
+                        else verificar_colisao_disparo_inimigo(disparo, (inimigo["rect"].x, inimigo["rect"].y), largura_disparo, altura_disparo, inimigo["rect"].width, inimigo["rect"].height, inimigos_eliminados)
+                    ):
                         if random.random() <= chance_critico:  # 10% de chance de dano crítico
                             dano = dano_person_hit * fator_dano_aureas(tempo_atual) * 3  # Valor do dano crítico é 3 vezes o dano normal
                             cor = (255, 255, 0)  # Amarelo (RGB)
@@ -2740,24 +2776,58 @@ def executar_jogo(game_manager=None):
                         elif dano_flanco:
                             cor = (255, 185, 60)
                             fonte_dano = fonte_dano_critico
+                        acerto_prismatico = prismatica_manifestacao.registrar_acerto(disparo, inimigo, tempo_atual)
+                        if acerto_prismatico["critico"]:
+                            dano *= prismatica_manifestacao.FEIXE_CRITICO_MULT
+                            cor = (235, 255, 255)
+                            fonte_dano = fonte_dano_critico
+                        acerto_retornante = retornante_manifestacao.registrar_acerto(
+                            disparo,
+                            inimigo,
+                            tempo_atual,
+                            (pos_x_personagem + largura_personagem // 2, pos_y_personagem + altura_personagem // 2),
+                        )
+                        if acerto_retornante["critico"]:
+                            dano *= retornante_manifestacao.PULSO_CRITICO_COSTAS_MULT
+                            cor = (235, 225, 255)
+                            fonte_dano = fonte_dano_critico
                         dano *= insana_aurea.dano_mult_disparo(disparo)
                         dano *= voraz_aurea.dano_mult_disparo(disparo)
                         dano *= lacerante_manifestacao.multiplicador_dano_disparo(disparo)
+                        dano *= prismatica_manifestacao.multiplicador_dano_disparo(disparo)
+                        dano *= retornante_manifestacao.multiplicador_dano_disparo(disparo)
+                        dano *= parasitica_manifestacao.multiplicador_dano_disparo(disparo)
+                        dano *= condutora_manifestacao.multiplicador_dano_disparo(disparo)
                         if Petro_active:
                             if vida_petro > vida_maxima_petro :
                                 vida_petro+= (vida_maxima_petro-vida_petro) *0.25   
                         # Renderize o texto do dano
-                        texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
-
-                        # Desenhe o texto na tela perto do chefe
-                        pos_texto = (inimigo["rect"].x + inimigo["rect"].width // 2 - texto_dano.get_width() // 2,  inimigo["rect"].y - 20)
-
+                        texto_hit = "-" + str(int(dano))
+                        pos_texto = (inimigo["rect"].x + inimigo["rect"].width // 2 - fonte_dano.size(texto_hit)[0] // 2, inimigo["rect"].y - 20)
+                        Variaveis.registrar_efeito_texto(
+                            efeitos_texto,
+                            texto_hit,
+                            pos_texto[0],
+                            pos_texto[1],
+                            tempo_atual,
+                            cor,
+                            chave=("disparo-inimigo", id(disparo), id(inimigo)),
+                        )
                         # Rastreie o tempo de exibição do texto
                         tempo_texto_dano = pygame.time.get_ticks()
                         inimigo["vida"] -= dano
+                        if disparo.get("tipo_manifestacao") == "parasitica_semente":
+                            parasitica_manifestacao.implantar_semente(
+                                inimigo, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
+                            )
+                        if disparo.get("tipo_manifestacao") == "condutora_fio":
+                            condutora_manifestacao.marcar_alvo(
+                                inimigo, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
+                            )
                         if disparo.get("tipo_manifestacao") == "lacerante_corte":
                             lacerante_manifestacao.aplicar_laceracao(inimigo, tempo_atual)
-                        estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)  # Remover o disparo após colisão
+                        if not (acerto_prismatico["manter_disparo"] or acerto_retornante["manter_disparo"]):
+                            estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)  # Remover o disparo após colisão
 
                         if Poison_Active:
                             aplicar_veneno(inimigo, tempo_atual, cartas_compradas.get("Poison", 0))
@@ -2993,17 +3063,17 @@ def executar_jogo(game_manager=None):
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
                     largura_tiro, altura_tiro = voraz_aurea.dimensoes_disparo(estado_voraz, aurea, largura_disparo, altura_disparo)
-                    disparo_novo = lacerante_manifestacao.criar_auto_attack(manifestacao_ativa, vfx_disparo_player,
+                    disparo_novo = condutora_manifestacao.criar_auto_attack(manifestacao_ativa, vfx_disparo_player,
                         px_centro, py_centro, largura_tiro, altura_tiro,
                         angulo_disparo_preparado, velocidade_disparo, tempo_atual, impulsiva_ativa
                     )
                     disparos.append(voraz_aurea.marcar_disparo_voraz(estado_voraz, aurea, disparo_novo))
-                    if not lacerante_manifestacao.ativa(manifestacao_ativa):
-                        insana_aurea.registrar_tiro_insana(
-                            estado_insana, aurea, tempo_atual,
-                            pos_x_personagem, pos_y_personagem, px_centro, py_centro,
-                            angulo_disparo_preparado, largura_tiro, altura_tiro, velocidade_disparo
-                        )
+                    insana_aurea.registrar_tiro_insana(
+                        estado_insana, aurea, tempo_atual,
+                        pos_x_personagem, pos_y_personagem, px_centro, py_centro,
+                        angulo_disparo_preparado, largura_tiro, altura_tiro, velocidade_disparo,
+                        manifestacao_ativa
+                    )
                     tempo_ultimo_disparo = tempo_atual
                     disparo_preparando = False
                     disparo_frame_atual = 0
@@ -3044,47 +3114,7 @@ def executar_jogo(game_manager=None):
                     moedas_soltadas.remove(moeda)
                     salvar_atributos()   # 💾 salva imediatamente
 
-            nova_lista = []
-            for efeito in efeitos_texto:
-                tempo_passado_efeito = tempo_atual - efeito["tempo_inicio"]
-                duracao_efeito = efeito.get("duracao", 800)
-                if tempo_passado_efeito <= duracao_efeito:
-                    if config_graficos.get("efeitos_visuais", True):
-                        fonte_efeito = pygame.font.Font(None, efeito.get("tamanho", 28))
-                        x = efeito["x"]
-                        y = efeito["y"] if efeito.get("fala_boss") else efeito["y"] - (tempo_passado_efeito // 25)
-                        if efeito.get("fala_boss"):
-                            linhas_efeito = efeito.get("linhas") or [efeito["texto"]]
-                            largura_texto = max(fonte_efeito.size(linha)[0] for linha in linhas_efeito)
-                            altura_texto = len(linhas_efeito) * 22 + 12
-                            caixa = pygame.Surface((largura_texto + 24, altura_texto), pygame.SRCALPHA)
-                            caixa.fill((18, 8, 22, 165))
-                            pygame.draw.rect(caixa, (120, 255, 120, 120), caixa.get_rect(), 1, border_radius=6)
-                            tela.blit(caixa, (x - 12, y - 8))
-                            for indice_linha, linha in enumerate(linhas_efeito):
-                                y_linha = y + indice_linha * 22
-                                texto_principal = fonte_efeito.render(linha, True, efeito["cor"])
-                                for dx in [-1, 0, 1]:
-                                    for dy in [-1, 0, 1]:
-                                        if dx != 0 or dy != 0:
-                                            contorno = fonte_efeito.render(linha, True, (0, 0, 0))
-                                            tela.blit(contorno, (x + dx, y_linha + dy))
-                                tela.blit(texto_principal, (x, y_linha))
-                            nova_lista.append(efeito)
-                            continue
-                        texto_principal = fonte_efeito.render(efeito["texto"], True, efeito["cor"])
-
-                        # Contorno preto em 8 direções
-                        for dx in [-1, 0, 1]:
-                            for dy in [-1, 0, 1]:
-                                if dx != 0 or dy != 0:
-                                    contorno = fonte_efeito.render(efeito["texto"], True, (0, 0, 0))
-                                    tela.blit(contorno, (x + dx, y + dy))
-
-                        # Texto principal
-                        tela.blit(texto_principal, (x, y))
-                    nova_lista.append(efeito)
-            efeitos_texto = nova_lista
+            efeitos_texto = Variaveis.atualizar_e_desenhar_efeitos_texto(tela, tempo_atual, efeitos_texto, config_graficos)
 
             if trembo:
                 # --- SISTEMA DINÂMICO DE POSICIONAMENTO DO TREMBO ---
@@ -3308,10 +3338,18 @@ def executar_jogo(game_manager=None):
             novos_disparos = []
             for disparo in disparos:
                 vfx_disparo_player.atualizar_disparo(disparo, velocidade_disparo, dt)
+                centro_retorno_x = pos_x_personagem + largura_personagem // 2
+                centro_retorno_y = pos_y_personagem + altura_personagem // 2
 
                 # Verificar se o disparo está dentro do mapa
                 if disparo.get("tipo_manifestacao") == "lacerante_corte":
                     if not disparo.get("expirado"):
+                        novos_disparos.append(disparo)
+                elif disparo.get("tipo_manifestacao") == "retornante_pulso":
+                    if retornante_manifestacao.atualizar_disparo(disparo, centro_retorno_x, centro_retorno_y, dt, tempo_atual):
+                        novos_disparos.append(disparo)
+                elif disparo.get("tipo_manifestacao") == "prismatica_feixe":
+                    if prismatica_manifestacao.atualizar_ricochete(disparo, largura_mapa, altura_mapa, tempo_atual):
                         novos_disparos.append(disparo)
                 elif 0 <= disparo["rect"].x < largura_mapa and 0 <= disparo["rect"].y < altura_mapa:
                     novos_disparos.append(disparo)
@@ -3332,7 +3370,7 @@ def executar_jogo(game_manager=None):
                 "hit_flag": False
             }
             inimigos_mortos_neste_frame = processar_habilidade_onda(
-                ondas, correntes_eletricas, inimigos_comum, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda
+                ondas, correntes_eletricas, inimigos_comum, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda, disparos, config_graficos
             )
             if boss_info.get("hit_flag"):
                 dano_onda_boss = boss_info.get("dano_manifestacao", dano_person_hit * fator_dano_aureas(tempo_atual) * 3)
@@ -3373,8 +3411,17 @@ def executar_jogo(game_manager=None):
             # Atualizar e desenhar correntes elétricas
             inimigos_mortos_correntes = atualizar_e_desenhar_correntes(tela, correntes_eletricas, inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual))
             inimigos_mortos_laceracao = lacerante_manifestacao.atualizar_laceracoes(inimigos_comum, tempo_atual, efeitos_texto)
+            jogador_rect_parasitica = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+            inimigos_mortos_parasitica = parasitica_manifestacao.atualizar_sementes(
+                inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto, jogador_rect_parasitica
+            )
+            parasitica_manifestacao.desenhar_sementes(tela, inimigos_comum, tempo_atual, config_graficos)
+            inimigos_mortos_condutora = condutora_manifestacao.atualizar_circuitos(
+                inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
+            )
+            condutora_manifestacao.desenhar_circuitos(tela, inimigos_comum, tempo_atual, config_graficos)
 
-            inimigos_mortos = inimigos_mortos_neste_frame + inimigos_mortos_correntes + inimigos_mortos_laceracao
+            inimigos_mortos = inimigos_mortos_neste_frame + inimigos_mortos_correntes + inimigos_mortos_laceracao + inimigos_mortos_parasitica + inimigos_mortos_condutora
             for morto in inimigos_mortos:
                 if morto in inimigos_comum:
                     registrar_morte_toxica(morto)
@@ -3729,9 +3776,26 @@ def executar_jogo(game_manager=None):
                         acertou_boss_disparo = (
                             lacerante_manifestacao.colisao_corte(disparo, rect_boss, tempo_atual)
                             if disparo.get("tipo_manifestacao") == "lacerante_corte"
-                            else rect_disparo.colliderect(rect_boss)
+                            else (
+                                prismatica_manifestacao.colisao_feixe(disparo, rect_boss, tempo_atual)
+                                if disparo.get("tipo_manifestacao") == "prismatica_feixe"
+                                else (
+                                    retornante_manifestacao.colisao_alvo(disparo, {"rect": rect_boss, "retornante_id": "boss3"})
+                                    if disparo.get("tipo_manifestacao") == "retornante_pulso"
+                                    else rect_disparo.colliderect(rect_boss)
+                                )
+                            )
                         )
                         if acertou_boss_disparo:
+                            acerto_prismatico = prismatica_manifestacao.registrar_acerto(
+                                disparo, {"rect": rect_boss, "prismatica_id": "boss3"}, tempo_atual
+                            )
+                            acerto_retornante = retornante_manifestacao.registrar_acerto(
+                                disparo,
+                                {"rect": rect_boss, "retornante_id": "boss3"},
+                                tempo_atual,
+                                (pos_x_personagem + largura_personagem // 2, pos_y_personagem + altura_personagem // 2),
+                            )
                             if vida_boss3 > 0:  # Verifica se o chefe está vivo antes de aplicar dano
                                 if random.random() <= chance_critico:  # 10% de chance de dano crítico
                                     dano = dano_person_hit * fator_dano_aureas(tempo_atual) * 3  # Valor do dano crítico é 3 vezes o dano normal
@@ -3755,13 +3819,23 @@ def executar_jogo(game_manager=None):
                                 dano *= 1.35
                                 cor = (100, 255, 210)
 
+                            if acerto_prismatico["critico"]:
+                                dano *= prismatica_manifestacao.FEIXE_CRITICO_MULT
+                                cor = (235, 255, 255)
+                                fonte_dano = fonte_dano_critico
+                            if acerto_retornante["critico"]:
+                                dano *= retornante_manifestacao.PULSO_CRITICO_COSTAS_MULT
+                                cor = (235, 225, 255)
+                                fonte_dano = fonte_dano_critico
                             dano *= insana_aurea.dano_mult_disparo(disparo)
                             dano *= voraz_aurea.dano_mult_disparo(disparo)
                             dano *= lacerante_manifestacao.multiplicador_dano_disparo(disparo)
+                            dano *= prismatica_manifestacao.multiplicador_dano_disparo(disparo)
+                            dano *= retornante_manifestacao.multiplicador_dano_disparo(disparo)
+                            dano *= parasitica_manifestacao.multiplicador_dano_disparo(disparo)
+                            dano *= condutora_manifestacao.multiplicador_dano_disparo(disparo)
 
                             # Renderizar texto do dano
-                            texto_dano = fonte_dano.render("-" + str(int(dano)), True, cor)
-                            pos_texto = (pos_x_chefe3 + chefe_largura3 // 2 - texto_dano.get_width() // 2, pos_y_chefe3 - 20)
                             tempo_texto_dano = pygame.time.get_ticks()
                             dano = dano_boss_mitigado(dano, 3, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                             registrar_dano_boss(efeitos_texto, dano, pos_x_chefe3 + chefe_largura3 // 2, pos_y_chefe3 - 24, tempo_atual, cor)
@@ -3770,7 +3844,8 @@ def executar_jogo(game_manager=None):
                                 if isinstance(disparo, dict) and disparo.get("tipo_manifestacao") == "lacerante_corte" and disparo.get("estagio_corte") == 2:
                                     largura_disparo += 0.095
                                     altura_disparo += 0.095
-                            estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
+                            if not (acerto_prismatico["manter_disparo"] or acerto_retornante["manter_disparo"]):
+                                estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
 
                             # Roubo de vida
                             if quantidade_roubo_vida > 0:
@@ -4274,7 +4349,7 @@ def executar_jogo(game_manager=None):
             cooldowns = {
                 "disparo": max(0.0, (intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual) - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
                 "teleporte": max(0.0, (tempo_cooldown_dash - (pygame.time.get_ticks() - tempo_ultimo_dash)) / 1000.0),
-                "onda": max(0.0, (cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
+                "onda": max(0.0, (cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) * parasitica_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
                 "loja": 1 if pontuacao_exib >= custo_carta_atual else 0, 
             }
 
@@ -4347,9 +4422,6 @@ def executar_jogo(game_manager=None):
                     posicao_bonus = (largura_mapa - 330, 90)
                     desenhar_texto_com_contorno(tela, texto_bonus, fonte_bonus, (255, 245, 190), (0, 0, 0), posicao_bonus)
 
-            # Desenhe o texto na tela
-            if texto_dano is not None:
-                tela.blit(texto_dano, pos_texto)
             for inimigo in inimigos_comum:
                 i_id = id(inimigo)
                 if i_id in inimigos_em_chamas:
