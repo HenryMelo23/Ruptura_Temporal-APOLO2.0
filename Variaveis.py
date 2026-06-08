@@ -40,6 +40,7 @@ from balanceamento import (
     ganho_progressao_boss,
     multiplicador_pontos_por_tempo,
     pontos_inimigo_por_tempo,
+    reducao_cooldown_carta_teleporte,
     reducao_intervalo_carta_speed_attack,
     vida_inicial_boss,
     CURATER_CHANCE_SPAWN,
@@ -4389,25 +4390,24 @@ def aplicar_carta_drop(nome, stats):
     """
 
     stats["cartas_compradas"] = normalizar_cartas_compradas(stats.get("cartas_compradas", {}))
-    ie = stats.get("inimigos_eliminados", 0)
 
     
 
     if nome == "Speed Boost":
 
-        stats["velocidade_personagem"] += incremento_carta_velocidade_movimento(ie)
+        stats["velocidade_personagem"] += incremento_carta_velocidade_movimento()
 
         stats["cartas_compradas"]["Speed Boost"] += 1
 
     elif nome == "Porção":
 
-        stats["vida"] += int(stats["vida_maxima"] * 0.45 + (ie // 30) * 0.05)
+        stats["vida"] += int(stats["vida_maxima"] * 0.45)
 
         if stats["vida"] > stats["vida_maxima"]:
 
             stats["vida_maxima"] = stats["vida"]
 
-        stats["vida_petro"] += int(stats["vida_maxima_petro"] * 0.30 + (ie // 40) * 0.03)
+        stats["vida_petro"] += int(stats["vida_maxima_petro"] * 0.30)
 
         if stats["vida_petro"] > stats["vida_maxima_petro"]:
 
@@ -4417,7 +4417,7 @@ def aplicar_carta_drop(nome, stats):
 
     elif nome == "Disparo crescente":
 
-        stats["dano_person_hit"] += incremento_carta_dano(ie)
+        stats["dano_person_hit"] += incremento_carta_dano()
 
         stats["cartas_compradas"]["Disparo crescente"] += 1
 
@@ -4431,19 +4431,19 @@ def aplicar_carta_drop(nome, stats):
 
             stats["Tempo_cura"] = max(500, int(stats["Tempo_cura"] * 0.75))
 
-            stats["porcentagem_cura"] += 0.005 + (ie // 100) * 0.001
+            stats["porcentagem_cura"] += 0.005
 
         else:
 
             stats["Tempo_cura"] -= stats["Tempo_cura"] * 0.05
 
-            stats["porcentagem_cura"] += 0.001 + (ie // 100) * 0.0005
+            stats["porcentagem_cura"] += 0.001
 
     elif nome == "Tempestade":
 
-        stats["dano_person_hit"] += incremento_dano_carta_critico(ie)
+        stats["dano_person_hit"] += incremento_dano_carta_critico()
 
-        stats["chance_critico"] += incremento_chance_carta_critico(ie)
+        stats["chance_critico"] += incremento_chance_carta_critico()
 
         stats["cartas_compradas"]["Tempestade"] += 1
 
@@ -4451,13 +4451,13 @@ def aplicar_carta_drop(nome, stats):
 
         stats["roubo_de_vida"] = 1.0
 
-        stats["quantidade_roubo_vida"] += 0.001 + (ie // 80) * 0.0003
+        stats["quantidade_roubo_vida"] += 0.001
 
         stats["cartas_compradas"]["Cura"] += 1
 
     elif nome == "Speed Atack":
 
-        stats["intervalo_disparo"] -= reducao_intervalo_carta_speed_attack(ie)
+        stats["intervalo_disparo"] -= reducao_intervalo_carta_speed_attack()
 
         if stats["intervalo_disparo"] < intervalo_minimo_speed_attack():
 
@@ -4467,11 +4467,7 @@ def aplicar_carta_drop(nome, stats):
 
     elif nome == "Teleporte":
 
-        stats["tempo_cooldown_dash"] -= stats["tempo_cooldown_dash"] * 0.003 + (ie // 50) * 0.0005
-
-        if stats["tempo_cooldown_dash"] < 0.5:
-
-            stats["tempo_cooldown_dash"] = 0.5
+        stats["tempo_cooldown_dash"] = reducao_cooldown_carta_teleporte(stats["tempo_cooldown_dash"])
 
         stats["cartas_compradas"]["Teleporte"] += 1
 
@@ -4479,7 +4475,7 @@ def aplicar_carta_drop(nome, stats):
 
         stats["Petro_active"] = True
 
-        stats["dano_petro"] += 2 + (ie // 30) * 1
+        stats["dano_petro"] += 2
 
         pe = stats["petro_evolucao"]
 
@@ -4519,7 +4515,7 @@ def aplicar_carta_drop(nome, stats):
 
     elif nome == "Defesa":
 
-        stats["Resistencia"] += 3.5 + (ie // 50) * 0.5
+        stats["Resistencia"] += 3.5
 
         if stats["Resistencia"] > 50:
 

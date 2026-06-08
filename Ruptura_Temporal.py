@@ -874,7 +874,7 @@ def tela_escolha_dificuldade(tela, fonte, mostrar_tutorial=False):
     pygame.mouse.set_visible(False)
     largura, altura = tela.get_size()
     clock = pygame.time.Clock()
-    selecionado = 1  # Normal como padrao seguro.
+    selecionado = 0  # Normal como padrao seguro.
     modo_interacao = "teclado"
     analogo_movido = False
     aviso_texto = ""
@@ -893,17 +893,6 @@ def tela_escolha_dificuldade(tela, fonte, mostrar_tutorial=False):
 
     opcoes_dificuldade = [
         {
-            "nome": "Dificil",
-            "modo_cartas": "drops",
-            "tema": "inferno",
-            "bloqueado": bool(mostrar_tutorial),
-            "motivo": "Dificil bloqueado com tutorial ativo.",
-            "bg_cor": (42, 12, 8),
-            "accent_cor": (255, 92, 24),
-            "titulo_sub": "MODO DROPS",
-            "desc": "Inimigos dropam cartas ao morrer. Sem loja inter-fases. Recomendado apenas para veteranos buscando o desafio maximo.",
-        },
-        {
             "nome": "Normal",
             "modo_cartas": "loja",
             "tema": "cosmo",
@@ -914,11 +903,22 @@ def tela_escolha_dificuldade(tela, fonte, mostrar_tutorial=False):
             "titulo_sub": "MODO LOJA",
             "desc": "Adquira cartas na loja inter-fases usando Poeira Cosmica. O modo classico ideal para aprender e evoluir.",
         },
+        {
+            "nome": "Dificil",
+            "modo_cartas": "drops",
+            "tema": "inferno",
+            "bloqueado": bool(mostrar_tutorial),
+            "motivo": "Dificil bloqueado com tutorial ativo.",
+            "bg_cor": (42, 12, 8),
+            "accent_cor": (255, 92, 24),
+            "titulo_sub": "MODO DROPS",
+            "desc": "Inimigos dropam cartas ao morrer. Sem loja inter-fases. Recomendado apenas para veteranos buscando o desafio maximo.",
+        },
     ]
 
     base_x = [largura // 2 - 170, largura // 2 + 170]
     rects = [pygame.Rect(0, 0, 1, 1), pygame.Rect(0, 0, 1, 1)]
-    btn_voltar = pygame.Rect(largura - 166, 34, 126, 38)
+    btn_voltar = pygame.Rect(40, 34, 126, 38)
 
     bg_cor_atual = list(opcoes_dificuldade[selecionado]["bg_cor"])
     accent_cor_atual = list(opcoes_dificuldade[selecionado]["accent_cor"])
@@ -1146,73 +1146,24 @@ def tela_escolha_dificuldade(tela, fonte, mostrar_tutorial=False):
             bg_cor_atual[c] += (target_bg[c] - bg_cor_atual[c]) * 0.08
             accent_cor_atual[c] += (target_accent[c] - accent_cor_atual[c]) * 0.08
 
-        # Draw Background Gradient
-        for y in range(0, altura, 8):
-            t = y / max(1, altura)
-            cor_grad = (
-                int(bg_cor_atual[0] * (0.8 + 0.4 * t)),
-                int(bg_cor_atual[1] * (0.8 + 0.4 * t)),
-                int(bg_cor_atual[2] * (0.8 + 0.4 * t))
-            )
-            pygame.draw.rect(tela, cor_grad, (0, y, largura, 8))
-
-        # Glowing Nebula Circles
-        nebula = pygame.Surface((largura, altura), pygame.SRCALPHA)
-        pulso = (math.sin(agora * 0.0012) + 1.0) * 0.5
-        pygame.draw.circle(nebula, (int(accent_cor_atual[0] * 0.35), int(accent_cor_atual[1] * 0.35), int(accent_cor_atual[2] * 0.35), int(34 + pulso * 28)), (int(largura * 0.25), int(altura * 0.58)), 230)
-        pygame.draw.circle(nebula, (int(accent_cor_atual[0] * 0.18), int(accent_cor_atual[1] * 0.18), int(accent_cor_atual[2] * 0.18), 32), (int(largura * 0.76), int(altura * 0.34)), 190)
-        tela.blit(nebula, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
-
-        # Cyber Grid Lines
-        for i in range(8):
-            y_line = int((altura * 0.12 + i * 66 + math.sin(agora * 0.001 + i) * 14) % altura)
-            cor_linha = (int(accent_cor_atual[0]), int(accent_cor_atual[1]), int(accent_cor_atual[2]), 22)
-            surf_linha = pygame.Surface((largura, 1), pygame.SRCALPHA)
-            pygame.draw.line(surf_linha, cor_linha, (0, 0), (largura, 0), 1)
-            tela.blit(surf_linha, (0, y_line))
-
-        # Draw Particles
-        for p in particulas:
-            p["y"] += p["speed_y"]
-            if p["y"] < -10:
-                p["y"] = altura + 10
-                p["x"] = random.uniform(0, largura)
-
-            x_drift = math.sin(agora * p["drift_speed"] + p["drift_phase"]) * 0.2
-            p["x"] += x_drift
-
-            if p["x"] < -10: p["x"] = largura + 10
-            elif p["x"] > largura + 10: p["x"] = -10
-
-            p["alpha"] += p["breathe_dir"] * p["breathe_speed"] * 10
-            if p["alpha"] >= 255:
-                p["alpha"] = 255
-                p["breathe_dir"] = -1
-            elif p["alpha"] <= 40:
-                p["alpha"] = 40
-                p["breathe_dir"] = 1
-
-            cor_part = (int(accent_cor_atual[0]), int(accent_cor_atual[1]), int(accent_cor_atual[2]), int(p["alpha"]))
-            surf_p = pygame.Surface((int(p["r"] * 2), int(p["r"] * 2)), pygame.SRCALPHA)
-            pygame.draw.circle(surf_p, cor_part, (int(p["r"]), int(p["r"])), int(p["r"]))
-            tela.blit(surf_p, (int(p["x"] - p["r"]), int(p["y"] - p["r"])))
-
-        # Draw Glitch Title
-        render_titulo = render_glitch_text_with_fallback("ESCOLHA A DIFICULDADE", font_titulo, fonte, (255, 255, 255))
-        tela.blit(render_titulo, (largura // 2 - render_titulo.get_width() // 2, altura // 12))
+        cor_acento = tuple(int(c) for c in accent_cor_atual)
+        ui_helpers.desenhar_fundo_menu_ruptura(tela, agora, particulas, tuple(int(c) for c in bg_cor_atual), cor_acento, 1.0)
+        ui_helpers.desenhar_cabecalho_menu(
+            tela,
+            "ESCOLHA A DIFICULDADE",
+            "Defina como as cartas entram na jornada.",
+            font_titulo,
+            font_info,
+            cor_acento,
+            y=88,
+        )
 
         # Render Cards
         for i, opcao in enumerate(opcoes_dificuldade):
             desenhar_card(opcao, rects[i], i == selecionado, card_alpha[i], agora)
 
-        # Voltar button
         hover_voltar = modo_interacao == "mouse" and btn_voltar.collidepoint(mx, my)
-        surf_voltar = pygame.Surface((btn_voltar.w, btn_voltar.h), pygame.SRCALPHA)
-        pygame.draw.rect(surf_voltar, (18, 12, 28, 210 if hover_voltar else 150), (0, 0, btn_voltar.w, btn_voltar.h), border_radius=7)
-        pygame.draw.rect(surf_voltar, (255, 180, 90) if hover_voltar else (120, 120, 135), (0, 0, btn_voltar.w, btn_voltar.h), width=1, border_radius=7)
-        texto_voltar = font_info.render("VOLTAR", True, (255, 230, 190) if hover_voltar else (170, 170, 182))
-        surf_voltar.blit(texto_voltar, texto_voltar.get_rect(center=(btn_voltar.w // 2, btn_voltar.h // 2)))
-        tela.blit(surf_voltar, btn_voltar.topleft)
+        ui_helpers.desenhar_botao_voltar_menu(tela, btn_voltar, font_info, hover_voltar, cor_acento, "ESC Voltar")
 
         # Warning panel (if any)
         if aviso_texto and agora < aviso_fim:
@@ -1223,8 +1174,7 @@ def tela_escolha_dificuldade(tela, fonte, mostrar_tutorial=False):
             painel.blit(aviso, (21, 20 - aviso.get_height() // 2))
             tela.blit(painel, (largura // 2 - painel.get_width() // 2, altura // 2 + card_h // 2 + 36))
 
-        instr = font_info.render("A/D ou SETAS: alternar | ENTER/ESPACO: selecionar | ESC: voltar", True, (205, 220, 230))
-        tela.blit(instr, instr.get_rect(center=(largura // 2, altura - 40)))
+        ui_helpers.desenhar_rodape_menu(tela, "A/D ou SETAS: alternar | ENTER/ESPACO: selecionar | ESC: voltar", font_info, cor_acento, altura - 36)
 
         ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()
@@ -1268,60 +1218,25 @@ def tela_escolha_modo():
     selecionado_sub = 0        # 0: Criar, 1: Entrar, 2: Voltar
     modo_interacao = "teclado"
 
-    # PartÃ­culas sutis ao fundo
-    particulas = []
-    for _ in range(25):
-        particulas.append({
-            "x": random.uniform(0, largura),
-            "y": random.uniform(0, altura),
-            "vy": random.uniform(-0.6, -0.2),
-            "alpha": random.randint(30, 95),
-            "size": random.uniform(1.2, 2.5)
-        })
+    particulas = ui_helpers.criar_particulas_menu(largura, altura, 42, (0, 220, 255))
 
-    btn_back_rect = pygame.Rect(40, 40, 120, 36)
+    btn_back_rect = pygame.Rect(40, 34, 118, 36)
 
     while True:
         agora = pygame.time.get_ticks()
 
-        # Desenhar Fundo Escuro Sci-Fi
-        tela.fill((10, 8, 16))
-
-        # Desenhar Grade TecnolÃ³gica de Pontos
-        for gx in range(40, largura, 80):
-            for gy in range(40, altura, 80):
-                pygame.draw.circle(tela, (0, 255, 204, 10), (gx, gy), 1)
-
-        # Atualizar e Desenhar PartÃ­culas
-        for p in particulas:
-            p["y"] += p["vy"]
-            if p["y"] < 0:
-                p["y"] = altura
-                p["x"] = random.uniform(0, largura)
-
-            p_surf = pygame.Surface((int(p["size"]*2), int(p["size"]*2)), pygame.SRCALPHA)
-            pygame.draw.circle(p_surf, (0, 255, 204, p["alpha"]), (int(p["size"]), int(p["size"])), int(p["size"]))
-            tela.blit(p_surf, (int(p["x"]), int(p["y"])))
-
-        # TÃ­tulo
-        txt_titulo = font_titulo.render("MODO DE JOGO", True, (255, 255, 255))
-        tela.blit(txt_titulo, (largura // 2 - txt_titulo.get_width() // 2, 70))
+        cor_tela = (0, 220, 255) if fase_tela == "principal" else (170, 100, 255)
+        ui_helpers.desenhar_fundo_menu_ruptura(tela, agora, particulas, (5, 8, 17), cor_tela, 0.9)
+        subtitulo = "Escolha como a ruptura vai abrir a partida."
+        if fase_tela == "coop_sub":
+            subtitulo = "Conecte uma fenda cooperativa em rede local."
+        ui_helpers.desenhar_cabecalho_menu(tela, "MODO DE JOGO", subtitulo, font_titulo, font_card_desc, cor_tela, y=88)
 
         mx, my = ui_helpers.obter_pos_mouse_superficie(tela)
         clicado = False
 
-        # BotÃ£o Voltar no Canto Superior Esquerdo
         is_hover_back = modo_interacao == "mouse" and btn_back_rect.collidepoint(mx, my)
-        color_back = (180, 100, 255) if is_hover_back else (100, 100, 110)
-        bg_back = (25, 20, 38, 200) if is_hover_back else (12, 10, 18, 120)
-
-        surf_back = pygame.Surface((120, 36), pygame.SRCALPHA)
-        pygame.draw.rect(surf_back, bg_back, (0, 0, 120, 36), border_radius=8)
-        pygame.draw.rect(surf_back, color_back, (0, 0, 120, 36), width=1, border_radius=8)
-
-        txt_back = font_card_desc.render("< VOLTAR", True, color_back)
-        surf_back.blit(txt_back, (60 - txt_back.get_width() // 2, 18 - txt_back.get_height() // 2))
-        tela.blit(surf_back, (40, 40))
+        ui_helpers.desenhar_botao_voltar_menu(tela, btn_back_rect, font_card_desc, is_hover_back, cor_tela, "ESC Voltar")
 
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
@@ -1512,7 +1427,7 @@ def tela_escolha_modo():
                 ("Voltar", "voltar")
             ]
 
-            txt_subtitle = font_card_desc.render("CONEXÃƒO DE MULTIJOGADOR EM REDE LOCAL", True, (180, 100, 255))
+            txt_subtitle = font_card_desc.render("CONEXAO DE MULTIJOGADOR EM REDE LOCAL", True, (180, 100, 255))
             tela.blit(txt_subtitle, (largura // 2 - txt_subtitle.get_width() // 2, 125))
 
             for idx, (label, mode) in enumerate(opcoes_sub):
@@ -1552,6 +1467,8 @@ def tela_escolha_modo():
                 txt_lbl = font_btn.render(label, True, (255, 255, 255) if is_sel else (175, 175, 185))
                 tela.blit(txt_lbl, (btn_x + btn_w // 2 - txt_lbl.get_width() // 2, item_y + btn_h // 2 - txt_lbl.get_height() // 2))
 
+        rodape = "A/D ou SETAS: navegar | ENTER/ESPACO: selecionar | ESC: voltar"
+        ui_helpers.desenhar_rodape_menu(tela, rodape, font_card_desc, cor_tela, altura - 36)
         ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()
         clock.tick(60)
@@ -1742,7 +1659,7 @@ def tela_selecao_aurea(tela, fonte):
     # Controle de repetiÃ§Ã£o do analÃ³gico
     analogo_movido = False
     modo_interacao = "teclado"
-    btn_back_rect = pygame.Rect(40, 40, 120, 36)
+    btn_back_rect = pygame.Rect(40, 34, 118, 36)
 
     def obter_linhas_wrap(texto, largura_max, fonte_usada):
         palavras = texto.split(" ")
@@ -1766,6 +1683,16 @@ def tela_selecao_aurea(tela, fonte):
         while not aureas[selecionado]["ativa"]:
             selecionado = (selecionado + direcao) % len(aureas)
         scroll_y = 0
+
+    def distancia_circular(indice, centro):
+        total = max(1, len(aureas))
+        dist = int(indice) - int(centro)
+        metade = total / 2.0
+        if dist > metade:
+            dist -= total
+        elif dist < -metade:
+            dist += total
+        return dist
 
     def desenhar_texto_wrap_local(superficie, texto, rect, fonte_usada, cor, line_gap=0):
         palavras = texto.split(" ")
@@ -1922,12 +1849,12 @@ def tela_selecao_aurea(tela, fonte):
             w_scaled = int(largura_quadro * curr_scale)
             h_scaled = int(altura_quadro * curr_scale)
             x_pos = int(card_x[i] - w_scaled // 2)
-            y_pos = int(altura // 3.3 + card_y_offset[i])
+            y_pos = int(altura * 0.44 - h_scaled // 2 + card_y_offset[i])
             rect_card = pygame.Rect(x_pos, y_pos, w_scaled, h_scaled)
 
             if clicado and rect_card.collidepoint(mx, my):
                 if selecionado != i:
-                    mover_selecao(1 if i > selecionado else -1)
+                    mover_selecao(1 if distancia_circular(i, selecionado) > 0 else -1)
                     tocar_hover()
                 else:
                     tocar_selecionar()
@@ -1944,54 +1871,44 @@ def tela_selecao_aurea(tela, fonte):
         bg_alvo = aureas[selecionado]["bg_tema"]
         for c in range(3):
             cor_fundo_atual[c] += (bg_alvo[c] - cor_fundo_atual[c]) * 0.08
-        tela.fill((int(cor_fundo_atual[0]), int(cor_fundo_atual[1]), int(cor_fundo_atual[2])))
-
-        # 3. Desenhar PartÃ­culas DinÃ¢micas
         cor_accent = aureas[selecionado]["cor_tema"]
-        for p in particulas:
-            # Move para cima
-            p["y"] += p["vel_y"]
-            if p["y"] < -10:
-                p["y"] = altura + 10
-                p["x"] = random.randint(0, largura)
-
-            # AnimaÃ§Ã£o de brilho respiratÃ³rio
-            p["alpha"] += p["breathe_dir"] * p["breathe_speed"] * 50
-            if p["alpha"] >= 255:
-                p["alpha"] = 255
-                p["breathe_dir"] = -1
-            elif p["alpha"] <= 40:
-                p["alpha"] = 40
-                p["breathe_dir"] = 1
-
-            # Desenha com mistura aditiva / alfa
-            cor_part = cor_accent + (int(p["alpha"]),)
-            surf_p = pygame.Surface((int(p["tamanho"]*2), int(p["tamanho"]*2)), pygame.SRCALPHA)
-            pygame.draw.circle(surf_p, cor_part, (int(p["tamanho"]), int(p["tamanho"])), int(p["tamanho"]))
-            tela.blit(surf_p, (int(p["x"] - p["tamanho"]), int(p["y"] - p["tamanho"])))
-
-        # 4. Renderizar TÃ­tulo Geral (Sem acento para evitar falhas com a fonte Doctor Glitch)
-        render_titulo = render_glitch_text_with_fallback("ESCOLHA DE AUREA", fonte_titulo, fonte_letra1, (255, 255, 255))
-        tela.blit(render_titulo, (largura // 2 - render_titulo.get_width() // 2, altura // 14))
+        ui_helpers.desenhar_fundo_menu_ruptura(
+            tela,
+            agora,
+            particulas,
+            tuple(int(c) for c in cor_fundo_atual),
+            cor_accent,
+            1.0,
+        )
+        ui_helpers.desenhar_cabecalho_menu(
+            tela,
+            "AUREAS",
+            "A aura e sua regra passiva: escolha como Geovana reage a ruptura.",
+            fonte_titulo,
+            fonte_instrucao,
+            cor_accent,
+            y=80,
+        )
 
         # 5. CÃ¡lculo das PosiÃ§Ãµes e Escalas dos Cards (AnimaÃ§Ã£o Fluida)
-        largura_quadro = 160
-        altura_quadro = 220
-        espacamento_cards = 180
+        largura_quadro = 150
+        altura_quadro = 198
+        espacamento_cards = 242
+        centro_carrossel_y = int(altura * 0.44)
 
         for i, aurea in enumerate(aureas):
             # Define alvos
-            dist = i - selecionado
+            dist = distancia_circular(i, selecionado)
             target_x = largura // 2 + dist * espacamento_cards
 
             if i == selecionado:
-                target_scale = 1.15
-                target_y_offset = -20
+                target_scale = 1.28
+                target_y_offset = -12
                 target_alpha = 255
             else:
                 target_scale = 0.85
-                target_y_offset = 15
-                target_alpha = 100
+                target_y_offset = 8
+                target_alpha = 118
 
             # InterpolaÃ§Ã£o suave
             card_x[i] += (target_x - card_x[i]) * 0.1
@@ -2005,7 +1922,7 @@ def tela_selecao_aurea(tela, fonte):
             w_scaled = int(largura_quadro * curr_scale)
             h_scaled = int(altura_quadro * curr_scale)
             x_pos = int(card_x[i] - w_scaled // 2)
-            y_pos = int(altura // 3.3 + card_y_offset[i])
+            y_pos = int(centro_carrossel_y - h_scaled // 2 + card_y_offset[i])
 
             # SuperfÃ­cie temporÃ¡ria para o card com canal alpha
             surf_card = pygame.Surface((w_scaled, h_scaled), pygame.SRCALPHA)
@@ -2159,30 +2076,12 @@ def tela_selecao_aurea(tela, fonte):
         tela.blit(surf_painel, (x_painel, y_painel))
 
         # 8. Barra de instruÃ§Ã£o no rodapÃ©
-        texto_instr = "A / D ou SETAS: Navegar | ESPAÃ‡O/ENTER: Selecionar | ESC: Voltar"
-        render_instr_text = fonte_instrucao.render(texto_instr, True, (0, 255, 230))
-        largura_instr = render_instr_text.get_width() + 40
-        altura_instr = 32
-
-        surf_instr = pygame.Surface((largura_instr, altura_instr), pygame.SRCALPHA)
-        pygame.draw.rect(surf_instr, (10, 10, 15, 200), (0, 0, largura_instr, altura_instr), border_radius=6)
-        pygame.draw.rect(surf_instr, (0, 240, 255, 80), (0, 0, largura_instr, altura_instr), width=1, border_radius=6)
-        surf_instr.blit(render_instr_text, (20, (altura_instr - render_instr_text.get_height()) // 2))
-
-        tela.blit(surf_instr, (largura // 2 - largura_instr // 2, altura - 42))
+        texto_instr = "A/D ou SETAS: navegar | ENTER/ESPACO: selecionar | ESC: voltar"
+        ui_helpers.desenhar_rodape_menu(tela, texto_instr, fonte_instrucao, cor_accent, altura - 28)
 
         # 9. BotÃ£o Voltar no Canto Superior Esquerdo (Desenhado dinamicamente com a cor do tema da Ãurea)
         is_hover_back = modo_interacao == "mouse" and btn_back_rect.collidepoint(mx, my)
-        color_back = cor_accent if is_hover_back else (140, 140, 150)
-        bg_back = (int(cor_accent[0]*0.15), int(cor_accent[1]*0.15), int(cor_accent[2]*0.15), 200) if is_hover_back else (15, 15, 20, 120)
-
-        surf_back = pygame.Surface((120, 36), pygame.SRCALPHA)
-        pygame.draw.rect(surf_back, bg_back, (0, 0, 120, 36), border_radius=8)
-        pygame.draw.rect(surf_back, color_back, (0, 0, 120, 36), width=1, border_radius=8)
-
-        txt_back = fonte_desc.render("< VOLTAR", True, color_back)
-        surf_back.blit(txt_back, (60 - txt_back.get_width() // 2, 18 - txt_back.get_height() // 2))
-        tela.blit(surf_back, (btn_back_rect.x, btn_back_rect.y))
+        ui_helpers.desenhar_botao_voltar_menu(tela, btn_back_rect, fonte_desc, is_hover_back, cor_accent, "ESC Voltar")
 
         ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()
@@ -3196,7 +3095,7 @@ def _dados_catalogo_temporal():
     return {
         "Inimigos": [
             {"nome": "Errante Temporal", "imagem": "Sprites/Inimig1.png", "funcionamento": "Persegue o jogador em linha direta, pressiona espaco e serve como base para o escalonamento das fases.", "historia": "Fragmentos de pessoas e criaturas presos no primeiro pulso da ruptura. Eles nao pensam em vencer, apenas em voltar para uma linha do tempo que ja nao existe."},
-            {"nome": "Atirador", "imagem": "Sprites/inimigo_direita2-1.png", "funcionamento": "Mantem distancia e cria projeteis para quebrar rotas seguras. Fica mais perigoso quando o jogador para de se mover.", "historia": "Uma variante que aprendeu a usar a propria instabilidade como municao. Cada disparo e uma pequena tentativa de fixar Apolo no tempo."},
+            {"nome": "Atirador", "imagem": "Sprites/inimigo_direita2-1.png", "funcionamento": "Mantem distancia e cria projeteis para quebrar rotas seguras. Fica mais perigoso quando o jogador para de se mover.", "historia": "Uma variante que aprendeu a usar a propria instabilidade como municao. Cada disparo e uma pequena tentativa de fixar Geovana no tempo."},
             {"nome": "Kamikaze", "imagem": "Sprites/inimigo_esquerda2-1.png", "funcionamento": "Avanca para explodir perto do jogador, causando dano e efeitos de controle quando alcanca alcance curto.", "historia": "Nasceu de ecos congelados da segunda fase. Sua forma e instavel demais para sobreviver, entao transforma o proprio colapso em arma."},
             {"nome": "Aglomerador", "imagem": "Sprites/Inimig2.png", "funcionamento": "Ao morrer, pode se partir em inimigos menores ou favorecer grupos densos. Exige controle de area.", "historia": "Varias linhas temporais falharam no mesmo ponto e se colaram em um unico corpo. Quando ele cai, as partes ainda tentam continuar."},
             {"nome": "Espreitador", "imagem": "Sprites/Inimig1.png", "funcionamento": "Mesmo corpo-base do Errante Temporal, mas com furtividade: oscila transparencia, pode ficar quase invisivel e usa arrancadas curtas para se aproximar.", "historia": "No livro, ele nao e outra especie: e o proprio errante aprendendo a falhar entre os frames da realidade. A ameaca vem do desaparecimento, nao de uma silhueta nova."},
@@ -3216,8 +3115,8 @@ def _dados_catalogo_temporal():
             {"nome": "Fase 1 - Primeiro Rasgo", "imagem": "Sprites/Fase1.png", "funcionamento": "Apresenta o ciclo principal: mover, atirar, coletar moedas, escolher fragmentos dimensionais e sobreviver ao primeiro boss.", "historia": "O mundo ainda parece reconhecivel, mas a primeira ruptura ja contaminou seus habitantes e suas leis fisicas."},
             {"nome": "Fase 2 - Nevasca de Memorias", "imagem": "Sprites/Fase2.png", "funcionamento": "Introduz gelo, controle de area e inimigos com comportamento mais variado.", "historia": "As memorias rejeitadas congelam antes de desaparecer. A fase e um arquivo vivo de tentativas fracassadas."},
             {"nome": "Fase 3 - Geometria Instavel", "imagem": "Sprites/Fase3.png", "funcionamento": "Aumenta a densidade de projeteis, efeitos e decisoes de posicionamento.", "historia": "A ruptura deixa de ser acidente e vira padrao. Tudo tenta se organizar em formas hostis."},
-            {"nome": "Fase 4 - Nucleo Temporal", "imagem": "Sprites/Fase4.png", "funcionamento": "Teste de build madura, escalonamento alto e sobrevivencia sob pressao constante.", "historia": "Aqui o tempo nao flui: ele pulsa. Cada passo empurra Apolo para mais perto do centro da anomalia."},
-            {"nome": "Fase 5 - Confronto de Ecos", "imagem": "Sprites/Fase5-1.png", "funcionamento": "Fase de confronto avancado, com sistemas de IA e punicoes para repeticao de padroes.", "historia": "Quando a ruptura entende Apolo, ela cria uma resposta. A quinta fase e menos um lugar e mais um julgamento."},
+            {"nome": "Fase 4 - Nucleo Temporal", "imagem": "Sprites/Fase4.png", "funcionamento": "Teste de build madura, escalonamento alto e sobrevivencia sob pressao constante.", "historia": "Aqui o tempo nao flui: ele pulsa. Cada passo empurra Geovana para mais perto do centro da anomalia."},
+            {"nome": "Fase 5 - Confronto de Ecos", "imagem": "Sprites/Fase5-1.png", "funcionamento": "Fase de confronto avancado, com sistemas de IA e punicoes para repeticao de padroes.", "historia": "Quando a ruptura entende Geovana, ela cria uma resposta. A quinta fase e menos um lugar e mais um julgamento."},
         ],
         "Anatomia": [
             {"nome": "Disparo Temporal", "imagem": "Sprites/Geo_Disp1.png", "funcionamento": "Ataque primario da personagem. Dispara energia temporal em linha reta, escala com dano, velocidade de ataque, critico, veneno e efeitos dos fragmentos dimensionais.", "historia": "Geovana comprime instantes em projeteis. Cada tiro e uma pequena ordem dada a um futuro instavel."},
@@ -3225,7 +3124,7 @@ def _dados_catalogo_temporal():
             {"nome": "Onda de Choque", "imagem": "Sprites/Onda_Boss2.png", "funcionamento": "Segunda habilidade ativa da personagem. Libera uma explosao de area ao redor de Geovana para afastar grupos, abrir espaco e causar dano quando a arena fecha.", "historia": "Um pulso de recusa: por um momento, Geovana empurra a ruptura para fora da propria volta."},
         ],
         "Aureas": [
-            {"nome": "Aurea Racional", "imagem": "Sprites/aurea_cientista.png", "funcionamento": "Controle de ritmo. Ficar imovel por 5s gera pontuacao bonus. Teleporte pronto ativa Dilatacao Temporal por 8s: inimigos/projeteis ficam 58% mais lentos, Apolo ganha +35% movimento e atira 28% mais rapido. Depois vem Rebote por 3s, acelerando inimigos/projeteis em 50%.", "historia": "A mente fria calcula trajetorias e enxerga padroes em meio ao caos da ruptura temporal."},
+            {"nome": "Aurea Racional", "imagem": "Sprites/aurea_cientista.png", "funcionamento": "Controle de ritmo. Ficar imovel por 5s gera pontuacao bonus. Teleporte pronto ativa Dilatacao Temporal por 8s: inimigos/projeteis ficam 58% mais lentos, Geovana ganha +35% movimento e atira 28% mais rapido. Depois vem Rebote por 3s, acelerando inimigos/projeteis em 50%.", "historia": "A mente fria calcula trajetorias e enxerga padroes em meio ao caos da ruptura temporal."},
             {"nome": "Aurea Impulsiva", "imagem": "Sprites/aurea_impulsiva.png", "funcionamento": "Agressao continua. A cada 5 abates sem sofrer dano, ativa Frenesi temporario de dano e/ou velocidade. Manter a sequencia renova a pressao; nas fases com sistema completo, renovar com tempo sobrando aumenta o nivel e sofrer hit durante o Frenesi arma Panico.", "historia": "Acao imediata. O instinto reage antes que o proprio tempo possa processar."},
             {"nome": "Aurea Devota", "imagem": "Sprites/aurea_devota.png", "funcionamento": "Sobrevivencia ofensiva. Cria 3 cargas de escudo que anulam impactos. Cada bloqueio cura 10% da vida perdida e da +25% dano por 3s. Ao quebrar a ultima carga, ativa Fe Ardente: +65% dano por 4.5s, com apenas -10% velocidade. Upgrade reduz a recarga.", "historia": "A fe inabalavel manifesta uma barreira divina que desafia a propria causalidade."},
             {"nome": "Aurea Vanguarda", "imagem": "Sprites/aurea_vanguarda.png", "funcionamento": "Area e queimadura. Inimigos proximos ou tocados podem incendiar e sofrer dano por segundo baseado em vida maxima. Nas fases com sistema completo, sofrer hit abre um circulo de fogo por 5s. Cada inimigo queimando aumenta o cooldown do Teleporte em 15%.", "historia": "Liderando o avanco, a pioneira incendeia o solo para que nada a siga no fluxo temporal."},
@@ -3858,7 +3757,7 @@ def executar_menu_principal(game_manager=None):
                     try:
                         os.makedirs("saves", exist_ok=True)
                         with open("saves/nome_jogador.json", "w") as f:
-                            json.dump({"nome": "Apolo"}, f)
+                            json.dump({"nome": "Geovana"}, f)
                     except:
                         pass
                 if not os.path.exists("saves/tutorial_config.json"):

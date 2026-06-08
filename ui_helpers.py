@@ -77,6 +77,118 @@ def desenhar_cursor_personalizado(superficie, pos=None):
     y = max(0, min(int(y), max(0, altura - cursor.get_height())))
     superficie.blit(cursor, (x, y))
 
+def criar_particulas_menu(largura, altura, quantidade=44, cor=(0, 220, 255)):
+    particulas = []
+    for _ in range(int(quantidade)):
+        particulas.append({
+            "x": random.uniform(0, largura),
+            "y": random.uniform(0, altura),
+            "vx": random.uniform(-0.14, 0.14),
+            "vy": random.uniform(-0.68, -0.18),
+            "r": random.uniform(1.1, 3.0),
+            "alpha": random.randint(34, 130),
+            "fase": random.uniform(0, math.tau),
+            "cor": cor,
+        })
+    return particulas
+
+def desenhar_fundo_menu_ruptura(tela, agora_ms=None, particulas=None, cor_base=(5, 9, 18), cor_acento=(0, 220, 255), intensidade=1.0):
+    largura, altura = tela.get_size()
+    agora_ms = pygame.time.get_ticks() if agora_ms is None else agora_ms
+    tempo = agora_ms * 0.001
+    intensidade = max(0.35, min(1.25, float(intensidade)))
+    base = tuple(max(0, min(255, int(c))) for c in cor_base[:3])
+    acento = tuple(max(0, min(255, int(c))) for c in cor_acento[:3])
+
+    for y in range(0, altura, 8):
+        t = y / max(1, altura)
+        cor = (
+            int(base[0] * (0.72 + 0.22 * t)),
+            int(base[1] * (0.74 + 0.24 * t)),
+            int(base[2] * (0.86 + 0.34 * t)),
+        )
+        pygame.draw.rect(tela, cor, (0, y, largura, 8))
+
+    grade = pygame.Surface((largura, altura), pygame.SRCALPHA)
+    passo = 64
+    for x in range(0, largura + passo, passo):
+        alpha = int(18 * intensidade)
+        pygame.draw.line(grade, (*acento, alpha), (x, 0), (x, altura), 1)
+    for y in range(0, altura + passo, passo):
+        alpha = int(16 * intensidade)
+        pygame.draw.line(grade, (*acento, alpha), (0, y), (largura, y), 1)
+    for i in range(-altura, largura, 160):
+        pygame.draw.line(grade, (*acento, int(12 * intensidade)), (i, altura), (i + altura, 0), 1)
+
+    tela.blit(grade, (0, 0))
+
+    if particulas is None:
+        return
+    for p in particulas:
+        p["y"] = float(p.get("y", 0)) + float(p.get("vy", p.get("vel_y", p.get("speed_y", -0.35))))
+        p["x"] = float(p.get("x", 0)) + float(p.get("vx", 0.0)) + math.sin(tempo * 0.8 + float(p.get("fase", p.get("drift_phase", 0.0)))) * 0.08
+        if p["y"] < -12:
+            p["y"] = altura + 12
+            p["x"] = random.uniform(0, largura)
+        elif p["y"] > altura + 12:
+            p["y"] = -12
+            p["x"] = random.uniform(0, largura)
+        if p["x"] < -12:
+            p["x"] = largura + 12
+        elif p["x"] > largura + 12:
+            p["x"] = -12
+
+        alpha = int(p.get("alpha", 90))
+        if "breathe_dir" in p:
+            p["alpha"] = max(32, min(180, alpha + float(p.get("breathe_dir", 1)) * float(p.get("breathe_speed", 0.03)) * 24))
+            if p["alpha"] >= 180:
+                p["breathe_dir"] = -1
+            elif p["alpha"] <= 32:
+                p["breathe_dir"] = 1
+            alpha = int(p["alpha"])
+        raio = max(1, int(p.get("r", p.get("tamanho", p.get("size", 2)))))
+        cor_p = p.get("cor", acento)
+        if len(cor_p) >= 3:
+            cor_p = tuple(cor_p[:3])
+        else:
+            cor_p = acento
+        pygame.draw.circle(tela, (*cor_p, max(18, min(180, alpha))), (int(p["x"]), int(p["y"])), raio)
+
+def desenhar_cabecalho_menu(tela, titulo, subtitulo, fonte_titulo, fonte_subtitulo, cor_acento=(0, 220, 255), y=68):
+    largura, _ = tela.get_size()
+    cor_acento = tuple(cor_acento[:3])
+    sombra = fonte_titulo.render(str(titulo), True, (0, 70, 95))
+    texto = fonte_titulo.render(str(titulo), True, (245, 252, 255))
+    tela.blit(sombra, sombra.get_rect(center=(largura // 2 + 3, y + 3)))
+    tela.blit(texto, texto.get_rect(center=(largura // 2, y)))
+    if subtitulo:
+        sub = fonte_subtitulo.render(str(subtitulo), True, tuple(min(255, int(c * 0.55 + 120)) for c in cor_acento))
+        tela.blit(sub, sub.get_rect(center=(largura // 2, y + 48)))
+        pygame.draw.line(tela, (*cor_acento, 120), (largura // 2 - 180, y + 27), (largura // 2 + 180, y + 27), 1)
+
+def desenhar_botao_voltar_menu(tela, rect, fonte, hover=False, cor_acento=(0, 220, 255), texto="ESC Voltar"):
+    cor_acento = tuple(cor_acento[:3])
+    surf = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
+    bg_alpha = 218 if hover else 150
+    pygame.draw.rect(surf, (5, 9, 18, bg_alpha), surf.get_rect(), border_radius=7)
+    pygame.draw.rect(surf, (*cor_acento, 230 if hover else 120), surf.get_rect(), 1 if not hover else 2, border_radius=7)
+    pygame.draw.line(surf, (*cor_acento, 72), (10, rect.h - 6), (rect.w - 10, rect.h - 6), 1)
+    txt = fonte.render(str(texto), True, (235, 255, 255) if hover else (160, 190, 205))
+    surf.blit(txt, txt.get_rect(center=(rect.w // 2, rect.h // 2)))
+    tela.blit(surf, rect.topleft)
+
+def desenhar_rodape_menu(tela, texto, fonte, cor_acento=(0, 220, 255), y=None):
+    largura, altura = tela.get_size()
+    y = altura - 28 if y is None else y
+    txt = fonte.render(str(texto), True, (126, 172, 190))
+    rect = txt.get_rect(center=(largura // 2, y))
+    painel = pygame.Rect(rect.left - 20, rect.top - 7, rect.w + 40, rect.h + 14)
+    surf = pygame.Surface((painel.w, painel.h), pygame.SRCALPHA)
+    pygame.draw.rect(surf, (5, 9, 18, 170), surf.get_rect(), border_radius=6)
+    pygame.draw.rect(surf, (*tuple(cor_acento[:3]), 80), surf.get_rect(), 1, border_radius=6)
+    tela.blit(surf, painel.topleft)
+    tela.blit(txt, rect)
+
 def ativar_palco_fullscreen(largura_jogo, altura_jogo):
     if _stage["orig_flip"] is None:
         _stage["orig_flip"] = pygame.display.flip
@@ -484,6 +596,19 @@ RACIONAL_DILATACAO_DURACAO_MS = 8000
 RACIONAL_DILATACAO_COOLDOWN_MS = 30000
 RACIONAL_REBOTE_DURACAO_MS = 3000
 RACIONAL_REBOTE_FATOR_MUNDO = 1.18
+RACIONAL_PASSIVA_INTERVALO_MS = 4500
+RACIONAL_PASSIVA_BASE = 5
+RACIONAL_PASSIVA_POR_NIVEL = 2
+RACIONAL_PASSIVA_TOLERANCIA_PX = 1.25
+
+def ganho_passiva_racional(nivel_upgrade=0):
+    return RACIONAL_PASSIVA_BASE + max(0, int(nivel_upgrade or 0)) * RACIONAL_PASSIVA_POR_NIVEL
+
+def personagem_racional_imovel(x, y, ultimo_x, ultimo_y, tolerancia_px=RACIONAL_PASSIVA_TOLERANCIA_PX):
+    try:
+        return math.hypot(float(x) - float(ultimo_x), float(y) - float(ultimo_y)) <= float(tolerancia_px)
+    except (TypeError, ValueError):
+        return x == ultimo_x and y == ultimo_y
 
 def tentar_ativar_dilatacao_racional(aurea, agora_ms, proximo_uso_ms=0):
     if str(aurea).strip().lower() != "racional" or agora_ms < proximo_uso_ms:

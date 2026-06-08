@@ -8,6 +8,8 @@ import prismatica_manifestacao
 import retornante_manifestacao
 import parasitica_manifestacao
 import condutora_manifestacao
+import gravitante_manifestacao
+import ancorada_manifestacao
 
 def calcular_corrente_eletrica_grafo(origem_inimigo, inimigos_comum):
     """
@@ -291,6 +293,20 @@ def processar_habilidade_onda(ondas, correntes_eletricas, inimigos_comum, boss_i
         if onda.get("tipo_manifestacao") == "fechamento_condutor":
             condutora_manifestacao.desenhar_fechamento(tela, onda, tempo_atual, config_graficos)
             if tempo_atual < int(onda.get("fim_ms", 0)):
+                novas_ondas.append(onda)
+            continue
+
+        if onda.get("tipo_manifestacao") == "colapso_orbital":
+            manter, mortos_colapso = gravitante_manifestacao.processar_colapso_orbital(
+                onda, inimigos_comum, tela, tempo_atual, config_graficos
+            )
+            inimigos_mortos_neste_frame.extend(mortos_colapso)
+            if manter:
+                novas_ondas.append(onda)
+            continue
+
+        if onda.get("tipo_manifestacao") == "dominio_ancorado":
+            if ancorada_manifestacao.processar_dominio_fixo(onda, tempo_atual):
                 novas_ondas.append(onda)
             continue
 

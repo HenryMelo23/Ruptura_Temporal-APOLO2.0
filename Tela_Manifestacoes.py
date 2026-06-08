@@ -205,7 +205,7 @@ def _desenhar_slot_matriz(tela, rect, dados, selecionado, desbloqueada, agora, e
     tela.blit(surf, slot.topleft)
 
 
-def _desenhar_painel(tela, rect, dados, desbloqueada, fontes, fade):
+def _desenhar_painel(tela, rect, dados, desbloqueada, fontes, fade, scroll_y=0):
     surf = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
     cor = dados.get("cor", (120, 130, 150)) if desbloqueada else (95, 102, 118)
     surf.fill((7, 9, 18, int(228 * fade)))
@@ -260,6 +260,100 @@ def _desenhar_painel(tela, rect, dados, desbloqueada, fontes, fade):
         y += 12
 
     tela.blit(surf, rect.topleft)
+
+
+def _desenhar_painel_rolavel(tela, rect, dados, desbloqueada, fontes, fade, scroll_y=0):
+    surf = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
+    cor = dados.get("cor", (120, 130, 150)) if desbloqueada else (95, 102, 118)
+    surf.fill((7, 9, 18, int(228 * fade)))
+    pygame.draw.rect(surf, (*cor[:3], int(120 * fade)), (0, 0, rect.w, rect.h), 1, border_radius=8)
+    pygame.draw.rect(surf, (255, 255, 255, int(20 * fade)), (8, 8, rect.w - 16, rect.h - 16), 1, border_radius=6)
+    pygame.draw.rect(surf, (*cor[:3], int(210 * fade)), (0, 0, 5, rect.h), border_radius=4)
+
+    x = 24
+    y = 20
+    titulo = dados["nome"] if desbloqueada else "Manifestacao nao estabilizada"
+    cor_titulo = (230, 255, 255) if desbloqueada else (155, 160, 175)
+    surf.blit(fontes["nome"].render(titulo, True, cor_titulo), (x, y))
+    y += 42
+    pygame.draw.line(surf, (*cor[:3], 125), (x, y), (rect.w - 24, y), 1)
+    y += 18
+
+    conteudo_top = y
+    conteudo_visivel_h = rect.h - conteudo_top - 18
+    conteudo = pygame.Surface((rect.w, 1400), pygame.SRCALPHA)
+    cy = 0
+
+    if not desbloqueada:
+        _desenhar_texto_wrap(
+            conteudo,
+            "Eco ainda nao dominado. A Ruptura emite resposta, mas Geovana ainda nao estabilizou essa forma de combate.",
+            pygame.Rect(x, cy, rect.w - 48, 220),
+            fontes["texto"],
+            (170, 180, 195),
+        )
+        surf.blit(conteudo, (0, conteudo_top), pygame.Rect(0, 0, rect.w, conteudo_visivel_h))
+        tela.blit(surf, rect.topleft)
+        return 0.0
+
+    descricao = dados.get("frase") or dados.get("descricao_curta")
+    if descricao:
+        linhas_desc = _linhas_wrap(descricao, fontes["texto"], rect.w - 72)
+        altura_desc = max(74, 22 + len(linhas_desc) * (fontes["texto"].get_linesize() + 1))
+        caixa_desc = pygame.Rect(x, cy, rect.w - 48, altura_desc)
+        pygame.draw.rect(conteudo, (255, 255, 255, 10), caixa_desc, border_radius=6)
+        pygame.draw.rect(conteudo, (*cor[:3], 42), caixa_desc, 1, border_radius=6)
+        _desenhar_texto_wrap(
+            conteudo,
+            descricao,
+            pygame.Rect(x + 12, cy + 10, rect.w - 72, altura_desc - 16),
+            fontes["texto"],
+            (178, 212, 220),
+            1,
+        )
+        cy = caixa_desc.bottom + 14
+
+    itens = [
+        ("Funcao", dados["funcao"]),
+        ("Disparo", dados["disparo"]),
+        ("Habilidade", dados["habilidade"] + ": " + dados["descricao_habilidade"]),
+    ]
+    if dados.get("teleporte"):
+        itens.append(("Teleporte", dados["teleporte"]))
+    itens.extend([
+        ("Traco", dados["traco"]),
+        ("Risco", dados["risco"]),
+    ])
+
+    for rotulo, texto in itens:
+        pygame.draw.line(conteudo, (255, 255, 255, 24), (x, cy), (rect.w - 24, cy), 1)
+        cy += 9
+        conteudo.blit(fontes["rotulo"].render(rotulo.upper(), True, cor), (x, cy))
+        cy += 20
+        altura_texto = max(42, len(_linhas_wrap(texto, fontes["texto"], rect.w - 48)) * (fontes["texto"].get_linesize() + 1))
+        cy = _desenhar_texto_wrap(
+            conteudo,
+            texto,
+            pygame.Rect(x, cy, rect.w - 48, altura_texto),
+            fontes["texto"],
+            (210, 225, 236),
+            1,
+        )
+        cy += 12
+
+    max_scroll = max(0.0, float(cy - conteudo_visivel_h + 8))
+    scroll_y = max(0.0, min(max_scroll, float(scroll_y)))
+    surf.blit(conteudo, (0, conteudo_top), pygame.Rect(0, int(scroll_y), rect.w, conteudo_visivel_h))
+
+    if max_scroll > 0:
+        trilho = pygame.Rect(rect.w - 13, conteudo_top + 4, 4, conteudo_visivel_h - 8)
+        pygame.draw.rect(surf, (0, 0, 0, 135), trilho, border_radius=3)
+        thumb_h = max(28, int(trilho.h * conteudo_visivel_h / max(1, cy)))
+        thumb_y = trilho.y + int((trilho.h - thumb_h) * (scroll_y / max_scroll))
+        pygame.draw.rect(surf, (*cor[:3], 210), (trilho.x, thumb_y, trilho.w, thumb_h), border_radius=3)
+
+    tela.blit(surf, rect.topleft)
+    return max_scroll
 
 
 def _desenhar_preview_em_preparo(tela, rect, fontes, dados):
@@ -404,7 +498,11 @@ def tela_manifestacoes(tela, fonte_base):
     pygame.mouse.set_visible(False)
     largura, altura = tela.get_size()
     clock = pygame.time.Clock()
-    manifestacoes = obter_manifestacoes()
+    manifestacoes = [
+        (chave, dados)
+        for chave, dados in obter_manifestacoes()
+        if dados.get("desbloqueada", False) or dados.get("icone")
+    ]
     manifestacao_salva = obter_manifestacao_ativa()
     selecionado = 0
     for i, (chave, _) in enumerate(manifestacoes):
@@ -466,14 +564,52 @@ def tela_manifestacoes(tela, fonte_base):
         for _ in range(36)
     ]
 
+    painel_rect = pygame.Rect(largura - 438, 160, 392, 430)
+    preview_rect = pygame.Rect(48, altura - 244, min(560, largura - 520), 190)
+    grade_rect = pygame.Rect(52, 175, max(420, largura - 560), max(300, altura - 470))
+    slot_w = min(150, max(112, (grade_rect.w - 56) // colunas))
+    slot_h = 118
+    gap_x = 28
+    gap_y = 24
+    folga_final_grade = 88
+    margem_visivel_grade = 48
+    matriz_w = colunas * slot_w + (colunas - 1) * gap_x
+    inicio_x = grade_rect.x + max(0, (grade_rect.w - matriz_w) // 2)
+    inicio_y = grade_rect.y + 12
+    total_linhas = (len(manifestacoes) + colunas - 1) // colunas
+    conteudo_h = total_linhas * slot_h + max(0, total_linhas - 1) * gap_y + folga_final_grade
+    scroll_y = 0.0
+    painel_scroll_y = 0.0
+    painel_scroll_max = 0.0
+
+    def max_scroll():
+        return max(0.0, float(conteudo_h - grade_rect.h))
+
+    def limitar_scroll(valor):
+        return max(0.0, min(max_scroll(), float(valor)))
+
+    def garantir_selecionado_visivel():
+        nonlocal scroll_y
+        linha = selecionado // colunas
+        y_slot = linha * (slot_h + gap_y)
+        margem = margem_visivel_grade
+        if y_slot < scroll_y + margem:
+            scroll_y = limitar_scroll(y_slot - margem)
+        elif y_slot + slot_h > scroll_y + grade_rect.h - margem:
+            scroll_y = limitar_scroll(y_slot + slot_h - grade_rect.h + margem)
+
+    garantir_selecionado_visivel()
+
     def mover_para(novo_indice):
-        nonlocal selecionado, troca_inicio
+        nonlocal selecionado, troca_inicio, painel_scroll_y
         if not manifestacoes:
             return
         novo_indice = max(0, min(len(manifestacoes) - 1, int(novo_indice)))
         if novo_indice == selecionado:
             return
         selecionado = novo_indice
+        garantir_selecionado_visivel()
+        painel_scroll_y = 0.0
         troca_inicio = pygame.time.get_ticks()
         tocar_hover()
 
@@ -503,7 +639,13 @@ def tela_manifestacoes(tela, fonte_base):
         if delta_linha:
             mover_para(indice_na_grade(nova_linha, coluna_atual))
             return
-        mover_linear(delta_coluna)
+        nova_coluna = coluna_atual + int(delta_coluna)
+        inicio_linha = linha_atual * colunas
+        fim_linha = min(inicio_linha + colunas, len(manifestacoes))
+        quantidade_linha = max(1, fim_linha - inicio_linha)
+        if nova_coluna < 0 or nova_coluna >= quantidade_linha:
+            return
+        mover_para(indice_na_grade(linha_atual, nova_coluna))
 
     def confirmar():
         chave, dados = manifestacoes[selecionado]
@@ -527,6 +669,20 @@ def tela_manifestacoes(tela, fonte_base):
                 raise SystemExit
             if evento.type == pygame.MOUSEMOTION and evento.rel != (0, 0):
                 modo_interacao = "mouse"
+            elif evento.type == pygame.MOUSEWHEEL:
+                modo_interacao = "mouse"
+                if grade_rect.collidepoint(mx, my):
+                    scroll_y = limitar_scroll(scroll_y - evento.y * 46)
+                elif painel_rect.collidepoint(mx, my):
+                    painel_scroll_y = max(0.0, min(painel_scroll_max, painel_scroll_y - evento.y * 42))
+            elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button in (4, 5):
+                modo_interacao = "mouse"
+                if grade_rect.collidepoint(mx, my):
+                    direcao_scroll = -1 if evento.button == 4 else 1
+                    scroll_y = limitar_scroll(scroll_y + direcao_scroll * 46)
+                elif painel_rect.collidepoint(mx, my):
+                    direcao_scroll = -1 if evento.button == 4 else 1
+                    painel_scroll_y = max(0.0, min(painel_scroll_max, painel_scroll_y + direcao_scroll * 42))
             elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
                 modo_interacao = "mouse"
                 clicado = True
@@ -595,20 +751,13 @@ def tela_manifestacoes(tela, fonte_base):
         subtitulo = fontes["subtitulo"].render("Formas que a Ruptura assume através de Geovana.", True, (145, 235, 255))
         tela.blit(subtitulo, subtitulo.get_rect(center=(largura // 2, 118)))
 
-        painel_rect = pygame.Rect(largura - 438, 160, 392, 430)
-        preview_rect = pygame.Rect(48, altura - 244, min(560, largura - 520), 190)
-        grade_rect = pygame.Rect(52, 175, max(420, largura - 560), max(300, altura - 470))
-
         titulo_grade = fontes["rotulo"].render("MATRIZ DE MANIFESTAÇÕES", True, (0, 225, 255))
         tela.blit(titulo_grade, (grade_rect.x + 4, grade_rect.y - 30))
-        slot_w = min(150, max(112, (grade_rect.w - 56) // colunas))
-        slot_h = 118
-        gap_x = 28
-        gap_y = 24
-        matriz_w = colunas * slot_w + (colunas - 1) * gap_x
-        inicio_x = grade_rect.x + max(0, (grade_rect.w - matriz_w) // 2)
-        inicio_y = grade_rect.y + 12
+        pygame.draw.rect(tela, (0, 0, 0, 42), grade_rect, border_radius=8)
+        pygame.draw.rect(tela, (0, 225, 255, 42), grade_rect, 1, border_radius=8)
         icone_rects = []
+        clip_anterior = tela.get_clip()
+        tela.set_clip(grade_rect)
         for i, (chave, dados) in enumerate(manifestacoes):
             atraso = i * 0.14
             entrada_icone = min(1.0, max(0.0, (entrada - atraso) / 0.42))
@@ -616,20 +765,32 @@ def tela_manifestacoes(tela, fonte_base):
             linha = i // colunas
             rect = pygame.Rect(
                 inicio_x + coluna * (slot_w + gap_x),
-                inicio_y + linha * (slot_h + gap_y),
+                inicio_y + linha * (slot_h + gap_y) - int(scroll_y),
                 slot_w,
                 slot_h,
             )
             icone_rects.append(rect)
             if entrada_icone <= 0:
                 continue
+            if rect.bottom < grade_rect.top or rect.top > grade_rect.bottom:
+                continue
             _desenhar_slot_matriz(tela, rect, dados, i == selecionado, dados.get("desbloqueada", False), agora, entrada_icone, fontes)
+        tela.set_clip(clip_anterior)
+
+        if max_scroll() > 0:
+            trilho = pygame.Rect(grade_rect.right - 8, grade_rect.y + 8, 4, grade_rect.h - 16)
+            pygame.draw.rect(tela, (0, 0, 0, 120), trilho, border_radius=3)
+            thumb_h = max(30, int(trilho.h * grade_rect.h / max(1, conteudo_h)))
+            thumb_y = trilho.y + int((trilho.h - thumb_h) * (scroll_y / max_scroll()))
+            pygame.draw.rect(tela, (0, 225, 255), (trilho.x, thumb_y, trilho.w, thumb_h), border_radius=3)
 
         if clicado:
             for i, rect in enumerate(icone_rects):
-                if rect.collidepoint(mx, my):
+                if grade_rect.collidepoint(mx, my) and rect.collidepoint(mx, my):
                     if i != selecionado:
                         selecionado = i
+                        painel_scroll_y = 0.0
+                        garantir_selecionado_visivel()
                         troca_inicio = pygame.time.get_ticks()
                         tocar_hover()
                         chave, dados = manifestacoes[selecionado]
@@ -642,7 +803,8 @@ def tela_manifestacoes(tela, fonte_base):
 
         chave_sel, dados_sel = manifestacoes[selecionado]
         desbloqueada = dados_sel.get("desbloqueada", False)
-        _desenhar_painel(tela, painel_rect, dados_sel, desbloqueada, fontes, fade_painel)
+        painel_scroll_max = _desenhar_painel_rolavel(tela, painel_rect, dados_sel, desbloqueada, fontes, fade_painel, painel_scroll_y)
+        painel_scroll_y = max(0.0, min(painel_scroll_max, painel_scroll_y))
         if chave_sel == "eletrica":
             _desenhar_preview_eletrico(tela, preview_rect, agora - troca_inicio, fontes, frames_previews.get(chave_sel))
         elif desbloqueada and frames_previews.get(chave_sel):
@@ -678,6 +840,412 @@ def tela_manifestacoes(tela, fonte_base):
             rodape = "Clique no ícone para selecionar, clique em Manifestar para confirmar"
         txt_rodape = fontes["pequena"].render(rodape, True, (115, 165, 185))
         tela.blit(txt_rodape, txt_rodape.get_rect(center=(largura // 2, altura - 22)))
+
+        ui_helpers.desenhar_cursor_personalizado(tela)
+        pygame.display.flip()
+        clock.tick(60)
+
+
+def _texto_detalhado_manifestacao(dados, desbloqueada):
+    if not desbloqueada:
+        return [
+            ("ECO NAO ESTABILIZADO", "Geovana ainda nao estabilizou essa forma de combate."),
+        ]
+    itens = [
+        ("ESTILO DE JOGO", "A manifestacao e sua arma e seu jeito de jogar. Ela muda o ataque basico, a habilidade e a forma como Geovana resolve a luta."),
+        ("IDENTIDADE", dados.get("descricao_curta") or dados.get("frase") or ""),
+        ("FUNCAO", dados.get("funcao", "")),
+        ("DISPARO", dados.get("disparo", "")),
+        ("HABILIDADE", f"{dados.get('habilidade', '')}: {dados.get('descricao_habilidade', '')}"),
+    ]
+    if dados.get("teleporte"):
+        itens.append(("TELEPORTE", dados.get("teleporte", "")))
+    itens.extend([
+        ("FORTE EM", dados.get("traco", "")),
+        ("CUIDADO", dados.get("risco", "")),
+    ])
+    return [(rotulo, texto) for rotulo, texto in itens if texto]
+
+
+def _desenhar_botao_manifestacao(tela, rect, texto, fonte, cor, ativo=True, hover=False):
+    bg = (8, 13, 24) if ativo else (18, 20, 28)
+    borda = cor if ativo else (88, 94, 108)
+    if hover and ativo:
+        bg = tuple(min(255, int(c * 1.35 + 10)) for c in bg)
+    pygame.draw.rect(tela, bg, rect, border_radius=8)
+    pygame.draw.rect(tela, borda, rect, 2 if hover and ativo else 1, border_radius=8)
+    txt = fonte.render(texto, True, (230, 255, 255) if ativo else (145, 150, 160))
+    tela.blit(txt, txt.get_rect(center=rect.center))
+
+
+def _desenhar_card_carrossel(tela, rect, dados, selecionado, desbloqueada, agora, fontes):
+    cor = dados.get("cor", (0, 225, 255)) if desbloqueada else (90, 98, 114)
+    cor2 = dados.get("cor_secundaria", cor) if desbloqueada else (50, 55, 70)
+    surf = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
+    alpha = 235 if selecionado else 150
+    pygame.draw.rect(surf, (4, 7, 16, alpha), (0, 0, rect.w, rect.h), border_radius=10)
+    pygame.draw.rect(surf, (*cor[:3], 230 if selecionado else 90), (0, 0, rect.w, rect.h), 2 if selecionado else 1, border_radius=10)
+
+    if selecionado and desbloqueada:
+        pulso = 0.5 + 0.5 * math.sin(agora * 0.006)
+        pygame.draw.rect(surf, (*cor[:3], int(28 + pulso * 28)), (8, 8, rect.w - 16, rect.h - 16), border_radius=8)
+        pygame.draw.line(surf, (*cor2[:3], 150), (18, 18), (rect.w - 18, 18), 1)
+        pygame.draw.line(surf, (*cor2[:3], 90), (18, rect.h - 18), (rect.w - 18, rect.h - 18), 1)
+
+    status = "ENCONTRADA" if desbloqueada else "BLOQUEADA"
+    badge = pygame.Rect(rect.w // 2 - 56, 16, 112, 24)
+    pygame.draw.rect(surf, (*cor[:3], 34), badge, border_radius=5)
+    pygame.draw.rect(surf, (*cor[:3], 128), badge, 1, border_radius=5)
+    surf.blit(fontes["pequena"].render(status, True, (220, 245, 250) if desbloqueada else (130, 138, 152)), (badge.x + 10, badge.y + 4))
+
+    icone_tam = 106 if selecionado else 88
+    icone = _carregar_icone_manifestacao(dados.get("icone", ""), icone_tam)
+    centro = (rect.w // 2, rect.h // 2 - 10)
+    pygame.draw.circle(surf, (0, 0, 0, 120), centro, icone_tam // 2 + 14)
+    pygame.draw.circle(surf, (*cor[:3], 170 if selecionado else 85), centro, icone_tam // 2 + 14, 2)
+    if selecionado:
+        for i in range(8):
+            ang = agora * 0.003 + i * math.tau / 8
+            p1 = (centro[0] + int(math.cos(ang) * (icone_tam // 2 + 22)), centro[1] + int(math.sin(ang) * (icone_tam // 2 + 22)))
+            p2 = (centro[0] + int(math.cos(ang) * (icone_tam // 2 + 31)), centro[1] + int(math.sin(ang) * (icone_tam // 2 + 31)))
+            pygame.draw.line(surf, (*cor2[:3], 110), p1, p2, 1)
+    surf.blit(icone, icone.get_rect(center=centro))
+
+    nome = _nome_curto_manifestacao(dados)
+    fonte_nome = fontes["nome_card"] if fontes["nome_card"].size(nome)[0] <= rect.w - 26 else fontes["rotulo"]
+    txt = fonte_nome.render(nome, True, (235, 255, 255) if desbloqueada else (150, 156, 170))
+    surf.blit(txt, txt.get_rect(center=(rect.w // 2, rect.h - 32)))
+    tela.blit(surf, rect.topleft)
+
+
+def _desenhar_popup_descricao_manifestacao(tela, rect, dados, desbloqueada, fontes, agora, frames_previews, chave, scroll_y):
+    cor = dados.get("cor", (0, 225, 255)) if desbloqueada else (92, 102, 122)
+    overlay = pygame.Surface(tela.get_size(), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 178))
+    tela.blit(overlay, (0, 0))
+
+    pygame.draw.rect(tela, (5, 8, 17), rect, border_radius=10)
+    pygame.draw.rect(tela, cor, rect, 2, border_radius=10)
+    pygame.draw.rect(tela, (255, 255, 255, 20), rect.inflate(-14, -14), 1, border_radius=8)
+
+    titulo = dados.get("nome", "Manifestacao") if desbloqueada else "Manifestacao nao estabilizada"
+    tela.blit(fontes["nome"].render(titulo, True, (230, 255, 255)), (rect.x + 24, rect.y + 18))
+    subt = fontes["pequena"].render("A manifestacao define sua arma, seu ritmo e seu estilo de jogo.", True, (155, 215, 225))
+    tela.blit(subt, (rect.x + 26, rect.y + 58))
+
+    preview_rect = pygame.Rect(rect.x + 24, rect.y + 92, rect.w // 2 - 42, rect.h - 122)
+    texto_rect = pygame.Rect(rect.centerx + 18, rect.y + 94, rect.w // 2 - 48, rect.h - 126)
+    if desbloqueada and (chave == "eletrica" or frames_previews.get(chave)):
+        _desenhar_preview_eletrico(tela, preview_rect, agora, fontes, frames_previews.get(chave))
+    elif desbloqueada:
+        _desenhar_preview_em_preparo(tela, preview_rect, fontes, dados)
+    else:
+        _desenhar_preview_bloqueado(tela, preview_rect, fontes)
+
+    conteudo = pygame.Surface((texto_rect.w, 1300), pygame.SRCALPHA)
+    y = 0
+    for rotulo, texto in _texto_detalhado_manifestacao(dados, desbloqueada):
+        pygame.draw.line(conteudo, (255, 255, 255, 28), (0, y), (texto_rect.w - 8, y), 1)
+        y += 10
+        conteudo.blit(fontes["rotulo"].render(rotulo, True, cor), (0, y))
+        y += fontes["rotulo"].get_linesize() + 2
+        y = _desenhar_texto_wrap(conteudo, texto, pygame.Rect(0, y, texto_rect.w - 12, 220), fontes["texto"], (210, 225, 236), 1)
+        y += 14
+
+    max_scroll = max(0.0, float(y - texto_rect.h))
+    scroll_y = max(0.0, min(max_scroll, float(scroll_y)))
+    tela.set_clip(texto_rect)
+    tela.blit(conteudo, texto_rect.topleft, pygame.Rect(0, int(scroll_y), texto_rect.w, texto_rect.h))
+    tela.set_clip(None)
+    if max_scroll > 0:
+        trilho = pygame.Rect(texto_rect.right - 6, texto_rect.y, 4, texto_rect.h)
+        pygame.draw.rect(tela, (0, 0, 0, 120), trilho, border_radius=3)
+        thumb_h = max(28, int(trilho.h * texto_rect.h / max(1, y)))
+        thumb_y = trilho.y + int((trilho.h - thumb_h) * (scroll_y / max_scroll))
+        pygame.draw.rect(tela, cor, (trilho.x, thumb_y, trilho.w, thumb_h), border_radius=3)
+
+    fechar_rect = pygame.Rect(rect.right - 112, rect.y + 18, 82, 32)
+    _desenhar_botao_manifestacao(tela, fechar_rect, "Fechar", fontes["pequena"], cor, True, False)
+    return max_scroll, fechar_rect
+
+
+def tela_manifestacoes(tela, fonte_base):
+    pygame.mouse.set_visible(False)
+    largura, altura = tela.get_size()
+    clock = pygame.time.Clock()
+    manifestacoes = [
+        (chave, dados)
+        for chave, dados in obter_manifestacoes()
+        if dados.get("desbloqueada", False) or dados.get("icone")
+    ]
+    manifestacao_salva = obter_manifestacao_ativa()
+    selecionado = 0
+    for i, (chave, _) in enumerate(manifestacoes):
+        if chave == manifestacao_salva:
+            selecionado = i
+            break
+
+    fontes = {
+        "titulo": _fonte("Texto/World.otf", 46, fonte_base),
+        "subtitulo": _fonte("Texto/rainyhearts.ttf", 22, fonte_base),
+        "nome": _fonte("Texto/rainyhearts.ttf", 36, fonte_base),
+        "nome_card": _fonte("Texto/rainyhearts.ttf", 26, fonte_base),
+        "rotulo": _fonte("Texto/rainyhearts.ttf", 18, fonte_base),
+        "texto": _fonte("Texto/rainyhearts.ttf", 17, fonte_base),
+        "botao": _fonte("Texto/rainyhearts.ttf", 24, fonte_base),
+        "pequena": _fonte("Texto/rainyhearts.ttf", 15, fonte_base),
+    }
+
+    frames_previews = {}
+    for chave, dados in manifestacoes:
+        if dados.get("desbloqueada", False):
+            pasta_video = os.path.join("Video", f"preview_{chave}")
+            if os.path.isdir(pasta_video):
+                try:
+                    arquivos = [f for f in os.listdir(pasta_video) if f.lower().endswith((".png", ".webp", ".jpg", ".jpeg"))]
+                    arquivos.sort(key=lambda nome: int(re.findall(r"\d+", nome)[0]) if re.findall(r"\d+", nome) else 0)
+                    frames = [pygame.image.load(os.path.join(pasta_video, arq)).convert_alpha() for arq in arquivos]
+                    if frames:
+                        frames_previews[chave] = frames
+                except Exception as e:
+                    from qa_logger import registrar_erro
+                    registrar_erro(f"Erro ao carregar frames do preview de {chave}", e)
+
+    particulas = [
+        {
+            "x": random.uniform(0, largura),
+            "y": random.uniform(0, altura),
+            "vx": random.uniform(-0.15, 0.15),
+            "vy": random.uniform(-0.75, -0.18),
+            "r": random.randint(1, 3),
+            "alpha": random.randint(40, 120),
+            "fase": random.uniform(0, math.tau),
+        }
+        for _ in range(36)
+    ]
+
+    modo_interacao = "teclado"
+    entrada_inicio = pygame.time.get_ticks()
+    troca_inicio = entrada_inicio
+    popup_aberto = False
+    popup_scroll = 0.0
+    popup_scroll_max = 0.0
+    analogico_movido = False
+    card_x = [largura // 2 for _ in manifestacoes]
+    card_scale = [0.84 for _ in manifestacoes]
+    card_y_offset = [8.0 for _ in manifestacoes]
+
+    def mover(delta):
+        nonlocal selecionado, troca_inicio, popup_scroll
+        if not manifestacoes:
+            return
+        selecionado = (selecionado + int(delta)) % len(manifestacoes)
+        troca_inicio = pygame.time.get_ticks()
+        popup_scroll = 0.0
+        tocar_hover()
+
+    def distancia_circular(indice, centro):
+        total = max(1, len(manifestacoes))
+        dist = int(indice) - int(centro)
+        metade = total / 2.0
+        if dist > metade:
+            dist -= total
+        elif dist < -metade:
+            dist += total
+        return dist
+
+    def confirmar():
+        chave, dados = manifestacoes[selecionado]
+        if not dados.get("desbloqueada", False):
+            tocar_hover()
+            return None
+        salvar_manifestacao_ativa(chave)
+        tocar_selecionar()
+        return "confirmar"
+
+    while True:
+        agora = pygame.time.get_ticks()
+        entrada = min(1.0, (agora - entrada_inicio) / 650.0)
+        mx, my = ui_helpers.obter_pos_mouse_superficie(tela)
+        clicado = False
+        popup_fechar_rect = pygame.Rect(0, 0, 0, 0)
+
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                pygame.quit()
+                raise SystemExit
+            if evento.type == pygame.MOUSEMOTION and evento.rel != (0, 0):
+                modo_interacao = "mouse"
+            elif evento.type == pygame.MOUSEWHEEL:
+                modo_interacao = "mouse"
+                if popup_aberto:
+                    popup_scroll = max(0.0, min(popup_scroll_max, popup_scroll - evento.y * 42))
+            elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                modo_interacao = "mouse"
+                clicado = True
+            elif evento.type == pygame.KEYDOWN:
+                modo_interacao = "teclado"
+                if popup_aberto:
+                    if evento.key in (pygame.K_ESCAPE, pygame.K_i, pygame.K_TAB):
+                        popup_aberto = False
+                        tocar_hover()
+                    elif evento.key in (pygame.K_DOWN, pygame.K_s):
+                        popup_scroll = max(0.0, min(popup_scroll_max, popup_scroll + 46))
+                    elif evento.key in (pygame.K_UP, pygame.K_w):
+                        popup_scroll = max(0.0, min(popup_scroll_max, popup_scroll - 46))
+                    continue
+                if evento.key == pygame.K_ESCAPE:
+                    tocar_selecionar()
+                    return "voltar"
+                if evento.key in (pygame.K_RIGHT, pygame.K_d):
+                    mover(1)
+                elif evento.key in (pygame.K_LEFT, pygame.K_a):
+                    mover(-1)
+                elif evento.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+                    resultado = confirmar()
+                    if resultado:
+                        return resultado
+                elif evento.key in (pygame.K_i, pygame.K_TAB):
+                    popup_aberto = True
+                    popup_scroll = 0.0
+                    tocar_hover()
+            elif evento.type == pygame.JOYAXISMOTION:
+                modo_interacao = "teclado"
+                if evento.axis == 0:
+                    if evento.value > 0.55 and not analogico_movido and not popup_aberto:
+                        mover(1)
+                        analogico_movido = True
+                    elif evento.value < -0.55 and not analogico_movido and not popup_aberto:
+                        mover(-1)
+                        analogico_movido = True
+                    elif abs(evento.value) < 0.25:
+                        analogico_movido = False
+            elif evento.type == pygame.JOYBUTTONDOWN:
+                modo_interacao = "teclado"
+                if popup_aberto:
+                    popup_aberto = False
+                    continue
+                if evento.button == 0:
+                    resultado = confirmar()
+                    if resultado:
+                        return resultado
+                elif evento.button == 1:
+                    tocar_selecionar()
+                    return "voltar"
+                elif evento.button in (2, 3):
+                    popup_aberto = True
+                    popup_scroll = 0.0
+
+        chave_preview, dados_preview = manifestacoes[selecionado]
+        cor_preview = dados_preview.get("cor", (0, 225, 255)) if dados_preview.get("desbloqueada", False) else (80, 100, 120)
+        ui_helpers.desenhar_fundo_menu_ruptura(tela, agora, particulas, (5, 8, 17), cor_preview, 0.95)
+        ui_helpers.desenhar_cabecalho_menu(
+            tela,
+            "MANIFESTACOES",
+            "Sua manifestacao e sua arma: escolha o estilo de jogo de Geovana.",
+            fontes["titulo"],
+            fontes["subtitulo"],
+            cor_preview,
+            y=80,
+        )
+
+        centro_x = largura // 2
+        centro_y = int(altura * 0.44)
+        espacamento = 242
+        base_card_w = 172
+        base_card_h = 226
+        for i, _item in enumerate(manifestacoes):
+            dist_circular = distancia_circular(i, selecionado)
+            target_x = centro_x + dist_circular * espacamento
+            if i == selecionado:
+                target_scale = 1.34
+                target_y_offset = -10.0
+            else:
+                target_scale = 0.84
+                target_y_offset = 8.0
+            card_x[i] += (target_x - card_x[i]) * 0.12
+            card_scale[i] += (target_scale - card_scale[i]) * 0.12
+            card_y_offset[i] += (target_y_offset - card_y_offset[i]) * 0.12
+
+        card_rects = []
+        for i, (chave, dados) in enumerate(manifestacoes):
+            x = card_x[i]
+            dist = abs(x - centro_x)
+            if dist > largura * 0.72:
+                continue
+            w = int(base_card_w * card_scale[i])
+            h = int(base_card_h * card_scale[i])
+            rect = pygame.Rect(int(x - w // 2), int(centro_y - h // 2 + card_y_offset[i]), w, h)
+            card_rects.append((i, rect))
+            _desenhar_card_carrossel(tela, rect, dados, i == selecionado, dados.get("desbloqueada", False), agora, fontes)
+
+        if clicado and not popup_aberto:
+            for i, rect in card_rects:
+                if rect.collidepoint(mx, my):
+                    if i == selecionado:
+                        resultado = confirmar()
+                        if resultado:
+                            return resultado
+                    else:
+                        dist_click = distancia_circular(i, selecionado)
+                        if dist_click > 0:
+                            selecionado = (selecionado + 1) % len(manifestacoes)
+                        elif dist_click < 0:
+                            selecionado = (selecionado - 1) % len(manifestacoes)
+                        troca_inicio = pygame.time.get_ticks()
+                        popup_scroll = 0.0
+                        tocar_hover()
+                    break
+
+        chave_sel, dados_sel = manifestacoes[selecionado]
+        desbloqueada = dados_sel.get("desbloqueada", False)
+        cor = dados_sel.get("cor", (0, 225, 255)) if desbloqueada else (90, 98, 114)
+        resumo_rect = pygame.Rect(max(80, largura // 2 - 430), int(altura * 0.68), min(860, largura - 160), 86)
+        pygame.draw.rect(tela, (5, 8, 17, 205), resumo_rect, border_radius=8)
+        pygame.draw.rect(tela, cor, resumo_rect, 1, border_radius=8)
+        frase = dados_sel.get("funcao") if desbloqueada else "Forma futura ainda nao estabilizada."
+        _desenhar_texto_wrap(tela, frase, pygame.Rect(resumo_rect.x + 22, resumo_rect.y + 16, resumo_rect.w - 44, 48), fontes["texto"], (205, 228, 238), 1)
+
+        btn_w = 178
+        manifestar_rect = pygame.Rect(largura // 2 - btn_w - 12, resumo_rect.bottom + 18, btn_w, 42)
+        desc_rect = pygame.Rect(largura // 2 + 12, resumo_rect.bottom + 18, btn_w, 42)
+        hover_manifestar = modo_interacao == "mouse" and manifestar_rect.collidepoint(mx, my)
+        hover_desc = modo_interacao == "mouse" and desc_rect.collidepoint(mx, my)
+        _desenhar_botao_manifestacao(tela, manifestar_rect, "Manifestar", fontes["botao"], cor, desbloqueada, hover_manifestar)
+        _desenhar_botao_manifestacao(tela, desc_rect, "Descricao", fontes["botao"], cor, True, hover_desc)
+        if clicado and not popup_aberto:
+            if manifestar_rect.collidepoint(mx, my):
+                resultado = confirmar()
+                if resultado:
+                    return resultado
+            elif desc_rect.collidepoint(mx, my):
+                popup_aberto = True
+                popup_scroll = 0.0
+                tocar_hover()
+
+        voltar_rect = pygame.Rect(40, 34, 118, 36)
+        ui_helpers.desenhar_botao_voltar_menu(tela, voltar_rect, fontes["pequena"], modo_interacao == "mouse" and voltar_rect.collidepoint(mx, my), cor, "ESC Voltar")
+        if clicado and not popup_aberto and voltar_rect.collidepoint(mx, my):
+            tocar_selecionar()
+            return "voltar"
+
+        if popup_aberto:
+            popup_rect = pygame.Rect(max(42, largura // 2 - 480), max(70, altura // 2 - 285), min(960, largura - 84), min(570, altura - 116))
+            popup_scroll_max, popup_fechar_rect = _desenhar_popup_descricao_manifestacao(
+                tela, popup_rect, dados_sel, desbloqueada, fontes, agora - troca_inicio, frames_previews, chave_sel, popup_scroll
+            )
+            if clicado:
+                if popup_fechar_rect.collidepoint(mx, my):
+                    popup_aberto = False
+                    tocar_hover()
+                elif not popup_rect.collidepoint(mx, my):
+                    popup_aberto = False
+                    tocar_hover()
+
+        rodape = "A/D ou setas navegam  |  ENTER manifesta  |  TAB abre descricao"
+        if modo_interacao == "mouse":
+            rodape = "Clique em uma manifestacao, Manifestar confirma, Descricao abre detalhes"
+        ui_helpers.desenhar_rodape_menu(tela, rodape, fontes["pequena"], cor, altura - 22)
 
         ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()

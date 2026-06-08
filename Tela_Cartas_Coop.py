@@ -78,46 +78,46 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
     
     atributos_cartas = [
         {"nome": "Speed Boost", "Nick": "Vento Celeste", 
-         "descricao": "Aumenta a velocidade de movimento de Apolo em +0.065 (escala +0.008 a cada 50 abates na partida)."},
+         "descricao": "Geovana se move mais rapido. Cada compra aumenta a velocidade de forma fixa, sem depender de abates."},
         
         {"nome": "Porção", "Nick": "Elixir Vital", 
-         "descricao": "Cura Apolo em 45% da vida maxima e Petro em 30% da vida maxima (escala com abates). Cura excedente aumenta permanentemente a vida maxima de ambos."},
+         "descricao": "Cura bastante Geovana e tambem recupera Petro. Se a cura passar do limite, o excesso aumenta a vida maxima."},
         
         {"nome": "Disparo crescente", "Nick": "Impacto Escalante", 
-         "descricao": "Aumenta o dano de ataque basico em +8 no inicio, +4 a cada 50 abates e ganha escala extra depois de 300 abates."},
+         "descricao": "Aumenta o dano do ataque basico em +10. E uma melhoria direta, forte e sempre igual."},
         
         {"nome": "Tempestade", "Nick": "Tempestade Crescente", 
-         "descricao": "Aumenta a chance critica de Apolo em +2% (escala +0.5% a cada 100 abates) e o dano basico em +5 (escala +2 a cada 100 abates)."},
+         "descricao": "Aumenta o dano basico e a chance de acerto critico. Boa para quem quer dano constante com picos de impacto."},
 
         {"nome": "Cura", "Nick": "Mordida Sombria", 
-         "descricao": "Ativa Roubo de Vida. Cada acerto de projetil cura +0.20% da vida perdida de Apolo (a porcentagem de roubo de vida escala em +0.05% a cada 80 abates)."},
+         "descricao": "Ativa Roubo de Vida. Seus projeteis curam uma pequena parte da vida perdida de Geovana ao acertar inimigos."},
 
         {"nome": "Trembo", "Nick": "Reversão Temporal", 
-         "descricao": "Ao sofrer dano fatal, revive Apolo com vida cheia. Concede bonus de regeneracao passiva (-5% de intervalo, +0.1% de cura). Acumular 2 Trembos melhora a regeneracao (-25% intervalo, +0.5% cura). Ao reviver, consome o companheiro e retem 50% dos bonus de regeneracao."},
+         "descricao": "Ao sofrer dano fatal, revive Geovana com vida cheia. Tambem melhora a regeneracao passiva; compras extras fortalecem esse sustento."},
 
         {"nome": "Speed Atack", "Nick": "Fluidez Letal", 
-         "descricao": "Aumenta a cadencia de disparo reduzindo o intervalo em -34ms (escala em -7ms a cada 100 abates). O intervalo minimo permitido e de 70ms."},
+         "descricao": "Geovana atira mais rapido. Cada compra reduz a espera entre disparos ate um limite seguro."},
         
         {"nome": "Teleporte", "Nick": "Salto Espacial", 
-         "descricao": "Reduz o tempo de recarga do Teleporte em 0.3% do valor atual (reducao extra de 0.05% a cada 50 abates). Recarga minima de 0.5s."},
+         "descricao": "Reduz a recarga do Teleporte em 0,3 segundo por compra. A reducao e fixa e nao depende de abates."},
 
         {"nome": "Petro", "Nick": "Sentinela Leal", 
-         "descricao": "Invoca a sentinela Petro. Compras adicionais aumentam seu dano basico em +2 (escala com abates), curam Petro em 45% de sua vida e o evoluem em ate 3 niveis (ganhando bonus de vida max, resistencia e dano)."},
+         "descricao": "Invoca Petro. Compras adicionais curam, evoluem e fortalecem a sentinela com dano, vida e resistencia."},
 
         {"nome": "Defesa", "Nick": "Escudo Fásico", 
-         "descricao": "Aumenta a resistencia de Apolo em +3.5 (escala +0.5 a cada 50 abates). A reducao maxima de dano por resistencia e de 50."},
+         "descricao": "Aumenta a resistencia de Geovana. Cada compra reduz mais o dano recebido, ate o limite de protecao."},
 
         {"nome": "Sorte", "Nick": "Anomalia Favorável", 
-         "descricao": "Aumenta a Sorte de Apolo em +0.3%, elevando a probabilidade de encontrar cartas e drops de maior raridade."},
+         "descricao": "Aumenta a Sorte de Geovana, melhorando a chance de encontrar cartas e recompensas raras."},
          
         {"nome": "Poison", "Nick": "Toxina Temporal", 
-         "descricao": "Ataques aplicam veneno por 2 segundos. Cada acúmulo desta carta aumenta o dano do veneno por segundo em +0.5% da vida máxima do inimigo."},
+         "descricao": "Ataques aplicam veneno por alguns instantes. Cada compra deixa o veneno mais perigoso contra inimigos resistentes."},
          
         {"nome": "Coletora", "Nick": "Foice do Tempo", 
-         "descricao": f"Executa inimigos comuns abaixo do limiar de vida (inicia em 5%, aumenta +0.5% por compra). Contra chefes, o limiar e reduzido a 20% do normal e limitado ao teto de 1.5%. Cada compra tambem aumenta a armadura do chefe em +0.4%."},
+         "descricao": f"Finaliza inimigos comuns muito feridos. Contra chefes, o efeito e bem menor para evitar execucoes injustas."},
 
         {"nome": "Mercenaria", "Nick": "Contrato de Guerra",
-         "descricao": f"Ativa combo de pontos. A cada 5 abates consecutivos na partida, concede um bonus adicional de +25 pontos na pontuacao."}
+         "descricao": f"Ativa combo de pontos. A cada sequencia de 5 abates, Geovana recebe um bonus extra na pontuacao."}
     ]
 
     cartas_disponiveis = [
@@ -288,50 +288,48 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
         
         nome = carta_sel["nome"]
         if nome == "Speed Boost":
-            velocidade_personagem += incremento_carta_velocidade_movimento(inimigos_eliminados)
+            velocidade_personagem += incremento_carta_velocidade_movimento()
             cartas_compradas["Speed Boost"] += 1
         elif nome == "Porção":
-            vida += int(vida_maxima * 0.45 + (inimigos_eliminados // 30) * 0.05)
+            vida += int(vida_maxima * 0.45)
             if vida > vida_maxima:
                 vida_maxima = vida
-            vida_petro += int(vida_maxima_petro * 0.30 + (inimigos_eliminados // 40) * 0.03)
+            vida_petro += int(vida_maxima_petro * 0.30)
             if vida_petro > vida_maxima_petro:
                 vida_maxima_petro = vida_petro
             cartas_compradas["Porção"] += 1
         elif nome == "Disparo crescente":
-            dano_person_hit += incremento_carta_dano(inimigos_eliminados)
+            dano_person_hit += incremento_carta_dano()
             cartas_compradas["Disparo crescente"] += 1
         elif nome == "Trembo":
             trembo = True
             cartas_compradas["Trembo"] += 1
             if cartas_compradas["Trembo"] >= 2:
                 Tempo_cura = max(500, int(Tempo_cura * 0.75))
-                porcentagem_cura += 0.005 + (inimigos_eliminados // 100) * 0.001
+                porcentagem_cura += 0.005
             else:
                 Tempo_cura -= Tempo_cura * 0.05
-                porcentagem_cura += 0.001 + (inimigos_eliminados // 100) * 0.0005
+                porcentagem_cura += 0.001
         elif nome == "Tempestade":
-            dano_person_hit += incremento_dano_carta_critico(inimigos_eliminados)
-            chance_critico += incremento_chance_carta_critico(inimigos_eliminados)
+            dano_person_hit += incremento_dano_carta_critico()
+            chance_critico += incremento_chance_carta_critico()
             cartas_compradas["Tempestade"] += 1
         elif nome == "Cura":
             # Coop balance values
             roubo_de_vida = 1.0
-            quantidade_roubo_vida += 0.002 + (inimigos_eliminados // 80) * 0.0005
+            quantidade_roubo_vida += 0.002
             cartas_compradas["Cura"] += 1
         elif nome == "Speed Atack":
-            intervalo_disparo -= reducao_intervalo_carta_speed_attack(inimigos_eliminados)
+            intervalo_disparo -= reducao_intervalo_carta_speed_attack()
             if intervalo_disparo < intervalo_minimo_speed_attack():
                 intervalo_disparo = intervalo_minimo_speed_attack()
             cartas_compradas["Speed Atack"] += 1
         elif nome == "Teleporte":
-            tempo_cooldown_dash -= tempo_cooldown_dash * 0.003 + (inimigos_eliminados // 50) * 0.0005
-            if tempo_cooldown_dash < 0.5:
-                tempo_cooldown_dash = 0.5
+            tempo_cooldown_dash = reducao_cooldown_carta_teleporte(tempo_cooldown_dash)
             cartas_compradas["Teleporte"] += 1
         elif nome == "Petro":
             Petro_active = True
-            dano_petro += 2 + (inimigos_eliminados // 30) * 1
+            dano_petro += 2
             if 0 < petro_evolucao <= 8:
                 xp_petro = "nivel_1"
                 petro_evolucao += 4
@@ -350,7 +348,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
                 vida_maxima_petro = vida_petro
             cartas_compradas["Petro"] += 1
         elif nome == "Defesa":
-            Resistencia += 3.5 + (inimigos_eliminados // 50) * 0.5
+            Resistencia += 3.5
             if Resistencia > 50:
                 Resistencia = 50
             cartas_compradas["Defesa"] += 1

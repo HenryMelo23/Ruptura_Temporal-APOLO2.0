@@ -147,28 +147,81 @@ MANIFESTACOES_DADOS = {
         "nome": "Manifestacao Condutora",
         "icone": "Sprites/manifestacao_condutora.png",
         "estado": "encontrado",
-        "funcao": "Tecnica de rede: marca inimigos, cria circuitos entre eles e recompensa preparo coletivo.",
+        "funcao": "Tecnica logica: transforma inimigos em bits, conecta duas entradas e recompensa portas que resultam em 1.",
         "descricao_curta": (
-            "Geovana aprende a usar os inimigos como parte do circuito. A energia nao procura "
-            "apenas um alvo: ela monta caminhos, fecha conexoes e transforma a horda em uma rede instavel."
+            "Geovana passa a conduzir a Ruptura como um circuito vivo. Cada inimigo carrega 0 ou 1; "
+            "o jogador escolhe dois alvos e resolve a porta logica atual."
         ),
         "disparo": (
-            "Fio Condutor: disparo de dano baixo que aplica um fio no alvo atingido. "
-            "Inimigos marcados proximos criam linhas de energia entre si; essas linhas dao ticks "
-            "nos conectados e ferem quem atravessa o circuito."
+            "Pulso Logico: o primeiro acerto marca Entrada A por poucos segundos. O segundo acerto em outro inimigo "
+            "vira Entrada B, avalia OR, XOR, AND, NAND ou NOR e cria uma linha condutora."
         ),
         "habilidade": "Fechamento de Circuito",
         "descricao_habilidade": (
-            "Fecha todos os fios ativos. Cada componente conectado explode; quanto mais inimigos "
-            "e conexoes existirem na rede, maior o dano. Alvos isolados recebem dano fraco."
+            "Detona os links logicos corretos ativos. Resultado 1 causa dano amplificado e deixa o link pronto; "
+            "resultado 0 causa dano fraco e aplica Ruido Logico, uma lentidao curta em Geovana."
         ),
-        "traco": "Ideal para preparar o campo, manter inimigos vivos por tempo suficiente e explodir a rede inteira no momento certo.",
-        "risco": "Ruim contra alvo unico; exige construir o circuito antes de colher dano alto.",
-        "frase": "Geovana nao persegue um inimigo. Ela ensina a horda inteira a conduzir a propria queda.",
+        "traco": "Ideal para ler o campo, escolher pares de bits e guardar links corretos para uma descarga em cadeia.",
+        "risco": "Ruim contra alvo unico; exige leitura rapida dos bits e punira erros com lentidao leve, nao com stun.",
+        "frase": "Geovana nao persegue um inimigo. Ela transforma a horda em entradas de um circuito logico.",
         "desbloqueada": True,
         "ativa": True,
         "cor": (255, 210, 80),
         "cor_secundaria": (80, 235, 255),
+    },
+    "gravitante": {
+        "nome": "Manifestacao Gravitante",
+        "icone": "Sprites/manifestacao_gravitante.png",
+        "estado": "encontrado",
+        "funcao": "Pressao automatica: orbes orbitam alvos, causam ticks e explodem depois.",
+        "descricao_curta": (
+            "Geovana prende energia instavel ao corpo do inimigo. O disparo nao controla a gravidade: "
+            "ele fica orbitando o alvo como materia presa em queda."
+        ),
+        "disparo": (
+            "Orbe Gravitante: ao acertar o primeiro inimigo, fica girando em volta dele por alguns "
+            "segundos, causa pequenos ticks e explode. Se o hospedeiro morrer antes, tenta migrar "
+            "para outro alvo proximo."
+        ),
+        "habilidade": "Colapso Orbital",
+        "descricao_habilidade": (
+            "Cria tres orbes ao redor de Geovana. Apos breve preparo, eles disparam automaticamente "
+            "contra inimigos proximos e iniciam orbitas de dano retardado."
+        ),
+        "traco": "Boa quando a tela esta caotica, oferecendo protecao temporaria e dano automatico retardado.",
+        "risco": "Menos explosiva no impacto; depende do tempo de orbita para render dano total.",
+        "frase": "Geovana nao puxa o mundo. Ela prende a Ruptura ao corpo do inimigo ate tudo colapsar.",
+        "desbloqueada": True,
+        "ativa": True,
+        "cor": (118, 190, 255),
+        "cor_secundaria": (218, 245, 255),
+    },
+    "ancorada": {
+        "nome": "Manifestacao Ancorada",
+        "icone": "Sprites/manifestacao_ancorada.png",
+        "estado": "encontrado",
+        "funcao": "Controle de territorio proprio: escolhe um lugar, fixa ancoras e luta melhor ali.",
+        "descricao_curta": (
+            "Geovana prende pequenas ancoras de Ruptura no chao. A energia nao protege por escudo: "
+            "ela recompensa permanecer perto do territorio escolhido."
+        ),
+        "disparo": (
+            "Ancora de Ruptura: cada ataque planta uma ancora energetica no chao. "
+            "Enquanto Geovana estiver perto de ancoras, seus disparos ficam mais fortes, "
+            "a cadencia aumenta e inimigos que cruzam a area sofrem dano leve."
+        ),
+        "habilidade": "Dominio Fixo",
+        "descricao_habilidade": (
+            "Cria um circulo de dominio ao redor de Geovana por alguns segundos. Dentro dele, "
+            "ataques sao fortalecidos, projeteis inimigos ficam mais lentos e inimigos recebem marca."
+        ),
+        "traco": "Ideal para escolher um territorio e defender aquele ponto em vez de fugir sem parar.",
+        "risco": "Ruim contra chefes que forcam movimento, areas de dano e lutas em que ficar parado e perigoso.",
+        "frase": "Geovana finca a Ruptura no chao e decide: daqui eu nao cedo.",
+        "desbloqueada": True,
+        "ativa": True,
+        "cor": (75, 225, 255),
+        "cor_secundaria": (255, 205, 80),
     },
     "eco_grav": {
         "nome": "Eco não estabilizado",
@@ -233,7 +286,87 @@ MANIFESTACOES_DADOS = {
 }
 
 
-ORDEM_MANIFESTACOES = ["eletrica", "lacerante", "prismatica", "retornante", "parasitica", "condutora", "eco_grav"]
+MANIFESTACOES_DADOS["lacerante"].update({
+    "funcao": "Agressiva de medio alcance, feita para cortar hordas alinhadas, punir elites moveis e aplicar Laceracao.",
+    "disparo": (
+        "Corte de Ruptura: lamina curta, alcance menor e dano maior. Atravessa inimigos em linha, "
+        "aplica Laceracao e alterna cortes com formas diferentes. Com 3 acumulos, o alvo fica Aberto "
+        "e sofre mais com movimento e ataques."
+    ),
+    "descricao_habilidade": (
+        "Fenda Carnivora abre um rasgo a frente de Geovana. Apos breve aviso, a fissura explode em cortes, "
+        "causa dano em linha e consome Laceracao dos alvos para dano extra. O teleporte lacerante tambem rasga "
+        "o caminho percorrido, aplicando Laceracao em inimigos tocados pela fenda."
+    ),
+    "teleporte": (
+        "Shift abre um rasgo lacerante entre origem e destino. Inimigos tocados pelo caminho recebem dano menor, "
+        "ganham Laceracao e deixam a rota visualmente conectada ao estilo dos cortes da manifestacao."
+    ),
+    "traco": (
+        "Lacerados sofrem dano extra ao se mover ou atacar. Sinergias fortes: Profetica para alinhar fendas, "
+        "Insana para puxar alvos pelo rasgo e Voraz para aproveitar inimigos feridos."
+    ),
+    "risco": "Menor alcance, exige posicionamento e perde valor quando o jogador nao alinha os cortes ou enfrenta boss muito parado.",
+})
+
+MANIFESTACOES_DADOS["prismatica"].update({
+    "funcao": "Tecnica de precisao que recompensa angulo, preparo, ricochete e geometria de luz.",
+    "disparo": (
+        "Feixe Prismatico: tiro fino, veloz e de dano base menor. Ricocheteia uma vez em parede ou inimigo marcado; "
+        "apos ricochetear ganha dano. Se o feixe voltar ao mesmo alvo depois do ricochete, causa critico prismatico."
+    ),
+    "descricao_habilidade": (
+        "Prisma de Refracao cria um prisma no cursor por alguns segundos. Disparos que atravessam o prisma se dividem "
+        "em 3 feixes menores. O teleporte prismatico cria um prisma maior na saida do shift; esse prisma amplifica "
+        "fragmentos ja refratados uma vez, permitindo combo de habilidade 2 com teleporte. Inimigos que tocam o prisma "
+        "recebem dano leve e quebram a estrutura."
+    ),
+    "teleporte": (
+        "Shift projeta luz da origem ate a saida e materializa um prisma maior no destino, nao no ponto de partida. "
+        "Esse prisma aceita fragmentos do Prisma de Refracao e cria a segunda divisao controlada do combo."
+    ),
+    "traco": (
+        "Excelente contra chefes previsiveis, paredes uteis e jogadores que calculam angulos. Brilha quando o jogador "
+        "posiciona prisma, atravessa feixes e usa o shift como segunda lente."
+    ),
+    "risco": "Dano direto menor; depende de mira, posicionamento, arena com angulos bons e preparo do campo.",
+})
+
+MANIFESTACOES_DADOS["condutora"].update({
+    "funcao": "Tecnica logica: conecte dois inimigos. Se a porta atual resultar em 1, o circuito fica amplificado.",
+    "disparo": (
+        "Pulso Logico: cada inimigo mostra 0 ou 1 enquanto a Condutora esta ativa. O primeiro acerto marca Entrada A; "
+        "o segundo acerto em outro inimigo marca Entrada B, avalia a porta atual e consome a fila de portas. "
+        "OR aceita qualquer 1; XOR pede bits diferentes; AND pede 1 e 1; NAND falha apenas em 1 e 1; NOR pede 0 e 0."
+    ),
+    "descricao_habilidade": (
+        "Fechamento de Circuito detona apenas os links logicos corretos, aqueles com resultado 1. Um link causa dano bom; "
+        "varios links criam descarga em cadeia mais forte. Se nao houver link correto, a habilidade apenas mostra falha fraca."
+    ),
+    "teleporte": (
+        "Salto em Circuito: Shift cria uma linha de condutividade entre origem e destino. Inimigos tocados por essa linha "
+        "podem ser conduzidos, e se Geovana cruzar a linha eles sofrem CURTO: stun de 3s e dano equivalente a 50% do auto attack. "
+        "Esse teleporte nao consome portas logicas e nao aplica Ruido Logico."
+    ),
+    "traco": (
+        "A estrategia ideal e ler os bits, escolher o par certo para a porta atual, manter links corretos por alguns segundos "
+        "e fechar tudo no momento em que a horda estiver alinhada."
+    ),
+    "risco": "Resultado 0 ainda causa dano, mas aplica Ruido Logico: velocidade reduzida por pouco tempo. A pressao vem da leitura, nao de punicao pesada.",
+})
+
+
+ORDEM_MANIFESTACOES = [
+    "eletrica",
+    "lacerante",
+    "prismatica",
+    "retornante",
+    "parasitica",
+    "condutora",
+    "gravitante",
+    "ancorada",
+    "eco_grav",
+]
 
 
 def obter_manifestacoes():

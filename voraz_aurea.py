@@ -5,12 +5,14 @@ import pygame
 
 
 VORAZ_FOME_BASE = 100.0
-VORAZ_FOME_ESCALA = 36.0
-VORAZ_FRAGMENTO_VALOR = 32.0
+VORAZ_FOME_ESCALA = 54.0
+VORAZ_FOME_ESCALA_QUADRATICA = 9.0
+VORAZ_FRAGMENTO_VALOR = 28.0
 VORAZ_FRAGMENTO_DURACAO_MS = 6800
 VORAZ_FRAGMENTO_COLETA_RAIO = 68
-VORAZ_DECAIMENTO_BASE_POR_S = 4.2
-VORAZ_DECAIMENTO_ESCALA_POR_S = 0.8
+VORAZ_DECAIMENTO_BASE_POR_S = 5.4
+VORAZ_DECAIMENTO_ESCALA_POR_S = 1.65
+VORAZ_DECAIMENTO_ALTA_FOME_MULT = 4.2
 VORAZ_SEM_COLETA_DANO_MS = 30000
 VORAZ_DANO_FOME_MS = 1500
 VORAZ_SPAWN_BOSS_MS = 7000
@@ -24,6 +26,7 @@ VORAZ_MORDIDA_DANO_CICLO_MULT = 0.14
 VORAZ_MORDIDA_BOSS_BASE_MULT = 1.70
 VORAZ_MORDIDA_BOSS_FOME_MULT = 0.95
 VORAZ_MORDIDA_BOSS_VIDA_MAX_MULT = 0.003
+VORAZ_POEIRAS_POR_ABATE = 9
 
 
 def _eh_voraz(aurea):
@@ -37,6 +40,7 @@ def criar_estado_voraz(nivel=0, agora_ms=0):
         "fome": 0.0,
         "ciclos": 0,
         "fragmentos": [],
+        "poeiras": [],
         "mordidas": [],
         "ultimo_update_ms": agora,
         "ultima_coleta_ms": agora,
@@ -47,7 +51,7 @@ def criar_estado_voraz(nivel=0, agora_ms=0):
 
 def fome_maxima(estado):
     ciclos = max(0, int(estado.get("ciclos", 0))) if estado else 0
-    return VORAZ_FOME_BASE + ciclos * VORAZ_FOME_ESCALA
+    return VORAZ_FOME_BASE + ciclos * VORAZ_FOME_ESCALA + (ciclos * ciclos) * VORAZ_FOME_ESCALA_QUADRATICA
 
 
 def _intensidade(estado):
@@ -98,11 +102,34 @@ def dano_mult_disparo(disparo):
     return float(disparo.get("voraz_dano_mult", 1.0))
 
 
+def _valor_fome_coletavel(estado, valor_base):
+    ciclos = max(0, int(estado.get("ciclos", 0))) if estado else 0
+    return max(10.0, float(valor_base) * (0.94 ** ciclos))
+
+
+def _criar_poeira_abate(estado, x, y, tempo_atual):
+    poeiras = estado.setdefault("poeiras", [])
+    for _ in range(VORAZ_POEIRAS_POR_ABATE):
+        ang = random.uniform(0, math.tau)
+        vel = random.uniform(0.45, 1.8)
+        poeiras.append({
+            "x": float(x) + random.uniform(-8, 8),
+            "y": float(y) + random.uniform(-8, 8),
+            "vx": math.cos(ang) * vel,
+            "vy": math.sin(ang) * vel - random.uniform(0.35, 1.15),
+            "criado_ms": int(tempo_atual),
+            "expira_ms": int(tempo_atual) + random.randint(560, 980),
+            "fase": random.uniform(0, math.tau),
+            "raio": random.uniform(1.6, 4.4),
+        })
+
+
 def criar_fragmento_abate(estado, aurea, posicao, tempo_atual, quantidade=1):
     if not _eh_voraz(aurea) or not estado:
         return
     x, y = posicao
     fragmentos = estado.setdefault("fragmentos", [])
+    _criar_poeira_abate(estado, x, y, tempo_atual)
     for _ in range(max(1, int(quantidade))):
         ang = random.uniform(0, math.tau)
         dist = random.uniform(8, 30)
@@ -113,6 +140,7 @@ def criar_fragmento_abate(estado, aurea, posicao, tempo_atual, quantidade=1):
             "expira_ms": int(tempo_atual + VORAZ_FRAGMENTO_DURACAO_MS),
             "fase": random.uniform(0, math.tau),
             "valor": VORAZ_FRAGMENTO_VALOR,
+            "nascendo_ms": int(tempo_atual),
         })
 
 
@@ -126,7 +154,7 @@ def _criar_fragmento_boss(estado, boss_rect, tempo_atual):
 
 
 def _coletar_fragmento(estado, frag, tempo_atual, vida=None, vida_maxima=None, efeitos_texto=None):
-    estado["fome"] = float(estado.get("fome", 0.0)) + float(frag.get("valor", VORAZ_FRAGMENTO_VALOR))
+    estado["fome"] = float(estado.get("fome", 0.0)) + _valor_fome_coletavel(estado, frag.get("valor", VORAZ_FRAGMENTO_VALOR))
     estado["ultima_coleta_ms"] = int(tempo_atual)
     estado["ultimo_dano_fome_ms"] = int(tempo_atual)
 
@@ -142,7 +170,7 @@ def _coletar_fragmento(estado, frag, tempo_atual, vida=None, vida_maxima=None, e
 
 
 def _adicionar_fome_mordida(estado, tempo_atual):
-    fome_ganha = VORAZ_FRAGMENTO_VALOR * 0.75
+    fome_ganha = _valor_fome_coletavel(estado, VORAZ_FRAGMENTO_VALOR * 0.48)
     estado["fome"] = float(estado.get("fome", 0.0)) + fome_ganha
     estado["ultima_coleta_ms"] = int(tempo_atual)
     estado["ultimo_dano_fome_ms"] = int(tempo_atual)
@@ -177,7 +205,14 @@ def atualizar_voraz(
     estado["ultimo_update_ms"] = tempo_atual
 
     ciclos = int(estado.get("ciclos", 0))
-    decaimento = (VORAZ_DECAIMENTO_BASE_POR_S + ciclos * VORAZ_DECAIMENTO_ESCALA_POR_S) * dt_s
+    maximo_atual = max(1.0, fome_maxima(estado))
+    pct_fome = max(0.0, min(1.0, float(estado.get("fome", 0.0)) / maximo_atual))
+    pressao_alta = pct_fome * pct_fome * VORAZ_DECAIMENTO_ALTA_FOME_MULT
+    decaimento = (
+        VORAZ_DECAIMENTO_BASE_POR_S
+        + ciclos * VORAZ_DECAIMENTO_ESCALA_POR_S
+        + pressao_alta
+    ) * dt_s
     
     nova_fome = float(estado.get("fome", 0.0)) - decaimento
     while nova_fome < 0.0 and ciclos > 0:
@@ -388,20 +423,53 @@ def desenhar_voraz(tela, estado, aurea, tempo_atual, largura_tela=None, config_g
         efeitos = config_graficos.get("efeitos_visuais", True)
 
     if efeitos:
+        poeiras_vivas = []
+        for poeira in estado.get("poeiras", []):
+            inicio = int(poeira.get("criado_ms", tempo_atual))
+            fim = int(poeira.get("expira_ms", inicio + 1))
+            if tempo_atual >= fim:
+                continue
+            idade = max(0, tempo_atual - inicio)
+            duracao = max(1, fim - inicio)
+            p = idade / duracao
+            poeira["x"] += float(poeira.get("vx", 0.0))
+            poeira["y"] += float(poeira.get("vy", 0.0))
+            poeira["vy"] = float(poeira.get("vy", 0.0)) + 0.045
+            alpha = int(210 * (1.0 - p))
+            raio = max(1, int(float(poeira.get("raio", 2.0)) * (1.0 - p * 0.45)))
+            x = int(poeira["x"] + math.sin(tempo_atual * 0.012 + poeira.get("fase", 0.0)) * 2)
+            y = int(poeira["y"])
+            brilho = pygame.Surface((34, 34), pygame.SRCALPHA)
+            pygame.draw.circle(brilho, (255, 78, 18, int(alpha * 0.18)), (17, 17), raio + 9)
+            pygame.draw.circle(brilho, (255, 138, 32, alpha), (17, 17), raio + 2)
+            pygame.draw.circle(brilho, (255, 224, 120, min(220, alpha + 25)), (17, 17), max(1, raio // 2))
+            tela.blit(brilho, (x - 17, y - 17), special_flags=pygame.BLEND_RGBA_ADD)
+            poeiras_vivas.append(poeira)
+        estado["poeiras"] = poeiras_vivas
+
         vivos = []
         for frag in estado.get("fragmentos", []):
             restante = max(0.0, min(1.0, (frag.get("expira_ms", tempo_atual) - tempo_atual) / VORAZ_FRAGMENTO_DURACAO_MS))
             if restante <= 0:
                 continue
             pulso = (math.sin(tempo_atual * 0.010 + frag.get("fase", 0.0)) + 1.0) * 0.5
+            nascimento = max(0, tempo_atual - int(frag.get("nascendo_ms", tempo_atual)))
+            pop = max(0.0, 1.0 - nascimento / 420.0)
             x = int(frag["x"] + math.sin(tempo_atual * 0.004 + frag.get("fase", 0.0)) * 4)
             y = int(frag["y"] - (1.0 - restante) * 18 + pulso * 4)
             alpha = int(70 + 155 * restante)
-            raio = int(3 + pulso * 3)
-            brilho = pygame.Surface((28, 28), pygame.SRCALPHA)
-            pygame.draw.circle(brilho, (255, 112, 24, int(alpha * 0.28)), (14, 14), 13)
-            pygame.draw.circle(brilho, (255, 186, 70, alpha), (14, 14), raio)
-            tela.blit(brilho, (x - 14, y - 14), special_flags=pygame.BLEND_RGBA_ADD)
+            raio = int(4 + pulso * 4 + pop * 5)
+            brilho = pygame.Surface((42, 42), pygame.SRCALPHA)
+            pygame.draw.circle(brilho, (255, 82, 18, int(alpha * 0.24)), (21, 21), 19)
+            pygame.draw.circle(brilho, (255, 138, 34, int(alpha * 0.65)), (21, 21), max(6, raio + 5), 1)
+            pygame.draw.circle(brilho, (255, 190, 72, alpha), (21, 21), raio)
+            pygame.draw.circle(brilho, (255, 238, 150, min(255, alpha + 35)), (21, 21), max(2, raio // 2))
+            for i in range(3):
+                ang = frag.get("fase", 0.0) + tempo_atual * 0.006 + i * math.tau / 3
+                px = 21 + math.cos(ang) * (raio + 7)
+                py = 21 + math.sin(ang) * (raio + 7)
+                pygame.draw.circle(brilho, (255, 104, 20, int(alpha * 0.6)), (int(px), int(py)), 2)
+            tela.blit(brilho, (x - 21, y - 21), special_flags=pygame.BLEND_RGBA_ADD)
             vivos.append(frag)
         estado["fragmentos"] = vivos
 

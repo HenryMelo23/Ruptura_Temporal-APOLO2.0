@@ -66,19 +66,21 @@ DANO_INIMIGO_INICIO_MULTIPLICADOR = 0.55
 DANO_INIMIGO_ALIVIO_ATE_SEG = 8 * 60
 DANO_INIMIGO_NORMALIZA_ATE_SEG = 12 * 60
 
-CARTA_DANO_BASE = 8
-CARTA_DANO_POR_50_ABATES = 4
-CARTA_DANO_ESCALA_TARDIA_INICIO = 6
-CARTA_DANO_ESCALA_TARDIA_EXTRA = 2
+CARTA_DANO_BASE = 10
+CARTA_DANO_POR_50_ABATES = 0
+CARTA_DANO_ESCALA_TARDIA_INICIO = 0
+CARTA_DANO_ESCALA_TARDIA_EXTRA = 0
 CARTA_VELOCIDADE_BASE = 0.065
-CARTA_VELOCIDADE_POR_50_ABATES = 0.008
+CARTA_VELOCIDADE_POR_50_ABATES = 0.0
 CARTA_SPEED_ATTACK_BASE_MS = 34
-CARTA_SPEED_ATTACK_POR_100_ABATES_MS = 7
+CARTA_SPEED_ATTACK_POR_100_ABATES_MS = 0
 CARTA_SPEED_ATTACK_INTERVALO_MIN_MS = 70
 CARTA_CRITICO_DANO_BASE = 5
-CARTA_CRITICO_DANO_POR_ESCALA = 2
+CARTA_CRITICO_DANO_POR_ESCALA = 0
 CARTA_CRITICO_CHANCE_BASE = 0.02
-CARTA_CRITICO_CHANCE_POR_ESCALA = 0.005
+CARTA_CRITICO_CHANCE_POR_ESCALA = 0.0
+CARTA_TELEPORTE_REDUCAO_MS = 300
+CARTA_TELEPORTE_INTERVALO_MIN_MS = 500
 
 ANOMALIA_ESPREITADOR_SEG = 3 * 60
 ANOMALIA_PROJETADOR_SEG = 5 * 60
@@ -185,19 +187,15 @@ def incremento_sorte_carta():
 
 
 def incremento_carta_dano(inimigos_eliminados=0):
-    faixas = max(0, int(inimigos_eliminados or 0)) // 50
-    extra_tardio = max(0, faixas - CARTA_DANO_ESCALA_TARDIA_INICIO) * CARTA_DANO_ESCALA_TARDIA_EXTRA
-    return CARTA_DANO_BASE + faixas * CARTA_DANO_POR_50_ABATES + extra_tardio
+    return CARTA_DANO_BASE
 
 
 def incremento_carta_velocidade_movimento(inimigos_eliminados=0):
-    faixas = max(0, int(inimigos_eliminados or 0)) // 50
-    return CARTA_VELOCIDADE_BASE + faixas * CARTA_VELOCIDADE_POR_50_ABATES
+    return CARTA_VELOCIDADE_BASE
 
 
 def reducao_intervalo_carta_speed_attack(inimigos_eliminados=0):
-    faixas = max(0, int(inimigos_eliminados or 0)) // 100
-    return CARTA_SPEED_ATTACK_BASE_MS + faixas * CARTA_SPEED_ATTACK_POR_100_ABATES_MS
+    return CARTA_SPEED_ATTACK_BASE_MS
 
 
 def intervalo_minimo_speed_attack():
@@ -205,11 +203,19 @@ def intervalo_minimo_speed_attack():
 
 
 def incremento_dano_carta_critico(inimigos_eliminados=0):
-    return CARTA_CRITICO_DANO_BASE + (max(0, int(inimigos_eliminados or 0)) // 100) * CARTA_CRITICO_DANO_POR_ESCALA
+    return CARTA_CRITICO_DANO_BASE
 
 
 def incremento_chance_carta_critico(inimigos_eliminados=0):
-    return CARTA_CRITICO_CHANCE_BASE + (max(0, int(inimigos_eliminados or 0)) // 100) * CARTA_CRITICO_CHANCE_POR_ESCALA
+    return CARTA_CRITICO_CHANCE_BASE
+
+
+def reducao_cooldown_carta_teleporte(tempo_cooldown_dash):
+    try:
+        tempo_atual = float(tempo_cooldown_dash)
+    except (TypeError, ValueError):
+        tempo_atual = CARTA_TELEPORTE_INTERVALO_MIN_MS
+    return max(CARTA_TELEPORTE_INTERVALO_MIN_MS, tempo_atual - CARTA_TELEPORTE_REDUCAO_MS)
 
 
 def vida_inicial_boss(boss_id, vida_base):

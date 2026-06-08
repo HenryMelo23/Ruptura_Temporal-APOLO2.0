@@ -66,6 +66,16 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
     
     # Posições interpoladas para o carrossel
     x_offset_lerp = 0.0
+
+    def distancia_circular(indice, centro):
+        total = max(1, len(AUREAS_DADOS))
+        dist = int(indice) - int(centro)
+        metade = total / 2.0
+        if dist > metade:
+            dist -= total
+        elif dist < -metade:
+            dist += total
+        return dist
     
     while running_menu:
         global_time += 1
@@ -117,14 +127,14 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
         right_action_rect = pygame.Rect(right_col_rect.left, right_col_rect.top + 252, right_col_rect.width, 34)
         
         # Rodapé
-        footer_rect = pygame.Rect(0, altura_tela - 22, largura_tela, 20)
-        btn_voltar_rect = pygame.Rect(header_margin, altura_tela - 62, 130, 34)
+        footer_rect = pygame.Rect(0, altura_tela - 28, largura_tela, 24)
+        btn_voltar_rect = pygame.Rect(40, 34, 130, 36)
         btn_evoluir_rect = right_action_rect.inflate(18, 8)
         mx, my = ui_helpers.obter_pos_mouse_superficie(tela)
 
         rects_aureas = []
         for idx_aura in range(len(AUREAS_DADOS)):
-            x_target = centro_x + idx_aura * 280 - x_offset_lerp
+            x_target = centro_x + distancia_circular(idx_aura, selecionado) * 280
             distance_from_center = abs(x_target - centro_x)
             max_visible_dist = largura_tela // 2
             if distance_from_center > max_visible_dist:
@@ -176,10 +186,11 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
                 clicou_card = False
                 for idx_aura, rect_aura in rects_aureas:
                     if rect_aura.collidepoint(pos_evento):
-                        if idx_aura > selecionado:
-                            selecionado = min(selecionado + 1, len(AUREAS_DADOS) - 1)
-                        elif idx_aura < selecionado:
-                            selecionado = max(selecionado - 1, 0)
+                        dist_click = distancia_circular(idx_aura, selecionado)
+                        if dist_click > 0:
+                            selecionado = (selecionado + 1) % len(AUREAS_DADOS)
+                        elif dist_click < 0:
+                            selecionado = (selecionado - 1) % len(AUREAS_DADOS)
                         clicou_card = True
                         break
                 if not clicou_card and btn_evoluir_rect.collidepoint(pos_evento):
@@ -312,7 +323,14 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
         right_action_rect_shaken = right_action_rect.move(offset_shake_x, offset_shake_y)
 
         # 3. Renderização da tela
-        tela.fill((int(cor_fundo_atual[0]), int(cor_fundo_atual[1]), int(cor_fundo_atual[2])))
+        ui_helpers.desenhar_fundo_menu_ruptura(
+            tela,
+            global_time * 16,
+            None,
+            tuple(int(c) for c in cor_fundo_atual),
+            aura_atual["cor"],
+            0.95,
+        )
         
         # Desenhar partículas ambiente
         for p in particulas_ambiente:
@@ -334,7 +352,7 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
         # Desenhar cards do carrossel
         for i, d in enumerate(AUREAS_DADOS):
             # Calcular x relativo
-            x_target = centro_x + i * 280 - x_offset_lerp
+            x_target = centro_x + distancia_circular(i, selecionado) * 280
             
             # Fade out cards that are too far left or right (so they don't look broken when cut off)
             distance_from_center = abs(x_target - centro_x)
@@ -489,27 +507,30 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
         ))
 
         # 5. Top Bar (Título e Moedas)
-        titulo_rect = pygame.Rect(header_rect.left, header_rect.top, max_titulo_w, 40)
-        ui_helpers.renderizar_titulo(tela, "NUCLEO DE EVOLUCAO TEMPORAL", max_titulo_w, titulo_rect, fontes["titulo_path"], 52, (255, 255, 255))
-
-        t_sub = fonte_titulo_sub.render("Estabilize as moedas de energia para expandir sua linhagem temporal", True, (150, 150, 160))
-        tela.blit(t_sub, (header_rect.left, header_rect.top + 45))
+        ui_helpers.desenhar_cabecalho_menu(
+            tela,
+            "NUCLEO DE AUREAS",
+            "Use moedas para expandir a aura e fortalecer sua regra passiva.",
+            fonte_titulo_large,
+            fonte_titulo_sub,
+            aura_atual["cor"],
+            y=70,
+        )
 
         # Moedas no topo direito
         ui_helpers.desenhar_painel_fragmentos(tela, moedas_rect, moedas_disponiveis, fonte_card_name, (0, 255, 204))
         
         hover_voltar = modo_interacao == "mouse" and btn_voltar_rect.collidepoint(mx, my)
-        pygame.draw.rect(tela, (18, 18, 26), btn_voltar_rect, border_radius=6)
-        pygame.draw.rect(tela, aura_atual["cor"] if hover_voltar else (80, 80, 90), btn_voltar_rect, width=2 if hover_voltar else 1, border_radius=6)
-        txt_voltar = fonte_panel_lore.render("VOLTAR", True, (255, 255, 255))
-        tela.blit(txt_voltar, (
-            btn_voltar_rect.centerx - txt_voltar.get_width() // 2,
-            btn_voltar_rect.centery - txt_voltar.get_height() // 2
-        ))
+        ui_helpers.desenhar_botao_voltar_menu(tela, btn_voltar_rect, fonte_panel_lore, hover_voltar, aura_atual["cor"], "ESC Voltar")
 
         # Barra inferior de instrução
-        txt_barra_inf = fonte_panel_lore.render("Clique nas laterais para navegar  |  Clique em Evoluir para comprar  |  A/D e ESC funcionam", True, (130, 130, 140))
-        tela.blit(txt_barra_inf, (footer_rect.left + footer_rect.width // 2 - txt_barra_inf.get_width() // 2, footer_rect.top))
+        ui_helpers.desenhar_rodape_menu(
+            tela,
+            "A/D ou setas: navegar | ENTER/ESPACO: evoluir | ESC: voltar",
+            fonte_panel_lore,
+            aura_atual["cor"],
+            footer_rect.centery,
+        )
         
         ui_helpers.desenhar_cursor_personalizado(tela)
         pygame.display.flip()

@@ -7,6 +7,8 @@ import prismatica_manifestacao
 import retornante_manifestacao
 import parasitica_manifestacao
 import condutora_manifestacao
+import gravitante_manifestacao
+import ancorada_manifestacao
 
 
 INSANA_ECOS_BASE = 4
@@ -124,8 +126,10 @@ def atualizar_insana(estado, aurea, tempo_atual, disparos, vfx_disparo_player):
                 or retornante_manifestacao.ativa(eco.get("manifestacao_ativa"))
                 or parasitica_manifestacao.ativa(eco.get("manifestacao_ativa"))
                 or condutora_manifestacao.ativa(eco.get("manifestacao_ativa"))
+                or gravitante_manifestacao.ativa(eco.get("manifestacao_ativa"))
+                or ancorada_manifestacao.ativa(eco.get("manifestacao_ativa"))
             ):
-                disparo = condutora_manifestacao.criar_auto_attack(
+                disparo = ancorada_manifestacao.criar_auto_attack(
                     eco.get("manifestacao_ativa"),
                     vfx_disparo_player,
                     eco["centro_x"],
@@ -136,6 +140,7 @@ def atualizar_insana(estado, aurea, tempo_atual, disparos, vfx_disparo_player):
                     velocidade_eco,
                     tempo_atual,
                     False,
+                    plantar_ancora=False,
                 )
             else:
                 disparo = vfx_disparo_player.criar_disparo(

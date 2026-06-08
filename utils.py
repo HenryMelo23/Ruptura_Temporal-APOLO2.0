@@ -267,6 +267,40 @@ def tocar_trailer_se_necessario(tela):
         registrar_erro(f"Trailer: arquivo nao encontrado em {video_path}")
         return
 
+    def _configurar_vlc_empacotado():
+        if not getattr(sys, "frozen", False) or not sys.platform.startswith("win"):
+            return True
+        candidatos = []
+        for raiz in (
+            getattr(sys, "_MEIPASS", None),
+            os.path.dirname(sys.executable),
+            os.getcwd(),
+        ):
+            if raiz and raiz not in candidatos:
+                candidatos.append(raiz)
+        for raiz in list(candidatos):
+            interno = os.path.join(raiz, "_internal")
+            if os.path.isdir(interno) and interno not in candidatos:
+                candidatos.append(interno)
+        for raiz in candidatos:
+            dll_path = os.path.join(raiz, "libvlc.dll")
+            plugins_path = os.path.join(raiz, "plugins")
+            if not os.path.exists(dll_path):
+                continue
+            os.environ.setdefault("PYTHON_VLC_LIB_PATH", dll_path)
+            if os.path.isdir(plugins_path):
+                os.environ.setdefault("PYTHON_VLC_MODULE_PATH", plugins_path)
+            try:
+                os.add_dll_directory(raiz)
+            except (AttributeError, FileNotFoundError, OSError):
+                pass
+            return True
+        return False
+
+    if not _configurar_vlc_empacotado():
+        _salvar_trailer_assistido("libvlc nao empacotada")
+        return
+
     # 2. Carrega python-vlc
     try:
         import vlc

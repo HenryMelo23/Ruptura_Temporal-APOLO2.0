@@ -5,8 +5,8 @@ AUREAS_DADOS = [
         "id": "Racional",
         "nome": "RACIONAL",
         "categoria": "Analise e Precisao Temporal",
-        "descricao": "Utilidade: controle de ritmo e reposicionamento seguro. Ficar totalmente imovel por 5s gera pontos bonus (+3 + nivel). Ao usar Teleporte com a recarga pronta, ativa Dilatacao Temporal por 8s: inimigos e projeteis ficam 58% mais lentos, Apolo ganha +35% de movimento e atira 28% mais rapido. Quando acaba, vem o Rebote por 3s: inimigos/projeteis aceleram 50%.",
-        "resumo": "Controle de ritmo: ficar imovel gera pontos; Teleporte pronto desacelera inimigos/projeteis e acelera Apolo por 8s. Depois ha Rebote: inimigos aceleram por 3s.",
+        "descricao": "Utilidade: controle de ritmo e reposicionamento seguro. Ficar totalmente imovel por 5s gera pontos bonus (+3 + nivel). Ao usar Teleporte com a recarga pronta, ativa Dilatacao Temporal por 8s: inimigos e projeteis ficam 58% mais lentos, Geovana ganha +35% de movimento e atira 28% mais rapido. Quando acaba, vem o Rebote por 3s: inimigos/projeteis aceleram 50%.",
+        "resumo": "Controle de ritmo: ficar imovel gera pontos; Teleporte pronto desacelera inimigos/projeteis e acelera Geovana por 8s. Depois ha Rebote: inimigos aceleram por 3s.",
         "lore": "\"A mente fria nao preve o futuro. Ela obriga o futuro a se revelar.\"",
         "imagem_path": "Sprites/aurea_cientista.png",
         "cor": (0, 180, 255),
@@ -21,7 +21,7 @@ AUREAS_DADOS = [
         },
         "destaques": [
             "- Fique parado 5s para ganhar pontuacao bonus.",
-            "- Teleporte pronto: 8s de mundo lento e Apolo mais rapido.",
+            "- Teleporte pronto: 8s de mundo lento e Geovana mais rapida.",
             "- Custo: depois da Dilatacao, inimigos aceleram por 3s."
         ]
     },
@@ -29,7 +29,7 @@ AUREAS_DADOS = [
         "id": "Impulsiva",
         "nome": "IMPULSIVA",
         "categoria": "Agressividade e Velocidade",
-        "descricao": "Utilidade: agressao continua e limpeza rapida de grupos. A cada 5 abates sem sofrer dano, ativa um Frenesi temporario ligado a dano e/ou velocidade. Nas fases com sistema completo, renovar com tempo sobrando aumenta o nivel do Frenesi e os multiplicadores; se Apolo levar hit durante o Frenesi, ele quebra e arma Panico, fazendo o proximo dano recebido escalar pelo nivel alcancado.",
+        "descricao": "Utilidade: agressao continua e limpeza rapida de grupos. A cada 5 abates sem sofrer dano, ativa um Frenesi temporario ligado a dano e/ou velocidade. Nas fases com sistema completo, renovar com tempo sobrando aumenta o nivel do Frenesi e os multiplicadores; se Geovana levar hit durante o Frenesi, ele quebra e arma Panico, fazendo o proximo dano recebido escalar pelo nivel alcancado.",
         "resumo": "Agressao continua: 5 abates sem dano ativam Frenesi de dano/velocidade. Manter sequencia renova o efeito; sofrer hit quebra a pressao.",
         "lore": "\"A hesitacao e uma fresta pela qual o tempo escorre. Nao pense, aja.\"",
         "imagem_path": "Sprites/aurea_impulsiva.png",
@@ -53,7 +53,7 @@ AUREAS_DADOS = [
         "id": "Devota",
         "nome": "DEVOTA",
         "categoria": "Protecao e Sobrevivencia",
-        "descricao": "Utilidade: transformar erro em contra-ataque. A aura cria 3 cargas de escudo que anulam impactos. Cada bloqueio cura 10% da vida perdida e concede +25% dano por 3s. Ao quebrar a ultima carga, Apolo recebe Fe Ardente: +65% dano por 4.5s, com apenas -10% velocidade. Upgrade reduz a recarga.",
+        "descricao": "Utilidade: transformar erro em contra-ataque. A aura cria 3 cargas de escudo que anulam impactos. Cada bloqueio cura 10% da vida perdida e concede +25% dano por 3s. Ao quebrar a ultima carga, Geovana recebe Fe Ardente: +65% dano por 4.5s, com apenas -10% velocidade. Upgrade reduz a recarga.",
         "resumo": "Sobrevivencia ofensiva: 3 cargas anulam hits, curam parte da vida perdida e viram janela de dano.",
         "lore": "\"O tempo e a melhor armadura. Ele consome tudo, exceto a fe.\"",
         "imagem_path": "Sprites/aurea_devota.png",
@@ -127,8 +127,8 @@ AUREAS_DADOS = [
         "id": "Voraz",
         "nome": "VORAZ",
         "categoria": "Fome, Consumo e Risco",
-        "descricao": "Utilidade: agressao sustentada por coleta ativa. Inimigos derrotados deixam poeira voraz por poucos segundos; coletar essa poeira enche a barra Fome e cura 5% da vida perdida. Ao completar a barra, ela sobe para X1, X2 e assim por diante: cada ciclo exige mais poeira e a Fome passa a cair mais rapido. Com Fome sustentada, os tiros ficam maiores e causam mais dano, habilidades recarregam um pouco mais rapido, inimigos proximos sao puxados levemente para Geovana e contato causa mordidas. Cada mordida recupera 25% da vida perdida; se finalizar um inimigo, recupera 35%; em boss, recupera 60%. Se ficar mais de 30s sem coletar poeira, a aura cobra 1% da vida a cada 1.5s.",
-        "resumo": "Coleta agressiva: abates deixam poeira voraz que enche Fome e cura 5% da vida perdida. Fome sustentada aumenta tiros/dano, acelera recargas, puxa inimigos e ativa mordidas; sem coleta por 30s drena vida.",
+        "descricao": "Utilidade: agressao sustentada por coleta ativa. Inimigos derrotados deixam poeira voraz laranja por poucos segundos; coletar essa poeira enche a barra Fome e cura 5% da vida perdida. Ao completar a barra, ela sobe para X1, X2 e assim por diante: cada ciclo exige bem mais Fome, a barra cai mais rapido e a parte alta da barra e mais dificil de manter. Com Fome sustentada, os tiros ficam maiores e causam mais dano, habilidades recarregam um pouco mais rapido, inimigos proximos sao puxados levemente para Geovana e contato causa mordidas. Cada mordida recupera 25% da vida perdida; se finalizar um inimigo, recupera 35%; em boss, recupera 60%. Se ficar mais de 30s sem coletar poeira, a aura cobra 1% da vida a cada 1.5s.",
+        "resumo": "Coleta agressiva: abates deixam poeira voraz laranja que enche Fome e cura 5% da vida perdida. Quanto mais ciclos, mais dificil manter a barra cheia; sem coleta por 30s drena vida.",
         "lore": "\"A ruptura nao abre uma boca. Ela ensina Geovana a sentir uma.\"",
         "imagem_path": "Sprites/aurea_voraz.png",
         "cor": (255, 112, 24),
@@ -144,7 +144,7 @@ AUREAS_DADOS = [
         "destaques": [
             "- Abates deixam poeira laranja voraz por poucos segundos.",
             "- Coletar poeira enche Fome e cura 5% da vida perdida.",
-            "- Fome sustentada aumenta tiros/dano, acelera recargas e puxa inimigos.",
+            "- Cada ciclo exige muito mais Fome; barra alta cai mais rapido.",
             "- Mordidas curam 25% da vida perdida; se eliminarem inimigo, curam 35%; contra boss, curam 60%.",
             "- Custo: 30s sem coletar poeira drena 1% de vida a cada 1.5s."
         ]

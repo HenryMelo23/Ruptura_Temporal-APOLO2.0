@@ -2,6 +2,8 @@ import os
 import shutil
 import subprocess
 import argparse
+import struct
+import sys
 from pathlib import Path
 
 
@@ -10,6 +12,20 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DIST_NAME = "Ruptura_Temporal_APOLO2.0"
 DIST_EXE_NAME = "Ruptura_Temporal.exe"
 LIGHT_RUNTIME_HOOK = "scripts/runtime_hooks/player_lite_phase4.py"
+VLC_RUNTIME_HOOK = "scripts/runtime_hooks/vlc_path.py"
+
+REQUIRED_RUNTIME_MODULES = [
+    "ancorada_manifestacao",
+    "condutora_manifestacao",
+    "gravitante_manifestacao",
+    "insana_aurea",
+    "lacerante_manifestacao",
+    "parasitica_manifestacao",
+    "prismatica_manifestacao",
+    "retornante_manifestacao",
+    "teleporte_manifestacao",
+    "voraz_aurea",
+]
 
 LIGHT_BUILD_EXCLUDES = [
     "GAME5",
@@ -34,6 +50,112 @@ def _exclude_args(modules):
     return args
 
 
+def _hidden_import_args(modules):
+    args = []
+    for module in modules:
+        args.extend(["--hidden-import", module])
+    return args
+
+
+def _verify_required_runtime_modules(modules):
+    missing = []
+    for module in modules:
+        module_path = PROJECT_ROOT / f"{module.replace('.', os.sep)}.py"
+        package_path = PROJECT_ROOT / module.replace(".", os.sep) / "__init__.py"
+        if not module_path.exists() and not package_path.exists():
+            missing.append(module)
+    if missing:
+        joined = ", ".join(missing)
+        raise FileNotFoundError(
+            f"Required runtime module(s) missing before build: {joined}. "
+            "The executable would crash on another PC if this build continued."
+        )
+
+
+def _pe_machine(path):
+    try:
+        with open(path, "rb") as f:
+            if f.read(2) != b"MZ":
+                return None
+            f.seek(0x3C)
+            pe_offset = struct.unpack("<I", f.read(4))[0]
+            f.seek(pe_offset)
+            if f.read(4) != b"PE\0\0":
+                return None
+            return struct.unpack("<H", f.read(2))[0]
+    except OSError:
+        return None
+
+
+def _python_machine():
+    return 0x8664 if sys.maxsize > 2 ** 32 else 0x014C
+
+
+def _same_arch_vlc(vlc_dir):
+    dll_path = vlc_dir / "libvlc.dll"
+    machine = _pe_machine(dll_path)
+    return machine is not None and machine == _python_machine()
+
+
+def _vlc_candidates(vlc_dir_override=None):
+    seen = set()
+    if vlc_dir_override:
+        path = Path(vlc_dir_override)
+        seen.add(str(path).lower())
+        yield path
+    env_dir = os.environ.get("RUPTURA_VLC_DIR")
+    if env_dir and env_dir != vlc_dir_override:
+        path = Path(env_dir)
+        key = str(path).lower()
+        if key not in seen:
+            seen.add(key)
+            yield path
+    for value in (
+        r"C:\Program Files\VideoLAN\VLC",
+        r"C:\Program Files (x86)\VideoLAN\VLC",
+    ):
+        path = Path(value)
+        key = str(path).lower()
+        if key not in seen:
+            seen.add(key)
+            yield path
+
+
+def _find_vlc_runtime(vlc_dir_override=None):
+    for vlc_dir in _vlc_candidates(vlc_dir_override):
+        if not vlc_dir.exists():
+            continue
+        if not (vlc_dir / "libvlc.dll").exists() or not (vlc_dir / "libvlccore.dll").exists():
+            continue
+        if not _same_arch_vlc(vlc_dir):
+            print(f"WARNING: VLC found but skipped due to architecture mismatch: {vlc_dir}")
+            continue
+        plugins_dir = vlc_dir / "plugins"
+        if not plugins_dir.exists():
+            print(f"WARNING: VLC found without plugins folder, skipped: {vlc_dir}")
+            continue
+        return vlc_dir
+    return None
+
+
+def _add_binary_arg(src, dest="."):
+    return ["--add-binary", f"{src}{os.pathsep}{dest}"]
+
+
+def _add_data_arg(src, dest):
+    return ["--add-data", f"{src}{os.pathsep}{dest}"]
+
+
+def _vlc_pyinstaller_args(vlc_dir):
+    if not vlc_dir:
+        return []
+    args = []
+    args.extend(_add_binary_arg(vlc_dir / "libvlc.dll"))
+    args.extend(_add_binary_arg(vlc_dir / "libvlccore.dll"))
+    args.extend(_add_data_arg(vlc_dir / "plugins", "plugins"))
+    return args
+
+
 def _run_pyinstaller(args, dry_run=False):
     command = ["pyinstaller", *args]
     print("Running:", " ".join(command))
@@ -42,7 +164,7 @@ def _run_pyinstaller(args, dry_run=False):
     subprocess.run(command, check=True)
 
 
-def build(include_phase5=False, dry_run=False):
+def build(include_phase5=False, dry_run=False, vlc_dir=None):
     os.chdir(PROJECT_ROOT)
     print("=== STARTING BUILD PROCESS ===")
     if include_phase5:
@@ -50,6 +172,14 @@ def build(include_phase5=False, dry_run=False):
     else:
         print("Build profile: player lite, phases 1-4 only. GAME5/GAME5_PLAYER/PyTorch are excluded.")
         print("Runtime cap: RUPTURA_MAX_PHASE=4 is injected into the executable.")
+
+    vlc_dir = _find_vlc_runtime(vlc_dir)
+    if vlc_dir:
+        print(f"VLC runtime bundled from: {vlc_dir}")
+    else:
+        print("WARNING: Compatible VLC runtime not found. Trailer playback will be skipped on PCs without VLC.")
+
+    _verify_required_runtime_modules(REQUIRED_RUNTIME_MODULES)
     
     # 1. Clean old builds
     dist_dir = os.path.abspath(f"dist/{DIST_NAME}")
@@ -70,8 +200,11 @@ def build(include_phase5=False, dry_run=False):
         "--noconfirm",
         "--onedir",
         "--windowed",
+        "--runtime-hook", VLC_RUNTIME_HOOK,
         "--distpath", "dist",
         "--name", DIST_NAME,
+        *_hidden_import_args(REQUIRED_RUNTIME_MODULES),
+        *_vlc_pyinstaller_args(vlc_dir),
         "Ruptura_Temporal.py"
     ]
     if not include_phase5:
@@ -103,8 +236,11 @@ def build(include_phase5=False, dry_run=False):
             "--noconfirm",
             "--onedir",
             "--windowed",
+            "--runtime-hook", VLC_RUNTIME_HOOK,
             "--distpath", "dist/temp",
             "--name", "GAME5_PLAYER",
+            *_hidden_import_args(REQUIRED_RUNTIME_MODULES),
+            *_vlc_pyinstaller_args(vlc_dir),
             "GAME5_PLAYER.py"
         ], dry_run=dry_run)
 
@@ -151,9 +287,14 @@ def parse_args():
         action="store_true",
         help="Print build commands without running PyInstaller or copying files."
     )
+    parser.add_argument(
+        "--vlc-dir",
+        default=None,
+        help="Optional path to a VLC folder containing libvlc.dll, libvlccore.dll and plugins."
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    build(include_phase5=args.include_phase5, dry_run=args.dry_run)
+    build(include_phase5=args.include_phase5, dry_run=args.dry_run, vlc_dir=args.vlc_dir)

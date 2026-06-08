@@ -11,6 +11,7 @@ from Tela_Cartas import tela_de_pausa
 from Variaveis import *
 import Variaveis
 from utils import *
+from ui_helpers import ganho_passiva_racional, personagem_racional_imovel, RACIONAL_PASSIVA_INTERVALO_MS
 import habilidade_boss_player as hb
 import collections
 from audio_manager import carregar_config_audio, aplicar_volume_som
@@ -1357,9 +1358,9 @@ def executar_jogo(game_manager=None):
             nivel_racional = upgrades.get("Racional", 0)
             #LUGAR AONDE COLOCAMOS AS AUREAS
             if aurea == "Racional":
-                if pos_x_personagem == ultimo_x and pos_y_personagem == ultimo_y:
-                    if tempo_atual - tempo_parado_person >= 5000:
-                        ganho = 3 + nivel_racional  # ganho aumenta com o nível
+                if personagem_racional_imovel(pos_x_personagem, pos_y_personagem, ultimo_x, ultimo_y):
+                    if tempo_atual - tempo_parado_person >= RACIONAL_PASSIVA_INTERVALO_MS:
+                        ganho = ganho_passiva_racional(nivel_racional)
                         pontuacao += ganho
                         pontuacao_exib += ganho
                         tempo_parado_person = tempo_atual

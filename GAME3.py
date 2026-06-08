@@ -12,6 +12,9 @@ import prismatica_manifestacao
 import retornante_manifestacao
 import parasitica_manifestacao
 import condutora_manifestacao
+import gravitante_manifestacao
+import ancorada_manifestacao
+import teleporte_manifestacao
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from Tela_Cartas import tela_de_pausa
 from Variaveis import *
@@ -26,7 +29,10 @@ from ui_helpers import (
     desenhar_efeito_racional_dilatacao,
     fator_movimento_racional,
     fator_mundo_racional,
+    ganho_passiva_racional,
     intervalo_disparo_racional,
+    personagem_racional_imovel,
+    RACIONAL_PASSIVA_INTERVALO_MS,
     tentar_ativar_dilatacao_racional,
     absorver_hit_devota,
     consumir_cura_absorcao_devota,
@@ -568,6 +574,7 @@ def atualizar_posicao_personagem(keys, joystick):
         velocidade_personagem
         * fator_movimento_racional(aurea, racional_dilatacao_fim)
         * fator_velocidade_devota(aurea, estado_devota, tempo_atual)
+        * condutora_manifestacao.fator_ruido_logico(manifestacao_ativa, tempo_atual)
     )
 
     # ---- TECLADO ----
@@ -648,10 +655,30 @@ def atualizar_posicao_personagem(keys, joystick):
         dash_teclado = Variaveis.verificar_input("Teleporte")
         dash_joystick = joystick and joystick.get_button(4) if joystick else False
 
-    if (dash_teclado or dash_joystick or executar_teleporte_mouse_flag) and cooldown_dash == False:
+    teleporte_pressionado = bool(dash_teclado or dash_joystick or executar_teleporte_mouse_flag)
+    estado_retorno = teleporte_manifestacao.atualizar_estado_retorno(
+        manifestacao_ativa, tempo_atual, teleporte_pressionado
+    )
+    if estado_retorno == "expirado" and not cooldown_dash:
+        cooldown_dash = True
+        tempo_ultimo_dash = tempo_atual
+    retorno_disponivel = teleporte_manifestacao.retorno_disponivel(
+        manifestacao_ativa, tempo_atual, teleporte_pressionado
+    )
+    if (dash_teclado or dash_joystick or executar_teleporte_mouse_flag) and (cooldown_dash == False or retorno_disponivel):
         Som_portal.play()
+        origem_teleporte = (pos_x_personagem + largura_personagem // 2, pos_y_personagem + altura_personagem // 2)
+        player_pos_origem_teleporte = (pos_x_personagem, pos_y_personagem)
+        retorno_teleporte = teleporte_manifestacao.consumir_retorno_manifestacao_retornante(
+            manifestacao_ativa, tempo_atual, largura_mapa, altura_mapa, largura_personagem, altura_personagem
+        ) if retorno_disponivel else None
 
-        if executar_teleporte_mouse_flag:
+        if retorno_teleporte is not None:
+            dest_px, dest_py = retorno_teleporte
+            animar_teleporte_plasma(tela, mapa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, teleporte_duration // 2, ultima_tecla_movimento, distancia_dash, largura_mapa, altura_mapa, dest_x=dest_px, dest_y=dest_py)
+            tela.blit(mapa, (pos_x_personagem, pos_y_personagem), pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
+            pos_x_personagem, pos_y_personagem = dest_px, dest_py
+        elif executar_teleporte_mouse_flag:
             px_c = pos_x_personagem + largura_personagem // 2
             py_c = pos_y_personagem + altura_personagem // 2
             dest_x, dest_y = Variaveis.calcular_destino_teleporte(px_c, py_c, distancia_dash)
@@ -669,15 +696,41 @@ def atualizar_posicao_personagem(keys, joystick):
             elif ultima_tecla_movimento == 'left': pos_x_personagem = max(0, pos_x_personagem - distancia_dash)
             elif ultima_tecla_movimento == 'right': pos_x_personagem = min(largura_mapa - largura_personagem, pos_x_personagem + distancia_dash)
 
-        cooldown_dash = True
-        tempo_ultimo_dash = pygame.time.get_ticks()
+        tempo_teleporte_agora = pygame.time.get_ticks()
         novo_fim_racional, racional_dilatacao_proximo_uso = tentar_ativar_dilatacao_racional(
             aurea,
-            tempo_ultimo_dash,
+            tempo_teleporte_agora,
             racional_dilatacao_proximo_uso,
         )
         if novo_fim_racional is not None:
             racional_dilatacao_fim = novo_fim_racional
+        destino_teleporte = (pos_x_personagem + largura_personagem // 2, pos_y_personagem + altura_personagem // 2)
+        efeito_teleporte = teleporte_manifestacao.aplicar_efeito_teleporte_manifestacao(
+            manifestacao_ativa,
+            origem_teleporte,
+            destino_teleporte,
+            inimigos_comum,
+            None,
+            dano_person_hit * fator_dano_aureas(tempo_atual),
+            efeitos_texto,
+            tempo_atual,
+            largura_mapa,
+            altura_mapa,
+            ondas,
+            retorno_teleporte is not None,
+            player_pos_origem_teleporte,
+        )
+        primeiro_salto_retornante = (
+            str(manifestacao_ativa or "").strip().lower() == "retornante"
+            and retorno_teleporte is None
+            and teleporte_manifestacao.teleporte_retornante_ativo(manifestacao_ativa)
+        )
+        if primeiro_salto_retornante:
+            cooldown_dash = False
+            tempo_ultimo_dash = tempo_teleporte_agora - int(tempo_cooldown_dash)
+        else:
+            cooldown_dash = True
+            tempo_ultimo_dash = tempo_teleporte_agora + int(efeito_teleporte.get("cooldown_extra_ms", 0))
 
         # Onda de choque no destino do teletransporte
         cx_t = pos_x_personagem + largura_personagem // 2
@@ -2108,7 +2161,7 @@ def executar_jogo(game_manager=None):
     global pai_rato_eventos, pai_rato_chuva_frascos, pai_rato_cauda, pai_rato_carga, pai_rato_consumindo
     global pai_rato_ritual, pai_rato_atordoado_ate, tempo_ultimo_cuspida_pai_rato, tempo_ultimo_cauda_pai_rato
     global tempo_ultimo_carga_pai_rato, tempo_ultimo_queijo_pai_rato, tempo_ultimo_chuva_pai_rato
-    global Boss_vivo3, gerar_fragmentos_morte, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss3, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, bonus_pontuacao, boss_envenenado, boss_frame_andando, boss_frame_atual, boss_frame_peca, carregar_atributos_na_fase, cartas_compradas, chance_critico, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, disparos, disparos_boss3, disparos_inimigos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, escudo_devota_ativo, fonte, frame_atual, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, rastros_toxicos, nuvens_miasma, areas_miasma, intervalo_disparo, largura_disparo, max_inimigos2, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, musica_boss3, nivel_ameaca, ondas, personagem_doente, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe3, pos_x_personagem, pos_x_petro, pos_y_chefe3, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, queijo_geracao, queijo_spawn, r_press, rect_boss, roubo_de_vida, running, spawn_inimigo, sprite_moeda, teleportado, tempo_anterior_petro, tempo_atual, tempo_boss_entrada_fim, tempo_cooldown_dash, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_regeneracao, tempo_ultimo_atingido, tempo_ultimo_disparo_inimigo, tempo_ultimo_frame_boss, tempo_ultimo_grupo_disparo_boss3, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, texto_dano, tipo_buff_impulsiva, toque, trembo, ultima_direcao_animacao, ultimo_tick_veneno_boss, upgrades, velocidade_personagem, vida, vida_boss3, vida_boss4, vida_inimigo_maxima, vida_maxima, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, vida_queijo, x, xp_petro, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
+    global Boss_vivo3, gerar_fragmentos_morte, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss3, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, bonus_pontuacao, boss_envenenado, boss_frame_andando, boss_frame_atual, boss_frame_peca, carregar_atributos_na_fase, cartas_compradas, chance_critico, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, disparos, disparos_boss3, disparos_inimigos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, escudo_devota_ativo, fonte, frame_atual, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, rastros_toxicos, nuvens_miasma, areas_miasma, intervalo_disparo, largura_disparo, max_inimigos2, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, musica_boss3, nivel_ameaca, ondas, personagem_doente, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe3, pos_x_personagem, pos_x_petro, pos_y_chefe3, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, queijo_geracao, queijo_spawn, r_press, rect_boss, roubo_de_vida, running, spawn_inimigo, sprite_moeda, teleportado, tempo_anterior_petro, tempo_atual, tempo_boss_entrada_fim, tempo_cooldown_dash, tempo_ultimo_dash, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_regeneracao, tempo_ultimo_atingido, tempo_ultimo_disparo_inimigo, tempo_ultimo_frame_boss, tempo_ultimo_grupo_disparo_boss3, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, texto_dano, tipo_buff_impulsiva, toque, trembo, ultima_direcao_animacao, ultimo_tick_veneno_boss, upgrades, velocidade_personagem, vida, vida_boss3, vida_boss4, vida_inimigo_maxima, vida_maxima, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, vida_queijo, x, xp_petro, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -2617,7 +2670,18 @@ def executar_jogo(game_manager=None):
                     py_centro = pos_y_personagem + altura_personagem // 2
                     angulo = calcular_angulo_disparo((px_centro, py_centro), pos_mouse)
 
-                    if condutora_manifestacao.ativa(manifestacao_ativa):
+                    if ancorada_manifestacao.ativa(manifestacao_ativa):
+                        ondas.append(ancorada_manifestacao.criar_dominio_fixo(
+                            px_centro, py_centro, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual)
+                        ))
+                        cooldown_dash = True
+                        tempo_ultimo_dash = max(tempo_ultimo_dash, tempo_atual)
+                    elif gravitante_manifestacao.ativa(manifestacao_ativa):
+                        ondas.append(gravitante_manifestacao.criar_colapso_orbital(
+                            px_centro, py_centro, tempo_atual,
+                            dano_person_hit * fator_dano_aureas(tempo_atual), largura_mapa, altura_mapa
+                        ))
+                    elif condutora_manifestacao.ativa(manifestacao_ativa):
                         mortos_circuito, total_alvos, total_links = condutora_manifestacao.fechar_circuitos(
                             inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
                         )
@@ -2700,7 +2764,7 @@ def executar_jogo(game_manager=None):
                 jogo_pausado = False
                 continue
 
-            if not pausa_por_fuga_mouse and botao_mouse[0] and not disparo_preparando and tempo_atual - tempo_ultimo_disparo >= intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual):
+            if not pausa_por_fuga_mouse and botao_mouse[0] and not disparo_preparando and tempo_atual - tempo_ultimo_disparo >= ancorada_manifestacao.intervalo_disparo_ancorado(intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual), manifestacao_ativa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, tempo_atual):
                 pos_mouse = obter_pos_mouse_jogo()
                 px_centro = pos_x_personagem + largura_personagem // 2
                 py_centro = pos_y_personagem + altura_personagem // 2
@@ -2802,6 +2866,8 @@ def executar_jogo(game_manager=None):
                         dano *= retornante_manifestacao.multiplicador_dano_disparo(disparo)
                         dano *= parasitica_manifestacao.multiplicador_dano_disparo(disparo)
                         dano *= condutora_manifestacao.multiplicador_dano_disparo(disparo)
+                        dano *= gravitante_manifestacao.multiplicador_dano_disparo(disparo)
+                        dano *= ancorada_manifestacao.multiplicador_dano_disparo(disparo)
                         if Petro_active:
                             if vida_petro > vida_maxima_petro :
                                 vida_petro+= (vida_maxima_petro-vida_petro) *0.25   
@@ -2825,8 +2891,13 @@ def executar_jogo(game_manager=None):
                                 inimigo, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
                             )
                         if disparo.get("tipo_manifestacao") == "condutora_fio":
-                            condutora_manifestacao.marcar_alvo(
-                                inimigo, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
+                            condutora_manifestacao.registrar_acerto_logico(
+                                inimigo, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto,
+                                inimigos=inimigos_comum
+                            )
+                        if disparo.get("tipo_manifestacao") == "gravitante_orbe":
+                            gravitante_manifestacao.ancorar_orbe(
+                                inimigo, disparo, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto, inimigos=inimigos_comum
                             )
                         if disparo.get("tipo_manifestacao") == "lacerante_corte":
                             lacerante_manifestacao.aplicar_laceracao(inimigo, tempo_atual)
@@ -2995,9 +3066,9 @@ def executar_jogo(game_manager=None):
             nivel_racional = upgrades.get("Racional", 0)    
             #LUGAR AONDE COLOCAMOS AS AUREAS
             if aurea == "Racional":
-                if pos_x_personagem == ultimo_x and pos_y_personagem == ultimo_y:
-                    if tempo_atual - tempo_parado_person >= 5000:
-                        ganho = 3 + nivel_racional  # ganho aumenta com o nível
+                if personagem_racional_imovel(pos_x_personagem, pos_y_personagem, ultimo_x, ultimo_y):
+                    if tempo_atual - tempo_parado_person >= RACIONAL_PASSIVA_INTERVALO_MS:
+                        ganho = ganho_passiva_racional(nivel_racional)
                         pontuacao += ganho
                         pontuacao_exib += ganho
                         tempo_parado_person = tempo_atual
@@ -3067,7 +3138,7 @@ def executar_jogo(game_manager=None):
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
                     largura_tiro, altura_tiro = voraz_aurea.dimensoes_disparo(estado_voraz, aurea, largura_disparo, altura_disparo)
-                    disparo_novo = condutora_manifestacao.criar_auto_attack(manifestacao_ativa, vfx_disparo_player,
+                    disparo_novo = ancorada_manifestacao.criar_auto_attack(manifestacao_ativa, vfx_disparo_player,
                         px_centro, py_centro, largura_tiro, altura_tiro,
                         angulo_disparo_preparado, velocidade_disparo, tempo_atual, impulsiva_ativa
                     )
@@ -3423,9 +3494,24 @@ def executar_jogo(game_manager=None):
             inimigos_mortos_condutora = condutora_manifestacao.atualizar_circuitos(
                 inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
             )
-            condutora_manifestacao.desenhar_circuitos(tela, inimigos_comum, tempo_atual, config_graficos)
+            condutora_manifestacao.desenhar_circuitos(tela, inimigos_comum, tempo_atual, config_graficos, manifestacao_ativa)
+            inimigos_mortos_gravitante = gravitante_manifestacao.atualizar_orbes(
+                inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
+            )
+            gravitante_manifestacao.desenhar_orbes(tela, inimigos_comum, tempo_atual, config_graficos)
+            inimigos_mortos_ancorada = ancorada_manifestacao.atualizar_territorio(
+                inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), jogador_rect_parasitica, efeitos_texto
+            )
+            ancorada_manifestacao.aplicar_lentidao_projeteis(disparos_inimigos, tempo_atual)
+            ancorada_manifestacao.desenhar_territorios(tela, tempo_atual, config_graficos, jogador_rect_parasitica)
+            inimigos_mortos_teleporte = teleporte_manifestacao.atualizar_efeitos_teleporte_manifestacao(
+                inimigos_comum, boss_info, disparos, tempo_atual,
+                dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto, largura_mapa, altura_mapa,
+                jogador_rect_parasitica
+            )
+            teleporte_manifestacao.desenhar_efeitos_teleporte_manifestacao(tela, tempo_atual, config_graficos)
 
-            inimigos_mortos = inimigos_mortos_neste_frame + inimigos_mortos_correntes + inimigos_mortos_laceracao + inimigos_mortos_parasitica + inimigos_mortos_condutora
+            inimigos_mortos = inimigos_mortos_neste_frame + inimigos_mortos_correntes + inimigos_mortos_laceracao + inimigos_mortos_parasitica + inimigos_mortos_condutora + inimigos_mortos_gravitante + inimigos_mortos_ancorada + inimigos_mortos_teleporte
             for morto in inimigos_mortos:
                 if morto in inimigos_comum:
                     registrar_morte_toxica(morto)
@@ -3838,6 +3924,8 @@ def executar_jogo(game_manager=None):
                             dano *= retornante_manifestacao.multiplicador_dano_disparo(disparo)
                             dano *= parasitica_manifestacao.multiplicador_dano_disparo(disparo)
                             dano *= condutora_manifestacao.multiplicador_dano_disparo(disparo)
+                            dano *= gravitante_manifestacao.multiplicador_dano_disparo(disparo)
+                            dano *= ancorada_manifestacao.multiplicador_dano_disparo(disparo)
 
                             # Renderizar texto do dano
                             tempo_texto_dano = pygame.time.get_ticks()

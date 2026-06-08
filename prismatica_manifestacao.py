@@ -10,6 +10,15 @@ import lacerante_manifestacao
 COR_PRISMA = (70, 245, 255)
 COR_PRISMA_QUENTE = (255, 115, 185)
 COR_PRISMA_CLARA = (235, 255, 255)
+COR_PRISMA_DOURADA = (255, 225, 115)
+COR_PRISMA_VIOLETA = (175, 95, 255)
+CORES_ESPECTRO = (
+    (80, 235, 255),
+    (255, 225, 115),
+    (255, 115, 185),
+    (175, 95, 255),
+    (140, 255, 180),
+)
 
 FEIXE_DANO_MULT = 0.72
 FEIXE_RICOCHETE_MULT = 1.22
@@ -71,6 +80,7 @@ def _criar_feixe(centro_x, centro_y, largura, altura, angulo, velocidade, tempo_
         "prismatica_alvos": [],
         "prismatica_ignorar_alvos": {},
         "prismatica_fragmento": bool(fragmento),
+        "prismatica_refracoes": 0,
     }
 
 
@@ -237,15 +247,34 @@ def desenhar_prisma(tela, prisma, tempo_atual):
     rect = prisma["rect"]
     idade = max(0, int(tempo_atual) - int(prisma.get("tempo_inicio", tempo_atual)))
     pulso = 0.5 + 0.5 * math.sin(idade * 0.007)
-    surf = pygame.Surface((rect.width + 54, rect.height + 54), pygame.SRCALPHA)
-    local = pygame.Rect(27, 27, rect.width, rect.height)
-    alpha = int(84 + 54 * pulso)
-    _desenhar_losango(surf, local.inflate(22, 22), (*COR_PRISMA, 34), 0)
-    _desenhar_losango(surf, local.inflate(12, 12), (*COR_PRISMA_QUENTE, alpha), 2)
-    _desenhar_losango(surf, local, (*COR_PRISMA_CLARA, 220), 2)
-    pygame.draw.line(surf, (*COR_PRISMA, 150), local.midleft, local.midright, 1)
-    pygame.draw.line(surf, (*COR_PRISMA_QUENTE, 150), local.midtop, local.midbottom, 1)
-    tela.blit(surf, (rect.x - 27, rect.y - 27))
+    grande = bool(prisma.get("grande_prisma_teleporte"))
+    margem = 58 if grande else 42
+    surf = pygame.Surface((rect.width + margem * 2, rect.height + margem * 2), pygame.SRCALPHA)
+    local = pygame.Rect(margem, margem, rect.width, rect.height)
+    centro = local.center
+    alpha = int((100 if grande else 84) + 62 * pulso)
+
+    for i, cor in enumerate(CORES_ESPECTRO):
+        ang = idade * 0.0024 + i * math.tau / len(CORES_ESPECTRO)
+        raio = rect.width * (0.62 + 0.08 * math.sin(idade * 0.004 + i))
+        p1 = (int(centro[0] + math.cos(ang) * raio), int(centro[1] + math.sin(ang) * raio))
+        p2 = (int(centro[0] - math.cos(ang) * raio * 1.55), int(centro[1] - math.sin(ang) * raio * 1.55))
+        pygame.draw.line(surf, (*cor, 42 if grande else 30), p1, p2, 2 if grande else 1)
+
+    _desenhar_losango(surf, local.inflate(34 if grande else 24, 34 if grande else 24), (*COR_PRISMA, 34), 0)
+    _desenhar_losango(surf, local.inflate(20 if grande else 12, 20 if grande else 12), (*COR_PRISMA_QUENTE, alpha), 2)
+    _desenhar_losango(surf, local.inflate(8 if grande else 0, 8 if grande else 0), (*COR_PRISMA_DOURADA, int(alpha * 0.58)), 1)
+    _desenhar_losango(surf, local, (*COR_PRISMA_CLARA, 230), 2)
+    pygame.draw.line(surf, (*COR_PRISMA, 170), local.midleft, local.midright, 1)
+    pygame.draw.line(surf, (*COR_PRISMA_QUENTE, 160), local.midtop, local.midbottom, 1)
+    pygame.draw.line(surf, (*COR_PRISMA_VIOLETA, 145), local.topleft, local.bottomright, 1)
+    pygame.draw.line(surf, (*COR_PRISMA_DOURADA, 135), local.topright, local.bottomleft, 1)
+
+    for i in range(3 if grande else 2):
+        raio = int(local.w * (0.85 + i * 0.28 + pulso * 0.08))
+        pygame.draw.circle(surf, (*CORES_ESPECTRO[i], 26), centro, raio, 1)
+
+    tela.blit(surf, (rect.x - margem, rect.y - margem), special_flags=pygame.BLEND_RGBA_ADD)
 
 
 def desenhar_feixe(tela, disparo, tempo_atual, offset=(0, 0)):
@@ -263,14 +292,30 @@ def desenhar_feixe(tela, disparo, tempo_atual, offset=(0, 0)):
     for idx, ponto in enumerate(reversed(trail[-5:])):
         fade = 1.0 - idx / 5.0
         px, py = ponto
-        pygame.draw.circle(tela, (90, 225, 255), (int(px + ox), int(py + oy)), max(1, int(3 * fade)))
+        cor = CORES_ESPECTRO[idx % len(CORES_ESPECTRO)]
+        pygame.draw.circle(tela, (*cor, 180), (int(px + ox), int(py + oy)), max(1, int(4 * fade)))
 
     largura = 2 if disparo.get("prismatica_fragmento") else 3
-    pygame.draw.line(tela, (35, 110, 180), cauda, ponta, largura + 3)
-    pygame.draw.line(tela, COR_PRISMA, cauda, ponta, largura)
-    pygame.draw.line(tela, COR_PRISMA_CLARA, (int(cx - dx * 10), int(cy - dy * 10)), ponta, 1)
+    lado = (-dy, dx)
+    surf = pygame.Surface(tela.get_size(), pygame.SRCALPHA)
+    for desloc, cor, alpha in (
+        (-5, COR_PRISMA_QUENTE, 80),
+        (5, COR_PRISMA_DOURADA, 78),
+        (-9, COR_PRISMA_VIOLETA, 44),
+        (9, (120, 255, 180), 42),
+    ):
+        pygame.draw.line(
+            surf,
+            (*cor, alpha),
+            (int(cauda[0] + lado[0] * desloc), int(cauda[1] + lado[1] * desloc)),
+            (int(ponta[0] + lado[0] * desloc * 0.25), int(ponta[1] + lado[1] * desloc * 0.25)),
+            1,
+        )
+    pygame.draw.line(surf, (35, 110, 180, 135), cauda, ponta, largura + 6)
+    pygame.draw.line(surf, (*COR_PRISMA, 230), cauda, ponta, largura + 1)
+    pygame.draw.line(surf, (*COR_PRISMA_CLARA, 255), (int(cx - dx * 10), int(cy - dy * 10)), ponta, 1)
+    tela.blit(surf, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
     if disparo.get("prismatica_ricocheteou"):
-        lado = (-dy, dx)
         pygame.draw.line(
             tela,
             COR_PRISMA_QUENTE,
@@ -285,7 +330,11 @@ def _dividir_disparo(prisma, disparo, disparos, tempo_atual):
     if chave in prisma.setdefault("disparos_divididos", []):
         return
     prisma["disparos_divididos"].append(chave)
-    if disparo.get("tipo_manifestacao") == "lacerante_corte" or disparo.get("prismatica_fragmento"):
+    if disparo.get("tipo_manifestacao") == "lacerante_corte":
+        return
+    refracoes = int(disparo.get("prismatica_refracoes", 0))
+    pode_refratar_fragmento = bool(prisma.get("grande_prisma_teleporte")) and refracoes < 2
+    if disparo.get("prismatica_fragmento") and not pode_refratar_fragmento:
         return
 
     centro_x, centro_y = disparo["rect"].center
@@ -293,12 +342,16 @@ def _dividir_disparo(prisma, disparo, disparos, tempo_atual):
     altura = max(4, int(disparo["rect"].height * 0.62))
     velocidade = float(disparo.get("velocidade_prismatica", disparo.get("velocidade_base_vfx", 14.0)))
     base = float(disparo.get("angulo", 0.0))
+    abertura = PRISMA_ABERTURA_RAD * (0.72 if pode_refratar_fragmento else 1.0)
     novos = [
-        _criar_feixe(centro_x, centro_y, largura, altura, base - PRISMA_ABERTURA_RAD, velocidade, tempo_atual, False, True),
+        _criar_feixe(centro_x, centro_y, largura, altura, base - abertura, velocidade, tempo_atual, False, True),
         _criar_feixe(centro_x, centro_y, largura, altura, base, velocidade, tempo_atual, False, True),
-        _criar_feixe(centro_x, centro_y, largura, altura, base + PRISMA_ABERTURA_RAD, velocidade, tempo_atual, False, True),
+        _criar_feixe(centro_x, centro_y, largura, altura, base + abertura, velocidade, tempo_atual, False, True),
     ]
     for novo in novos:
+        novo["prismatica_refracoes"] = refracoes + 1
+        if pode_refratar_fragmento:
+            novo["dano_mult_manifestacao"] = float(novo.get("dano_mult_manifestacao", FEIXE_DANO_MULT)) * 0.72
         for chave in ("eco_insana", "insana_vfx", "dano_mult", "voraz_aurea", "voraz_dano_mult"):
             if chave in disparo:
                 novo[chave] = disparo[chave]

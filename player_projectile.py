@@ -182,6 +182,20 @@ class PlayerProjectileVFX:
             except Exception:
                 pass
             return
+        if disparo.get("tipo_manifestacao") == "gravitante_orbe":
+            try:
+                import gravitante_manifestacao
+                gravitante_manifestacao.desenhar_orbe_disparo(tela, disparo, agora_ms, offset, config_graficos)
+            except Exception:
+                pass
+            return
+        if disparo.get("tipo_manifestacao") == "ancorada_disparo":
+            try:
+                import ancorada_manifestacao
+                ancorada_manifestacao.desenhar_disparo_ancorado(tela, disparo, agora_ms, offset, config_graficos)
+            except Exception:
+                pass
+            return
 
         perfil = _perfil_grafico(config_graficos)
         p = _parametros(perfil)
