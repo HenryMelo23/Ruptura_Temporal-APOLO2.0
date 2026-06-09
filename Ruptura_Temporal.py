@@ -2822,7 +2822,7 @@ def tela_configuracoes_jogabilidade(tela, fonte):
             modo_teleporte = json.load(f).get("modo", "fixo")
     except:
         modo_teleporte = "fixo"
-
+ 
     try:
         import Variaveis
         loja_forcada = Variaveis.loja_forcada_ativa(forcar_recarregar=True)
