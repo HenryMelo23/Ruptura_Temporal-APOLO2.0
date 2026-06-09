@@ -10,22 +10,24 @@ VORAZ_FOME_ESCALA_QUADRATICA = 9.0
 VORAZ_FRAGMENTO_VALOR = 28.0
 VORAZ_FRAGMENTO_DURACAO_MS = 6800
 VORAZ_FRAGMENTO_COLETA_RAIO = 68
-VORAZ_DECAIMENTO_BASE_POR_S = 5.4
-VORAZ_DECAIMENTO_ESCALA_POR_S = 1.65
-VORAZ_DECAIMENTO_ALTA_FOME_MULT = 4.2
+VORAZ_DECAIMENTO_BASE_POR_S = 7.2
+VORAZ_DECAIMENTO_ESCALA_POR_S = 2.25
+VORAZ_DECAIMENTO_ALTA_FOME_MULT = 5.4
 VORAZ_SEM_COLETA_DANO_MS = 30000
 VORAZ_DANO_FOME_MS = 1500
 VORAZ_SPAWN_BOSS_MS = 7000
-VORAZ_MORDIDA_COOLDOWN_MS = 850
-VORAZ_MORDIDA_INTENSIDADE_MIN = 0.18
-VORAZ_MORDIDA_COLETA_RECENTE_MS = 16000
-VORAZ_POEIRA_CURA_VIDA_PERDIDA = 0.05
-VORAZ_MORDIDA_DANO_BASE_MULT = 1.50
-VORAZ_MORDIDA_DANO_FOME_MULT = 0.75
-VORAZ_MORDIDA_DANO_CICLO_MULT = 0.14
-VORAZ_MORDIDA_BOSS_BASE_MULT = 1.70
-VORAZ_MORDIDA_BOSS_FOME_MULT = 0.95
-VORAZ_MORDIDA_BOSS_VIDA_MAX_MULT = 0.003
+VORAZ_MORDIDA_COOLDOWN_MS = 1300
+VORAZ_MORDIDA_INTENSIDADE_MIN = 0.28
+VORAZ_MORDIDA_COLETA_RECENTE_MS = 9000
+VORAZ_CURA_BASE_VIDA_PERDIDA = 0.02
+VORAZ_CURA_POR_CICLO_FOME = 0.025
+VORAZ_CURA_MAX_VIDA_PERDIDA = 0.145
+VORAZ_MORDIDA_DANO_BASE_MULT = 0.10
+VORAZ_MORDIDA_DANO_FOME_MULT = 0.0
+VORAZ_MORDIDA_DANO_CICLO_MULT = 0.025
+VORAZ_MORDIDA_BOSS_BASE_MULT = 0.10
+VORAZ_MORDIDA_BOSS_FOME_MULT = 0.0
+VORAZ_MORDIDA_BOSS_VIDA_MAX_MULT = 0.0
 VORAZ_POEIRAS_POR_ABATE = 9
 
 
@@ -77,13 +79,13 @@ def bonus_cooldown(estado, aurea):
     if not _eh_voraz(aurea):
         return 1.0
     nivel = int(estado.get("nivel", 0)) if estado else 0
-    return max(0.74, 1.0 - _intensidade(estado) * (0.10 + nivel * 0.008))
+    return max(0.88, 1.0 - _intensidade(estado) * (0.045 + nivel * 0.003))
 
 
 def dimensoes_disparo(estado, aurea, largura, altura):
     if not _eh_voraz(aurea):
         return largura, altura
-    escala = 1.0 + _intensidade(estado) * 0.28
+    escala = 1.0 + _intensidade(estado) * 0.12
     return max(1, int(largura * escala)), max(1, int(altura * escala))
 
 
@@ -92,7 +94,7 @@ def marcar_disparo_voraz(estado, aurea, disparo):
         return disparo
     nivel = int(estado.get("nivel", 0)) if estado else 0
     disparo["voraz_aurea"] = True
-    disparo["voraz_dano_mult"] = 1.0 + _intensidade(estado) * (0.18 + nivel * 0.012)
+    disparo["voraz_dano_mult"] = 1.0 + _intensidade(estado) * (0.07 + nivel * 0.004)
     return disparo
 
 
@@ -100,6 +102,12 @@ def dano_mult_disparo(disparo):
     if not isinstance(disparo, dict):
         return 1.0
     return float(disparo.get("voraz_dano_mult", 1.0))
+
+
+def percentual_cura_voraz(estado):
+    ciclos = max(0, int(estado.get("ciclos", 0))) if estado else 0
+    percentual = VORAZ_CURA_BASE_VIDA_PERDIDA + ciclos * VORAZ_CURA_POR_CICLO_FOME
+    return max(VORAZ_CURA_BASE_VIDA_PERDIDA, min(VORAZ_CURA_MAX_VIDA_PERDIDA, percentual))
 
 
 def _valor_fome_coletavel(estado, valor_base):
@@ -164,7 +172,7 @@ def _coletar_fragmento(estado, frag, tempo_atual, vida=None, vida_maxima=None, e
 
     cura = 0
     if vida is not None and vida_maxima is not None:
-        vida, cura = _curar_vida_perdida(vida, vida_maxima, VORAZ_POEIRA_CURA_VIDA_PERDIDA)
+        vida, cura = _curar_vida_perdida(vida, vida_maxima, percentual_cura_voraz(estado))
         _registrar_cura_voraz(efeitos_texto, frag.get("x", 0), frag.get("y", 0) - 18, cura)
     return vida, cura
 
@@ -181,7 +189,6 @@ def _adicionar_fome_mordida(estado, tempo_atual):
 
 
 def _multiplicador_dano_mordida(estado, intensidade, boss=False):
-    nivel = int(estado.get("nivel", 0)) if estado else 0
     ciclos = max(0, int(estado.get("ciclos", 0))) if estado else 0
     if boss:
         base = VORAZ_MORDIDA_BOSS_BASE_MULT
@@ -189,7 +196,7 @@ def _multiplicador_dano_mordida(estado, intensidade, boss=False):
     else:
         base = VORAZ_MORDIDA_DANO_BASE_MULT
         escala_fome = VORAZ_MORDIDA_DANO_FOME_MULT
-    return base + intensidade * escala_fome + ciclos * VORAZ_MORDIDA_DANO_CICLO_MULT + nivel * 0.035
+    return base + intensidade * escala_fome + ciclos * VORAZ_MORDIDA_DANO_CICLO_MULT
 
 
 def atualizar_voraz(
@@ -295,7 +302,7 @@ def aplicar_passiva_em_inimigos(
 
     centro_x = pos_x + largura / 2
     centro_y = pos_y + altura / 2
-    raio_puxao = 155 + intensidade * 65
+    raio_puxao = 105 + intensidade * 34
     rect_player = pygame.Rect(pos_x, pos_y, largura, altura).inflate(
         -int(largura * 0.25),
         -int(altura * 0.18),
@@ -316,7 +323,7 @@ def aplicar_passiva_em_inimigos(
                 inimigo["pos_x"] = float(rect.x)
             if "pos_y" not in inimigo:
                 inimigo["pos_y"] = float(rect.y)
-            forca = (0.10 + intensidade * 0.10) * float(fator_tempo or 1.0)
+            forca = (0.045 + intensidade * 0.045) * float(fator_tempo or 1.0)
             inimigo["pos_x"] += (dx / dist) * forca
             inimigo["pos_y"] += (dy / dist) * forca
             rect.x = int(inimigo["pos_x"])
@@ -338,8 +345,7 @@ def aplicar_passiva_em_inimigos(
                 })
                 _adicionar_fome_mordida(estado, tempo_atual)
                 if vida is not None and vida_maxima is not None:
-                    percentual_cura = 0.35 if eliminou else 0.25
-                    vida, cura = _curar_vida_perdida(vida, vida_maxima, percentual_cura)
+                    vida, cura = _curar_vida_perdida(vida, vida_maxima, percentual_cura_voraz(estado))
                     if cura:
                         curou = True
                         _registrar_cura_voraz(efeitos_texto, rect.centerx, rect.top - 28, cura)
@@ -380,11 +386,9 @@ def aplicar_mordida_boss(
         return vida_boss, vida, False
 
     estado["ultima_mordida_boss_ms"] = int(tempo_atual)
-    dano_por_base = dano_base * _multiplicador_dano_mordida(estado, intensidade, boss=True)
-    dano_por_vida = vida_boss * VORAZ_MORDIDA_BOSS_VIDA_MAX_MULT * (1.0 + intensidade * 0.55)
-    dano = max(1, int(max(dano_por_base, dano_por_vida)))
+    dano = max(1, int(dano_base * _multiplicador_dano_mordida(estado, intensidade, boss=True)))
     vida_boss = max(0, vida_boss - dano)
-    vida, cura = _curar_vida_perdida(vida, vida_maxima, 0.60)
+    vida, cura = _curar_vida_perdida(vida, vida_maxima, percentual_cura_voraz(estado))
     x = boss_rect.centerx
     y = boss_rect.top + boss_rect.height * 0.35
     estado.setdefault("mordidas", []).append({

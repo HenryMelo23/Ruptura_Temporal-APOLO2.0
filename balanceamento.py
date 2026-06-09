@@ -82,7 +82,7 @@ CARTA_CRITICO_CHANCE_POR_ESCALA = 0.0
 CARTA_TELEPORTE_REDUCAO_MS = 300
 CARTA_TELEPORTE_INTERVALO_MIN_MS = 500
 
-ANOMALIA_ESPREITADOR_SEG = 3 * 60
+ANOMALIA_ESPREITADOR_SEG = 2 * 60
 ANOMALIA_PROJETADOR_SEG = 5 * 60
 ANOMALIA_CRISTALIZADOR_SEG = 7 * 60
 ANOMALIA_AGLOMERADOR_SEG = 9 * 60
@@ -98,9 +98,13 @@ PONTOS_MULTIPLICADOR_TIPO_INIMIGO = {
     "curater": 1.80,
 }
 
-LIMITE_EXTRA_ABATES_MARCO_SEG = 10 * 60
-LIMITE_EXTRA_QUEBRA_SEG = 12 * 60
-LIMITE_EXTRA_ABATES_POR_INIMIGO = 15
+LIMITE_EXTRA_NORMAL_QUEBRA_SEG = 10 * 60
+LIMITE_EXTRA_NORMAL_ABATES_POR_INIMIGO = 15
+LIMITE_EXTRA_DIFICIL_QUEBRA_SEG = 6 * 60
+LIMITE_EXTRA_DIFICIL_ABATES_POR_INIMIGO = 20
+LIMITE_EXTRA_ABATES_MARCO_SEG = LIMITE_EXTRA_NORMAL_QUEBRA_SEG
+LIMITE_EXTRA_QUEBRA_SEG = LIMITE_EXTRA_NORMAL_QUEBRA_SEG
+LIMITE_EXTRA_ABATES_POR_INIMIGO = LIMITE_EXTRA_NORMAL_ABATES_POR_INIMIGO
 
 LOJA_FORCADA_INTERVALO_SEG = 5 * 60
 LOJA_FORCADA_AVISO_SEG = 15
@@ -274,13 +278,28 @@ def bonus_limite_inimigos_sem_boss(
     boss_chamado,
     inimigos_eliminados=0,
     inimigos_eliminados_no_marco=None,
+    modo_dificil=None,
 ):
-    if boss_chamado or tempo_decorrido_seg < LIMITE_EXTRA_QUEBRA_SEG:
+    if modo_dificil is None:
+        try:
+            import Variaveis
+            modo_dificil = Variaveis.obter_modo_cartas() == "drops"
+        except Exception:
+            modo_dificil = False
+
+    inicio_seg = LIMITE_EXTRA_DIFICIL_QUEBRA_SEG if modo_dificil else LIMITE_EXTRA_NORMAL_QUEBRA_SEG
+    abates_por_inimigo = (
+        LIMITE_EXTRA_DIFICIL_ABATES_POR_INIMIGO
+        if modo_dificil
+        else LIMITE_EXTRA_NORMAL_ABATES_POR_INIMIGO
+    )
+
+    if boss_chamado or tempo_decorrido_seg < inicio_seg:
         return 0
     if inimigos_eliminados_no_marco is None:
-        inimigos_eliminados_no_marco = inimigos_eliminados
+        inimigos_eliminados_no_marco = 0
     abates_apos_marco = max(0, int(inimigos_eliminados or 0) - int(inimigos_eliminados_no_marco or 0))
-    return abates_apos_marco // LIMITE_EXTRA_ABATES_POR_INIMIGO
+    return abates_apos_marco // abates_por_inimigo
 
 
 # Balanceamento da Manifestação Retornante

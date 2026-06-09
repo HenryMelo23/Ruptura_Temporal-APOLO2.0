@@ -75,16 +75,10 @@ class GameManager:
                 Variaveis.reset_game_session()
             modo = self.dados_compartilhados.get('modo_jogo', 'offline')
             
-            if modo == 'offline':
-                if 'GAME' in sys.modules:
-                    importlib.reload(sys.modules['GAME'])
-                import GAME
-                resultado = GAME.executar_jogo(self)
-            else:
-                if 'GAMERE' in sys.modules:
-                    importlib.reload(sys.modules['GAMERE'])
-                import GAMERE
-                resultado = GAMERE.executar_jogo(self)
+            if 'GAME' in sys.modules:
+                importlib.reload(sys.modules['GAME'])
+            import GAME
+            resultado = GAME.executar_jogo(self)
                 
         elif self.estado_atual == EstadoJogo.JOGO_FASE_2:
             import Variaveis

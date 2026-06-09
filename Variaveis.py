@@ -695,6 +695,22 @@ frames_inimigo = [pygame.transform.scale(pygame.image.load("Sprites/inimig1.png"
 
                  pygame.transform.scale(pygame.image.load("Sprites/inimig2.png").convert_alpha(), (largura_inimigo, altura_inimigo))]
 
+def carregar_frames_especie_inimigo(nome_base, tamanho=None):
+    tamanho = tamanho or (largura_inimigo, altura_inimigo)
+    return [
+        pygame.transform.scale(pygame.image.load(f"Sprites/{nome_base}1.png").convert_alpha(), tamanho),
+        pygame.transform.scale(pygame.image.load(f"Sprites/{nome_base}2.png").convert_alpha(), tamanho),
+    ]
+
+frames_inimigo_especies = {
+    1: frames_inimigo,
+    2: carregar_frames_especie_inimigo("aglomerador"),
+    3: carregar_frames_especie_inimigo("espreitador"),
+    4: carregar_frames_especie_inimigo("cristalizador"),
+    5: carregar_frames_especie_inimigo("projetador"),
+    "curater": carregar_frames_especie_inimigo("curater"),
+}
+
 
 
 frames_inimigo2=[pygame.transform.scale(pygame.image.load("Sprites/inimig3.png").convert_alpha(), (100, 100)),
@@ -3081,6 +3097,10 @@ def atualizar_movimento_inimigos(inimigos, pos_x_p, pos_y_p, direcao_j, vel_p, t
 
         dy = alvo_y - inimigo["pos_y"]
 
+        if abs(dx) > 0.05:
+
+            inimigo["direcao_horizontal"] = "right" if dx > 0 else "left"
+
         distancia = math.sqrt(dx**2 + dy**2)
 
 
@@ -3812,6 +3832,23 @@ CONFIG_JOGABILIDADE_PADRAO = {
 }
 
 _cached_config_jogabilidade = None
+ultimo_teste_larapio_ms = 0
+LARAPIO_TEMPO_MINIMO_SEG = 120
+LARAPIO_INTERVALO_TESTE_MS = 9000
+LARAPIO_MULTIPLICADOR_CUSTO_INICIAL = 3.0
+LARAPIO_CHANCE_NO_LIMIAR = 0.68
+LARAPIO_CHANCE_MAXIMA = 0.95
+LOJA_FORCADA_AVISO_MS = 15000
+LARAPIO_ONDA_INTERVALO_MS = 3 * 60 * 1000
+LARAPIO_NORMAL_ONDA_QTD = 2
+LARAPIO_HARD_ONDA_QTD = 4
+LARAPIO_PONTOS_VELOCIDADE = 4.6
+LARAPIO_PONTOS_DURACAO_MS = 11000
+aviso_loja_forcada_inicio_ms = None
+aviso_loja_forcada_fim_ms = None
+ultimo_spawn_larapio_normal_ms = 0
+ultimo_spawn_larapio_hard_ms = 0
+larapios_pontos = []
 
 
 def obter_config_jogabilidade(forcar_recarregar=False):
@@ -3867,6 +3904,312 @@ def salvar_config_jogabilidade(config):
 def loja_forcada_ativa(forcar_recarregar=False):
 
     return bool(obter_config_jogabilidade(forcar_recarregar).get("loja_forcada", True))
+
+
+def chance_larapio_loja(pontuacao_atual, custo_carta_atual, tempo_decorrido_seg=None):
+
+    if tempo_decorrido_seg is None:
+
+        tempo_decorrido_seg = obter_tempo_decorrido()
+
+    if tempo_decorrido_seg < LARAPIO_TEMPO_MINIMO_SEG:
+
+        return 0.0
+
+    custo = max(1.0, float(custo_carta_atual or 0))
+
+    pontuacao = max(0.0, float(pontuacao_atual or 0))
+
+    limite = custo * LARAPIO_MULTIPLICADOR_CUSTO_INICIAL
+
+    if pontuacao < limite:
+
+        return 0.0
+
+    multiplicador = pontuacao / limite
+
+    chance = LARAPIO_CHANCE_NO_LIMIAR + max(0.0, multiplicador - 1.0) * 0.18
+
+    return max(0.0, min(LARAPIO_CHANCE_MAXIMA, chance))
+
+
+def larapio_deve_aparecer(pontuacao_atual, custo_carta_atual, tempo_atual_ms):
+
+    global ultimo_teste_larapio_ms
+
+    if not loja_forcada_ativa():
+
+        return False
+
+    chance = chance_larapio_loja(pontuacao_atual, custo_carta_atual)
+
+    if chance <= 0.0:
+
+        return False
+
+    if tempo_atual_ms - ultimo_teste_larapio_ms < LARAPIO_INTERVALO_TESTE_MS:
+
+        return False
+
+    ultimo_teste_larapio_ms = tempo_atual_ms
+
+    return random.random() < chance
+
+
+def cancelar_aviso_loja_forcada():
+
+    global aviso_loja_forcada_inicio_ms, aviso_loja_forcada_fim_ms
+
+    aviso_loja_forcada_inicio_ms = None
+
+    aviso_loja_forcada_fim_ms = None
+
+
+def loja_forcada_deve_abrir(pontuacao_atual, custo_carta_atual, tempo_atual_ms):
+
+    cancelar_aviso_loja_forcada()
+
+    return False
+
+
+def desenhar_aviso_loja_forcada(tela, tempo_atual_ms):
+
+    return
+
+
+def _tempo_decorrido_larapio_ms():
+
+    try:
+
+        return int(obter_tempo_decorrido() * 1000)
+
+    except Exception:
+
+        return int(pygame.time.get_ticks())
+
+
+def _dimensoes_mapa_larapio():
+
+    mapa_w = int(globals().get("largura_mapa", globals().get("largura_tela", 1280)) or 1280)
+
+    mapa_h = int(globals().get("altura_mapa", globals().get("altura_tela", 720)) or 720)
+
+    return mapa_w, mapa_h
+
+
+def _posicao_spawn_larapio_pontos():
+
+    mapa_w, mapa_h = _dimensoes_mapa_larapio()
+
+    lado = random.choice(("topo", "baixo", "esquerda", "direita"))
+
+    if lado == "topo":
+
+        return random.randint(32, max(33, mapa_w - 32)), -36
+
+    if lado == "baixo":
+
+        return random.randint(32, max(33, mapa_w - 32)), mapa_h + 36
+
+    if lado == "esquerda":
+
+        return -36, random.randint(32, max(33, mapa_h - 32))
+
+    return mapa_w + 36, random.randint(32, max(33, mapa_h - 32))
+
+
+def _desenhar_larapio_corpo(tela, x, y, tempo_atual, direcao_x=1):
+
+    fase = tempo_atual * 0.012 + float((x + y) % 31)
+
+    bob = int(math.sin(fase) * 3)
+
+    corpo = pygame.Surface((52, 52), pygame.SRCALPHA)
+
+    pygame.draw.ellipse(corpo, (18, 10, 28, 185), (9, 35, 34, 10))
+
+    pygame.draw.polygon(corpo, (36, 18, 52, 245), [(12, 18), (39, 12), (43, 40), (10, 42)])
+
+    pygame.draw.circle(corpo, (56, 32, 78, 250), (27, 17), 12)
+
+    pygame.draw.rect(corpo, (22, 12, 34, 255), (14, 15, 26, 8), border_radius=4)
+
+    pygame.draw.circle(corpo, (255, 220, 92, 255), (22, 18), 2)
+
+    pygame.draw.circle(corpo, (255, 220, 92, 255), (32, 18), 2)
+
+    pygame.draw.line(corpo, (255, 80, 48, 235), (28, 28), (39, 32), 3)
+
+    pygame.draw.circle(corpo, (210, 55, 38, 245), (40, 33), 6)
+
+    pygame.draw.line(corpo, (255, 185, 90, 230), (17, 42), (13, 49), 2)
+
+    pygame.draw.line(corpo, (255, 185, 90, 230), (34, 42), (39, 49), 2)
+
+    if direcao_x < 0:
+
+        corpo = pygame.transform.flip(corpo, True, False)
+
+    tela.blit(corpo, (int(x) - 26, int(y) - 44 + bob))
+
+
+def _spawn_larapios_pontos(qtd, tempo_atual_ms, efeitos_texto_lista=None):
+
+    for _ in range(max(0, int(qtd))):
+
+        x, y = _posicao_spawn_larapio_pontos()
+
+        larapios_pontos.append({
+
+            "x": float(x),
+
+            "y": float(y),
+
+            "inicio_ms": int(tempo_atual_ms),
+
+            "fase": random.uniform(0, math.tau),
+
+        })
+
+        if efeitos_texto_lista is not None:
+
+            efeitos_texto_lista.append({
+
+                "texto": "LARAPIO!",
+
+                "x": int(max(40, min(_dimensoes_mapa_larapio()[0] - 40, x))),
+
+                "y": int(max(40, min(_dimensoes_mapa_larapio()[1] - 40, y))),
+
+                "cor": (255, 80, 45),
+
+                "tempo_inicio": int(tempo_atual_ms),
+
+            })
+
+
+def tentar_ativar_larapio_normal(pontuacao_atual, custo_carta_atual, tempo_atual_ms, efeitos_texto_lista=None):
+
+    global ultimo_spawn_larapio_normal_ms
+
+    if not loja_forcada_ativa() or obter_modo_cartas() == "drops":
+
+        return False
+
+    ativou = False
+
+    if larapio_deve_aparecer(pontuacao_atual, custo_carta_atual, tempo_atual_ms):
+
+        _spawn_larapios_pontos(1, tempo_atual_ms, efeitos_texto_lista)
+
+        ativou = True
+
+    tempo_decorrido_ms = _tempo_decorrido_larapio_ms()
+
+    if tempo_decorrido_ms >= LARAPIO_ONDA_INTERVALO_MS:
+
+        if tempo_decorrido_ms - int(ultimo_spawn_larapio_normal_ms or 0) >= LARAPIO_ONDA_INTERVALO_MS:
+
+            if float(pontuacao_atual or 0) < float(custo_carta_atual or 0):
+
+                _spawn_larapios_pontos(LARAPIO_NORMAL_ONDA_QTD, tempo_atual_ms, efeitos_texto_lista)
+
+                ultimo_spawn_larapio_normal_ms = tempo_decorrido_ms
+
+                ativou = True
+
+    return ativou
+
+
+def atualizar_e_desenhar_larapios_pontos(tela, tempo_atual_ms, pos_x, pos_y, largura, altura,
+                                         pontuacao_atual, pontuacao_magia_atual,
+                                         custo_carta_atual, efeitos_texto_lista=None):
+
+    global larapios_pontos
+
+    if obter_modo_cartas() == "drops":
+
+        larapios_pontos = []
+
+        return pontuacao_atual, pontuacao_magia_atual
+
+    if not larapios_pontos:
+
+        return pontuacao_atual, pontuacao_magia_atual
+
+    player_rect = pygame.Rect(int(pos_x), int(pos_y), int(largura), int(altura))
+
+    alvo_x, alvo_y = player_rect.center
+
+    vivos = []
+
+    pontuacao = max(0, int(pontuacao_atual or 0))
+
+    pontuacao_magia = max(0, int(pontuacao_magia_atual or 0))
+
+    for larapio in larapios_pontos:
+
+        idade = int(tempo_atual_ms) - int(larapio.get("inicio_ms", tempo_atual_ms))
+
+        if idade >= LARAPIO_PONTOS_DURACAO_MS:
+
+            continue
+
+        x = float(larapio.get("x", alvo_x))
+
+        y = float(larapio.get("y", alvo_y))
+
+        dx = alvo_x - x
+
+        dy = alvo_y - y
+
+        dist = max(1.0, math.hypot(dx, dy))
+
+        x += (dx / dist) * LARAPIO_PONTOS_VELOCIDADE
+
+        y += (dy / dist) * LARAPIO_PONTOS_VELOCIDADE
+
+        larapio["x"] = x
+
+        larapio["y"] = y
+
+        rect_larapio = pygame.Rect(int(x) - 20, int(y) - 38, 40, 44)
+
+        if rect_larapio.colliderect(player_rect):
+
+            valor_roubo = max(80, int(max(1, custo_carta_atual or 1) * 0.25), int(pontuacao * 0.20))
+
+            roubado = min(pontuacao, valor_roubo)
+
+            pontuacao -= roubado
+
+            pontuacao_magia = max(0, pontuacao_magia - roubado)
+
+            if efeitos_texto_lista is not None:
+
+                efeitos_texto_lista.append({
+
+                    "texto": f"-{roubado} PONTOS" if roubado > 0 else "SEM PONTOS",
+
+                    "x": int(x),
+
+                    "y": int(y) - 42,
+
+                    "cor": (255, 80, 45),
+
+                    "tempo_inicio": int(tempo_atual_ms),
+
+                })
+
+            continue
+
+        _desenhar_larapio_corpo(tela, x, y, tempo_atual_ms, 1 if dx >= 0 else -1)
+
+        vivos.append(larapio)
+
+    larapios_pontos = vivos
+
+    return pontuacao, pontuacao_magia
 
 
 manifestacao_ativa = "eletrica"
@@ -4118,6 +4461,9 @@ CARTA_DROP_DURACAO_MS = 8000
 CARTA_DROP_DESFRAGMENTACAO_MS = 4000
 CARTA_DROP_FRAGMENTOS_COLS = 4
 CARTA_DROP_FRAGMENTOS_ROWS = 5
+LARAPIO_HARD_VELOCIDADE = 3.8
+LARAPIO_HARD_FUGA_MS = 6500
+LARAPIO_HARD_MARGEM_ESCAPE = 90
 
 
 
@@ -4163,6 +4509,169 @@ def limpar_cartas_no_chao():
     global cartas_no_chao
 
     cartas_no_chao = []
+
+
+def _cartas_roubaveis_larapio(tempo_atual):
+
+    return [
+        carta for carta in cartas_no_chao
+        if not carta.get("larapio")
+        and int(carta.get("tempo_desaparecer", 0)) - int(tempo_atual) > 1200
+    ]
+
+
+def _destino_fuga_larapio(x, y):
+
+    mapa_w = int(globals().get("largura_mapa", globals().get("largura_tela", 1280)) or 1280)
+    mapa_h = int(globals().get("altura_mapa", globals().get("altura_tela", 720)) or 720)
+    centro_x = mapa_w / 2
+    centro_y = mapa_h / 2
+    dx = x - centro_x
+    dy = y - centro_y
+
+    if abs(dx) >= abs(dy):
+        destino_x = mapa_w + LARAPIO_HARD_MARGEM_ESCAPE if dx >= 0 else -LARAPIO_HARD_MARGEM_ESCAPE
+        destino_y = max(20, min(mapa_h - 20, y + random.randint(-140, 140)))
+    else:
+        destino_x = max(20, min(mapa_w - 20, x + random.randint(-140, 140)))
+        destino_y = mapa_h + LARAPIO_HARD_MARGEM_ESCAPE if dy >= 0 else -LARAPIO_HARD_MARGEM_ESCAPE
+
+    return destino_x, destino_y
+
+
+def tentar_ativar_larapio_hard(pontuacao_atual, custo_carta_atual, tempo_atual_ms, efeitos_texto_lista=None):
+
+    global ultimo_spawn_larapio_hard_ms
+
+    if obter_modo_cartas() != "drops":
+
+        return False
+
+    if not loja_forcada_ativa():
+
+        return False
+
+    tempo_decorrido_ms = _tempo_decorrido_larapio_ms()
+
+    if tempo_decorrido_ms < LARAPIO_ONDA_INTERVALO_MS:
+
+        return False
+
+    if tempo_decorrido_ms - int(ultimo_spawn_larapio_hard_ms or 0) < LARAPIO_ONDA_INTERVALO_MS:
+
+        return False
+
+    ativos = sum(1 for carta in cartas_no_chao if carta.get("larapio"))
+
+    qtd_onda = max(0, LARAPIO_HARD_ONDA_QTD - ativos)
+
+    if qtd_onda <= 0:
+
+        return False
+
+    ativados = 0
+
+    for _ in range(qtd_onda):
+
+        roubaveis = _cartas_roubaveis_larapio(tempo_atual_ms)
+
+        if not roubaveis:
+
+            break
+
+        carta = min(
+            roubaveis,
+            key=lambda c: (
+                0 if c.get("nome") in CARTAS_RARAS else 1,
+                c.get("tempo_desaparecer", tempo_atual_ms),
+            ),
+        )
+        cx, cy = carta["rect"].center
+        destino_x, destino_y = _destino_fuga_larapio(cx, cy)
+        carta["larapio"] = {
+            "x": float(cx),
+            "y": float(cy),
+            "destino_x": float(destino_x),
+            "destino_y": float(destino_y),
+            "inicio_ms": int(tempo_atual_ms),
+            "fase": random.uniform(0, math.tau),
+        }
+        carta["tempo_desaparecer"] = max(
+            int(carta.get("tempo_desaparecer", tempo_atual_ms)),
+            int(tempo_atual_ms) + LARAPIO_HARD_FUGA_MS,
+        )
+
+        if efeitos_texto_lista is not None:
+            efeitos_texto_lista.append({
+                "texto": "LARAPIO!",
+                "x": cx,
+                "y": cy - 44,
+                "cor": (255, 80, 45),
+                "tempo_inicio": int(tempo_atual_ms),
+            })
+
+        ativados += 1
+
+    if ativados <= 0:
+
+        return False
+
+    ultimo_spawn_larapio_hard_ms = tempo_decorrido_ms
+
+    return True
+
+
+def _desenhar_larapio_hard(tela, carta, tempo_atual):
+
+    larapio = carta.get("larapio")
+    if not larapio:
+        return
+
+    x = int(larapio.get("x", carta["rect"].centerx))
+    y = int(larapio.get("y", carta["rect"].centery))
+    dx = larapio.get("destino_x", x) - larapio.get("x", x)
+    lado = 1 if dx >= 0 else -1
+    _desenhar_larapio_corpo(tela, x, y, tempo_atual, lado)
+
+
+def _atualizar_larapio_carta(carta, tempo_atual):
+
+    larapio = carta.get("larapio")
+    if not larapio:
+
+        return True
+
+    idade = int(tempo_atual) - int(larapio.get("inicio_ms", tempo_atual))
+    if idade >= LARAPIO_HARD_FUGA_MS:
+
+        return False
+
+    x = float(larapio.get("x", carta["rect"].centerx))
+    y = float(larapio.get("y", carta["rect"].centery))
+    destino_x = float(larapio.get("destino_x", x))
+    destino_y = float(larapio.get("destino_y", y))
+    dx = destino_x - x
+    dy = destino_y - y
+    dist = max(1.0, math.hypot(dx, dy))
+    passo = LARAPIO_HARD_VELOCIDADE
+    x += (dx / dist) * passo
+    y += (dy / dist) * passo
+    larapio["x"] = x
+    larapio["y"] = y
+    carta["rect"].center = (int(x), int(y + 8))
+    carta["tempo_desaparecer"] = max(int(carta.get("tempo_desaparecer", tempo_atual)), int(tempo_atual) + 400)
+
+    mapa_w = int(globals().get("largura_mapa", globals().get("largura_tela", 1280)) or 1280)
+    mapa_h = int(globals().get("altura_mapa", globals().get("altura_tela", 720)) or 720)
+    if x < -LARAPIO_HARD_MARGEM_ESCAPE or x > mapa_w + LARAPIO_HARD_MARGEM_ESCAPE:
+
+        return False
+
+    if y < -LARAPIO_HARD_MARGEM_ESCAPE or y > mapa_h + LARAPIO_HARD_MARGEM_ESCAPE:
+
+        return False
+
+    return True
 
 
 
@@ -4338,9 +4847,21 @@ def atualizar_e_desenhar_cartas_no_chao(tela, tempo_atual):
 
     global cartas_no_chao
 
-    # Remove expired cards
+    # Atualiza cartas roubadas pelo Larapio e remove cartas expiradas ou perdidas.
 
-    cartas_no_chao = [c for c in cartas_no_chao if tempo_atual < c["tempo_desaparecer"]]
+    cartas_vivas = []
+
+    for c in cartas_no_chao:
+
+        if c.get("larapio") and not _atualizar_larapio_carta(c, tempo_atual):
+
+            continue
+
+        if tempo_atual < c["tempo_desaparecer"]:
+
+            cartas_vivas.append(c)
+
+    cartas_no_chao = cartas_vivas
 
     
 
@@ -4350,7 +4871,13 @@ def atualizar_e_desenhar_cartas_no_chao(tela, tempo_atual):
 
         tempo_restante = c["tempo_desaparecer"] - tempo_atual
 
-        progresso_desfragmentacao = 1.0 - min(1.0, max(0.0, tempo_restante / float(CARTA_DROP_DESFRAGMENTACAO_MS)))
+        if c.get("larapio"):
+
+            progresso_desfragmentacao = 0.0
+
+        else:
+
+            progresso_desfragmentacao = 1.0 - min(1.0, max(0.0, tempo_restante / float(CARTA_DROP_DESFRAGMENTACAO_MS)))
 
         pulso = int(math.sin(tempo_atual * 0.01) * 3 + 5)
 
@@ -4358,7 +4885,13 @@ def atualizar_e_desenhar_cartas_no_chao(tela, tempo_atual):
 
         
 
-        cor_glow = (255, 215, 0) if c["nome"] in CARTAS_RARAS else (0, 255, 230)
+        if c.get("larapio"):
+
+            cor_glow = (255, 80, 45)
+
+        else:
+
+            cor_glow = (255, 215, 0) if c["nome"] in CARTAS_RARAS else (0, 255, 230)
 
         
 
@@ -4373,6 +4906,10 @@ def atualizar_e_desenhar_cartas_no_chao(tela, tempo_atual):
         
 
         tela.blit(surf_glow, rect_glow.topleft)
+
+        if c.get("larapio"):
+
+            _desenhar_larapio_hard(tela, c, tempo_atual)
 
         if progresso_desfragmentacao > 0:
             _desenhar_desfragmentacao_carta(tela, c, progresso_desfragmentacao)
@@ -4578,6 +5115,7 @@ def coletar_cartas_no_chao(personagem_rect, stats, efeitos_texto_lista):
         if personagem_rect.colliderect(carta["rect"]):
 
             nome = carta["nome"]
+            roubada_pelo_larapio = bool(carta.get("larapio"))
 
             aplicar_carta_drop(nome, stats)
 
@@ -4589,7 +5127,7 @@ def coletar_cartas_no_chao(personagem_rect, stats, efeitos_texto_lista):
 
             efeitos_texto_lista.append({
 
-                "texto": f"+{nome}",
+                "texto": f"+{nome}" if not roubada_pelo_larapio else f"+{nome} RECUPERADA",
 
                 "x": carta["rect"].centerx,
 
@@ -4880,7 +5418,9 @@ def reset_game_session():
 
     global roubo_de_vida, quantidade_roubo_vida, Mercenaria_Active, Valor_Bonus
 
-    global Tempo_cura, porcentagem_cura, tempo_ultima_regeneracao, cartas_compradas, ultimo_drop_carta_ms
+    global Tempo_cura, porcentagem_cura, tempo_ultima_regeneracao, cartas_compradas, ultimo_drop_carta_ms, ultimo_teste_larapio_ms
+
+    global ultimo_spawn_larapio_normal_ms, ultimo_spawn_larapio_hard_ms, larapios_pontos
 
     global trembo, Petro_active, vida_petro, vida_maxima_petro, dano_petro, Resistencia_petro, petro_evolucao
 
@@ -4909,6 +5449,16 @@ def reset_game_session():
     cronometro_pausado = False
 
     ultimo_drop_carta_ms = 0.0
+
+    ultimo_teste_larapio_ms = 0
+
+    ultimo_spawn_larapio_normal_ms = 0
+
+    ultimo_spawn_larapio_hard_ms = 0
+
+    larapios_pontos = []
+
+    cancelar_aviso_loja_forcada()
 
     r_press = False
 

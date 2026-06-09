@@ -1584,12 +1584,12 @@ def tela_selecao_aurea(tela, fonte):
         "cor_tema": (255, 112, 24),
         "bg_tema": (42, 18, 8),
         "categoria": "FOME, CONSUMO E RISCO",
-        "efeito": "Poeira voraz alimenta a barra Fome e cura 5% da vida perdida. Fome sustentada melhora tiros/dano e ativa mordidas que curam; sem coleta por 30s drena vida.",
+        "efeito": "Poeira voraz alimenta a barra Fome e cura 2% da vida perdida, +2.5% por ciclo ate 14.5%. Mordidas causam 10% do auto attack +2.5% por ciclo; sem coleta por 30s drena vida.",
         "atributos": [
             "Abates deixam poeira voraz temporaria.",
-            "Coletar poeira cura 5% da vida perdida.",
-            "Fome sustentada aumenta o tamanho e o dano dos tiros.",
-            "Mordidas curam pela vida perdida (ate 60% em boss).",
+            "Coletar poeira cura 2% da vida perdida, +2.5% por ciclo de Fome, ate 14.5%.",
+            "Fome sustentada aumenta levemente tamanho, dano dos tiros e recarga de habilidade.",
+            "Mordidas causam 10% do auto attack, +2.5% por ciclo de Fome, e usam a mesma cura.",
             "Custo: ficar 30s sem coletar drena 1% de vida a cada 1.5s."
         ],
         "lore": "A ruptura nao abre uma boca. Ela ensina Geovana a sentir uma."
@@ -2840,7 +2840,7 @@ def tela_configuracoes_jogabilidade(tela, fonte):
     opcoes_config = [
         {"nome": "Tutorial", "chave": "mostrar_tutorial", "valores": [True, False], "labels": ["Ativado", "Desativado"]},
         {"nome": "Modo de Teleporte", "chave": "modo_teleporte", "valores": ["fixo", "mouse"], "labels": ["Fixo", "Mouse Target"]},
-        {"nome": "Loja Forcada", "chave": "loja_forcada", "valores": [True, False], "labels": ["Ativada", "Desativada"]},
+        {"nome": "Larapio", "chave": "loja_forcada", "valores": [True, False], "labels": ["Ativado", "Desativado"]},
         {"nome": "Aplicar Alteracoes", "chave": "__aplicar__", "valores": None, "labels": None},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
     ]
@@ -2855,8 +2855,8 @@ def tela_configuracoes_jogabilidade(tela, fonte):
             "mouse": "Modo Mouse: Segure a tecla para mirar na posicao do cursor e solte para teleportar."
         },
         "loja_forcada": {
-            True: "A loja abre sozinha apos aviso quando voce acumula pontos para 5 cartas.",
-            False: "A loja nunca abre sozinha; voce decide quando gastar seus pontos."
+            True: "No Normal, o Larapio rouba pontos. No Dificil, ele rouba cartas dropadas do mapa.",
+            False: "Desativa as aparicoes especiais do Larapio."
         }
     }
 
@@ -3097,12 +3097,12 @@ def _dados_catalogo_temporal():
             {"nome": "Errante Temporal", "imagem": "Sprites/Inimig1.png", "funcionamento": "Persegue o jogador em linha direta, pressiona espaco e serve como base para o escalonamento das fases.", "historia": "Fragmentos de pessoas e criaturas presos no primeiro pulso da ruptura. Eles nao pensam em vencer, apenas em voltar para uma linha do tempo que ja nao existe."},
             {"nome": "Atirador", "imagem": "Sprites/inimigo_direita2-1.png", "funcionamento": "Mantem distancia e cria projeteis para quebrar rotas seguras. Fica mais perigoso quando o jogador para de se mover.", "historia": "Uma variante que aprendeu a usar a propria instabilidade como municao. Cada disparo e uma pequena tentativa de fixar Geovana no tempo."},
             {"nome": "Kamikaze", "imagem": "Sprites/inimigo_esquerda2-1.png", "funcionamento": "Avanca para explodir perto do jogador, causando dano e efeitos de controle quando alcanca alcance curto.", "historia": "Nasceu de ecos congelados da segunda fase. Sua forma e instavel demais para sobreviver, entao transforma o proprio colapso em arma."},
-            {"nome": "Aglomerador", "imagem": "Sprites/Inimig2.png", "funcionamento": "Ao morrer, pode se partir em inimigos menores ou favorecer grupos densos. Exige controle de area.", "historia": "Varias linhas temporais falharam no mesmo ponto e se colaram em um unico corpo. Quando ele cai, as partes ainda tentam continuar."},
-            {"nome": "Espreitador", "imagem": "Sprites/Inimig1.png", "funcionamento": "Mesmo corpo-base do Errante Temporal, mas com furtividade: oscila transparencia, pode ficar quase invisivel e usa arrancadas curtas para se aproximar.", "historia": "No livro, ele nao e outra especie: e o proprio errante aprendendo a falhar entre os frames da realidade. A ameaca vem do desaparecimento, nao de uma silhueta nova."},
-            {"nome": "Cristalizador", "imagem": "Sprites/Inimig1.png", "funcionamento": "Mesmo corpo-base do Errante Temporal com efeito cristalizador. No jogo, funciona como suporte defensivo: reduz dano em inimigos proximos e vira alvo prioritario.", "historia": "A ruptura endurece o errante por dentro, cobrindo sua forma comum com uma logica de cristal. Ele nao persegue apenas para matar; persegue para fixar a batalha em favor da horda."},
-            {"nome": "Projetador", "imagem": "Sprites/Inimig1.png", "funcionamento": "Mesmo corpo-base do Errante Temporal, mas ataca de longe. Ele para em distancia segura, projeta disparos e obriga reposicionamento constante.", "historia": "E um errante que aprendeu a estender o proprio colapso pelo espaco. No livro, sua diferenca nao esta no corpo, mas na capacidade de transformar distancia em pressao."},
+            {"nome": "Aglomerador", "imagem": "Sprites/aglomerador1.png", "funcionamento": "Errante volumoso que pode se partir em inimigos menores ou favorecer grupos densos. Exige controle de area.", "historia": "Varias linhas temporais falharam no mesmo ponto e se colaram em um unico corpo. Quando ele cai, as partes ainda tentam continuar."},
+            {"nome": "Espreitador", "imagem": "Sprites/espreitador1.png", "funcionamento": "Variante furtiva do Errante Temporal: oscila transparencia, pode ficar quase invisivel e usa arrancadas curtas para se aproximar.", "historia": "O errante aprendeu a falhar entre os frames da realidade. A ameaca vem do desaparecimento e da aproximacao irregular."},
+            {"nome": "Cristalizador", "imagem": "Sprites/cristalizador1.png", "funcionamento": "Variante cristalizada do Errante Temporal. No jogo, funciona como suporte defensivo: reduz dano em inimigos proximos e vira alvo prioritario.", "historia": "A ruptura endurece o errante por dentro, cobrindo sua forma com uma logica de cristal. Ele nao persegue apenas para matar; persegue para fixar a batalha em favor da horda."},
+            {"nome": "Projetador", "imagem": "Sprites/projetador1.png", "funcionamento": "Variante projetora do Errante Temporal que ataca de longe. Ele para em distancia segura, projeta disparos e obriga reposicionamento constante.", "historia": "E um errante que aprendeu a estender o proprio colapso pelo espaco. Sua diferenca esta em transformar distancia em pressao."},
             {"nome": "Elite", "imagem": "Sprites/Inimig1.png", "funcionamento": "Mesmo corpo-base do Errante Temporal, so que maior, com vida multiplicada e presenca mais punitiva. No jogo, pune dano baixo e falta de mobilidade.", "historia": "Quando um errante sobrevive tempo demais, ganha peso temporal. A Elite e o mesmo monstro comum, ampliado pela memoria das vezes em que quase venceu."},
-            {"nome": "Curater", "imagem": "Sprites/Inimig1.png", "visual": "curater", "funcionamento": "Anomalia de cura liberada mais tarde na primeira fase. Mantem distancia e cura globalmente aliados feridos de outras especies. Ele nao cura a si mesmo nem outros Curaters, entao eliminar essa anomalia corta a sustentacao do grupo.", "historia": "Nasceu quando a areia cosmica aprendeu a preservar seus proprios erros. Tem o mesmo corpo-base do Errante Temporal, mas cogumelos e brotos verdes denunciam a mutacao de suporte que o prende ao campo de batalha."},
+            {"nome": "Curater", "imagem": "Sprites/curater1.png", "funcionamento": "Anomalia de cura liberada mais tarde na primeira fase. Mantem distancia e cura globalmente aliados feridos de outras especies. Ele nao cura a si mesmo nem outros Curaters, entao eliminar essa anomalia corta a sustentacao do grupo.", "historia": "Nasceu quando a areia cosmica aprendeu a preservar seus proprios erros. A mutacao de suporte denuncia o corpo preso ao campo de batalha."},
         ],
         "Chefes": [
             {"nome": "BOSS 1: Caranguejo do Nulo", "imagem": "Sprites/Boss1.png", "funcionamento": "A Entropia Temporal. No jogo, e o primeiro teste grande de leitura de ataques, teleporte, dano sustentado e controle de invocacoes. Suas janelas de perigo representam bolhas, impacto e pressao de lacaios corrompidos.", "historia": "Localizacao: Dimensao Roxa, castelo em ruinas e deserto roxo. Crustaceo biomecanico colossal fundido a rocha, com bracos desproporcionais, olhos roxos flamejantes e um relogio caotico de bronze no torax. A vitoria abre a fenda dimensional que arranca Geovana para o proximo mundo."},
@@ -3150,38 +3150,6 @@ def _dados_catalogo_temporal():
     }
 
 
-def _catalogo_aplicar_visual_curater(img):
-    base = pygame.Surface(img.get_size(), pygame.SRCALPHA)
-    base.blit(img, (0, 0))
-    base.fill((190, 255, 205, 255), special_flags=pygame.BLEND_RGBA_MULT)
-
-    w, h = base.get_size()
-    centro_x = w // 2
-    base_y = h - 12
-    for i in range(9):
-        fase = i * 0.83
-        px = centro_x + int(math.cos(fase) * w * 0.38)
-        py = base_y + int(math.sin(i * 1.27) * h * 0.08)
-        caule_h = int(h * (0.08 + (i % 3) * 0.025))
-        cor_caule = (42, 150, 58, 235)
-        cor_chapeu = (108, 238, 128, 245) if i % 2 else (74, 204, 92, 245)
-        pygame.draw.line(base, cor_caule, (px, py), (px, py - caule_h), max(2, w // 45))
-        pygame.draw.ellipse(base, cor_chapeu, (px - w // 22, py - caule_h - h // 30, w // 13, h // 23))
-        pygame.draw.ellipse(base, (210, 255, 216, 230), (px - w // 70, py - caule_h - h // 42, w // 42, h // 55))
-
-    for i in range(5):
-        ang = i * (math.pi * 2 / 5) + 0.35
-        x1 = centro_x + int(math.cos(ang) * w * 0.18)
-        y1 = int(h * 0.52) + int(math.sin(ang) * h * 0.12)
-        x2 = centro_x + int(math.cos(ang) * w * 0.32)
-        y2 = int(h * 0.52) + int(math.sin(ang) * h * 0.20)
-        pygame.draw.line(base, (88, 255, 120, 135), (x1, y1), (x2, y2), max(1, w // 70))
-        pygame.draw.circle(base, (170, 255, 190, 170), (x2, y2), max(2, w // 38))
-
-    pygame.draw.circle(base, (80, 230, 105, 120), (centro_x, int(h * 0.55)), int(min(w, h) * 0.43), max(1, w // 70))
-    return base
-
-
 def _catalogo_carregar_imagem(caminho, limite=(190, 190), visual=None):
     if not caminho or not os.path.exists(caminho):
         return None
@@ -3191,8 +3159,6 @@ def _catalogo_carregar_imagem(caminho, limite=(190, 190), visual=None):
         escala = min(limite[0] / max(1, w), limite[1] / max(1, h))
         novo_tamanho = (max(1, int(w * escala)), max(1, int(h * escala)))
         img = pygame.transform.smoothscale(img, novo_tamanho)
-        if visual == "curater":
-            img = _catalogo_aplicar_visual_curater(img)
         return img
     except Exception as e:
         registrar_erro(f"Erro ao carregar imagem do catalogo: {caminho}", e)
@@ -3832,12 +3798,8 @@ def executar_menu_principal(game_manager=None):
                     )
                     return
                 else:
-                    if modo == 'offline':
-                        import GAME
-                        GAME.main()
-                    else:
-                        import GAMERE
-                        GAMERE.main()
+                    import GAME
+                    GAME.executar_jogo()
                     return
 
             elif escolha == 1:  # Catalogo

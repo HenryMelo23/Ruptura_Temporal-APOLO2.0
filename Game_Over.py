@@ -67,20 +67,8 @@ def tratar_tentar_novamente(game_manager):
             modo = "offline"
             ip = None
 
-        if modo in ["host", "join"]:
-            from rede import iniciar_host, conectar_ao_host
-            if modo == "host":
-                conn = iniciar_host()
-            else:
-                conn = conectar_ao_host(ip)
-            import GAMERE
-            GAMERE.modo = modo
-            if modo == "join":
-                GAMERE.ip_host = ip
-            GAMERE.conn = conn
-        else:
-            import GAME
-            GAME.executar_jogo()
+        import GAME
+        GAME.executar_jogo()
         return False
 
 def _obter_sprite_refragmentacao():

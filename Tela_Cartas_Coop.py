@@ -78,46 +78,46 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
     
     atributos_cartas = [
         {"nome": "Speed Boost", "Nick": "Vento Celeste", 
-         "descricao": "Geovana se move mais rapido. Cada compra aumenta a velocidade de forma fixa, sem depender de abates."},
+         "descricao": "Aumenta a velocidade de movimento em +0.065 por compra. O ganho e fixo e nao depende de abates."},
         
         {"nome": "Porção", "Nick": "Elixir Vital", 
-         "descricao": "Cura bastante Geovana e tambem recupera Petro. Se a cura passar do limite, o excesso aumenta a vida maxima."},
+         "descricao": "Cura 45% da vida maxima de Geovana e 30% da vida maxima de Petro. Se passar do limite, o excesso aumenta a vida maxima."},
         
         {"nome": "Disparo crescente", "Nick": "Impacto Escalante", 
-         "descricao": "Aumenta o dano do ataque basico em +10. E uma melhoria direta, forte e sempre igual."},
+         "descricao": "Aumenta o dano do auto attack em +10 por compra. E uma melhoria direta, fixa e sempre ativa."},
         
         {"nome": "Tempestade", "Nick": "Tempestade Crescente", 
-         "descricao": "Aumenta o dano basico e a chance de acerto critico. Boa para quem quer dano constante com picos de impacto."},
+         "descricao": "Aumenta o auto attack em +5 e a chance critica em +2 pontos percentuais. Criticos causam 3x o dano do tiro."},
 
         {"nome": "Cura", "Nick": "Mordida Sombria", 
-         "descricao": "Ativa Roubo de Vida. Seus projeteis curam uma pequena parte da vida perdida de Geovana ao acertar inimigos."},
+         "descricao": "Ativa Roubo de Vida. Cada compra cura +0.1% da vida perdida de Geovana quando um projetil acerta."},
 
         {"nome": "Trembo", "Nick": "Reversão Temporal", 
-         "descricao": "Ao sofrer dano fatal, revive Geovana com vida cheia. Tambem melhora a regeneracao passiva; compras extras fortalecem esse sustento."},
+         "descricao": "Ao sofrer dano fatal, revive Geovana com vida cheia. A 1a compra melhora a regeneracao em +0.1%; compras extras dao +0.5% e aceleram a cura."},
 
         {"nome": "Speed Atack", "Nick": "Fluidez Letal", 
-         "descricao": "Geovana atira mais rapido. Cada compra reduz a espera entre disparos ate um limite seguro."},
+         "descricao": "Reduz o intervalo entre tiros em 34 ms por compra, ate o minimo de 70 ms."},
         
         {"nome": "Teleporte", "Nick": "Salto Espacial", 
-         "descricao": "Reduz a recarga do Teleporte em 0,3 segundo por compra. A reducao e fixa e nao depende de abates."},
+         "descricao": "Reduz a recarga do Teleporte em 300 ms por compra, ate o minimo de 500 ms."},
 
         {"nome": "Petro", "Nick": "Sentinela Leal", 
-         "descricao": "Invoca Petro. Compras adicionais curam, evoluem e fortalecem a sentinela com dano, vida e resistencia."},
+         "descricao": "Invoca Petro. Cada compra da +2 dano e cura 45% da vida maxima dele; evolucoes adicionam vida, resistencia e dano."},
 
         {"nome": "Defesa", "Nick": "Escudo Fásico", 
-         "descricao": "Aumenta a resistencia de Geovana. Cada compra reduz mais o dano recebido, ate o limite de protecao."},
+         "descricao": "Aumenta a resistencia de Geovana em +3.5 por compra, ate o limite de 50."},
 
         {"nome": "Sorte", "Nick": "Anomalia Favorável", 
-         "descricao": "Aumenta a Sorte de Geovana, melhorando a chance de encontrar cartas e recompensas raras."},
+         "descricao": "Aumenta a Sorte em +0.3 ponto percentual por compra, melhorando rolagens de cartas e recompensas raras."},
          
         {"nome": "Poison", "Nick": "Toxina Temporal", 
-         "descricao": "Ataques aplicam veneno por alguns instantes. Cada compra deixa o veneno mais perigoso contra inimigos resistentes."},
+         "descricao": "Ataques podem aplicar veneno. Cada compra aumenta o dano do veneno em +0.5% da vida maxima do alvo por tick."},
          
         {"nome": "Coletora", "Nick": "Foice do Tempo", 
-         "descricao": f"Finaliza inimigos comuns muito feridos. Contra chefes, o efeito e bem menor para evitar execucoes injustas."},
+         "descricao": "Ativa execucao. Cada compra aumenta o limite de execucao dos comuns em +0.5 ponto percentual; chefes usam 20% desse valor, com teto de 1.5%."},
 
         {"nome": "Mercenaria", "Nick": "Contrato de Guerra",
-         "descricao": f"Ativa combo de pontos. A cada sequencia de 5 abates, Geovana recebe um bonus extra na pontuacao."}
+         "descricao": "Ativa combo de pontos. A cada sequencia de 5 abates, Geovana recebe bonus; cada compra aumenta esse bonus em +25."}
     ]
 
     cartas_disponiveis = [

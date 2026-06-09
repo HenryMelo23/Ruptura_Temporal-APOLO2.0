@@ -51,6 +51,7 @@ from Boss1_Ataques import gerenciador_ataques_boss1
 from boss_ui import desenhar_barra_vida_boss, registrar_dano_boss
 import insana_aurea
 import voraz_aurea
+import multiplayer_coop
 
 instalar_captura_global()
 instalar_filtro_prints()
@@ -596,6 +597,29 @@ def executar_jogo(game_manager=None):
         CURATER_INTERVALO_CURA = 1000
         CURATER_PERCENTUAL_VIDA_PERDIDA = CURATER_CURA_PERCENTUAL_VIDA_PERDIDA
         pulsos_cura_curater = []
+        orientacao_base_sprite_inimigo = {
+            1: "left",
+            2: "left",
+            3: "right",
+            4: "left",
+            5: "right",
+            TIPO_CURATER: "left",
+        }
+
+        def direcao_horizontal_inimigo(inimigo):
+            if inimigo.get("parado", False):
+                dx = (pos_x_personagem + largura_personagem / 2) - inimigo["rect"].centerx
+                if abs(dx) > 1:
+                    return "right" if dx > 0 else "left"
+            return inimigo.get("direcao_horizontal", "left")
+
+        def orientar_sprite_inimigo(sprite, inimigo):
+            tipo = inimigo.get("tipo", 1)
+            orientacao_base = orientacao_base_sprite_inimigo.get(tipo, "left")
+            direcao_alvo = direcao_horizontal_inimigo(inimigo)
+            if direcao_alvo != orientacao_base:
+                return pygame.transform.flip(sprite, True, False)
+            return sprite
 
         def perfil_espreitador():
             tempo_decorrido = Variaveis.obter_tempo_decorrido()
@@ -1146,7 +1170,8 @@ def executar_jogo(game_manager=None):
 
 
         def criar_inimigo(x, y, tipo=1):
-            image = frames_inimigo[0]
+            frames_tipo = frames_inimigo_especies.get(tipo, frames_inimigo)
+            image = frames_tipo[0]
             
             # Base stats
             hp = vida_inimigo_maxima
@@ -1866,6 +1891,9 @@ def executar_jogo(game_manager=None):
             botao_mouse = pygame.mouse.get_pressed()
             mouse_x = max(0, min(pos_mouse[0], largura_mapa - cursor_tamanho[0]))
             mouse_y = max(0, min(pos_mouse[1], altura_mapa - cursor_tamanho[1]))
+            fase_coop = multiplayer_coop.atualizar(1, pos_x_personagem, pos_y_personagem, direcao_atual, vida, vida_maxima, vida <= 0)
+            if multiplayer_coop.aplicar_transicao_recebida(fase_coop, game_manager):
+                raise CleanExit()
             for event in pygame.event.get():
                 Variaveis.atualizar_estado_mouse(event)
                 Variaveis.processar_eventos_teleporte(event, cooldown_dash)
@@ -2040,6 +2068,8 @@ def executar_jogo(game_manager=None):
                 limite_inimigos_run = max_inimigos + bonus_limite_inimigos_sem_boss(
                     tempo_decorrido_run,
                     r_press or boss_vivo1,
+                    inimigos_eliminados,
+                    modo_dificil=Variaveis.obter_modo_cartas() == "drops",
                 )
                 pressao_spawn = calcular_pressao_spawn_pos_boss(
                     pressao_pos_boss_spawn,
@@ -2473,11 +2503,13 @@ def executar_jogo(game_manager=None):
                 desenhar_x = inimigo["rect"].x - off_x
                 desenhar_y = inimigo["rect"].y - off_y
                 
-                current_frame = frames_inimigo[frame_atual % len(frames_inimigo)]
+                frames_tipo = frames_inimigo_especies.get(tipo, frames_inimigo)
+                current_frame = frames_tipo[frame_atual % len(frames_tipo)]
                 if l_vis != largura_inimigo or a_vis != altura_inimigo:
                     img_render = pygame.transform.scale(current_frame, (l_vis, a_vis))
                 else:
                     img_render = current_frame
+                img_render = orientar_sprite_inimigo(img_render, inimigo)
                 
                 # Efeito Stealth do Espreitador
                 alpha = 255
@@ -2487,16 +2519,7 @@ def executar_jogo(game_manager=None):
                     alpha_surf.blit(img_render, (0, 0))
                     alpha_surf.fill((255, 255, 255, alpha), special_flags=pygame.BLEND_RGBA_MULT)
                     img_render = alpha_surf
-                elif tipo == 5: # Projetador
-                    projetador_surf = pygame.Surface(img_render.get_size(), pygame.SRCALPHA)
-                    projetador_surf.blit(img_render, (0, 0))
-                    projetador_surf.fill((255, 216, 128, 255), special_flags=pygame.BLEND_RGBA_MULT)
-                    img_render = projetador_surf
-                elif tipo == TIPO_CURATER:
-                    curater_surf = pygame.Surface(img_render.get_size(), pygame.SRCALPHA)
-                    curater_surf.blit(img_render, (0, 0))
-                    curater_surf.fill((190, 255, 205, 255), special_flags=pygame.BLEND_RGBA_MULT)
-                    img_render = curater_surf
+
                 
                 desenhar_sombra(tela, desenhar_x, desenhar_y, l_vis, a_vis)
                 if tipo == TIPO_CURATER and inimigo.get("parado", False):
@@ -2861,6 +2884,7 @@ def executar_jogo(game_manager=None):
                 tela, estado_insana, aurea, tempo_atual,
                 pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, config_graficos
             )
+            multiplayer_coop.desenhar_jogador_remoto(tela, 1, frame_atual, frames_animacao, frames_animacao2)
 
             # Desenhar zona de teleporte (se estiver mirando no modo mouse)
             Variaveis.desenhar_zona_teleporte(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, distancia_dash)
@@ -3159,6 +3183,7 @@ def executar_jogo(game_manager=None):
                             salvar_atributos()
                             pausar_cronometro()
                             tela_transicao_dimensional(tela, 2)
+                            multiplayer_coop.enviar_transicao_fase(2)
                             if game_manager:
                                 from game_manager import EstadoJogo
                                 game_manager.mudar_estado(EstadoJogo.JOGO_FASE_2)
@@ -3649,7 +3674,13 @@ def executar_jogo(game_manager=None):
             total_cartas_compradas = sum(cartas_compradas.values())
             custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
             # Verifica se a pontuação atingiu o custo e se o jogador pressionou o botão da loja
-            if Variaveis.obter_modo_cartas() != "drops" and (pontuacao_exib >= custo_carta_atual) and (Variaveis.verificar_input("Comprar na loja") or (joystick and joystick.get_button(3))):
+            modo_loja_normal = Variaveis.obter_modo_cartas() != "drops"
+            abrir_loja_manual = modo_loja_normal and (Variaveis.verificar_input("Comprar na loja") or (joystick and joystick.get_button(3)))
+            if abrir_loja_manual:
+                Variaveis.cancelar_aviso_loja_forcada()
+            if modo_loja_normal:
+                Variaveis.tentar_ativar_larapio_normal(pontuacao_exib, custo_carta_atual, tempo_atual, efeitos_texto)
+            if (pontuacao_exib >= custo_carta_atual) and abrir_loja_manual:
                 # Calcula quantas cartas o jogador pode comprar com o custo progressivo
                 max_cartas = 0
                 total_custo = 0
@@ -3706,6 +3737,12 @@ def executar_jogo(game_manager=None):
                 pontuacao_exib= ret[31]
                 retomar_cronometro()
 
+
+            pontuacao_exib, pontuacao_magia = Variaveis.atualizar_e_desenhar_larapios_pontos(
+                tela, tempo_atual, pos_x_personagem, pos_y_personagem,
+                largura_personagem, altura_personagem,
+                pontuacao_exib, pontuacao_magia, custo_carta_atual, efeitos_texto
+            )
 
             cooldowns = {
                 "disparo": max(0.0, (intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual) - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
@@ -4245,6 +4282,7 @@ def executar_jogo(game_manager=None):
 
             # --- SISTEMA DE CARTAS DROP ---
             if Variaveis.obter_modo_cartas() == "drops":
+                Variaveis.tentar_ativar_larapio_hard(pontuacao_exib, custo_carta_atual, tempo_atual, efeitos_texto)
                 Variaveis.atualizar_e_desenhar_cartas_no_chao(tela, tempo_atual)
                 # Coleta de cartas no chão
                 stats_jogador = {

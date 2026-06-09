@@ -127,25 +127,25 @@ AUREAS_DADOS = [
         "id": "Voraz",
         "nome": "VORAZ",
         "categoria": "Fome, Consumo e Risco",
-        "descricao": "Utilidade: agressao sustentada por coleta ativa. Inimigos derrotados deixam poeira voraz laranja por poucos segundos; coletar essa poeira enche a barra Fome e cura 5% da vida perdida. Ao completar a barra, ela sobe para X1, X2 e assim por diante: cada ciclo exige bem mais Fome, a barra cai mais rapido e a parte alta da barra e mais dificil de manter. Com Fome sustentada, os tiros ficam maiores e causam mais dano, habilidades recarregam um pouco mais rapido, inimigos proximos sao puxados levemente para Geovana e contato causa mordidas. Cada mordida recupera 25% da vida perdida; se finalizar um inimigo, recupera 35%; em boss, recupera 60%. Se ficar mais de 30s sem coletar poeira, a aura cobra 1% da vida a cada 1.5s.",
-        "resumo": "Coleta agressiva: abates deixam poeira voraz laranja que enche Fome e cura 5% da vida perdida. Quanto mais ciclos, mais dificil manter a barra cheia; sem coleta por 30s drena vida.",
+        "descricao": "Utilidade: agressao sustentada por coleta ativa. Inimigos derrotados deixam poeira voraz laranja por poucos segundos; coletar essa poeira enche a barra Fome e cura 2% da vida perdida, aumentando 2.5% por ciclo de Fome ate 14.5%. Ao completar a barra, ela sobe para X1, X2 e assim por diante: cada ciclo exige bem mais Fome, a barra cai mais rapido e a parte alta da barra e mais dificil de manter. Com Fome sustentada, os tiros ficam maiores, causam um bonus leve de dano e habilidades recarregam ate 12% mais rapido. Inimigos proximos sao puxados com pouca forca e contato causa mordidas a cada 1.3s: cada mordida causa 10% do dano do auto attack, +2.5% por ciclo de Fome, e usa a mesma cura por Fome. Se ficar mais de 30s sem coletar poeira, a aura cobra 1% da vida a cada 1.5s.",
+        "resumo": "Coleta agressiva: poeira voraz enche Fome e cura 2% da vida perdida +2.5% por ciclo, ate 14.5%. Mordidas causam 10% do auto attack +2.5% por ciclo de Fome. Sem coleta por 30s, drena vida.",
         "lore": "\"A ruptura nao abre uma boca. Ela ensina Geovana a sentir uma.\"",
         "imagem_path": "Sprites/aurea_voraz.png",
         "cor": (255, 112, 24),
         "estilo": "voraz",
         "beneficios": {
             0: "Nenhum efeito ativo.",
-            1: "Poeira alimenta Fome e cura 5% da vida perdida. Fome sustentada aumenta tiros, dano e mordidas que curam; sem coleta por 30s drena vida.",
-            2: "Mais dano por Fome e recargas um pouco mais rapidas. A barra escala ao completar ciclos XN.",
-            3: "Puxao e mordidas ficam mais relevantes em combate corpo a corpo.",
-            4: "Tiros crescem mais com Fome sustentada e a pressao ofensiva dura melhor.",
-            5: "Maior recompensa agressiva, mas ciclos altos decaem rapido e exigem coleta constante."
+            1: "Poeira alimenta Fome e cura 2% da vida perdida, +2.5% por ciclo de Fome, ate 14.5%. Mordidas causam 10% do auto attack +2.5% por ciclo.",
+            2: "Fome sustentada aumenta levemente dano dos tiros, tamanho dos tiros e velocidade de recarga. A barra escala ao completar ciclos XN.",
+            3: "Puxao e mordidas ajudam no corpo a corpo, mas o dano da mordida segue 10% do auto attack +2.5% por ciclo de Fome.",
+            4: "Tiros crescem com Fome sustentada e a pressao ofensiva dura melhor se voce continuar coletando poeira.",
+            5: "Maior recompensa agressiva, mas ciclos altos decaem rapido, exigem coleta constante e mantem o mesmo calculo claro de mordida."
         },
         "destaques": [
             "- Abates deixam poeira laranja voraz por poucos segundos.",
-            "- Coletar poeira enche Fome e cura 5% da vida perdida.",
+            "- Coletar poeira enche Fome e cura 2% da vida perdida, +2.5% por ciclo de Fome, ate 14.5%.",
             "- Cada ciclo exige muito mais Fome; barra alta cai mais rapido.",
-            "- Mordidas curam 25% da vida perdida; se eliminarem inimigo, curam 35%; contra boss, curam 60%.",
+            "- Mordidas causam 10% do auto attack, +2.5% por ciclo de Fome, e usam a mesma cura por Fome.",
             "- Custo: 30s sem coletar poeira drena 1% de vida a cada 1.5s."
         ]
     }

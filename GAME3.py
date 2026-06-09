@@ -49,6 +49,7 @@ from Tela_Upgrade_Aureas import tela_upgrade_aureas
 from boss_ui import desenhar_barra_vida_boss, registrar_dano_boss
 import insana_aurea
 import voraz_aurea
+import multiplayer_coop
 
 instalar_captura_global()
 instalar_filtro_prints()
@@ -2156,12 +2157,13 @@ y = 0
 def executar_jogo(game_manager=None):
     global dt
     global aurea
+    global tempo_parado_person, tempo_ultimo_escudo
     global direcao_atual, tempo_ultimo_disparo
     global fe_pai_rato, fase_pai_rato, queijos_sagrados, avisos_pai_rato, projeteis_veneno_pai_rato
     global pai_rato_eventos, pai_rato_chuva_frascos, pai_rato_cauda, pai_rato_carga, pai_rato_consumindo
     global pai_rato_ritual, pai_rato_atordoado_ate, tempo_ultimo_cuspida_pai_rato, tempo_ultimo_cauda_pai_rato
     global tempo_ultimo_carga_pai_rato, tempo_ultimo_queijo_pai_rato, tempo_ultimo_chuva_pai_rato
-    global Boss_vivo3, gerar_fragmentos_morte, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss3, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, bonus_pontuacao, boss_envenenado, boss_frame_andando, boss_frame_atual, boss_frame_peca, carregar_atributos_na_fase, cartas_compradas, chance_critico, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, disparos, disparos_boss3, disparos_inimigos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, escudo_devota_ativo, fonte, frame_atual, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, rastros_toxicos, nuvens_miasma, areas_miasma, intervalo_disparo, largura_disparo, max_inimigos2, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, musica_boss3, nivel_ameaca, ondas, personagem_doente, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe3, pos_x_personagem, pos_x_petro, pos_y_chefe3, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, queijo_geracao, queijo_spawn, r_press, rect_boss, roubo_de_vida, running, spawn_inimigo, sprite_moeda, teleportado, tempo_anterior_petro, tempo_atual, tempo_boss_entrada_fim, tempo_cooldown_dash, tempo_ultimo_dash, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_regeneracao, tempo_ultimo_atingido, tempo_ultimo_disparo_inimigo, tempo_ultimo_frame_boss, tempo_ultimo_grupo_disparo_boss3, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, texto_dano, tipo_buff_impulsiva, toque, trembo, ultima_direcao_animacao, ultimo_tick_veneno_boss, upgrades, velocidade_personagem, vida, vida_boss3, vida_boss4, vida_inimigo_maxima, vida_maxima, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, vida_queijo, x, xp_petro, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
+    global Boss_vivo3, gerar_fragmentos_morte, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_Boss3, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, bonus_pontuacao, boss_envenenado, boss_frame_andando, boss_frame_atual, boss_frame_peca, carregar_atributos_na_fase, cartas_compradas, chance_critico, cooldown_dash, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, disparos, disparos_boss3, disparos_inimigos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, escudo_devota_ativo, fonte, frame_atual, impulsiva_ativa, imune_tempo_restante, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, rastros_toxicos, nuvens_miasma, areas_miasma, intervalo_disparo, largura_disparo, max_inimigos2, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, musica_boss3, nivel_ameaca, ondas, personagem_doente, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_chefe3, pos_x_personagem, pos_x_petro, pos_y_chefe3, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, queijo_geracao, queijo_spawn, r_press, rect_boss, roubo_de_vida, running, spawn_inimigo, sprite_moeda, teleportado, tempo_anterior_petro, tempo_atual, tempo_boss_entrada_fim, tempo_cooldown_dash, tempo_ultimo_dash, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_regeneracao, tempo_ultimo_atingido, tempo_ultimo_disparo_inimigo, tempo_ultimo_frame_boss, tempo_ultimo_grupo_disparo_boss3, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, texto_dano, tipo_buff_impulsiva, toque, trembo, ultima_direcao_animacao, ultimo_tick_veneno_boss, upgrades, velocidade_personagem, vida, vida_boss3, vida_boss4, vida_inimigo_maxima, vida_maxima, vida_maxima_boss3, vida_maxima_boss4, vida_maxima_petro, vida_petro, vida_queijo, x, xp_petro, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
     class CleanExit(BaseException):
         pass
     import sys as _sys
@@ -2641,6 +2643,9 @@ def executar_jogo(game_manager=None):
             mouse_x = max(0, min(pos_mouse[0], largura_mapa - cursor_tamanho[0]))
             mouse_y = max(0, min(pos_mouse[1], altura_mapa - cursor_tamanho[1]))
             pausa_por_fuga_mouse = Variaveis.deve_pausar_por_fuga_mouse(pos_mouse, largura_mapa, altura_mapa)
+            fase_coop = multiplayer_coop.atualizar(3, pos_x_personagem, pos_y_personagem, direcao_atual, vida, vida_maxima, vida <= 0)
+            if multiplayer_coop.aplicar_transicao_recebida(fase_coop, game_manager):
+                raise CleanExit()
             for event in pygame.event.get():
                 Variaveis.atualizar_estado_mouse(event)
                 Variaveis.processar_eventos_teleporte(event, cooldown_dash)
@@ -3051,13 +3056,20 @@ def executar_jogo(game_manager=None):
 
              # Adicionar inimigos a cada 10 segundos
             tempo_atual = pygame.time.get_ticks()
+            tempo_decorrido_run = Variaveis.obter_tempo_decorrido()
+            limite_inimigos_run = max_inimigos2 + bonus_limite_inimigos_sem_boss(
+                tempo_decorrido_run,
+                r_press or Boss_vivo3,
+                inimigos_eliminados,
+                modo_dificil=Variaveis.obter_modo_cartas() == "drops",
+            )
             pressao_spawn = calcular_pressao_spawn_pos_boss(
                 pressao_pos_boss_spawn,
                 tempo_atual,
                 r_press and not Boss_vivo3,
                 len(inimigos_comum),
                 inimigos_eliminados,
-                max_inimigos2,
+                limite_inimigos_run,
             )
             if tempo_atual - tempo_ultimo_inimigo >= pressao_spawn["intervalo_ms"] and pressao_spawn["lote"] > 0 and (spawn_inimigo or not Boss_vivo3):
                 for _ in range(pressao_spawn["lote"]):
@@ -3179,9 +3191,11 @@ def executar_jogo(game_manager=None):
                 tela, estado_insana, aurea, tempo_atual,
                 pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, config_graficos
             )
+            multiplayer_coop.desenhar_jogador_remoto(tela, 3, frame_atual, frames_animacao, frames_animacao2)
 
             # Desenhar zona de teleporte (se estiver mirando no modo mouse)
             Variaveis.desenhar_zona_teleporte(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, distancia_dash)
+            personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
             for moeda in moedas_soltadas[:]:
                 if personagem_rect.colliderect(moeda["rect"]):
                     moedas_coletadas += 1
@@ -3473,6 +3487,7 @@ def executar_jogo(game_manager=None):
                             Musica_tema_Boss3.stop()
                             pausar_cronometro()
                             tela_transicao_dimensional(tela, 4)
+                            multiplayer_coop.enviar_transicao_fase(4)
                             if game_manager:
                                 from game_manager import EstadoJogo
                                 game_manager.mudar_estado(EstadoJogo.JOGO_FASE_4)
@@ -4365,6 +4380,7 @@ def executar_jogo(game_manager=None):
                             Musica_tema_Boss3.stop()
                             pausar_cronometro()
                             tela_transicao_dimensional(tela, 4)
+                            multiplayer_coop.enviar_transicao_fase(4)
                             if game_manager:
                                 from game_manager import EstadoJogo
                                 game_manager.mudar_estado(EstadoJogo.JOGO_FASE_4)
@@ -4378,7 +4394,13 @@ def executar_jogo(game_manager=None):
             total_cartas_compradas = sum(cartas_compradas.values())
             custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
             # Verifica se a pontuação atingiu o custo e se o jogador pressionou o botão da loja
-            if Variaveis.obter_modo_cartas() != "drops" and (pontuacao_exib >= custo_carta_atual) and (Variaveis.verificar_input("Comprar na loja") or (joystick and joystick.get_button(3))):
+            modo_loja_normal = Variaveis.obter_modo_cartas() != "drops"
+            abrir_loja_manual = modo_loja_normal and (Variaveis.verificar_input("Comprar na loja") or (joystick and joystick.get_button(3)))
+            if abrir_loja_manual:
+                Variaveis.cancelar_aviso_loja_forcada()
+            if modo_loja_normal:
+                Variaveis.tentar_ativar_larapio_normal(pontuacao_exib, custo_carta_atual, tempo_atual, efeitos_texto)
+            if (pontuacao_exib >= custo_carta_atual) and abrir_loja_manual:
                 # Calcula quantas cartas o jogador pode comprar com o custo progressivo
                 max_cartas = 0
                 total_custo = 0
@@ -4437,6 +4459,12 @@ def executar_jogo(game_manager=None):
 
 
 
+
+            pontuacao_exib, pontuacao_magia = Variaveis.atualizar_e_desenhar_larapios_pontos(
+                tela, tempo_atual, pos_x_personagem, pos_y_personagem,
+                largura_personagem, altura_personagem,
+                pontuacao_exib, pontuacao_magia, custo_carta_atual, efeitos_texto
+            )
 
             cooldowns = {
                 "disparo": max(0.0, (intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual) - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
@@ -4596,6 +4624,7 @@ def executar_jogo(game_manager=None):
 
             # --- SISTEMA DE CARTAS DROP ---
             if Variaveis.obter_modo_cartas() == "drops":
+                Variaveis.tentar_ativar_larapio_hard(pontuacao_exib, custo_carta_atual, tempo_atual, efeitos_texto)
                 Variaveis.atualizar_e_desenhar_cartas_no_chao(tela, tempo_atual)
                 stats_jogador = {
                     "velocidade_personagem": velocidade_personagem, "intervalo_disparo": intervalo_disparo,
@@ -4649,7 +4678,7 @@ def executar_jogo(game_manager=None):
 
             Variaveis.aplicar_tremor_dano_tela(tela, tempo_atual, tempo_ultimo_hit_inimigo, piscando_vida)
 
-            tela.blit(cursor_imagem, (mouse_x, mouse_y))    
+            tela.blit(cursor_imagem, (mouse_x, mouse_y))
 
             exibir_cronometro(tela)
 
