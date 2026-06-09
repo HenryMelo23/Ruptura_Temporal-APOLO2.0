@@ -1451,6 +1451,16 @@ def executar_jogo(game_manager=None):
         # Variável para armazenar o tempo do último inimigo adicionado
         tempo_ultimo_inimigo = pygame.time.get_ticks()
         quantidade_inimigos = 1
+        tempo_inicio_cobica_larapio = 0
+        chance_atual_larapio = 0.0
+        tempo_ultimo_spawn_larapio = 0
+        alerta_larapio_mostrado = False
+        miniboss_condutor = None
+        miniboss_condutor_spawnado = False
+        recompensa_condutor_pendente = False
+        pulsos_condutor = []
+        ecos_rompidos_condutor = []
+        prisoes_condutor = []
 
         # Função para verificar a colisão entre o personagem e os projéteis inimigos
         def verificar_colisao_personagem(projeteis):
@@ -2799,7 +2809,8 @@ def executar_jogo(game_manager=None):
                 pass  # Nenhum inimigo comum durante o tutorial
             else:
                 tempo_decorrido_run = Variaveis.obter_tempo_decorrido()
-                tentar_spawn_condutor(tempo_decorrido_run)
+                # Condutor ainda nao tem assets/constantes completos nesta fase.
+                # Mantido desligado para evitar crash de runtime.
                 limite_inimigos_run = max_inimigos + bonus_limite_inimigos_sem_boss(
                     tempo_decorrido_run,
                     r_press or boss_vivo1,
@@ -2819,7 +2830,8 @@ def executar_jogo(game_manager=None):
                     for _ in range(pressao_spawn["lote"]):
                         gerar_inimigo(pressao_spawn["limite"])
                     tempo_ultimo_inimigo = tempo_atual  # Atualizar o tempo do último inimigo adicionado
-                tentar_spawn_larapio(tempo_decorrido_run, limite_inimigos_run)
+                # O Larapio atual roda fora de inimigos_comum em Variaveis.
+                # Mantemos o spawner antigo desligado para nao quebrar o limite de inimigos.
             nivel_racional = upgrades.get("Racional", 0)
             #LUGAR AONDE COLOCAMOS AS AUREAS
             if aurea == "Racional":
@@ -3301,9 +3313,11 @@ def executar_jogo(game_manager=None):
                         y2 = cy + int(math.sin(ang_m) * (raio_proj + 12))
                         pygame.draw.line(tela, (255, 230, 128), (x1, y1), (x2, y2), 2)
                     pygame.draw.circle(tela, (255, 245, 170), (cx, cy - 12), 4, 0)
-                    tempo_cura = pygame.time.get_ticks()
+                elif tipo == TIPO_LARAPIO:
+                    tempo_larapio = pygame.time.get_ticks()
                     cx, cy = inimigo["rect"].centerx, inimigo["rect"].centery
-                        pygame.draw.circle(tela, (255, 224, 78), (cx + 12 * inimigo.get("direcao_x", 1), cy - 4), max(4, pulso), 2)
+                    pulso_larapio = int(5 + 2 * math.sin(tempo_larapio * 0.012))
+                    pygame.draw.circle(tela, (255, 224, 78), (cx + 12 * inimigo.get("direcao_x", 1), cy - 4), max(4, pulso_larapio), 2)
                     if inimigo.get("dinheiro_roubado", 0) > 0:
                         raio_saque = int(15 + min(10, inimigo.get("dinheiro_roubado", 0)) + 3 * math.sin(tempo_larapio * 0.008))
                         pygame.draw.circle(tela, (255, 205, 58), (cx, cy), raio_saque, 1)
