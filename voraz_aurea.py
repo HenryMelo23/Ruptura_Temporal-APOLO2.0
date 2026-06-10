@@ -28,6 +28,7 @@ VORAZ_MORDIDA_DANO_CICLO_MULT = 0.025
 VORAZ_MORDIDA_BOSS_BASE_MULT = 0.10
 VORAZ_MORDIDA_BOSS_FOME_MULT = 0.0
 VORAZ_MORDIDA_BOSS_VIDA_MAX_MULT = 0.0
+VORAZ_MORDIDA_RANGE = 100
 VORAZ_POEIRAS_POR_ABATE = 9
 
 
@@ -42,8 +43,9 @@ def criar_estado_voraz(nivel=0, agora_ms=0):
         "fome": 0.0,
         "ciclos": 0,
         "fragmentos": [],
-        "poeiras": [],
+        "coagulos": [],
         "mordidas": [],
+        "ameacas": [],
         "ultimo_update_ms": agora,
         "ultima_coleta_ms": agora,
         "ultimo_dano_fome_ms": agora,
@@ -115,20 +117,20 @@ def _valor_fome_coletavel(estado, valor_base):
     return max(10.0, float(valor_base) * (0.94 ** ciclos))
 
 
-def _criar_poeira_abate(estado, x, y, tempo_atual):
-    poeiras = estado.setdefault("poeiras", [])
+def _criar_coagulo_abate(estado, x, y, tempo_atual):
+    coagulos = estado.setdefault("coagulos", [])
     for _ in range(VORAZ_POEIRAS_POR_ABATE):
         ang = random.uniform(0, math.tau)
         vel = random.uniform(0.45, 1.8)
-        poeiras.append({
+        coagulos.append({
             "x": float(x) + random.uniform(-8, 8),
             "y": float(y) + random.uniform(-8, 8),
             "vx": math.cos(ang) * vel,
             "vy": math.sin(ang) * vel - random.uniform(0.35, 1.15),
             "criado_ms": int(tempo_atual),
-            "expira_ms": int(tempo_atual) + random.randint(560, 980),
+            "expira_ms": int(tempo_atual) + 3000,
             "fase": random.uniform(0, math.tau),
-            "raio": random.uniform(1.6, 4.4),
+            "raio": random.uniform(2.5, 5.5),
         })
 
 
@@ -137,7 +139,7 @@ def criar_fragmento_abate(estado, aurea, posicao, tempo_atual, quantidade=1):
         return
     x, y = posicao
     fragmentos = estado.setdefault("fragmentos", [])
-    _criar_poeira_abate(estado, x, y, tempo_atual)
+    _criar_coagulo_abate(estado, x, y, tempo_atual)
     for _ in range(max(1, int(quantidade))):
         ang = random.uniform(0, math.tau)
         dist = random.uniform(8, 30)
@@ -303,10 +305,8 @@ def aplicar_passiva_em_inimigos(
     centro_x = pos_x + largura / 2
     centro_y = pos_y + altura / 2
     raio_puxao = 105 + intensidade * 34
-    rect_player = pygame.Rect(pos_x, pos_y, largura, altura).inflate(
-        -int(largura * 0.25),
-        -int(altura * 0.18),
-    )
+    rect_player = pygame.Rect(pos_x, pos_y, largura, altura).inflate(VORAZ_MORDIDA_RANGE, VORAZ_MORDIDA_RANGE)
+    estado["ameacas"] = []
     curou = False
     mortos = []
 
@@ -331,7 +331,9 @@ def aplicar_passiva_em_inimigos(
 
         if rect.colliderect(rect_player):
             ultimo = int(inimigo.get("voraz_ultima_mordida_ms", 0))
-            if int(tempo_atual) - ultimo >= VORAZ_MORDIDA_COOLDOWN_MS:
+            if int(tempo_atual) - ultimo < VORAZ_MORDIDA_COOLDOWN_MS:
+                estado.setdefault("ameacas", []).append({"x": rect.centerx, "y": rect.top + rect.height * 0.35})
+            else:
                 inimigo["voraz_ultima_mordida_ms"] = int(tempo_atual)
                 dano = max(1, int(dano_base * _multiplicador_dano_mordida(estado, intensidade)))
                 vida_anterior = inimigo.get("vida", 1)
@@ -374,15 +376,13 @@ def aplicar_mordida_boss(
         return vida_boss, vida, False
     intensidade = max(VORAZ_MORDIDA_INTENSIDADE_MIN, _intensidade(estado))
 
-    rect_player = pygame.Rect(pos_x, pos_y, largura, altura).inflate(
-        -int(largura * 0.25),
-        -int(altura * 0.18),
-    )
+    rect_player = pygame.Rect(pos_x, pos_y, largura, altura).inflate(VORAZ_MORDIDA_RANGE, VORAZ_MORDIDA_RANGE)
     if not boss_rect.colliderect(rect_player):
         return vida_boss, vida, False
 
     ultimo = int(estado.get("ultima_mordida_boss_ms", 0))
     if int(tempo_atual) - ultimo < VORAZ_MORDIDA_COOLDOWN_MS:
+        estado.setdefault("ameacas", []).append({"x": boss_rect.centerx, "y": boss_rect.top + boss_rect.height * 0.35})
         return vida_boss, vida, False
 
     estado["ultima_mordida_boss_ms"] = int(tempo_atual)
@@ -417,7 +417,7 @@ def aplicar_mordida_boss(
     return vida_boss, vida, cura > 0
 
 
-def desenhar_voraz(tela, estado, aurea, tempo_atual, largura_tela=None, config_graficos=None):
+def desenhar_voraz(tela, estado, aurea, tempo_atual, largura_tela=None, config_graficos=None, player_pos=None):
     if not _eh_voraz(aurea) or not estado:
         return
     largura_tela = largura_tela or tela.get_width()
@@ -427,29 +427,51 @@ def desenhar_voraz(tela, estado, aurea, tempo_atual, largura_tela=None, config_g
         efeitos = config_graficos.get("efeitos_visuais", True)
 
     if efeitos:
-        poeiras_vivas = []
-        for poeira in estado.get("poeiras", []):
-            inicio = int(poeira.get("criado_ms", tempo_atual))
-            fim = int(poeira.get("expira_ms", inicio + 1))
+        try:
+            import lacerante_manifestacao
+            lacerante_disponivel = True
+        except ImportError:
+            lacerante_disponivel = False
+
+        if player_pos is not None and _mordida_ativa(estado, tempo_atual):
+            px, py, pw, ph = player_pos
+            cx = int(px + pw / 2)
+            cy = int(py + ph / 2)
+            raio_mordida = int((pw + VORAZ_MORDIDA_RANGE) / 2)
+            intensidade_v = _intensidade(estado)
+            pulso = (math.sin(tempo_atual * 0.006) + 1.0) * 0.5
+            alpha = int(18 + pulso * 14 + intensidade_v * 12)
+            circle_surf = pygame.Surface((raio_mordida * 2 + 4, raio_mordida * 2 + 4), pygame.SRCALPHA)
+            pygame.draw.circle(circle_surf, (255, 120, 20, alpha), (raio_mordida + 2, raio_mordida + 2), raio_mordida)
+            pygame.draw.circle(circle_surf, (255, 160, 40, min(80, alpha + 25)), (raio_mordida + 2, raio_mordida + 2), raio_mordida, 2)
+            tela.blit(circle_surf, (cx - raio_mordida - 2, cy - raio_mordida - 2))
+
+        coagulos_vivos = []
+        for coagulo in estado.get("coagulos", []):
+            inicio = int(coagulo.get("criado_ms", tempo_atual))
+            fim = int(coagulo.get("expira_ms", inicio + 1))
             if tempo_atual >= fim:
+                # Estourar e gerar poça de sangue
+                if lacerante_disponivel:
+                    lacerante_manifestacao._adicionar_poca_sangue(coagulo["x"], coagulo["y"], tempo_atual, "alto", 0.6)
                 continue
             idade = max(0, tempo_atual - inicio)
             duracao = max(1, fim - inicio)
             p = idade / duracao
-            poeira["x"] += float(poeira.get("vx", 0.0))
-            poeira["y"] += float(poeira.get("vy", 0.0))
-            poeira["vy"] = float(poeira.get("vy", 0.0)) + 0.045
-            alpha = int(210 * (1.0 - p))
-            raio = max(1, int(float(poeira.get("raio", 2.0)) * (1.0 - p * 0.45)))
-            x = int(poeira["x"] + math.sin(tempo_atual * 0.012 + poeira.get("fase", 0.0)) * 2)
-            y = int(poeira["y"])
+            coagulo["x"] += float(coagulo.get("vx", 0.0))
+            coagulo["y"] += float(coagulo.get("vy", 0.0))
+            coagulo["vy"] = float(coagulo.get("vy", 0.0)) + 0.045
+            alpha = int(240 * (1.0 - p))
+            raio = max(1, int(float(coagulo.get("raio", 2.0)) * (1.0 - p * 0.3)))
+            x = int(coagulo["x"] + math.sin(tempo_atual * 0.012 + coagulo.get("fase", 0.0)) * 1.5)
+            y = int(coagulo["y"])
             brilho = pygame.Surface((34, 34), pygame.SRCALPHA)
-            pygame.draw.circle(brilho, (255, 78, 18, int(alpha * 0.18)), (17, 17), raio + 9)
-            pygame.draw.circle(brilho, (255, 138, 32, alpha), (17, 17), raio + 2)
-            pygame.draw.circle(brilho, (255, 224, 120, min(220, alpha + 25)), (17, 17), max(1, raio // 2))
+            pygame.draw.circle(brilho, (180, 10, 10, int(alpha * 0.3)), (17, 17), raio + 7)
+            pygame.draw.circle(brilho, (140, 5, 5, alpha), (17, 17), raio + 2)
+            pygame.draw.circle(brilho, (220, 20, 20, min(255, alpha + 50)), (17, 17), max(1, raio - 1))
             tela.blit(brilho, (x - 17, y - 17), special_flags=pygame.BLEND_RGBA_ADD)
-            poeiras_vivas.append(poeira)
-        estado["poeiras"] = poeiras_vivas
+            coagulos_vivos.append(coagulo)
+        estado["coagulos"] = coagulos_vivos
 
         vivos = []
         for frag in estado.get("fragmentos", []):
@@ -488,16 +510,26 @@ def desenhar_voraz(tela, estado, aurea, tempo_atual, largura_tela=None, config_g
             x = int(mordida["x"])
             y = int(mordida["y"])
             mandibula = pygame.Surface((58, 46), pygame.SRCALPHA)
-            cor = (255, 118, 26, alpha)
-            pygame.draw.arc(mandibula, cor, (8, 2 + int(8 * abertura), 42, 24), math.pi * 1.05, math.pi * 1.95, 3)
-            pygame.draw.arc(mandibula, cor, (8, 18 - int(8 * abertura), 42, 24), math.pi * 0.05, math.pi * 0.95, 3)
+            cor = (220, 20, 20, alpha)
+            pygame.draw.arc(mandibula, cor, (8, 2 + int(8 * abertura), 42, 24), math.pi * 1.05, math.pi * 1.95, 4)
+            pygame.draw.arc(mandibula, cor, (8, 18 - int(8 * abertura), 42, 24), math.pi * 0.05, math.pi * 0.95, 4)
             for i in range(4):
                 tx = 14 + i * 8
-                pygame.draw.line(mandibula, (255, 225, 160, alpha), (tx, 15), (tx + 3, 23), 1)
-                pygame.draw.line(mandibula, (255, 225, 160, alpha), (tx, 31), (tx + 3, 23), 1)
+                pygame.draw.line(mandibula, (255, 180, 180, alpha), (tx, 15), (tx + 3, 23), 2)
+                pygame.draw.line(mandibula, (255, 180, 180, alpha), (tx, 31), (tx + 3, 23), 2)
             tela.blit(mandibula, (x - 29, y - 23), special_flags=pygame.BLEND_RGBA_ADD)
             mordidas_vivas.append(mordida)
         estado["mordidas"] = mordidas_vivas
+
+        for ameaca in estado.get("ameacas", []):
+            x = int(ameaca["x"])
+            y = int(ameaca["y"])
+            mandibula = pygame.Surface((58, 46), pygame.SRCALPHA)
+            cor = (150, 10, 10, 70)
+            pygame.draw.arc(mandibula, cor, (8, 8, 42, 24), math.pi * 1.05, math.pi * 1.95, 2)
+            pygame.draw.arc(mandibula, cor, (8, 12, 42, 24), math.pi * 0.05, math.pi * 0.95, 2)
+            tela.blit(mandibula, (x - 29, y - 23), special_flags=pygame.BLEND_RGBA_ADD)
+        estado["ameacas"] = []
 
     barra_w = 200
     barra_h = 14

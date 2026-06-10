@@ -3996,7 +3996,7 @@ def executar_jogo(game_manager=None):
                 escudo_devota_ativo, pos_x_personagem, pos_y_personagem,
                 largura_personagem, altura_personagem
             )
-            voraz_aurea.desenhar_voraz(tela, estado_voraz, aurea, tempo_atual, largura_tela, config_graficos)
+            voraz_aurea.desenhar_voraz(tela, estado_voraz, aurea, tempo_atual, largura_tela, config_graficos, player_pos=(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
 
             Variaveis.aplicar_tremor_dano_tela(tela, tempo_atual, tempo_ultimo_hit_inimigo, piscando_vida)
 

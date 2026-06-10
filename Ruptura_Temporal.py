@@ -1584,15 +1584,15 @@ def tela_selecao_aurea(tela, fonte):
         "cor_tema": (255, 112, 24),
         "bg_tema": (42, 18, 8),
         "categoria": "FOME, CONSUMO E RISCO",
-        "efeito": "Poeira voraz alimenta a barra Fome e cura 2% da vida perdida, +2.5% por ciclo ate 14.5%. Mordidas causam 10% do auto attack +2.5% por ciclo; sem coleta por 30s drena vida.",
+        "efeito": "Coagulos de sangue alimentam a barra Fome e cura 2% da vida perdida, +2.5% por ciclo ate 14.5%. Mordidas causam 10% do auto attack +2.5% por ciclo; sem coleta por 30s drena vida.",
         "atributos": [
-            "Abates deixam poeira voraz temporaria.",
-            "Coletar poeira cura 2% da vida perdida, +2.5% por ciclo de Fome, ate 14.5%.",
+            "Abates deixam coagulos de sangue temporarios.",
+            "Coletar coagulos cura 2% da vida perdida, +2.5% por ciclo de Fome, ate 14.5%.",
             "Fome sustentada aumenta levemente tamanho, dano dos tiros e recarga de habilidade.",
             "Mordidas causam 10% do auto attack, +2.5% por ciclo de Fome, e usam a mesma cura.",
             "Custo: ficar 30s sem coletar drena 1% de vida a cada 1.5s."
         ],
-        "lore": "A ruptura nao abre uma boca. Ela ensina Geovana a sentir uma."
+        "lore": "Nesta realidade, Geovana provou o gosto das rupturas. Ela se alimenta dos inimigos para se fortalecer, mas sua fome e insaciavel: quanto mais devora, mais poder ela sente e quer."
     })
 
     dados_aureas_por_id = {dado["id"]: dado for dado in AUREAS_DADOS}

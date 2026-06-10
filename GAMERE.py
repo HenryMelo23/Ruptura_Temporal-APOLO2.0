@@ -1054,7 +1054,6 @@ def executar_jogo(game_manager=None):
     if _orig_builtins_exit:
         _builtins.exit = local_exit
     try:
-        global tela
         tela = configurar_tela(largura_mapa, altura_mapa)
         manifestacao_ativa = obter_manifestacao_ativa()
 

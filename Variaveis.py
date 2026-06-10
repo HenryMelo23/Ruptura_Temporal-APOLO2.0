@@ -11,6 +11,21 @@ import math
 import os
 import json
 
+def carregar_config_graficos():
+    try:
+        with open("saves/config_graficos.json", "r") as f:
+            return json.load(f)
+    except Exception:
+        return {
+            "efeitos_visuais": True,
+            "qualidade_grafica": "alta",
+            "sombras_ativas": "dinamicas",
+            "particulas_ativas": True,
+            "fps_limite": 60
+        }
+
+config_graficos = carregar_config_graficos()
+
 from balanceamento import (
     ANOMALIA_AGLOMERADOR_SEG,
     ANOMALIA_CRISTALIZADOR_SEG,
@@ -186,6 +201,8 @@ espacamento = 100
 vida_boss = vida_inicial_boss(1, 5000)
 
 vida_maxima_boss1= vida_boss
+boss_vivo1 = False
+boss_morte_processada = False
 
 chefe_largura, chefe_altura = largura_tela * 0.2, altura_tela * 0.2
 
@@ -709,7 +726,11 @@ frames_inimigo_especies = {
     4: carregar_frames_especie_inimigo("cristalizador"),
     5: carregar_frames_especie_inimigo("projetador"),
     "curater": carregar_frames_especie_inimigo("curater"),
+    6: carregar_frames_especie_inimigo("larapio"),
+    "larapio": carregar_frames_especie_inimigo("larapio"),
 }
+
+frames_larapio = frames_inimigo_especies[6]
 
 
 
@@ -3842,7 +3863,7 @@ LOJA_FORCADA_AVISO_MS = 15000
 LARAPIO_ONDA_INTERVALO_MS = 3 * 60 * 1000
 LARAPIO_NORMAL_ONDA_QTD = 2
 LARAPIO_HARD_ONDA_QTD = 4
-LARAPIO_PONTOS_VELOCIDADE = 4.6
+LARAPIO_PONTOS_VELOCIDADE = 2.8
 LARAPIO_PONTOS_DURACAO_MS = 11000
 aviso_loja_forcada_inicio_ms = None
 aviso_loja_forcada_fim_ms = None
@@ -4018,40 +4039,6 @@ def _posicao_spawn_larapio_pontos():
     return mapa_w + 36, random.randint(32, max(33, mapa_h - 32))
 
 
-def _desenhar_larapio_corpo(tela, x, y, tempo_atual, direcao_x=1):
-
-    fase = tempo_atual * 0.012 + float((x + y) % 31)
-
-    bob = int(math.sin(fase) * 3)
-
-    corpo = pygame.Surface((52, 52), pygame.SRCALPHA)
-
-    pygame.draw.ellipse(corpo, (18, 10, 28, 185), (9, 35, 34, 10))
-
-    pygame.draw.polygon(corpo, (36, 18, 52, 245), [(12, 18), (39, 12), (43, 40), (10, 42)])
-
-    pygame.draw.circle(corpo, (56, 32, 78, 250), (27, 17), 12)
-
-    pygame.draw.rect(corpo, (22, 12, 34, 255), (14, 15, 26, 8), border_radius=4)
-
-    pygame.draw.circle(corpo, (255, 220, 92, 255), (22, 18), 2)
-
-    pygame.draw.circle(corpo, (255, 220, 92, 255), (32, 18), 2)
-
-    pygame.draw.line(corpo, (255, 80, 48, 235), (28, 28), (39, 32), 3)
-
-    pygame.draw.circle(corpo, (210, 55, 38, 245), (40, 33), 6)
-
-    pygame.draw.line(corpo, (255, 185, 90, 230), (17, 42), (13, 49), 2)
-
-    pygame.draw.line(corpo, (255, 185, 90, 230), (34, 42), (39, 49), 2)
-
-    if direcao_x < 0:
-
-        corpo = pygame.transform.flip(corpo, True, False)
-
-    tela.blit(corpo, (int(x) - 26, int(y) - 44 + bob))
-
 
 def _spawn_larapios_pontos(qtd, tempo_atual_ms, efeitos_texto_lista=None):
 
@@ -4090,126 +4077,14 @@ def _spawn_larapios_pontos(qtd, tempo_atual_ms, efeitos_texto_lista=None):
 
 def tentar_ativar_larapio_normal(pontuacao_atual, custo_carta_atual, tempo_atual_ms, efeitos_texto_lista=None):
 
-    global ultimo_spawn_larapio_normal_ms
-
-    if not loja_forcada_ativa() or obter_modo_cartas() == "drops":
-
-        return False
-
-    ativou = False
-
-    if larapio_deve_aparecer(pontuacao_atual, custo_carta_atual, tempo_atual_ms):
-
-        _spawn_larapios_pontos(1, tempo_atual_ms, efeitos_texto_lista)
-
-        ativou = True
-
-    tempo_decorrido_ms = _tempo_decorrido_larapio_ms()
-
-    if tempo_decorrido_ms >= LARAPIO_ONDA_INTERVALO_MS:
-
-        if tempo_decorrido_ms - int(ultimo_spawn_larapio_normal_ms or 0) >= LARAPIO_ONDA_INTERVALO_MS:
-
-            if float(pontuacao_atual or 0) < float(custo_carta_atual or 0):
-
-                _spawn_larapios_pontos(LARAPIO_NORMAL_ONDA_QTD, tempo_atual_ms, efeitos_texto_lista)
-
-                ultimo_spawn_larapio_normal_ms = tempo_decorrido_ms
-
-                ativou = True
-
-    return ativou
+    return False
 
 
 def atualizar_e_desenhar_larapios_pontos(tela, tempo_atual_ms, pos_x, pos_y, largura, altura,
                                          pontuacao_atual, pontuacao_magia_atual,
                                          custo_carta_atual, efeitos_texto_lista=None):
 
-    global larapios_pontos
-
-    if obter_modo_cartas() == "drops":
-
-        larapios_pontos = []
-
-        return pontuacao_atual, pontuacao_magia_atual
-
-    if not larapios_pontos:
-
-        return pontuacao_atual, pontuacao_magia_atual
-
-    player_rect = pygame.Rect(int(pos_x), int(pos_y), int(largura), int(altura))
-
-    alvo_x, alvo_y = player_rect.center
-
-    vivos = []
-
-    pontuacao = max(0, int(pontuacao_atual or 0))
-
-    pontuacao_magia = max(0, int(pontuacao_magia_atual or 0))
-
-    for larapio in larapios_pontos:
-
-        idade = int(tempo_atual_ms) - int(larapio.get("inicio_ms", tempo_atual_ms))
-
-        if idade >= LARAPIO_PONTOS_DURACAO_MS:
-
-            continue
-
-        x = float(larapio.get("x", alvo_x))
-
-        y = float(larapio.get("y", alvo_y))
-
-        dx = alvo_x - x
-
-        dy = alvo_y - y
-
-        dist = max(1.0, math.hypot(dx, dy))
-
-        x += (dx / dist) * LARAPIO_PONTOS_VELOCIDADE
-
-        y += (dy / dist) * LARAPIO_PONTOS_VELOCIDADE
-
-        larapio["x"] = x
-
-        larapio["y"] = y
-
-        rect_larapio = pygame.Rect(int(x) - 20, int(y) - 38, 40, 44)
-
-        if rect_larapio.colliderect(player_rect):
-
-            valor_roubo = max(80, int(max(1, custo_carta_atual or 1) * 0.25), int(pontuacao * 0.20))
-
-            roubado = min(pontuacao, valor_roubo)
-
-            pontuacao -= roubado
-
-            pontuacao_magia = max(0, pontuacao_magia - roubado)
-
-            if efeitos_texto_lista is not None:
-
-                efeitos_texto_lista.append({
-
-                    "texto": f"-{roubado} PONTOS" if roubado > 0 else "SEM PONTOS",
-
-                    "x": int(x),
-
-                    "y": int(y) - 42,
-
-                    "cor": (255, 80, 45),
-
-                    "tempo_inicio": int(tempo_atual_ms),
-
-                })
-
-            continue
-
-        _desenhar_larapio_corpo(tela, x, y, tempo_atual_ms, 1 if dx >= 0 else -1)
-
-        vivos.append(larapio)
-
-    larapios_pontos = vivos
-
-    return pontuacao, pontuacao_magia
+    return pontuacao_atual, pontuacao_magia_atual
 
 
 manifestacao_ativa = "eletrica"
@@ -4540,6 +4415,7 @@ def _destino_fuga_larapio(x, y):
 
 
 def tentar_ativar_larapio_hard(pontuacao_atual, custo_carta_atual, tempo_atual_ms, efeitos_texto_lista=None):
+    return False
 
     global ultimo_spawn_larapio_hard_ms
 
@@ -4619,6 +4495,16 @@ def tentar_ativar_larapio_hard(pontuacao_atual, custo_carta_atual, tempo_atual_m
     ultimo_spawn_larapio_hard_ms = tempo_decorrido_ms
 
     return True
+
+
+def _desenhar_larapio_corpo(tela, x, y, tempo_atual, lado):
+    frames = frames_inimigo_especies.get("larapio", frames_inimigo)
+    frame_idx = (int(tempo_atual) // 150) % len(frames)
+    frame = frames[frame_idx]
+    if lado == -1:
+        frame = pygame.transform.flip(frame, True, False)
+    rect = frame.get_rect(center=(x, y))
+    tela.blit(frame, rect.topleft)
 
 
 def _desenhar_larapio_hard(tela, carta, tempo_atual):
@@ -5093,6 +4979,66 @@ def aplicar_carta_drop(nome, stats):
     
 
     return stats
+
+
+def soltar_carta_especifica(nome_carta, posicao, tempo_atual):
+    if nome_carta not in cartas_imagens:
+        return
+    img_original = cartas_imagens[nome_carta]
+    img_pequena = pygame.transform.scale(img_original, (40, 60))
+    rect = img_pequena.get_rect(center=posicao)
+    cartas_no_chao.append({
+        "nome": nome_carta,
+        "rect": rect,
+        "image": img_pequena,
+        "tempo_criado": tempo_atual,
+        "tempo_desaparecer": tempo_atual + CARTA_DROP_DURACAO_MS,
+        "vfx_desfragmentacao": _criar_vfx_desfragmentacao_carta(img_pequena),
+    })
+
+
+def recalcular_atributos_por_cartas(stats):
+    frac_vida = stats.get("vida", 450) / max(1, stats.get("vida_maxima", 450))
+    frac_petro = stats.get("vida_petro", 500) / max(1, stats.get("vida_maxima_petro", 500))
+
+    stats["velocidade_personagem"] = 3
+    stats["intervalo_disparo"] = 800
+    stats["dano_person_hit"] = 35
+    stats["chance_critico"] = 0.02
+    stats["roubo_de_vida"] = 0.0
+    stats["quantidade_roubo_vida"] = 0.0
+    stats["Mercenaria_Active"] = False
+    stats["Valor_Bonus"] = 25
+    stats["Tempo_cura"] = 2500
+    stats["porcentagem_cura"] = 0.005
+    stats["trembo"] = False
+    stats["Petro_active"] = False
+    stats["vida_petro"] = 500
+    stats["vida_maxima_petro"] = 500
+    stats["dano_petro"] = 25
+    stats["Resistencia_petro"] = 20
+    stats["petro_evolucao"] = 1
+    stats["xp_petro"] = 1
+    stats["Resistencia"] = 35
+    stats["Chance_Sorte"] = 0.0
+    stats["Poison_Active"] = False
+    stats["Dano_Veneno_Acumulado"] = 0.05
+    stats["Ultimo_Estalo"] = False
+    stats["Executa_inimigo"] = 0.05
+    stats["vida_maxima"] = 450
+    stats["vida_maxima_petro"] = 500
+
+    cartas_orig = dict(stats.get("cartas_compradas", {}))
+    stats["cartas_compradas"] = {k: 0 for k in cartas_orig}
+
+    for nome, qtd in cartas_orig.items():
+        for _ in range(qtd):
+            aplicar_carta_drop(nome, stats)
+
+    stats["vida"] = int(frac_vida * stats["vida_maxima"])
+    stats["vida_petro"] = int(frac_petro * stats["vida_maxima_petro"])
+
+
 
 
 
@@ -6027,3 +5973,22 @@ def desenhar_overlay_vida_critica(tela, vida_atual, vida_maxima_atual, tempo_atu
         overlay.fill((180, 0, 0, batida_alpha), special_flags=pygame.BLEND_RGBA_ADD)
 
     tela.blit(overlay, (0, 0))
+
+# --- CONSTANTES MINIBOSS CONDUTOR DE ECOS ---
+MINIBOSS_CONDUTOR_ENTRADA_MS = 2500
+MINIBOSS_CONDUTOR_ECOS_INICIAIS = 3
+MINIBOSS_CONDUTOR_TEMPO_SEG = 300
+MINIBOSS_CONDUTOR_KILLS = 150
+MINIBOSS_CONDUTOR_REDUCAO_POR_ECO = 0.20
+MINIBOSS_CONDUTOR_RENOVACOES_ECOS = 3
+MINIBOSS_CONDUTOR_RENOVAR_ECOS_COOLDOWN = 12000
+MINIBOSS_CONDUTOR_PULSO_COOLDOWN = 4500
+MINIBOSS_CONDUTOR_DISPARO_COOLDOWN = 2000
+MINIBOSS_CONDUTOR_ESPELHO_COOLDOWN = 15000
+MINIBOSS_CONDUTOR_PRISAO_COOLDOWN = 10000
+
+try:
+    frames_condutor = [pygame.transform.scale(pygame.image.load("Sprites/condutor.png").convert_alpha(), (int(largura_inimigo * 1.5), int(altura_inimigo * 1.5)))]
+except:
+    frames_condutor = frames_inimigo
+

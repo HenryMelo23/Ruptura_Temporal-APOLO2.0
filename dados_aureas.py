@@ -127,27 +127,26 @@ AUREAS_DADOS = [
         "id": "Voraz",
         "nome": "VORAZ",
         "categoria": "Fome, Consumo e Risco",
-        "descricao": "Utilidade: agressao sustentada por coleta ativa. Inimigos derrotados deixam poeira voraz laranja por poucos segundos; coletar essa poeira enche a barra Fome e cura 2% da vida perdida, aumentando 2.5% por ciclo de Fome ate 14.5%. Ao completar a barra, ela sobe para X1, X2 e assim por diante: cada ciclo exige bem mais Fome, a barra cai mais rapido e a parte alta da barra e mais dificil de manter. Com Fome sustentada, os tiros ficam maiores, causam um bonus leve de dano e habilidades recarregam ate 12% mais rapido. Inimigos proximos sao puxados com pouca forca e contato causa mordidas a cada 1.3s: cada mordida causa 10% do dano do auto attack, +2.5% por ciclo de Fome, e usa a mesma cura por Fome. Se ficar mais de 30s sem coletar poeira, a aura cobra 1% da vida a cada 1.5s.",
-        "resumo": "Coleta agressiva: poeira voraz enche Fome e cura 2% da vida perdida +2.5% por ciclo, ate 14.5%. Mordidas causam 10% do auto attack +2.5% por ciclo de Fome. Sem coleta por 30s, drena vida.",
-        "lore": "\"A ruptura nao abre uma boca. Ela ensina Geovana a sentir uma.\"",
+        "descricao": "Utilidade: agressao sustentada por coleta ativa. Inimigos derrotados deixam coagulos de sangue por 3 segundos; coletar esse coagulo enche a barra Fome e cura 2% da vida perdida, aumentando 2.5% por ciclo de Fome ate 14.5%. Ao completar a barra, ela sobe para X1, X2 e assim por diante: cada ciclo exige bem mais Fome, a barra cai mais rapido e a parte alta da barra e mais dificil de manter. Com Fome sustentada, os tiros ficam maiores, causam um bonus leve de dano e habilidades recarregam ate 12% mais rapido. Inimigos proximos sao puxados com pouca forca e contato causa mordidas a cada 1.3s: cada mordida causa 10% do dano do auto attack, +2.5% por ciclo de Fome, e usa a mesma cura por Fome. Se ficar mais de 30s sem coletar coagulos, a aura cobra 1% da vida a cada 1.5s.",
+        "resumo": "Coleta agressiva: coagulos de sangue enchem Fome e curam 2% da vida perdida +2.5% por ciclo, ate 14.5%. Mordidas causam 10% do auto attack +2.5% por ciclo de Fome. Sem coleta por 30s, drena vida.",
+        "lore": "\"Nesta realidade, Geovana provou o gosto das rupturas. Ela se alimenta dos inimigos para se fortalecer, mas sua fome e insaciavel: quanto mais devora, mais poder ela sente e quer.\"",
         "imagem_path": "Sprites/aurea_voraz.png",
         "cor": (255, 112, 24),
         "estilo": "voraz",
         "beneficios": {
             0: "Nenhum efeito ativo.",
-            1: "Poeira alimenta Fome e cura 2% da vida perdida, +2.5% por ciclo de Fome, ate 14.5%. Mordidas causam 10% do auto attack +2.5% por ciclo.",
+            1: "Coagulos de sangue alimentam Fome e curam 2% da vida perdida, +2.5% por ciclo de Fome, ate 14.5%. Mordidas causam 10% do auto attack +2.5% por ciclo.",
             2: "Fome sustentada aumenta levemente dano dos tiros, tamanho dos tiros e velocidade de recarga. A barra escala ao completar ciclos XN.",
             3: "Puxao e mordidas ajudam no corpo a corpo, mas o dano da mordida segue 10% do auto attack +2.5% por ciclo de Fome.",
-            4: "Tiros crescem com Fome sustentada e a pressao ofensiva dura melhor se voce continuar coletando poeira.",
+            4: "Tiros crescem com Fome sustentada e a pressao ofensiva dura melhor se voce continuar coletando coagulos.",
             5: "Maior recompensa agressiva, mas ciclos altos decaem rapido, exigem coleta constante e mantem o mesmo calculo claro de mordida."
         },
         "destaques": [
-            "- Abates deixam poeira laranja voraz por poucos segundos.",
-            "- Coletar poeira enche Fome e cura 2% da vida perdida, +2.5% por ciclo de Fome, ate 14.5%.",
-            "- Cada ciclo exige muito mais Fome; barra alta cai mais rapido.",
-            "- Mordidas causam 10% do auto attack, +2.5% por ciclo de Fome, e usam a mesma cura por Fome.",
-            "- Custo: 30s sem coletar poeira drena 1% de vida a cada 1.5s."
+            "- Abates deixam coagulos de sangue flutuantes por 3 segundos.",
+            "- Coletar coagulos enche Fome e cura 2% da vida perdida, +2.5% por ciclo de Fome, ate 14.5%.",
+            "- Barra completada sobe para proximo ciclo. Ciclos altos pedem mais Fome e decaem muito mais rapido.",
+            "- Inimigos sao puxados levemente e sofrem mordidas a cada 1.3s.",
+            "- Custo: 30s sem coletar coagulos drena 1% de vida a cada 1.5s."
         ]
     }
 ]
-
