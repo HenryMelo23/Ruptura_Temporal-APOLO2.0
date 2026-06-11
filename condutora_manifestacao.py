@@ -48,6 +48,14 @@ COR_LOGICO_1 = (255, 228, 100)
 COR_LOGICO_ERRO = (210, 82, 255)
 COR_LOGICO_OK = (104, 255, 214)
 
+BUFFS_LOGICOS = {
+    "OR": {"duracao": 5000, "bonus_area_corrente": 0.35, "bonus_por_stack": 0.15},
+    "AND": {"duracao": 5000, "bonus_dano": 0.25, "bonus_por_stack": 0.10},
+    "XOR": {"duracao": 5000, "bonus_velocidade": 0.20, "bonus_cadencia": 0.20, "bonus_por_stack": 0.08},
+    "NAND": {"duracao": 4500, "escudo_hits": 1, "reducao_dano": 1.0},
+    "NOR": {"duracao": 4500, "lentidao_inimigos": 0.35, "raio_lentidao": 260}
+}
+
 _ESTADO_LOGICO = {
     "porta_atual": None,
     "proxima_porta": None,
@@ -59,6 +67,11 @@ _ESTADO_LOGICO = {
     "ultimo_resultado_ms": 0,
     "ultimo_feedback": "",
     "mortos_pendentes": [],
+    "buff_logico_ativo": None,
+    "buff_logico_inicio": 0,
+    "buff_logico_duracao": 0,
+    "buff_logico_stacks": 0,
+    "ultimo_compilado_sucesso": False,
 }
 
 
@@ -210,12 +223,30 @@ def _alvos_marcados(inimigos, tempo_atual):
     return marcados
 
 
+def obter_raio_conexao_atual():
+    global _ESTADO_LOGICO
+    tempo_atual = pygame.time.get_ticks()
+    multiplicador = 1.0
+    if _ESTADO_LOGICO.get("buff_logico_ativo") == "OR" and tempo_atual - _ESTADO_LOGICO.get("buff_logico_inicio", 0) < _ESTADO_LOGICO.get("buff_logico_duracao", 0):
+        stacks = _ESTADO_LOGICO.get("buff_logico_stacks", 1)
+        multiplicador += 0.35 + (stacks - 1) * 0.15
+    return FIO_RAIO_CONEXAO * multiplicador
+
+def obter_largura_dano_atual():
+    global _ESTADO_LOGICO
+    tempo_atual = pygame.time.get_ticks()
+    multiplicador = 1.0
+    if _ESTADO_LOGICO.get("buff_logico_ativo") == "OR" and tempo_atual - _ESTADO_LOGICO.get("buff_logico_inicio", 0) < _ESTADO_LOGICO.get("buff_logico_duracao", 0):
+        stacks = _ESTADO_LOGICO.get("buff_logico_stacks", 1)
+        multiplicador += 0.35 + (stacks - 1) * 0.15
+    return FIO_LARGURA_DANO * multiplicador
+
 def _conexoes(marcados):
     candidatos = []
     for i, a in enumerate(marcados):
         for b in marcados[i + 1:]:
             dist = _distancia(a, b)
-            if dist <= FIO_RAIO_CONEXAO:
+            if dist <= obter_raio_conexao_atual():
                 candidatos.append((dist, a, b))
     candidatos.sort(key=lambda item: item[0])
     links = []
@@ -274,7 +305,7 @@ def atualizar_circuitos(inimigos, tempo_atual, dano_base, efeitos_texto=None):
             if rect is None:
                 continue
             dist_linha = _ponto_segmento_dist(rect.centerx, rect.centery, ax, ay, bx, by)
-            if dist_linha > FIO_LARGURA_DANO + min(rect.width, rect.height) * 0.25:
+            if dist_linha > obter_largura_dano_atual() + min(rect.width, rect.height) * 0.25:
                 continue
             travessias = alvo.setdefault("condutora_travessias", {})
             if int(tempo_atual) - int(travessias.get(chave_link, 0)) < FIO_TRAVESSIA_MS:
@@ -720,10 +751,87 @@ def atualizar_circuitos(inimigos, tempo_atual, dano_base, efeitos_texto=None):
     return mortos
 
 
-def fechar_circuitos(inimigos, tempo_atual, dano_base, efeitos_texto=None):
+_som_ruido_logico = None
+
+def _tocar_som_ruido():
+    global _som_ruido_logico
+    try:
+        import sons_procedurais
+        if _som_ruido_logico is None:
+            _som_ruido_logico = sons_procedurais.gerar_som_beep(220, 110, 0.28, volume=0.75)
+        if _som_ruido_logico:
+            _som_ruido_logico.play()
+    except Exception:
+        try:
+            # Fallback to play Estalo
+            pygame.mixer.Sound("Sounds/Estalo.mp3").play()
+        except Exception:
+            pass
+
+def obter_multiplicador_dano_and(tempo_atual):
+    global _ESTADO_LOGICO
+    if _ESTADO_LOGICO.get("buff_logico_ativo") == "AND" and tempo_atual - _ESTADO_LOGICO.get("buff_logico_inicio", 0) < _ESTADO_LOGICO.get("buff_logico_duracao", 0):
+        stacks = _ESTADO_LOGICO.get("buff_logico_stacks", 1)
+        return 1.0 + 0.25 + (stacks - 1) * 0.10
+    return 1.0
+
+def obter_fator_velocidade_xor(tempo_atual):
+    global _ESTADO_LOGICO
+    if _ESTADO_LOGICO.get("buff_logico_ativo") == "XOR" and tempo_atual - _ESTADO_LOGICO.get("buff_logico_inicio", 0) < _ESTADO_LOGICO.get("buff_logico_duracao", 0):
+        stacks = _ESTADO_LOGICO.get("buff_logico_stacks", 1)
+        return 1.0 + 0.20 + (stacks - 1) * 0.08
+    return 1.0
+
+def obter_fator_cadencia_xor(tempo_atual):
+    global _ESTADO_LOGICO
+    if _ESTADO_LOGICO.get("buff_logico_ativo") == "XOR" and tempo_atual - _ESTADO_LOGICO.get("buff_logico_inicio", 0) < _ESTADO_LOGICO.get("buff_logico_duracao", 0):
+        stacks = _ESTADO_LOGICO.get("buff_logico_stacks", 1)
+        return 1.0 + 0.20 + (stacks - 1) * 0.08
+    return 1.0
+
+def tentar_absorver_dano_nand(tempo_atual):
+    global _ESTADO_LOGICO
+    if _ESTADO_LOGICO.get("buff_logico_ativo") == "NAND" and tempo_atual - _ESTADO_LOGICO.get("buff_logico_inicio", 0) < _ESTADO_LOGICO.get("buff_logico_duracao", 0):
+        stacks = _ESTADO_LOGICO.get("buff_logico_stacks", 1)
+        if stacks > 0:
+            _ESTADO_LOGICO["buff_logico_stacks"] = stacks - 1
+            if _ESTADO_LOGICO["buff_logico_stacks"] == 0:
+                _ESTADO_LOGICO["buff_logico_ativo"] = None
+            return True
+    return False
+
+def obter_fator_lentidao_inimigo(inimigo, pos_jogador):
+    global _ESTADO_LOGICO
+    tempo_atual = pygame.time.get_ticks()
+    if _ESTADO_LOGICO.get("buff_logico_ativo") == "NOR" and tempo_atual - _ESTADO_LOGICO.get("buff_logico_inicio", 0) < _ESTADO_LOGICO.get("buff_logico_duracao", 0):
+        rect = inimigo.get("rect")
+        if rect:
+            dist = math.hypot(rect.centerx - pos_jogador[0], rect.centery - pos_jogador[1])
+            if dist <= BUFFS_LOGICOS["NOR"]["raio_lentidao"]:
+                return 1.0 - BUFFS_LOGICOS["NOR"]["lentidao_inimigos"]
+    return 1.0
+
+def obter_multiplicador_cooldown():
+    global _ESTADO_LOGICO
+    success = _ESTADO_LOGICO.get("ultimo_compilado_sucesso", False)
+    return 0.90 if success else 0.30
+
+def fechar_circuitos(inimigos, tempo_atual, dano_base, efeitos_texto=None, jogador_rect=None):
+    global _ESTADO_LOGICO
     links = _links_logicos_vivos(inimigos, tempo_atual, apenas_corretos=True)
     if not links:
+        _ESTADO_LOGICO["ultimo_compilado_sucesso"] = False
+        _ESTADO_LOGICO["ruido_fim_ms"] = int(tempo_atual) + RUIDO_LOGICO_DURACAO_MS
         _registrar_feedback("Sem circuito correto", 0, tempo_atual)
+        _tocar_som_ruido()
+        if jogador_rect is not None and efeitos_texto is not None:
+            efeitos_texto.append({
+                "texto": "RUÍDO LÓGICO",
+                "x": jogador_rect.centerx,
+                "y": jogador_rect.top - 35,
+                "tempo_inicio": int(tempo_atual),
+                "cor": COR_LOGICO_ERRO
+            })
         _FECHAMENTOS.append({
             "tempo_inicio": int(tempo_atual),
             "fim_ms": int(tempo_atual) + FECHAMENTO_DURACAO_MS,
@@ -734,10 +842,45 @@ def fechar_circuitos(inimigos, tempo_atual, dano_base, efeitos_texto=None):
         })
         return [], 0, 0
 
+    _ESTADO_LOGICO["ultimo_compilado_sucesso"] = True
+    contagem = {}
+    for link in links:
+        porta = link.get("porta")
+        if porta:
+            contagem[porta] = contagem.get(porta, 0) + 1
+
+    prioridade = {"NOR": 5, "NAND": 4, "AND": 3, "XOR": 2, "OR": 1}
+    def criterio(porta):
+        return (contagem[porta], prioridade.get(porta, 0))
+
+    chosen_gate = max(contagem.keys(), key=criterio)
+    old_buff = _ESTADO_LOGICO.get("buff_logico_ativo")
+    if old_buff == chosen_gate:
+        stacks = min(3, _ESTADO_LOGICO.get("buff_logico_stacks", 1) + 1)
+        _ESTADO_LOGICO["buff_logico_stacks"] = stacks
+        _ESTADO_LOGICO["buff_logico_inicio"] = int(tempo_atual)
+        _ESTADO_LOGICO["buff_logico_duracao"] = BUFFS_LOGICOS[chosen_gate]["duracao"]
+        txt = f"{chosen_gate} STACK {stacks}"
+    else:
+        _ESTADO_LOGICO["buff_logico_ativo"] = chosen_gate
+        _ESTADO_LOGICO["buff_logico_stacks"] = 1
+        _ESTADO_LOGICO["buff_logico_inicio"] = int(tempo_atual)
+        _ESTADO_LOGICO["buff_logico_duracao"] = BUFFS_LOGICOS[chosen_gate]["duracao"]
+        txt = f"COMPILAÇÃO: {chosen_gate}"
+
+    if jogador_rect is not None and efeitos_texto is not None:
+        efeitos_texto.append({
+            "texto": txt,
+            "x": jogador_rect.centerx,
+            "y": jogador_rect.top - 35,
+            "tempo_inicio": int(tempo_atual),
+            "cor": COR_LOGICO_OK
+        })
+
     dano_por_alvo = {}
     pontos = []
     linhas = []
-    mult = min(FECHAMENTO_LOGICO_LIMITE_MULT, FECHAMENTO_LOGICO_BASE_MULT + (len(links) - 1) * FECHAMENTO_LOGICO_BONUS_LINK)
+    mult = min(1.75, 1.0 + 0.12 * len(links))
     for link in links:
         a = link.get("a")
         b = link.get("b")
@@ -930,7 +1073,7 @@ def _desenhar_hud_logico(tela, tempo_atual, perfil):
     tela.blit(surf, (x, y))
 
 
-def desenhar_circuitos(tela, inimigos, tempo_atual, config_graficos=None, manifestacao=None):
+def desenhar_circuitos(tela, inimigos, tempo_atual, config_graficos=None, manifestacao=None, jogador_rect=None):
     perfil = _perfil_efeito(config_graficos)
     if perfil == "desativado":
         _FECHAMENTOS.clear()
@@ -939,6 +1082,60 @@ def desenhar_circuitos(tela, inimigos, tempo_atual, config_graficos=None, manife
     _desenhar_fechamentos_ativos(tela, tempo_atual, perfil)
     if manifestacao is not None and not ativa(manifestacao):
         return
+
+    # Draw custom logic buffs visual effects
+    if jogador_rect is not None:
+        buff_ativo = _ESTADO_LOGICO.get("buff_logico_ativo")
+        buff_inicio = _ESTADO_LOGICO.get("buff_logico_inicio", 0)
+        buff_duracao = _ESTADO_LOGICO.get("buff_logico_duracao", 0)
+        stacks = _ESTADO_LOGICO.get("buff_logico_stacks", 0)
+        
+        if buff_ativo and (tempo_atual - buff_inicio < buff_duracao):
+            cx, cy = jogador_rect.center
+            if buff_ativo == "OR":
+                raio_max = max(jogador_rect.width, jogador_rect.height) * 1.2
+                fase = (tempo_atual * 0.003) % 1.0
+                raio = int(raio_max * fase)
+                alpha = int(180 * (1.0 - fase))
+                surf = pygame.Surface((raio * 2 + 4, raio * 2 + 4), pygame.SRCALPHA)
+                pygame.draw.circle(surf, (*COR_CONDUTORA_FRIA, alpha), (raio + 2, raio + 2), raio, 2)
+                tela.blit(surf, (cx - raio - 2, cy - raio - 2))
+                
+            elif buff_ativo == "AND":
+                raio = max(jogador_rect.width, jogador_rect.height) * 0.5
+                for i in range(4):
+                    rng_spark = random.Random(int(tempo_atual) // 150 + i * 49)
+                    offset_x = rng_spark.randint(-int(raio), int(raio))
+                    offset_y = rng_spark.randint(-int(raio * 1.5), int(raio * 0.5))
+                    pygame.draw.circle(tela, (255, 120, 100), (cx + offset_x, cy + offset_y), 2)
+                    
+            elif buff_ativo == "XOR":
+                raio = max(jogador_rect.width, jogador_rect.height) * 0.6
+                for i in range(3):
+                    ang = tempo_atual * 0.009 + i * math.tau / 3
+                    px = int(cx + math.cos(ang) * raio)
+                    py = int(cy + math.sin(ang) * (raio * 0.8))
+                    pygame.draw.circle(tela, (255, 228, 100), (cx + px - cx, cy + py - cy), 2)
+                    
+            elif buff_ativo == "NAND":
+                raio = max(jogador_rect.width, jogador_rect.height) * 0.75
+                pulso = 0.5 + 0.5 * math.sin(tempo_atual * 0.01)
+                pygame.draw.circle(tela, (104, 255, 214), (cx, cy), int(raio + pulso * 4), 2)
+                for i in range(stacks):
+                    ang = tempo_atual * 0.005 + i * math.tau / 3
+                    px = int(cx + math.cos(ang) * (raio + pulso * 4))
+                    py = int(cy + math.sin(ang) * (raio + pulso * 4))
+                    pygame.draw.circle(tela, (255, 255, 255), (px, py), 4)
+                    pygame.draw.circle(tela, (104, 255, 214), (px, py), 6, 1)
+                    
+            elif buff_ativo == "NOR":
+                raio = BUFFS_LOGICOS["NOR"]["raio_lentidao"]
+                pulso = 0.5 + 0.5 * math.sin(tempo_atual * 0.007)
+                alpha = int(25 + 15 * pulso)
+                aura_surf = pygame.Surface((raio * 2, raio * 2), pygame.SRCALPHA)
+                pygame.draw.circle(aura_surf, (80, 160, 255, alpha), (raio, raio), raio)
+                pygame.draw.circle(aura_surf, (80, 160, 255, alpha * 2), (raio, raio), raio, 2)
+                tela.blit(aura_surf, (cx - raio, cy - raio))
 
     garantir_bits_logicos(inimigos)
     for link in _links_logicos_vivos(inimigos, tempo_atual):

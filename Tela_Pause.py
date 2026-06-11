@@ -584,7 +584,8 @@ def abrir_configuracoes_audio(tela, fontes, fundo_pausa=None):
                         chave = opcoes[selecionado]
                         step = -0.1 if evento.key in [pygame.K_LEFT, pygame.K_a] else 0.1
                         config[chave] = max(0.0, min(1.0, config[chave] + step))
-                        pygame.mixer.music.set_volume(config["volume_musica"] * config["volume_master"])
+                        from audio_manager import atualizar_sons_do_jogo
+                        atualizar_sons_do_jogo(config)
                 elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
                     tocar_selecionar()
                     if opcoes[selecionado] == "aplicar":
@@ -629,7 +630,8 @@ def abrir_configuracoes_audio(tela, fontes, fundo_pausa=None):
                                 tocar_selecionar()
                                 pct = rel_x / barra_largura
                                 config[opcao] = round(pct, 1)
-                                pygame.mixer.music.set_volume(config["volume_musica"] * config["volume_master"])
+                                from audio_manager import atualizar_sons_do_jogo
+                                atualizar_sons_do_jogo(config)
                                 
         for i, opcao in enumerate(opcoes):
             y_pos = y_inicial + i * espacamento
@@ -710,7 +712,7 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
     config = {
         "mostrar_tutorial": mostrar_tut,
         "modo_teleporte": modo_teleporte,
-        "loja_forcada": loja_forcada
+        "loja_forcada": True
     }
     
     config_salva = json.loads(json.dumps(config))
@@ -718,7 +720,6 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
     opcoes_config = [
         {"nome": "Tutorial", "chave": "mostrar_tutorial", "valores": [True, False], "labels": ["Ativado", "Desativado"]},
         {"nome": "Modo de Teleporte", "chave": "modo_teleporte", "valores": ["fixo", "mouse"], "labels": ["Fixo", "Mouse Target"]},
-        {"nome": "Larapio", "chave": "loja_forcada", "valores": [True, False], "labels": ["Ativado", "Desativado"]},
         {"nome": "Aplicar Alteracoes", "chave": "aplicar", "valores": None, "labels": None},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
     ]
@@ -731,10 +732,6 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
         "modo_teleporte": {
             "fixo": "Modo Fixo: Teleporta na direcao do movimento. Rapido e instantaneo.",
             "mouse": "Modo Mouse: Segure a tecla para mirar na posicao do cursor e solte para teleportar."
-        },
-        "loja_forcada": {
-            True: "No Normal, o Larapio rouba pontos. No Dificil, ele rouba cartas dropadas do mapa.",
-            False: "Desativa as aparicoes especiais do Larapio."
         }
     }
     
@@ -756,7 +753,7 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
             json.dump({"modo": config["modo_teleporte"]}, f)
         try:
             import Variaveis
-            Variaveis.salvar_config_jogabilidade({"loja_forcada": config["loja_forcada"]})
+            Variaveis.salvar_config_jogabilidade({"loja_forcada": True})
             Variaveis.obter_modo_teleporte(forcar_recarregar=True)
         except:
             pass

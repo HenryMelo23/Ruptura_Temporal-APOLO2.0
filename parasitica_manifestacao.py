@@ -250,7 +250,12 @@ def ativa(manifestacao):
 
 
 def multiplicador_cooldown_habilidade(manifestacao):
-    return ECLOSAO_COOLDOWN_MULT if ativa(manifestacao) else 1.0
+    if ativa(manifestacao):
+        return ECLOSAO_COOLDOWN_MULT
+    import condutora_manifestacao
+    if condutora_manifestacao.ativa(manifestacao):
+        return condutora_manifestacao.obter_multiplicador_cooldown()
+    return 1.0
 
 
 def criar_auto_attack(manifestacao, vfx, centro_x, centro_y, largura, altura, angulo, velocidade, tempo_atual, impulsiva=False):

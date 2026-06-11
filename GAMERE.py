@@ -29,6 +29,7 @@ from post_boss_pressure import criar_estado_pressao_pos_boss, calcular_pressao_s
 from player_projectile import PlayerProjectileVFX, estourar_disparo_eletrico
 lock_inimigos = threading.Lock()
 from Tela_Upgrade_Aureas import tela_upgrade_aureas
+from audio_manager import carregar_config_audio, aplicar_volume_som
 joystick = None
 
 instalar_captura_global()
@@ -97,32 +98,25 @@ threading.Thread(target=thread_recebimento, args=(conn,), daemon=True).start()
 pygame.init()
 
 dano_inimigo=80
-estalos = pygame.mixer.Sound("Sounds/Estalo.mp3")
-estalos.set_volume(0.07) 
+config_audio = carregar_config_audio()
 
-som_ataque_boss = pygame.mixer.Sound("Sounds/Hit_Boss1.mp3")
-som_ataque_boss.set_volume(0.04) 
+estalos = aplicar_volume_som(pygame.mixer.Sound("Sounds/Estalo.mp3"), config_audio, canal="efeitos", volume_maximo=0.07)
 
-Hit_inimigo1 = pygame.mixer.Sound("Sounds/Inimigo1_hit.wav")
-Hit_inimigo1.set_volume(0.04) 
+som_ataque_boss = aplicar_volume_som(pygame.mixer.Sound("Sounds/Hit_Boss1.mp3"), config_audio, canal="efeitos", volume_maximo=0.04)
 
-Disparo_Geo = pygame.mixer.Sound("Sounds/Disparo_Geo.wav")
-Disparo_Geo.set_volume(0.04) 
+Hit_inimigo1 = aplicar_volume_som(pygame.mixer.Sound("Sounds/Inimigo1_hit.wav"), config_audio, canal="efeitos", volume_maximo=0.04)
 
-Musica_tema_Boss1 = pygame.mixer.Sound("Sounds/Fase1_Boss.mp3")
-Musica_tema_Boss1.set_volume(0.06) 
+Disparo_Geo = aplicar_volume_som(pygame.mixer.Sound("Sounds/Disparo_Geo.wav"), config_audio, canal="efeitos", volume_maximo=0.04)
 
-Musica_tema_fases = pygame.mixer.Sound("Sounds/Fase_boas.mp3")
-Musica_tema_fases.set_volume(0.06) 
+Musica_tema_Boss1 = aplicar_volume_som(pygame.mixer.Sound("Sounds/Fase1_Boss.mp3"), config_audio, canal="musica", volume_maximo=0.06)
 
-Som_tema_fases = pygame.mixer.Sound("Sounds/Praia.wav")
-Som_tema_fases.set_volume(0.10) 
+Musica_tema_fases = aplicar_volume_som(pygame.mixer.Sound("Sounds/Fase_boas.mp3"), config_audio, canal="musica", volume_maximo=0.06)
 
-Som_portal = pygame.mixer.Sound("Sounds/Portal.mp3")
-Som_portal.set_volume(0.06) 
+Som_tema_fases = aplicar_volume_som(pygame.mixer.Sound("Sounds/Praia.wav"), config_audio, canal="musica", volume_maximo=0.10)
 
-Dano_person = pygame.mixer.Sound("Sounds/hit_person.mp3")
-Dano_person.set_volume(0.1)  
+Som_portal = aplicar_volume_som(pygame.mixer.Sound("Sounds/Portal.mp3"), config_audio, canal="efeitos", volume_maximo=0.06)
+
+Dano_person = aplicar_volume_som(pygame.mixer.Sound("Sounds/hit_person.mp3"), config_audio, canal="efeitos", volume_maximo=0.1)  
 
 toque=0
 comando_direção_petro=True

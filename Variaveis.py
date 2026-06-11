@@ -3130,6 +3130,8 @@ def atualizar_movimento_inimigos(inimigos, pos_x_p, pos_y_p, direcao_j, vel_p, t
             # 1. Movimentacao suave com sub-pixel precision
 
             vel_atual = inimigo.get("velocidade", Velocidade_Inimigos_1)
+            import condutora_manifestacao
+            vel_atual *= condutora_manifestacao.obter_fator_lentidao_inimigo(inimigo, (pos_x_p, pos_y_p))
 
             inimigo["pos_x"] += (dx / distancia) * vel_atual * dt * fator_tempo
 
@@ -3924,7 +3926,7 @@ def salvar_config_jogabilidade(config):
 
 def loja_forcada_ativa(forcar_recarregar=False):
 
-    return bool(obter_config_jogabilidade(forcar_recarregar).get("loja_forcada", True))
+    return True
 
 
 def chance_larapio_loja(pontuacao_atual, custo_carta_atual, tempo_decorrido_seg=None):

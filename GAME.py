@@ -81,7 +81,7 @@ moedas_arremessadas = []
 
 # Constantes do Larapio
 TIPO_LARAPIO = 6
-LARAPIO_SPAWN_APOS_SEG = 30
+LARAPIO_SPAWN_APOS_SEG = 120
 LARAPIO_CHANCE_MIN = 1.0
 LARAPIO_MULT_REFERENCIA_PONTOS = 3.0
 LARAPIO_TEMPO_COBICA_MAX_MS = 9000
@@ -91,7 +91,7 @@ LARAPIO_TEMPO_PREPARO_ATAQUE = 1000
 LARAPIO_TEMPO_FUGA = 6500
 LARAPIO_INTERVALO_ANIMACAO_FUGA = 80
 LARAPIO_INTERVALO_ANIMACAO = 120
-LARAPIO_COOLDOWN_SPAWN_MS = 5000
+LARAPIO_COOLDOWN_SPAWN_MS = 90000
 custo_carta_atual = 100
 
 # Forward declarations (atribuídos no loop principal)
@@ -116,11 +116,16 @@ pressao_pos_boss_spawn = criar_estado_pressao_pos_boss()
 
 def fator_dano_aureas(agora_ms=None):
     agora_ms = pygame.time.get_ticks() if agora_ms is None else agora_ms
-    return fator_dano_devota(aurea, estado_devota, agora_ms)
+    import condutora_manifestacao
+    return fator_dano_devota(aurea, estado_devota, agora_ms) * condutora_manifestacao.obter_multiplicador_dano_and(agora_ms)
 
 def absorver_dano_devota_atual():
     global vida, escudo_devota_ativo, tempo_ultimo_escudo
     agora_ms = pygame.time.get_ticks()
+    import condutora_manifestacao
+    if condutora_manifestacao.tentar_absorver_dano_nand(agora_ms):
+        efeitos_texto.append({"texto": "BLOQUEIO LÓGICO", "x": pos_x_personagem - 28, "y": pos_y_personagem - 28, "tempo_inicio": agora_ms, "cor": (104, 255, 214)})
+        return True
     absorvido, escudo_devota_ativo, escudo_quebrou = absorver_hit_devota(aurea, escudo_devota_ativo, estado_devota, agora_ms)
     if not absorvido:
         return False
@@ -958,6 +963,7 @@ def executar_jogo(game_manager=None):
                 * fator_movimento_racional(aurea, racional_dilatacao_fim, tempo_atual)
                 * fator_velocidade_devota(aurea, estado_devota, tempo_atual)
                 * condutora_manifestacao.fator_ruido_logico(manifestacao_ativa, tempo_atual)
+                * condutora_manifestacao.obter_fator_velocidade_xor(tempo_atual)
             )
 
             # ---- TECLADO ----
@@ -1271,7 +1277,9 @@ def executar_jogo(game_manager=None):
                 vel = Velocidade_Inimigos_1 * 0.45
             elif tipo == TIPO_LARAPIO:
                 image = frames_larapio[0]
-                hp = vida_inimigo_maxima * 5.5
+                tempo_decorrido = time.time() - tempo_inicial
+                escala_dificuldade = 1.0 + (tempo_decorrido * 0.005) + (inimigos_eliminados * 0.002)
+                hp = vida_inimigo_maxima * 2.2 * escala_dificuldade
                 vel = Velocidade_Inimigos_1 * 1.25
                 l_inimigo = frames_larapio[0].get_width()
                 a_inimigo = frames_larapio[0].get_height()
@@ -1549,7 +1557,7 @@ def executar_jogo(game_manager=None):
                 })
 
         def soltar_pontos_larapio(posicao, quantidade_roubada):
-            pontos_devolvidos = int(quantidade_roubada * 0.70)
+            pontos_devolvidos = int(quantidade_roubada * 0.90)
             if quantidade_roubada > 0:
                 pontos_devolvidos = max(1, pontos_devolvidos)
             if pontos_devolvidos <= 0:
@@ -1820,7 +1828,8 @@ def executar_jogo(game_manager=None):
                 return
 
             bonus = bonus_larapio(inimigo)
-            dano_base = int(((vida_maxima * 0.04) + dano_inimigo_perto) * 0.8 * (1 + bonus["dano"]))
+            fator_riqueza = 1.0 + (pontuacao_exib / max(100.0, float(custo_carta_atual)))
+            dano_base = int(((vida_maxima * 0.04) + dano_inimigo_perto) * 0.8 * (1 + bonus["dano"]) * fator_riqueza)
             dano_base = dano_inimigo_inicio_ajustado(max(1, dano_base))
 
             if absorver_dano_devota_atual():
@@ -1865,9 +1874,9 @@ def executar_jogo(game_manager=None):
             limiar_pontos = float(custo_carta_atual) * 3.0
             if pontuacao_exib >= limiar_pontos:
                 fator_riqueza = pontuacao_exib / max(1.0, limiar_pontos)
-                porcentagem_roubo = min(0.75, 0.25 + 0.15 * (fator_riqueza - 1.0))
+                porcentagem_roubo = min(0.50, 0.15 + 0.10 * (fator_riqueza - 1.0))
             else:
-                porcentagem_roubo = 0.25
+                porcentagem_roubo = 0.15
 
             quantia_roubada = int(pontuacao_exib * porcentagem_roubo)
             quantia_roubada = max(1, quantia_roubada)
@@ -1991,8 +2000,21 @@ def executar_jogo(game_manager=None):
                 if math.hypot(cx - inimigo["rect"].centerx, cy - inimigo["rect"].centery) <= 500:
                     gerar_moeda_arremessada(inimigo)
 
+            if movendo and inimigo.get("player_move_start_time") is None:
+                inimigo["player_move_start_time"] = tempo_atual
+
             bonus = bonus_larapio(inimigo)
             velocidade_atual = inimigo.get("velocidade", Velocidade_Inimigos_1) * (1 + bonus["velocidade"])
+            
+            has_stolen = (inimigo.get("dinheiro_roubado", 0) > 0 or len(inimigo.get("cartas_roubadas_larapio", [])) > 0 or inimigo.get("roubou_pontos", False))
+            
+            if not has_stolen:
+                if inimigo.get("player_move_start_time") is None:
+                    velocidade_atual *= 0.3
+                else:
+                    tempo_desde_movimento = tempo_atual - inimigo["player_move_start_time"]
+                    if tempo_desde_movimento < 4000:
+                        velocidade_atual *= 0.4
 
             # ----------------------------------------------------
             # COMPORTAMENTO MODO DIFÍCIL (DROPS DE CARTAS)
@@ -2108,11 +2130,11 @@ def executar_jogo(game_manager=None):
 
         def tentar_spawn_larapio(tempo_decorrido_run, limite_inimigos_run):
             nonlocal tempo_ultimo_spawn_larapio, alerta_larapio_mostrado
-            if tempo_decorrido_run < 30:
+            if tempo_decorrido_run < LARAPIO_SPAWN_APOS_SEG:
                 return
             
             modo_dificil = (Variaveis.obter_modo_cartas() == "drops")
-            cooldown_larapio = 300000 if modo_dificil else 5000
+            cooldown_larapio = 300000 if modo_dificil else LARAPIO_COOLDOWN_SPAWN_MS
             if tempo_atual - tempo_ultimo_spawn_larapio < cooldown_larapio:
                 return
             if mostrar_tutorial or r_press or boss_vivo1 or boss_morte_processada:
@@ -2129,9 +2151,17 @@ def executar_jogo(game_manager=None):
                 limiar_pontos = float(custo_carta_atual) * 3.0
                 if pontuacao_exib >= limiar_pontos:
                     fator_riqueza = pontuacao_exib / max(1.0, limiar_pontos)
-                    pct_roubo = min(0.75, 0.25 + 0.15 * (fator_riqueza - 1.0))
+                    pct_roubo = min(0.50, 0.15 + 0.10 * (fator_riqueza - 1.0))
                 else:
-                    pct_roubo = 0.25
+                    pct_roubo = 0.15
+
+            # Reseta o timer para a próxima tentativa de spawn
+            tempo_ultimo_spawn_larapio = tempo_atual
+
+            # Verifica a chance de spawn no modo normal
+            if not modo_dificil:
+                if random.random() > chance_spawn:
+                    return
 
             print(f"==================================================")
             print(f"[TESTE DEBUG] LARAPIO FOI CHAMADO E GERADO NA TELA Aos {tempo_decorrido_run} Segundos!")
@@ -3387,8 +3417,9 @@ def executar_jogo(game_manager=None):
                             dano_person_hit * fator_dano_aureas(tempo_atual), largura_mapa, altura_mapa
                         ))
                     elif condutora_manifestacao.ativa(manifestacao_ativa):
+                        jogador_rect_temp = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
                         mortos_circuito, total_alvos, total_links = condutora_manifestacao.fechar_circuitos(
-                            inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
+                            inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto, jogador_rect_temp
                         )
                         ondas.append(condutora_manifestacao.criar_fechamento(px_centro, py_centro, tempo_atual, total_alvos, total_links))
                         for morto_circuito in mortos_circuito:
@@ -3720,7 +3751,7 @@ def executar_jogo(game_manager=None):
             inimigos_mortos_condutora = condutora_manifestacao.atualizar_circuitos(
                 inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
             )
-            condutora_manifestacao.desenhar_circuitos(tela, inimigos_comum, tempo_atual, config_graficos, manifestacao_ativa)
+            condutora_manifestacao.desenhar_circuitos(tela, inimigos_comum, tempo_atual, config_graficos, manifestacao_ativa, jogador_rect_parasitica)
             inimigos_mortos_gravitante = gravitante_manifestacao.atualizar_orbes(
                 inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
             )
@@ -3977,8 +4008,10 @@ def executar_jogo(game_manager=None):
                 
                 pulo_y = 0
                 if tipo == TIPO_LARAPIO or tipo == "larapio":
-                    pulo_y = int(abs(math.sin(pygame.time.get_ticks() * 0.012)) * 10)
-                    desenhar_y -= pulo_y
+                    has_stolen = (inimigo.get("dinheiro_roubado", 0) > 0 or len(inimigo.get("cartas_roubadas_larapio", [])) > 0 or inimigo.get("roubou_pontos", False))
+                    if has_stolen:
+                        pulo_y = int(abs(math.sin(pygame.time.get_ticks() * 0.012)) * 18)
+                        desenhar_y -= pulo_y
 
                 desenhar_sombra(tela, desenhar_x, desenhar_y + pulo_y, l_vis, a_vis)
                 if tipo == TIPO_LARAPIO or tipo == "larapio":
@@ -4682,7 +4715,15 @@ def executar_jogo(game_manager=None):
 
                 # Barra de vida do boss (só se vivo e morte não processada)
                 if vida_boss > 0 and not boss_morte_processada:
-                    desenhar_barra_vida_boss(tela, vida_boss, vida_maxima_boss1, "CARANGUEJO COSMICO", 1, (143, 33, 252))
+                    desenhar_barra_vida_boss(
+                        tela,
+                        vida_boss,
+                        vida_maxima_boss1,
+                        "CARANGUEJO COSMICO",
+                        1,
+                        (143, 33, 252),
+                        pos_boss=(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)
+                    )
 
 
 

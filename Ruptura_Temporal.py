@@ -1478,8 +1478,9 @@ def tela_escolha_modo():
 def tela_selecao_aurea(tela, fonte):
     pygame.mouse.set_visible(False)
     # Carregar som do tick
+    config_audio = carregar_config_audio()
     try:
-        som_tick = aplicar_volume_som(pygame.mixer.Sound("Sounds/Estalo.mp3"))
+        som_tick = aplicar_volume_som(pygame.mixer.Sound("Sounds/Estalo.mp3"), config_audio, canal="efeitos", volume_maximo=0.4)
     except Exception:
         som_tick = None
 
@@ -2683,14 +2684,16 @@ def tela_configuracoes_audio(tela, fonte):
                         tocar_hover()
                         chave = opcoes[selecionado]
                         config[chave] = max(0.0, config[chave] - 0.1)
-                        pygame.mixer.music.set_volume(config["volume_musica"] * config["volume_master"])
+                        from audio_manager import atualizar_sons_do_jogo
+                        atualizar_sons_do_jogo(config)
 
                 elif evento.key in [pygame.K_RIGHT, pygame.K_d]:
                     if opcoes[selecionado] not in ["voltar", "aplicar"]:
                         tocar_hover()
                         chave = opcoes[selecionado]
                         config[chave] = min(1.0, config[chave] + 0.1)
-                        pygame.mixer.music.set_volume(config["volume_musica"] * config["volume_master"])
+                        from audio_manager import atualizar_sons_do_jogo
+                        atualizar_sons_do_jogo(config)
 
                 elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
                     tocar_selecionar()
@@ -2733,7 +2736,8 @@ def tela_configuracoes_audio(tela, fonte):
                     novo_val = round(novo_val, 2)
                     if config[opcao] != novo_val:
                         config[opcao] = novo_val
-                        pygame.mixer.music.set_volume(config["volume_musica"] * config["volume_master"])
+                        from audio_manager import atualizar_sons_do_jogo
+                        atualizar_sons_do_jogo(config)
 
             # Caixa glassy para a opÃ§Ã£o selecionada
             if i == selecionado:
@@ -2832,7 +2836,7 @@ def tela_configuracoes_jogabilidade(tela, fonte):
     config = {
         "mostrar_tutorial": mostrar_tut,
         "modo_teleporte": modo_teleporte,
-        "loja_forcada": loja_forcada
+        "loja_forcada": True
     }
     config["__aplicar__"] = "aplicar"
     config_salva = json.loads(json.dumps(config))
@@ -2840,7 +2844,6 @@ def tela_configuracoes_jogabilidade(tela, fonte):
     opcoes_config = [
         {"nome": "Tutorial", "chave": "mostrar_tutorial", "valores": [True, False], "labels": ["Ativado", "Desativado"]},
         {"nome": "Modo de Teleporte", "chave": "modo_teleporte", "valores": ["fixo", "mouse"], "labels": ["Fixo", "Mouse Target"]},
-        {"nome": "Larapio", "chave": "loja_forcada", "valores": [True, False], "labels": ["Ativado", "Desativado"]},
         {"nome": "Aplicar Alteracoes", "chave": "__aplicar__", "valores": None, "labels": None},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
     ]
@@ -2853,10 +2856,6 @@ def tela_configuracoes_jogabilidade(tela, fonte):
         "modo_teleporte": {
             "fixo": "Modo Fixo: Teleporta na direcao do movimento. Rapido e instantaneo.",
             "mouse": "Modo Mouse: Segure a tecla para mirar na posicao do cursor e solte para teleportar."
-        },
-        "loja_forcada": {
-            True: "No Normal, o Larapio rouba pontos. No Dificil, ele rouba cartas dropadas do mapa.",
-            False: "Desativa as aparicoes especiais do Larapio."
         }
     }
 
@@ -2879,7 +2878,7 @@ def tela_configuracoes_jogabilidade(tela, fonte):
             json.dump({"modo": config["modo_teleporte"]}, f)
         try:
             import Variaveis
-            Variaveis.salvar_config_jogabilidade({"loja_forcada": config["loja_forcada"]})
+            Variaveis.salvar_config_jogabilidade({"loja_forcada": True})
             Variaveis.obter_modo_teleporte(forcar_recarregar=True)
         except Exception:
             pass
@@ -3079,16 +3078,9 @@ def tela_configuracoes_jogabilidade(tela, fonte):
 
 
 def aplicar_volumes_audio(config):
-    """Aplica as configuraÃ§Ãµes de volume a todos os sons e mÃºsicas"""
-    volume_master = config.get("volume_master", 1.0)
-    volume_musica = config.get("volume_musica", 0.5)
-
-    # Aplicar volume da mÃºsica
-    pygame.mixer.music.set_volume(volume_musica * volume_master)
-
-    # Salvar configuraÃ§Ã£o
-    with open("saves/config_audio.json", "w") as f:
-        json.dump(config, f, indent=4)
+    """Aplica as configurações de volume a todos os sons e músicas"""
+    from audio_manager import atualizar_sons_do_jogo
+    atualizar_sons_do_jogo(config)
 
 
 def _dados_catalogo_temporal():
@@ -3097,55 +3089,56 @@ def _dados_catalogo_temporal():
             {"nome": "Errante Temporal", "imagem": "Sprites/Inimig1.png", "funcionamento": "Persegue o jogador em linha direta, pressiona espaco e serve como base para o escalonamento das fases.", "historia": "Fragmentos de pessoas e criaturas presos no primeiro pulso da ruptura. Eles nao pensam em vencer, apenas em voltar para uma linha do tempo que ja nao existe."},
             {"nome": "Atirador", "imagem": "Sprites/inimigo_direita2-1.png", "funcionamento": "Mantem distancia e cria projeteis para quebrar rotas seguras. Fica mais perigoso quando o jogador para de se mover.", "historia": "Uma variante que aprendeu a usar a propria instabilidade como municao. Cada disparo e uma pequena tentativa de fixar Geovana no tempo."},
             {"nome": "Kamikaze", "imagem": "Sprites/inimigo_esquerda2-1.png", "funcionamento": "Avanca para explodir perto do jogador, causando dano e efeitos de controle quando alcanca alcance curto.", "historia": "Nasceu de ecos congelados da segunda fase. Sua forma e instavel demais para sobreviver, entao transforma o proprio colapso em arma."},
-            {"nome": "Aglomerador", "imagem": "Sprites/aglomerador1.png", "funcionamento": "Errante volumoso que pode se partir em inimigos menores ou favorecer grupos densos. Exige controle de area.", "historia": "Varias linhas temporais falharam no mesmo ponto e se colaram em um unico corpo. Quando ele cai, as partes ainda tentam continuar."},
+            {"nome": "Aglomerador", "imagem": "Sprites/aglomerador1.png", "funcionamento": "Errante volumoso que pode se partir in inimigos menores ou favorecer grupos densos. Exige controle de area.", "historia": "Varias linhas temporais falharam no mesmo ponto e se colaram em um unico corpo. Quando ele cai, as partes ainda tentam continuar."},
             {"nome": "Espreitador", "imagem": "Sprites/espreitador1.png", "funcionamento": "Variante furtiva do Errante Temporal: oscila transparencia, pode ficar quase invisivel e usa arrancadas curtas para se aproximar.", "historia": "O errante aprendeu a falhar entre os frames da realidade. A ameaca vem do desaparecimento e da aproximacao irregular."},
-            {"nome": "Cristalizador", "imagem": "Sprites/cristalizador1.png", "funcionamento": "Variante cristalizada do Errante Temporal. No jogo, funciona como suporte defensivo: reduz dano em inimigos proximos e vira alvo prioritario.", "historia": "A ruptura endurece o errante por dentro, cobrindo sua forma com uma logica de cristal. Ele nao persegue apenas para matar; persegue para fixar a batalha em favor da horda."},
-            {"nome": "Projetador", "imagem": "Sprites/projetador1.png", "funcionamento": "Variante projetora do Errante Temporal que ataca de longe. Ele para em distancia segura, projeta disparos e obriga reposicionamento constante.", "historia": "E um errante que aprendeu a estender o proprio colapso pelo espaco. Sua diferenca esta em transformar distancia em pressao."},
-            {"nome": "Elite", "imagem": "Sprites/Inimig1.png", "funcionamento": "Mesmo corpo-base do Errante Temporal, so que maior, com vida multiplicada e presenca mais punitiva. No jogo, pune dano baixo e falta de mobilidade.", "historia": "Quando um errante sobrevive tempo demais, ganha peso temporal. A Elite e o mesmo monstro comum, ampliado pela memoria das vezes em que quase venceu."},
+            {"nome": "Cristalizador", "imagem": "Sprites/cristalizador1.png", "funcionamento": "Variante cristalizada do Errante Temporal. No jogo, funciona como suporte defensivo: reduz dano in inimigos proximos e vira alvo prioritario.", "historia": "A ruptura endurece o errante por dentro, cobrindo sua forma com uma logica de cristal. Ele nao persegue apenas para matar; persegue para fixar a batalha em favor da horda."},
+            {"nome": "Projetador", "imagem": "Sprites/projetador1.png", "funcionamento": "Variante projetora do Errante Temporal que ataca de longe. Ele para in distancia segura, projeta disparos e obriga reposicionamento constante.", "historia": "E um errante que aprendeu a estender o proprio colapso pelo espaco. Sua diferenca esta in transformar distancia in pressao."},
+            {"nome": "Elite", "imagem": "Sprites/Inimig1.png", "funcionamento": "Mesmo corpo-base do Errante Temporal, so que maior, com vida multiplicada e presenca mais punitiva. No jogo, pune dano baixo e falta de mobilidade.", "historia": "Quando um errante sobrevive tempo demais, ganha peso temporal. A Elite e o mesmo monstro comum, ampliado pela memoria das vezes in que quase venceu."},
             {"nome": "Curater", "imagem": "Sprites/curater1.png", "funcionamento": "Anomalia de cura liberada mais tarde na primeira fase. Mantem distancia e cura globalmente aliados feridos de outras especies. Ele nao cura a si mesmo nem outros Curaters, entao eliminar essa anomalia corta a sustentacao do grupo.", "historia": "Nasceu quando a areia cosmica aprendeu a preservar seus proprios erros. A mutacao de suporte denuncia o corpo preso ao campo de batalha."},
+            {"nome": "Larapio", "imagem": "Sprites/larapio1.png", "funcionamento": "No modo normal, surge periodicamente para roubar moedas e fugir. No modo dificil (drops), coleta cartas do chao, arremessa pedras que furtam cartas do seu deck e tenta escapar usando um portal roxo crescente sob seus pes.", "historia": "Uma anomalia oportunista condensada a partir de linhas temporais descartadas. Ele nao busca confrontar Geovana diretamente; seu unico objetivo e saquear os fragmentos de sua jornada e escapar pelo fluxo."},
         ],
         "Chefes": [
-            {"nome": "BOSS 1: Caranguejo do Nulo", "imagem": "Sprites/Boss1.png", "funcionamento": "A Entropia Temporal. No jogo, e o primeiro teste grande de leitura de ataques, teleporte, dano sustentado e controle de invocacoes. Suas janelas de perigo representam bolhas, impacto e pressao de lacaios corrompidos.", "historia": "Localizacao: Dimensao Roxa, castelo em ruinas e deserto roxo. Crustaceo biomecanico colossal fundido a rocha, com bracos desproporcionais, olhos roxos flamejantes e um relogio caotico de bronze no torax. A vitoria abre a fenda dimensional que arranca Geovana para o proximo mundo."},
-            {"nome": "BOSS 2: Colosso Pinguim", "imagem": "Sprites/Boss2_1.png", "funcionamento": "O Guardiao do Gelo. No jogo, domina a arena com gelo, avisos de area, lancas/cristais e punicoes de mobilidade. A luta exige deslocamento constante e leitura rapida para evitar empalamento.", "historia": "Localizacao: Deserto Branco e Gelado. Criatura pinguim monstruosa e colossal, com olhos vermelhos cortando a neblina congelante. Sua criocinese transforma o campo em um teste de sobrevivencia pura logo apos a queda pela fenda dimensional."},
-            {"nome": "BOSS 3: Pai-Rato", "imagem": "Sprites/Boss3_1.png", "funcionamento": "O Falso Profeta. No jogo, combina pressao de arena, invocacoes/ameacas menores e disparos canalizados, traduzindo as hordas cultistas e os feixes de luz corrompida do livro.", "historia": "Localizacao: Catedral do Ninho, reino dos ratos. Rato humanoide encurvado, inchado, em mantos vermelhos esfarrapados, sentado sobre trono de queijo derretido e velas de gordura. Um olho e um buraco negro queimado. Seu simbolo sagrado distorcido canaliza energia ate ser quebrado pela Ressonancia de Minkowski."},
+            {"nome": "BOSS 1: Caranguejo do Nulo", "imagem": "Sprites/Boss1.png", "funcionamento": "A Entropia Temporal. No jogo, e o primeiro teste grande de leitura de ataques, teleporte, dano sustentado e controle de invocacoes. Suas janelas de perigo representam bolhas, impacto e pressao de lacaios corrompidos.", "historia": "Localizacao: Dimensao Roxa, castelo in ruinas e deserto roxo. Crustaceo biomecanico colossal fundido a rocha, com bracos desproporcionais, olhos roxos flamejantes e um relogio caotico de bronze no torax. A vitoria abre a fenda dimensional que arranca Geovana para o proximo mundo."},
+            {"nome": "BOSS 2: Colosso Pinguim", "imagem": "Sprites/Boss2_1.png", "funcionamento": "O Guardiao do Gelo. No jogo, domina a arena com gelo, avisos de area, lancas/cristais e punicoes de mobilidade. A luta exige deslocamento constante e leitura rapida para evitar empalamento.", "historia": "Localizacao: Deserto Branco e Gelado. Criatura pinguim monstruosa e colossal, com olhos vermelhos cortando a neblina congelante. Sua criocinese transforma o campo in um teste de sobrevivencia pura logo apos a queda pela fenda dimensional."},
+            {"nome": "BOSS 3: Pai-Rato", "imagem": "Sprites/Boss3_1.png", "funcionamento": "O Falso Profeta. No jogo, combina pressao de arena, invocacoes/ameacas menores e disparos canalizados, traduzindo as hordas cultistas e os feixes de luz corrompida do livro.", "historia": "Localizacao: Catedral do Ninho, reino dos ratos. Rato humanoide encurvado, inchado, in mantos vermelhos esfarrapados, sentado sobre trono de queijo derretido e velas de gordura. Um olho e um buraco negro queimado. Seu simbolo sagrado distorcido canaliza energia ate ser quebrado pela Ressonancia de Minkowski."},
             {"nome": "BOSS 4: O Capitao", "imagem": "Sprites/Boss4_1.png", "funcionamento": "O Vigia Milenar. No jogo, representa pressao pesada de arena, ataques diretos e sequencias que exigem build madura, defesa, dano continuo e bom reposicionamento.", "historia": "Localizacao: Salao do Trono, Cupula do Poder, quarta fase. Hibrido titanico de sapo e gorila, quatro metros, pele verde-oliva rugosa e armadura espacial preta com placas foscas e ouro. Manipula gravidade pesada, empunha lamina de energia antiga e comanda subordinados nas sombras."},
             {"nome": "BOSS 5: ?", "imagem": None, "funcionamento": "Arquivo bloqueado. O jogo reserva este encontro para punir padroes repetidos, leitura previsivel e abuso de poder acumulado.", "historia": "SUSPENSE. O catalogo registra apenas uma assinatura: UMBRA. O restante permanece oculto para preservar o impacto narrativo da quinta ruptura."},
         ],
         "Fases": [
             {"nome": "Fase 1 - Primeiro Rasgo", "imagem": "Sprites/Fase1.png", "funcionamento": "Apresenta o ciclo principal: mover, atirar, coletar moedas, escolher fragmentos dimensionais e sobreviver ao primeiro boss.", "historia": "O mundo ainda parece reconhecivel, mas a primeira ruptura ja contaminou seus habitantes e suas leis fisicas."},
             {"nome": "Fase 2 - Nevasca de Memorias", "imagem": "Sprites/Fase2.png", "funcionamento": "Introduz gelo, controle de area e inimigos com comportamento mais variado.", "historia": "As memorias rejeitadas congelam antes de desaparecer. A fase e um arquivo vivo de tentativas fracassadas."},
-            {"nome": "Fase 3 - Geometria Instavel", "imagem": "Sprites/Fase3.png", "funcionamento": "Aumenta a densidade de projeteis, efeitos e decisoes de posicionamento.", "historia": "A ruptura deixa de ser acidente e vira padrao. Tudo tenta se organizar em formas hostis."},
+            {"nome": "Fase 3 - Geometria Instavel", "imagem": "Sprites/Fase3.png", "funcionamento": "Aumenta a densidade de projeteis, efeitos e decisoes de posicionamento.", "historia": "A ruptura deixa de ser acidente e vira padrao. Tudo tenta se organizar in formas hostis."},
             {"nome": "Fase 4 - Nucleo Temporal", "imagem": "Sprites/Fase4.png", "funcionamento": "Teste de build madura, escalonamento alto e sobrevivencia sob pressao constante.", "historia": "Aqui o tempo nao flui: ele pulsa. Cada passo empurra Geovana para mais perto do centro da anomalia."},
             {"nome": "Fase 5 - Confronto de Ecos", "imagem": "Sprites/Fase5-1.png", "funcionamento": "Fase de confronto avancado, com sistemas de IA e punicoes para repeticao de padroes.", "historia": "Quando a ruptura entende Geovana, ela cria uma resposta. A quinta fase e menos um lugar e mais um julgamento."},
         ],
         "Anatomia": [
-            {"nome": "Disparo Temporal", "imagem": "Sprites/Geo_Disp1.png", "funcionamento": "Ataque primario da personagem. Dispara energia temporal em linha reta, escala com dano, velocidade de ataque, critico, veneno e efeitos dos fragmentos dimensionais.", "historia": "Geovana comprime instantes em projeteis. Cada tiro e uma pequena ordem dada a um futuro instavel."},
-            {"nome": "Teleporte", "imagem": "Sprites/Deck/carta_teleporte1.png", "funcionamento": "Habilidade de reposicionamento. Pode operar em modo fixo, seguindo a direcao de movimento, ou em modo de mira pelo mouse conforme configuracao.", "historia": "Nao e velocidade. E uma costura curta entre dois pontos que deveriam estar distantes."},
-            {"nome": "Onda de Choque", "imagem": "Sprites/Onda_Boss2.png", "funcionamento": "Segunda habilidade ativa da personagem. Libera uma explosao de area ao redor de Geovana para afastar grupos, abrir espaco e causar dano quando a arena fecha.", "historia": "Um pulso de recusa: por um momento, Geovana empurra a ruptura para fora da propria volta."},
+            {"nome": "Disparo Temporal", "imagem": "Sprites/Geo_Disp1.png", "funcionamento": "Ataque primario da personagem. Dispara energia temporal in linha reta, escala com dano, velocidade de ataque, critico, veneno e efeitos dos fragmentos dimensionais.", "historia": "Geovana comprime instantes in projeteis. Cada tiro e uma pequena ordem dada a um futuro instavel."},
+            {"nome": "Teleporte", "imagem": "Sprites/Deck/carta_teleporte1.png", "funcionamento": "Habilidade de reposicionamento. Pode operar in modo fixo, seguindo a direcao de movimento, ou in modo de mira pelo mouse conforme configuracao.", "historia": "Nao e velocidade. E uma costura curta entre dois pontos que deveriam estar distantes."},
         ],
         "Aureas": [
-            {"nome": "Aurea Racional", "imagem": "Sprites/aurea_cientista.png", "funcionamento": "Controle de ritmo. Ficar imovel por 5s gera pontuacao bonus. Teleporte pronto ativa Dilatacao Temporal por 8s: inimigos/projeteis ficam 58% mais lentos, Geovana ganha +35% movimento e atira 28% mais rapido. Depois vem Rebote por 3s, acelerando inimigos/projeteis em 50%.", "historia": "A mente fria calcula trajetorias e enxerga padroes em meio ao caos da ruptura temporal."},
+            {"nome": "Aurea Racional", "imagem": "Sprites/aurea_cientista.png", "funcionamento": "Controle de ritmo. Ficar imovel por 5s gera pontuacao bonus. Teleporte pronto ativa Dilatacao Temporal por 8s: inimigos/projeteis ficam 58% mais lentos, Geovana ganha +35% movimento e atira 28% mais rapido. Depois vem Rebote por 3s, acelerando inimigos/projeteis in 50%.", "historia": "A mente fria calcula trajetorias e enxerga padroes em meio ao caos da ruptura temporal."},
             {"nome": "Aurea Impulsiva", "imagem": "Sprites/aurea_impulsiva.png", "funcionamento": "Agressao continua. A cada 5 abates sem sofrer dano, ativa Frenesi temporario de dano e/ou velocidade. Manter a sequencia renova a pressao; nas fases com sistema completo, renovar com tempo sobrando aumenta o nivel e sofrer hit durante o Frenesi arma Panico.", "historia": "Acao imediata. O instinto reage antes que o proprio tempo possa processar."},
             {"nome": "Aurea Devota", "imagem": "Sprites/aurea_devota.png", "funcionamento": "Sobrevivencia ofensiva. Cria 3 cargas de escudo que anulam impactos. Cada bloqueio cura 10% da vida perdida e da +25% dano por 3s. Ao quebrar a ultima carga, ativa Fe Ardente: +65% dano por 4.5s, com apenas -10% velocidade. Upgrade reduz a recarga.", "historia": "A fe inabalavel manifesta uma barreira divina que desafia a propria causalidade."},
-            {"nome": "Aurea Vanguarda", "imagem": "Sprites/aurea_vanguarda.png", "funcionamento": "Area e queimadura. Inimigos proximos ou tocados podem incendiar e sofrer dano por segundo baseado em vida maxima. Nas fases com sistema completo, sofrer hit abre um circulo de fogo por 5s. Cada inimigo queimando aumenta o cooldown do Teleporte em 15%.", "historia": "Liderando o avanco, a pioneira incendeia o solo para que nada a siga no fluxo temporal."},
+            {"nome": "Aurea Vanguarda", "imagem": "Sprites/aurea_vanguarda.png", "funcionamento": "Area e queimadura. Inimigos proximos ou tocados podem incendiar e sofrer dano por segundo baseado em vida maxima. Nas fases com sistema completo, sofrer hit abre um circulo de fogo por 5s. Cada inimigo queimando aumenta o cooldown do Teleporte in 15%.", "historia": "Liderando o avanco, a pioneira incendeia o solo para que nada a siga no fluxo temporal."},
             {"nome": "Aurea Insana", "imagem": "Sprites/aurea_insana.png", "funcionamento": "Ecos temporais. A cada ciclo liberado, Geovana ganha 4 ecos parados que repetem seus disparos com 1s de atraso e dano reduzido. Se um eco finalizar inimigo, a proxima ativacao ganha +1 eco, ate 5. Depois da aura, o Teleporte sofre +2s de recarga.", "historia": "A insanidade temporal quebra a linha do presente e deixa copias atrasadas atirando no mesmo instante."},
-            {"nome": "Aurea Aleatoria", "imagem": "Sprites/aurea_misteriosa.png", "funcionamento": "Seleciona uma das cinco aureas ativas ao confirmar a jornada: Racional, Impulsiva, Devota, Vanguarda ou Insana. A utilidade muda conforme a sorte, exigindo adaptar movimentacao, agressividade, defesa, controle de area ou ecos temporais.", "historia": "O destino e incerto, e o tempo se desdobra em infinitas possibilidades."},
+            {"nome": "Aurea Voraz", "imagem": "Sprites/aurea_voraz.png", "funcionamento": "Fome e consumo. Abates geram coagulos de sangue temporarios que curam vida perdida e enchem a barra Fome. Fome acumulada aumenta tamanho, dano e recarga de Geovana. Se Geovana ficar 30s sem coletar coagulos, sua vida e drenada.", "historia": "Nesta realidade, Geovana provou o gosto das rupturas. Ela se alimenta dos inimigos para se fortalecer, mas sua fome e insaciavel: quanto mais devora, mais poder ela sente e quer."},
+            {"nome": "Aurea Aleatoria", "imagem": "Sprites/aurea_misteriosa.png", "funcionamento": "Seleciona uma das cinco aureas ativas ao confirmar a jornada: Racional, Impulsiva, Devota, Vanguarda ou Insana. A utilidade muda conforme a sorte, exigindo adaptar movimentacao, agressividade, defesa, controle de area ou ecos temporais.", "historia": "O destino e incerto, e o tempo se desdobra in infinitas possibilidades."},
         ],
         "Fragmentos": [
-            {"nome": "Speed Boost", "imagem": "Sprites/Deck/Speed_boost1.png", "funcionamento": "Fragmento dimensional que aumenta velocidade de movimento.", "historia": "Um fragmento para quem prefere vencer a ruptura antes que ela feche o cerco."},
-            {"nome": "Porcao", "imagem": "Sprites/Deck/carta_por1.png", "funcionamento": "Fragmento vital que recupera vida e pode aumentar vida maxima.", "historia": "Elixir extraido de linhas temporais estaveis, raro o bastante para parecer milagre."},
-            {"nome": "Disparo crescente", "imagem": "Sprites/Deck/carta_odio1.png", "funcionamento": "Fragmento ofensivo que aumenta o dano do disparo principal.", "historia": "Cada tiro carrega um pouco mais da raiva acumulada contra a fratura."},
-            {"nome": "Tempestade", "imagem": "Sprites/Deck/Carta_tempestade_crescente1.png", "funcionamento": "Fragmento de instabilidade que aumenta chance critica e explosao de dano.", "historia": "Probabilidade violenta, dobrada ate virar clima."},
-            {"nome": "Cura", "imagem": "Sprites/Deck/Carta_roubo_vida1.png", "funcionamento": "Fragmento de sifao que permite recuperar vida ao causar dano.", "historia": "A ruptura tira; este fragmento ensina Geovana a tomar de volta."},
-            {"nome": "Reviver Temporal", "imagem": "Sprites/Deck/carta_trem1.png", "funcionamento": "Fragmento de retorno apos morte. Funciona como segunda chance limitada e deixa penalidades progressivas.", "historia": "Voltar no tempo nunca e gratis. Cada retorno deixa uma marca que a ruptura aprende a cobrar."},
-            {"nome": "Speed Atack", "imagem": "Sprites/Deck/carta_onda.png", "funcionamento": "Fragmento de cadencia que reduz intervalo entre disparos.", "historia": "A cadencia fica tao alta que o tempo parece tropecar entre os tiros."},
-            {"nome": "Teleporte", "imagem": "Sprites/Deck/carta_teleporte1.png", "funcionamento": "Fragmento que reduz cooldown do teleporte.", "historia": "Dobre o espaco, corte a perseguicao, sobreviva ao impossivel."},
-            {"nome": "Petro", "imagem": "Sprites/Deck/carta_petro1.png", "funcionamento": "Fragmento-companheiro que ativa ou evolui Petro, a sentinela que ataca inimigos proximos.", "historia": "Um pacto simples: Geovana protege o caminho, Petro protege Geovana."},
-            {"nome": "Defesa", "imagem": "Sprites/Deck/carta_defesa1.png", "funcionamento": "Fragmento de resistencia que reduz dano recebido.", "historia": "Uma camada de realidade endurecida ao redor do corpo."},
-            {"nome": "Sorte", "imagem": "Sprites/Deck/carta_sorte1.png", "funcionamento": "Fragmento probabilistico que aumenta chance de raridade e melhora drops no modo sem loja.", "historia": "Nao muda o destino. Apenas inclina a moeda antes que ela caia."},
-            {"nome": "Poison", "imagem": "Sprites/Deck/carta_poison1.png", "funcionamento": "Fragmento toxico que aplica veneno nos ataques e escala dano continuo.", "historia": "Uma toxina que envelhece o alvo por dentro."},
-            {"nome": "Coletora", "imagem": "Sprites/Deck/carta_estalo1.png", "funcionamento": "Fragmento de execucao que elimina inimigos enfraquecidos.", "historia": "Quando a vida ja esta por um fio, a Coletora corta o resto."},
-            {"nome": "Mercenaria", "imagem": "Sprites/Deck/carta_mercenaria1.png", "funcionamento": "Fragmento de recompensa que aumenta pontuacao por sequencias e abates constantes.", "historia": "Nao luta por honra. Luta por resultado."},
+            {"nome": "Speed Boost", "imagem": "Sprites/Deck/Speed_boost1.png", "funcionamento": "Aumenta a velocidade de movimentacao de Geovana.", "historia": "Um fragmento para quem prefere vencer a ruptura antes que ela feche o cerco."},
+            {"nome": "Porção", "imagem": "Sprites/Deck/carta_por1.png", "funcionamento": "Recupera vida e aumenta a vida maxima da personagem e do companheiro Petro.", "historia": "Elixir extraido de linhas temporais estaveis, raro o bastante para parecer milagre."},
+            {"nome": "Disparo crescente", "imagem": "Sprites/Deck/carta_odio1.png", "funcionamento": "Aumenta o dano do disparo principal de Geovana.", "historia": "Cada tiro carrega um pouco mais da raiva acumulada contra a fratura."},
+            {"nome": "Tempestade", "imagem": "Sprites/Deck/Carta_tempestade_crescente1.png", "funcionamento": "Aumenta a chance de acerto critico e o dano critico.", "historia": "Probabilidade violenta, dobrada ate virar clima."},
+            {"nome": "Cura", "imagem": "Sprites/Deck/Carta_roubo_vida1.png", "funcionamento": "Concede roubo de vida (sifao) ao causar dano com os disparos.", "historia": "A ruptura tira; este fragmento ensina Geovana a tomar de volta."},
+            {"nome": "Trembo", "imagem": "Sprites/Deck/carta_trem1.png", "funcionamento": "Invoca o companheiro Trembo. Cada stack reduz o intervalo de regeneracao e aumenta a cura de Geovana, persistindo com 50% da capacidade caso o companheiro seja derrotado.", "historia": "Um pequeno errante domesticado que aprendeu a costurar feridas temporais. Ele acompanha Geovana, curando-a no compasso das rupturas."},
+            {"nome": "Speed Atack", "imagem": "Sprites/Deck/carta_onda.png", "funcionamento": "Aumenta a cadencia de tiro reduzindo o intervalo entre os disparos.", "historia": "A cadencia fica tao alta que o tempo parece tropecar entre os tiros."},
+            {"nome": "Teleporte", "imagem": "Sprites/Deck/carta_teleporte1.png", "funcionamento": "Reduz o tempo de recarga (cooldown) do teleporte.", "historia": "Dobre o espaco, corte a perseguicao, sobreviva ao impossivel."},
+            {"nome": "Petro", "imagem": "Sprites/Deck/carta_petro1.png", "funcionamento": "Invoca ou evolui o companheiro Petro. Petro auxilia no combate atacando inimigos proximos e aumentando seus atributos a cada nivel.", "historia": "Um pacto simples: Geovana protege o caminho, Petro protege Geovana."},
+            {"nome": "Defesa", "imagem": "Sprites/Deck/carta_defesa1.png", "funcionamento": "Aumenta a resistencia (defesa) de Geovana contra o dano recebido (limite maximo de 50%).", "historia": "Uma camada de reality endurecida ao redor do corpo."},
+            {"nome": "Sorte", "imagem": "Sprites/Deck/carta_sorte1.png", "funcionamento": "Aumenta a probabilidade de encontrar itens de maior raridade e melhora os drops no modo sem loja.", "historia": "Nao muda o destino. Apenas inclina a moeda antes que ela caia."},
+            {"nome": "Poison", "imagem": "Sprites/Deck/carta_poison1.png", "funcionamento": "Aplica efeito de veneno nos inimigos atingidos, causando dano continuo acumulavel.", "historia": "Uma toxina que envelhece o alvo por dentro."},
+            {"nome": "Coletora", "imagem": "Sprites/Deck/carta_estalo1.png", "funcionamento": "Permite Geovana executar inimigos que estejam com a vida baixa.", "historia": "Quando a vida ja esta por um fio, a Coletora corta o resto."},
+            {"nome": "Mercenaria", "imagem": "Sprites/Deck/carta_mercenaria1.png", "funcionamento": "Ativa bonus de recompensa por abates, gerando pontuacao extra ao manter sequencias de eliminacoes.", "historia": "Nao luta por honra. Luta por resultado."},
         ],
     }
 

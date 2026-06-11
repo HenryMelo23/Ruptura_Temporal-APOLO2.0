@@ -10,6 +10,7 @@ import json
 from utils import carregar_upgrade_aureas, salvar_upgrade_aureas
 from dados_aureas import AUREAS_DADOS
 import ui_helpers
+from audio_manager import carregar_config_audio, aplicar_volume_som
 
 def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
     # Setup
@@ -55,9 +56,9 @@ def tela_upgrade_aureas(tela, fonte, moedas_disponiveis):
     
     # Tentar carregar som de confirmação
     som_confirm = None
+    config_audio = carregar_config_audio()
     try:
-        som_confirm = pygame.mixer.Sound("Sounds/Estalo.mp3")
-        som_confirm.set_volume(0.3)
+        som_confirm = aplicar_volume_som(pygame.mixer.Sound("Sounds/Estalo.mp3"), config_audio, canal="efeitos", volume_maximo=0.3)
     except Exception:
         pass
         

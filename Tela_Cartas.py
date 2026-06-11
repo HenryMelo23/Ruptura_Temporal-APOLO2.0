@@ -5,6 +5,7 @@ import math
 import os
 import ui_helpers
 from Variaveis import *
+from audio_manager import carregar_config_audio, aplicar_volume_som
 
 def carregar_fonte(caminho, tamanho, fallback_name=None):
     try:
@@ -43,9 +44,9 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
     pygame.init()
     
     # Sound FX
+    config_audio = carregar_config_audio()
     try:
-        som_tick = pygame.mixer.Sound("Sounds/Estalo.mp3")
-        som_tick.set_volume(0.4)
+        som_tick = aplicar_volume_som(pygame.mixer.Sound("Sounds/Estalo.mp3"), config_audio, canal="efeitos", volume_maximo=0.4)
     except:
         som_tick = None
         
@@ -795,8 +796,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
     
     # Som da transicao (raio / portal se fechando) se houver
     try:
-        som_transicao = pygame.mixer.Sound("Sounds/Teleporte.mp3")
-        som_transicao.set_volume(0.3)
+        som_transicao = aplicar_volume_som(pygame.mixer.Sound("Sounds/Teleporte.mp3"), config_audio, canal="efeitos", volume_maximo=0.3)
         som_transicao.play()
     except:
         som_transicao = None

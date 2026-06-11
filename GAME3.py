@@ -71,11 +71,16 @@ gerar_fragmentos_morte = None
 
 def fator_dano_aureas(agora_ms=None):
     agora_ms = pygame.time.get_ticks() if agora_ms is None else agora_ms
-    return fator_dano_devota(aurea, estado_devota, agora_ms)
+    import condutora_manifestacao
+    return fator_dano_devota(aurea, estado_devota, agora_ms) * condutora_manifestacao.obter_multiplicador_dano_and(agora_ms)
 
 def absorver_dano_devota_atual():
     global vida, escudo_devota_ativo, tempo_ultimo_escudo
     agora_ms = pygame.time.get_ticks()
+    import condutora_manifestacao
+    if condutora_manifestacao.tentar_absorver_dano_nand(agora_ms):
+        efeitos_texto.append({"texto": "BLOQUEIO LÓGICO", "x": pos_x_personagem - 28, "y": pos_y_personagem - 28, "tempo_inicio": agora_ms, "cor": (104, 255, 214)})
+        return True
     absorvido, escudo_devota_ativo, escudo_quebrou = absorver_hit_devota(aurea, escudo_devota_ativo, estado_devota, agora_ms)
     if not absorvido:
         return False
@@ -120,25 +125,13 @@ Hit_inimigo3 = aplicar_volume_som(pygame.mixer.Sound("Sounds/Inimigo3_hit.mp3"),
 
 Disparo_Geo = aplicar_volume_som(pygame.mixer.Sound("Sounds/Disparo_Geo.wav"), config_audio)
 
-Musica_tema_Boss3 = aplicar_volume_som(pygame.mixer.Sound("Sounds/Fase3_Boss.mp3"), config_audio)  
-
-Musica_tema_fases = pygame.mixer.Sound("Sounds/Fase_boas.mp3")
-Musica_tema_fases.set_volume(0.07)  
-
-Som_tema_fases = pygame.mixer.Sound("Sounds/Esgoto.mp3")
-Som_tema_fases.set_volume(0.10)  
-
-Som_portal = pygame.mixer.Sound("Sounds/Portal.mp3")
-Som_portal.set_volume(0.06)  
-
-Boss_Queijo= pygame.mixer.Sound("Sounds/Queijo.mp3")
-Boss_Queijo.set_volume(0.11)  
-
-Boss3_andando= pygame.mixer.Sound("Sounds/Boss3_andando.mp3")
-Boss3_andando.set_volume(0.7)  
-
-Frascos= pygame.mixer.Sound("Sounds/Frasco.mp3")
-Frascos.set_volume(0.02)  
+Musica_tema_Boss3 = aplicar_volume_som(pygame.mixer.Sound("Sounds/Fase3_Boss.mp3"), config_audio, canal="musica", volume_maximo=1.0)  
+Musica_tema_fases = aplicar_volume_som(pygame.mixer.Sound("Sounds/Fase_boas.mp3"), config_audio, canal="musica", volume_maximo=0.07)
+Som_tema_fases = aplicar_volume_som(pygame.mixer.Sound("Sounds/Esgoto.mp3"), config_audio, canal="musica", volume_maximo=0.10)
+Som_portal = aplicar_volume_som(pygame.mixer.Sound("Sounds/Portal.mp3"), config_audio, canal="efeitos", volume_maximo=0.06)
+Boss_Queijo = aplicar_volume_som(pygame.mixer.Sound("Sounds/Queijo.mp3"), config_audio, canal="efeitos", volume_maximo=0.11)
+Boss3_andando = aplicar_volume_som(pygame.mixer.Sound("Sounds/Boss3_andando.mp3"), config_audio, canal="efeitos", volume_maximo=0.7)
+Frascos = aplicar_volume_som(pygame.mixer.Sound("Sounds/Frasco.mp3"), config_audio, canal="efeitos", volume_maximo=0.02)  
 
 toque=0
 
@@ -576,6 +569,7 @@ def atualizar_posicao_personagem(keys, joystick):
         * fator_movimento_racional(aurea, racional_dilatacao_fim)
         * fator_velocidade_devota(aurea, estado_devota, tempo_atual)
         * condutora_manifestacao.fator_ruido_logico(manifestacao_ativa, tempo_atual)
+        * condutora_manifestacao.obter_fator_velocidade_xor(tempo_atual)
     )
 
     # ---- TECLADO ----
@@ -2687,8 +2681,9 @@ def executar_jogo(game_manager=None):
                             dano_person_hit * fator_dano_aureas(tempo_atual), largura_mapa, altura_mapa
                         ))
                     elif condutora_manifestacao.ativa(manifestacao_ativa):
+                        jogador_rect_temp = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
                         mortos_circuito, total_alvos, total_links = condutora_manifestacao.fechar_circuitos(
-                            inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
+                            inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto, jogador_rect_temp
                         )
                         ondas.append(condutora_manifestacao.criar_fechamento(px_centro, py_centro, tempo_atual, total_alvos, total_links))
                         for morto_circuito in mortos_circuito:
@@ -3509,7 +3504,7 @@ def executar_jogo(game_manager=None):
             inimigos_mortos_condutora = condutora_manifestacao.atualizar_circuitos(
                 inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
             )
-            condutora_manifestacao.desenhar_circuitos(tela, inimigos_comum, tempo_atual, config_graficos, manifestacao_ativa)
+            condutora_manifestacao.desenhar_circuitos(tela, inimigos_comum, tempo_atual, config_graficos, manifestacao_ativa, jogador_rect_parasitica)
             inimigos_mortos_gravitante = gravitante_manifestacao.atualizar_orbes(
                 inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
             )

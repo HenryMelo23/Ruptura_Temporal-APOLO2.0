@@ -644,6 +644,12 @@ def obter_manifestacao_cached():
     return _manifestacao_ativa_cached
 
 def intervalo_disparo_racional(intervalo_base, aurea, fim_ms, agora_ms=None):
+    import condutora_manifestacao
+    agora = agora_ms if agora_ms is not None else pygame.time.get_ticks()
+    fator_xor = condutora_manifestacao.obter_fator_cadencia_xor(agora)
+    if fator_xor > 1.0:
+        intervalo_base = int(intervalo_base / fator_xor)
+
     if obter_manifestacao_cached() == "retornante":
         try:
             import balanceamento
@@ -1005,40 +1011,7 @@ def _desenhar_hud_molduras(display):
         if not modo_drops:
             _desenhar_barra_sidebar(display, x0, 92, w, 16, hud["pontuacao_exib"], max(1, hud["custo_carta_atual"]), (255, 210, 0))
 
-        _texto_contorno(display, font_peq, "HABILIDADES", (0, 255, 204), (x0, 145))
-        if hud["dispositivo_ativo"] == "teclado":
-            teclas = [
-                ("DISPARO", "LMB", Variaveis.icone_disparo_pronto, Variaveis.icone_disparo_recarga, hud["cooldowns"].get("disparo", 0.0)),
-                ("TELEPORTE", Variaveis.formatar_nome_tecla(Variaveis.config_teclas.get("Teleporte", pygame.K_LSHIFT)), Variaveis.icone_teleporte_pronto, Variaveis.icone_teleporte_recarga, hud["cooldowns"].get("teleporte", 0.0)),
-                ("ONDA", Variaveis.formatar_nome_tecla(Variaveis.config_teclas.get("Habilidade Onda", "MOUSE_3")), Variaveis.icone_onda_pronto, Variaveis.icone_onda_recarga, hud["cooldowns"].get("onda", 0.0)),
-            ]
-        else:
-            teclas = [
-                ("DISPARO", "A", Variaveis.icone_disparo_pronto, Variaveis.icone_disparo_recarga, hud["cooldowns"].get("disparo", 0.0)),
-                ("TELEPORTE", "X", Variaveis.icone_teleporte_pronto, Variaveis.icone_teleporte_recarga, hud["cooldowns"].get("teleporte", 0.0)),
-                ("ONDA", "B", Variaveis.icone_onda_pronto, Variaveis.icone_onda_recarga, hud["cooldowns"].get("onda", 0.0)),
-            ]
-        if not modo_drops:
-            teclas.append(("LOJA", "Y" if hud["dispositivo_ativo"] != "teclado" else Variaveis.formatar_nome_tecla(Variaveis.config_teclas.get("Comprar na loja", pygame.K_e)), Variaveis.icone_loja, Variaveis.icone_loja_pronto, hud["cooldowns"].get("loja", 0.0)))
-
-        y = 178
-        icon_size = 38 if right.width < 170 else (42 if right.width < 190 else 50)
-        for nome, tecla, pronto, recarga, cd in teclas:
-            if nome == "LOJA":
-                icone = recarga if cd > 0 else pronto
-            else:
-                icone = recarga if cd > 0.0 else pronto
-            img = pygame.transform.smoothscale(icone, (icon_size, icon_size))
-            display.blit(img, (x0, y))
-            if nome != "LOJA" and cd > 0.0:
-                overlay = pygame.Surface((icon_size, icon_size), pygame.SRCALPHA)
-                overlay.fill((0, 0, 0, 150))
-                display.blit(overlay, (x0, y))
-                _texto_contorno(display, font_peq, f"{cd:.1f}s", (0, 255, 240), (x0 + icon_size + 8, y + 25))
-            _texto_contorno(display, font_peq, f"[{tecla}]", (0, 255, 204), (x0 + icon_size + 8, y + 4))
-            _texto_contorno(display, font_peq, nome, (255, 255, 255), (x0 + icon_size + 8, y + 21))
-            y += icon_size + 18
-
+        y = 135
         if hud["eliminacoes_consecutivas"] > 0:
             _texto_contorno(display, font_titulo, f"COMBO: {hud['eliminacoes_consecutivas']}", (255, 255, 255), (x0, min(screen_h - 95, y + 18)))
             _texto_contorno(display, font_peq, f"Bônus: +{hud['bonus_pontuacao']}", (255, 255, 255), (x0, min(screen_h - 58, y + 50)))
@@ -1467,6 +1440,13 @@ def desenhar_hud_fase(
             "escudo_devota_ativo": escudo_devota_ativo,
             "config_graficos": config_graficos_hud,
         }
+        deve_desenhar_icones = True
+        if None not in (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem):
+            deve_desenhar_icones = not Variaveis.area_icones.colliderect(
+                (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+            )
+        if deve_desenhar_icones:
+            Variaveis.desenhar_habilidades(tela, cooldowns, dispositivo_ativo)
         return
 
     posicao_barra_vida = (80, Variaveis.altura_mapa - (Variaveis.altura_mapa - 34))

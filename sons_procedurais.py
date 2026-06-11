@@ -15,12 +15,14 @@ def inicializar_sons():
             pass
             
     if pygame.mixer and pygame.mixer.get_init():
+        from audio_manager import aplicar_volume_som, carregar_config_audio
+        config_audio = carregar_config_audio()
         if _som_hover is None:
-            _som_hover = gerar_som_beep(600, 300, 0.08, volume=0.25)
+            _som_hover = aplicar_volume_som(gerar_som_beep(600, 300, 0.08, volume=1.0), config_audio, canal="efeitos", volume_maximo=0.25)
         if _som_selecionar is None:
-            _som_selecionar = gerar_som_beep(400, 800, 0.15, volume=0.35)
+            _som_selecionar = aplicar_volume_som(gerar_som_beep(400, 800, 0.15, volume=1.0), config_audio, canal="efeitos", volume_maximo=0.35)
         if _som_game_over is None:
-            _som_game_over = gerar_som_sad_chord(volume=0.45)
+            _som_game_over = aplicar_volume_som(gerar_som_sad_chord(volume=1.0), config_audio, canal="efeitos", volume_maximo=0.45)
 
 def tocar_hover():
     inicializar_sons()
