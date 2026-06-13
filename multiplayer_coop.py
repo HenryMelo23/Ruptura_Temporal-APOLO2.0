@@ -35,18 +35,33 @@ _ultimo_mundo_envio_ms = 0
 _world_snapshot = None
 _world_snapshot_recebido_ms = 0
 _world_snapshot_seq_aplicado = None
+_ultimo_seq_mundo_recebido = 0
+_ultimo_seq_player_recebido = 0
 _mundo_seq_envio = 0
+_player_seq_envio = 0
 _proximo_coop_id = 1
 _convites = {}
 _debug_visivel = False
 _debug_tecla_f10_ativa = False
+_ultimo_ping_envio_ms = 0
+_coop_ping_ms = 0.0
+_coop_jitter_ms = 0.0
+_coop_host_time_offset = 0.0
 _diagnostico = {
     "pacotes_processados_frame": 0,
+    "pacotes_coalescidos": 0,
     "fila_envio": 0,
     "fila_recebimento": 0,
     "tempo_desde_ultimo_snapshot": 0,
     "qtd_inimigos_snapshot": 0,
     "tamanho_snapshot_json": 0,
+    "ultimo_seq_mundo": 0,
+    "ultimo_seq_player": 0,
+    "snapshots_mundo_descartados": 0,
+    "snapshots_player_descartados": 0,
+    "distancia_render_net_max": 0.0,
+    "qtd_entidades_snapadas": 0,
+    "erro_predicao_player": 0.0,
 }
 
 COOP_INIMIGO_VIDA_MULT = 1.45
@@ -56,9 +71,14 @@ COOP_SYNC_MUNDO_MS = 80
 COOP_CONVITE_DELAY_MS = 4000
 COOP_SILENCIO_CONFIRMA_MS = 10000
 COOP_INTERPOLACAO_POS = 0.18
-COOP_EXTRAPOLACAO_MAX_MS = 150
+COOP_INTERPOLATION_DELAY_MS = 100
+COOP_EXTRAPOLACAO_MAX_MS = 120
+COOP_DISTANCIA_SNAP_INIMIGO = 250
+COOP_DISTANCIA_SNAP_PLAYER = 350
 COOP_MAX_PACOTES_POR_FRAME = 20
 COOP_ENTIDADE_TIMEOUT_MS = 450
+COOP_HISTORICO_POS_MS = 450
+COOP_PING_INTERVAL_MS = 1000
 
 
 def _ler_modo_jogo():
@@ -172,8 +192,130 @@ def enviar_transicao_fase(fase_destino):
         registrar_erro("Multiplayer: erro ao enviar transicao de fase", e)
 
 
+def _seq_pacote(dados):
+    try:
+        return int(dados.get("seq", 0) or 0)
+    except Exception:
+        return 0
+
+
+def _tempo_host_estimado():
+    return pygame.time.get_ticks() + float(_coop_host_time_offset)
+
+
+def _tempo_render_host():
+    return pygame.time.get_ticks() - COOP_INTERPOLATION_DELAY_MS
+
+
+def _host_time_pacote(dados, fallback_ms=None):
+    fallback_ms = pygame.time.get_ticks() if fallback_ms is None else fallback_ms
+    try:
+        if dados.get("host_time") is not None:
+            if eh_cliente() and _coop_ping_ms > 0:
+                return int(float(dados.get("host_time")) - float(_coop_host_time_offset))
+            if eh_cliente():
+                return int(fallback_ms)
+            return int(dados.get("host_time"))
+    except Exception:
+        pass
+    return int(fallback_ms)
+
+
+def _adicionar_historico_pos(entidade, host_time, x, y, seq=0):
+    historico = entidade.setdefault("historico_posicoes", [])
+    seq = int(seq or 0)
+    if historico and seq and int(historico[-1].get("seq", 0) or 0) == seq:
+        historico[-1].update({"host_time": int(host_time), "x": float(x), "y": float(y)})
+    else:
+        historico.append({"host_time": int(host_time), "x": float(x), "y": float(y), "seq": seq})
+    limite = int(host_time) - COOP_HISTORICO_POS_MS
+    while len(historico) > 2 and int(historico[0].get("host_time", 0)) < limite:
+        historico.pop(0)
+
+
+def _atualizar_clock_pong(dados):
+    global _coop_ping_ms, _coop_jitter_ms, _coop_host_time_offset
+    if not eh_cliente():
+        return
+    agora = pygame.time.get_ticks()
+    try:
+        client_time = int(dados.get("client_time", agora))
+        host_time = int(dados.get("host_time", agora))
+    except Exception:
+        return
+    rtt = max(0, agora - client_time)
+    offset_estimado = (host_time + (rtt / 2.0)) - agora
+    jitter_amostra = abs(float(rtt) - float(_coop_ping_ms or rtt))
+    _coop_ping_ms = (float(_coop_ping_ms) * 0.8) + (float(rtt) * 0.2) if _coop_ping_ms else float(rtt)
+    _coop_jitter_ms = (float(_coop_jitter_ms) * 0.8) + (jitter_amostra * 0.2)
+    _coop_host_time_offset = (float(_coop_host_time_offset) * 0.9) + (offset_estimado * 0.1)
+
+
+def _responder_ping(dados):
+    if not eh_host():
+        return
+    try:
+        from rede import fila_envio
+        fila_envio.put({
+            "coop_tipo": "pong",
+            "client_time": int(dados.get("client_time", 0) or 0),
+            "host_time": pygame.time.get_ticks(),
+        })
+        _diagnostico["fila_envio"] = fila_envio.qsize()
+    except Exception as e:
+        registrar_erro("Multiplayer: erro ao responder ping cooperativo", e)
+
+
+def _enviar_ping_se_preciso():
+    global _ultimo_ping_envio_ms
+    if not eh_cliente():
+        return
+    agora = pygame.time.get_ticks()
+    if agora - _ultimo_ping_envio_ms < COOP_PING_INTERVAL_MS:
+        return
+    try:
+        from rede import fila_envio
+        fila_envio.put({"coop_tipo": "ping", "client_time": agora})
+        _ultimo_ping_envio_ms = agora
+        _diagnostico["fila_envio"] = fila_envio.qsize()
+    except Exception as e:
+        registrar_erro("Multiplayer: erro ao enviar ping cooperativo", e)
+
+
+def _aplicar_pacote_player(dados, fase_atual):
+    agora = pygame.time.get_ticks()
+    estava_ativo = bool(_remote.get("ativo"))
+    novo_x = float(dados.get("x", _remote["x"]))
+    novo_y = float(dados.get("y", _remote["y"]))
+    antigo_x = float(_remote.get("net_x", _remote["x"]))
+    antigo_y = float(_remote.get("net_y", _remote["y"]))
+    ultimo_ms = int(_remote.get("ultimo_ms", agora))
+    delta_ms = max(1, agora - ultimo_ms)
+    seq = _seq_pacote(dados)
+    host_time = _host_time_pacote(dados, agora)
+    _adicionar_historico_pos(_remote, host_time, novo_x, novo_y, seq)
+    _remote.update({
+        "ativo": True,
+        "x": int(novo_x),
+        "y": int(novo_y),
+        "net_x": novo_x,
+        "net_y": novo_y,
+        "render_x": float(_remote.get("render_x", novo_x)) if estava_ativo else novo_x,
+        "render_y": float(_remote.get("render_y", novo_y)) if estava_ativo else novo_y,
+        "vel_x_estimada": (novo_x - antigo_x) / delta_ms,
+        "vel_y_estimada": (novo_y - antigo_y) / delta_ms,
+        "direcao": dados.get("direcao", _remote["direcao"]) or "down",
+        "vida": dados.get("vida", _remote["vida"]),
+        "vida_maxima": dados.get("vida_maxima", _remote["vida_maxima"]),
+        "morto": bool(dados.get("morto", False)),
+        "fase": int(dados.get("fase", fase_atual)),
+        "ultimo_ms": agora,
+        "ultimo_snapshot_ms": host_time,
+    })
+
+
 def _processar_pacotes(fase_atual):
-    global _world_snapshot, _world_snapshot_recebido_ms
+    global _world_snapshot, _world_snapshot_recebido_ms, _ultimo_seq_mundo_recebido, _ultimo_seq_player_recebido
     fase_solicitada = None
     if not inicializar_se_preciso():
         return None
@@ -181,6 +323,11 @@ def _processar_pacotes(fase_atual):
     try:
         from rede import fila_recebimento
         processados = 0
+        player_mais_recente = None
+        mundo_mais_recente = None
+        coalescidos = 0
+        mundo_descartados = 0
+        player_descartados = 0
 
         while processados < COOP_MAX_PACOTES_POR_FRAME:
             try:
@@ -192,48 +339,71 @@ def _processar_pacotes(fase_atual):
             if not isinstance(dados, dict):
                 continue
 
-            if dados.get("coop_tipo") == "player":
-                agora = pygame.time.get_ticks()
-                estava_ativo = bool(_remote.get("ativo"))
-                novo_x = float(dados.get("x", _remote["x"]))
-                novo_y = float(dados.get("y", _remote["y"]))
-                antigo_x = float(_remote.get("net_x", _remote["x"]))
-                antigo_y = float(_remote.get("net_y", _remote["y"]))
-                ultimo_ms = int(_remote.get("ultimo_ms", agora))
-                delta_ms = max(1, agora - ultimo_ms)
-                _remote.update({
-                    "ativo": True,
-                    "x": int(novo_x),
-                    "y": int(novo_y),
-                    "net_x": novo_x,
-                    "net_y": novo_y,
-                    "render_x": float(_remote.get("render_x", novo_x)) if estava_ativo else novo_x,
-                    "render_y": float(_remote.get("render_y", novo_y)) if estava_ativo else novo_y,
-                    "vel_x_estimada": (novo_x - antigo_x) / delta_ms,
-                    "vel_y_estimada": (novo_y - antigo_y) / delta_ms,
-                    "direcao": dados.get("direcao", _remote["direcao"]) or "down",
-                    "vida": dados.get("vida", _remote["vida"]),
-                    "vida_maxima": dados.get("vida_maxima", _remote["vida_maxima"]),
-                    "morto": bool(dados.get("morto", False)),
-                    "fase": int(dados.get("fase", fase_atual)),
-                    "ultimo_ms": agora,
-                })
-            elif dados.get("coop_tipo") == "fase":
+            tipo = dados.get("coop_tipo")
+            if tipo == "player":
+                seq = _seq_pacote(dados)
+                seq_atual = _seq_pacote(player_mais_recente) if player_mais_recente else 0
+                if seq and seq <= _ultimo_seq_player_recebido:
+                    player_descartados += 1
+                    continue
+                if player_mais_recente is not None:
+                    if not seq or not seq_atual or seq > seq_atual:
+                        coalescidos += 1
+                        player_mais_recente = dados
+                    else:
+                        player_descartados += 1
+                else:
+                    player_mais_recente = dados
+            elif tipo == "mundo":
+                if int(dados.get("fase", fase_atual)) != int(fase_atual):
+                    continue
+                seq = _seq_pacote(dados)
+                seq_atual = _seq_pacote(mundo_mais_recente) if mundo_mais_recente else 0
+                if seq and seq <= _ultimo_seq_mundo_recebido:
+                    mundo_descartados += 1
+                    continue
+                if mundo_mais_recente is not None:
+                    if not seq or not seq_atual or seq > seq_atual:
+                        coalescidos += 1
+                        mundo_mais_recente = dados
+                    else:
+                        mundo_descartados += 1
+                else:
+                    mundo_mais_recente = dados
+            elif tipo == "fase":
                 try:
                     fase_solicitada = int(dados.get("fase", fase_atual))
                 except Exception:
                     fase_solicitada = None
-            elif dados.get("coop_tipo") == "mundo":
-                if int(dados.get("fase", fase_atual)) == int(fase_atual):
-                    _world_snapshot = dados
-                    _world_snapshot_recebido_ms = pygame.time.get_ticks()
-            elif dados.get("coop_tipo") == "convite":
+            elif tipo == "convite":
                 _registrar_convite_remoto(dados, fase_atual)
-            elif dados.get("coop_tipo") == "barreira":
+            elif tipo == "barreira":
                 _registrar_barreira_remota(dados, fase_atual)
+            elif tipo == "ping":
+                _responder_ping(dados)
+            elif tipo == "pong":
+                _atualizar_clock_pong(dados)
             elif "game_over" in dados and dados.get("game_over"):
                 fase_solicitada = -1
+
+        if player_mais_recente is not None:
+            _aplicar_pacote_player(player_mais_recente, fase_atual)
+            seq = _seq_pacote(player_mais_recente)
+            if seq:
+                _ultimo_seq_player_recebido = max(_ultimo_seq_player_recebido, seq)
+                _diagnostico["ultimo_seq_player"] = _ultimo_seq_player_recebido
+        if mundo_mais_recente is not None:
+            _world_snapshot = mundo_mais_recente
+            _world_snapshot_recebido_ms = pygame.time.get_ticks()
+            seq = _seq_pacote(mundo_mais_recente)
+            if seq:
+                _ultimo_seq_mundo_recebido = max(_ultimo_seq_mundo_recebido, seq)
+                _diagnostico["ultimo_seq_mundo"] = _ultimo_seq_mundo_recebido
+
         _diagnostico["pacotes_processados_frame"] = processados
+        _diagnostico["pacotes_coalescidos"] += coalescidos
+        _diagnostico["snapshots_mundo_descartados"] += mundo_descartados
+        _diagnostico["snapshots_player_descartados"] += player_descartados
         _diagnostico["fila_recebimento"] = fila_recebimento.qsize()
     except Exception as e:
         registrar_erro("Multiplayer: erro ao processar pacotes cooperativos", e)
@@ -253,59 +423,90 @@ def _obter_coop_id(inimigo):
     return str(coop_id)
 
 
+def _alvo_temporal_entidade(entidade, snap_distancia):
+    historico = entidade.get("historico_posicoes") or []
+    if not historico:
+        return float(entidade.get("net_x", 0.0)), float(entidade.get("net_y", 0.0))
+
+    tempo_render = _tempo_render_host()
+    primeiro = historico[0]
+    ultimo = historico[-1]
+    if tempo_render <= int(primeiro.get("host_time", 0)):
+        return float(primeiro.get("x", 0.0)), float(primeiro.get("y", 0.0))
+
+    anterior = primeiro
+    posterior = None
+    for item in historico[1:]:
+        if int(item.get("host_time", 0)) >= tempo_render:
+            posterior = item
+            break
+        anterior = item
+
+    if posterior is not None:
+        t0 = int(anterior.get("host_time", 0))
+        t1 = int(posterior.get("host_time", t0))
+        fator = 0.0 if t1 <= t0 else max(0.0, min(1.0, (tempo_render - t0) / float(t1 - t0)))
+        x0 = float(anterior.get("x", 0.0))
+        y0 = float(anterior.get("y", 0.0))
+        x1 = float(posterior.get("x", x0))
+        y1 = float(posterior.get("y", y0))
+        return x0 + (x1 - x0) * fator, y0 + (y1 - y0) * fator
+
+    atraso_ms = max(0.0, min(float(COOP_EXTRAPOLACAO_MAX_MS), tempo_render - int(ultimo.get("host_time", tempo_render))))
+    alvo_x = float(ultimo.get("x", entidade.get("net_x", 0.0))) + float(entidade.get("vel_x_estimada", 0.0)) * atraso_ms
+    alvo_y = float(ultimo.get("y", entidade.get("net_y", 0.0))) + float(entidade.get("vel_y_estimada", 0.0)) * atraso_ms
+    net_x = float(entidade.get("net_x", alvo_x))
+    net_y = float(entidade.get("net_y", alvo_y))
+    if ((alvo_x - net_x) ** 2 + (alvo_y - net_y) ** 2) ** 0.5 > snap_distancia:
+        return net_x, net_y
+    return alvo_x, alvo_y
+
+
+def _aplicar_render_temporal(entidade, alvo_x, alvo_y, snap_distancia):
+    render_x = float(entidade.get("render_x", alvo_x))
+    render_y = float(entidade.get("render_y", alvo_y))
+    distancia = ((alvo_x - render_x) ** 2 + (alvo_y - render_y) ** 2) ** 0.5
+    _diagnostico["distancia_render_net_max"] = max(float(_diagnostico.get("distancia_render_net_max", 0.0)), distancia)
+    if distancia > snap_distancia:
+        _diagnostico["qtd_entidades_snapadas"] += 1
+    entidade["render_x"] = float(alvo_x)
+    entidade["render_y"] = float(alvo_y)
+    return int(round(alvo_x)), int(round(alvo_y))
+
+
 def _suavizar_rect_remoto(entidade, agora=None):
     rect = entidade.get("rect") if isinstance(entidade, dict) else None
     if rect is None:
         return
-    agora = pygame.time.get_ticks() if agora is None else agora
-    net_x = float(entidade.get("net_x", rect.x))
-    net_y = float(entidade.get("net_y", rect.y))
-    render_x = float(entidade.get("render_x", net_x))
-    render_y = float(entidade.get("render_y", net_y))
-    ultimo_ms = int(entidade.get("ultimo_snapshot_ms", agora))
-
-    atraso_ms = max(0, agora - ultimo_ms)
-    extra_ms = min(COOP_EXTRAPOLACAO_MAX_MS, atraso_ms)
-    alvo_x = net_x + float(entidade.get("vel_x_estimada", 0.0)) * extra_ms
-    alvo_y = net_y + float(entidade.get("vel_y_estimada", 0.0)) * extra_ms
-
-    render_x += (alvo_x - render_x) * COOP_INTERPOLACAO_POS
-    render_y += (alvo_y - render_y) * COOP_INTERPOLACAO_POS
-
-    entidade["render_x"] = render_x
-    entidade["render_y"] = render_y
-    rect.x = int(round(render_x))
-    rect.y = int(round(render_y))
+    alvo_x, alvo_y = _alvo_temporal_entidade(entidade, COOP_DISTANCIA_SNAP_INIMIGO)
+    rect.x, rect.y = _aplicar_render_temporal(entidade, alvo_x, alvo_y, COOP_DISTANCIA_SNAP_INIMIGO)
 
 
 def _posicao_remota_suavizada(agora=None):
-    agora = pygame.time.get_ticks() if agora is None else agora
-    net_x = float(_remote.get("net_x", _remote.get("x", 0)))
-    net_y = float(_remote.get("net_y", _remote.get("y", 0)))
-    render_x = float(_remote.get("render_x", net_x))
-    render_y = float(_remote.get("render_y", net_y))
-    ultimo_ms = int(_remote.get("ultimo_ms", agora))
-
-    atraso_ms = max(0, agora - ultimo_ms)
-    extra_ms = min(COOP_EXTRAPOLACAO_MAX_MS, atraso_ms)
-    alvo_x = net_x + float(_remote.get("vel_x_estimada", 0.0)) * extra_ms
-    alvo_y = net_y + float(_remote.get("vel_y_estimada", 0.0)) * extra_ms
-
-    render_x += (alvo_x - render_x) * COOP_INTERPOLACAO_POS
-    render_y += (alvo_y - render_y) * COOP_INTERPOLACAO_POS
-    _remote["render_x"] = render_x
-    _remote["render_y"] = render_y
-    return int(round(render_x)), int(round(render_y))
+    alvo_x, alvo_y = _alvo_temporal_entidade(_remote, COOP_DISTANCIA_SNAP_PLAYER)
+    return _aplicar_render_temporal(_remote, alvo_x, alvo_y, COOP_DISTANCIA_SNAP_PLAYER)
 
 
 def _serializar_inimigo(inimigo):
     rect = inimigo.get("rect") if isinstance(inimigo, dict) else None
     if rect is None:
         return None
+    agora = pygame.time.get_ticks()
+    ultimo_ms = int(inimigo.get("_coop_serializado_ms", agora))
+    delta_ms = max(1, agora - ultimo_ms)
+    ultimo_x = float(inimigo.get("_coop_serializado_x", rect.x))
+    ultimo_y = float(inimigo.get("_coop_serializado_y", rect.y))
+    vx = (float(rect.x) - ultimo_x) / delta_ms
+    vy = (float(rect.y) - ultimo_y) / delta_ms
+    inimigo["_coop_serializado_ms"] = agora
+    inimigo["_coop_serializado_x"] = float(rect.x)
+    inimigo["_coop_serializado_y"] = float(rect.y)
     return {
         "coop_id": _obter_coop_id(inimigo),
         "x": int(rect.x),
         "y": int(rect.y),
+        "vx": vx,
+        "vy": vy,
         "w": int(rect.width),
         "h": int(rect.height),
         "vida": float(inimigo.get("vida", 1)),
@@ -351,13 +552,16 @@ def _aplicar_inimigo_remoto(inimigo, dados, inicial=False):
     antigo_y = float(inimigo.get("net_y", rect.y))
     ultimo_ms = int(inimigo.get("ultimo_snapshot_ms", agora))
     delta_ms = max(1, agora - ultimo_ms)
+    host_time = int(dados.get("_host_time", _host_time_pacote(dados, agora)))
+    seq = _seq_pacote(dados)
 
     inimigo["coop_id"] = str(dados.get("coop_id", inimigo.get("coop_id", "")))
     inimigo["net_x"] = novo_x
     inimigo["net_y"] = novo_y
-    inimigo["vel_x_estimada"] = 0.0 if inicial else (novo_x - antigo_x) / delta_ms
-    inimigo["vel_y_estimada"] = 0.0 if inicial else (novo_y - antigo_y) / delta_ms
-    inimigo["ultimo_snapshot_ms"] = agora
+    inimigo["vel_x_estimada"] = float(dados.get("vx", 0.0 if inicial else (novo_x - antigo_x) / delta_ms))
+    inimigo["vel_y_estimada"] = float(dados.get("vy", 0.0 if inicial else (novo_y - antigo_y) / delta_ms))
+    inimigo["ultimo_snapshot_ms"] = host_time
+    _adicionar_historico_pos(inimigo, host_time, novo_x, novo_y, seq)
     if inicial or "render_x" not in inimigo:
         inimigo["render_x"] = novo_x
         inimigo["render_y"] = novo_y
@@ -393,6 +597,7 @@ def sincronizar_mundo(fase_atual, inimigos, criar_inimigo=None, boss=None, econo
                     "coop_tipo": "mundo",
                     "fase": int(fase_atual),
                     "seq": _mundo_seq_envio,
+                    "host_time": agora,
                     "inimigos": [d for d in (_serializar_inimigo(i) for i in list(inimigos or [])) if d],
                     "boss": boss or {},
                     "economia": economia or {},
@@ -415,6 +620,7 @@ def sincronizar_mundo(fase_atual, inimigos, criar_inimigo=None, boss=None, econo
     _diagnostico["tempo_desde_ultimo_snapshot"] = max(0, agora - int(_world_snapshot_recebido_ms or agora))
     dados_inimigos = _world_snapshot.get("inimigos", [])
     seq = _world_snapshot.get("seq")
+    snapshot_host_time = _host_time_pacote(_world_snapshot, agora)
     if seq != _world_snapshot_seq_aplicado:
         existentes = {
             str(inimigo.get("coop_id")): inimigo
@@ -423,6 +629,9 @@ def sincronizar_mundo(fase_atual, inimigos, criar_inimigo=None, boss=None, econo
         }
         ids_recebidos = set()
         for dados in dados_inimigos:
+            dados = dict(dados)
+            dados["_host_time"] = snapshot_host_time
+            dados["seq"] = seq
             coop_id = str(dados.get("coop_id", ""))
             if not coop_id:
                 continue
@@ -589,12 +798,15 @@ def aguardar_barreira(acao, fase_atual, tela=None, fonte=None, mensagem="Aguarda
 
 
 def atualizar(fase_atual, pos_x, pos_y, direcao, vida, vida_maxima, morto=False):
-    global _fase_atual, _ultimo_envio_ms
+    global _fase_atual, _ultimo_envio_ms, _player_seq_envio
     _fase_atual = int(fase_atual or 1)
 
     if not inicializar_se_preciso():
         return None
 
+    _diagnostico["distancia_render_net_max"] = 0.0
+    _diagnostico["qtd_entidades_snapadas"] = 0
+    _enviar_ping_se_preciso()
     fase_solicitada = _processar_pacotes(fase_atual)
 
     agora = pygame.time.get_ticks()
@@ -602,16 +814,23 @@ def atualizar(fase_atual, pos_x, pos_y, direcao, vida, vida_maxima, morto=False)
         try:
             from rede import fila_envio
 
-            fila_envio.put({
+            _player_seq_envio += 1
+            pacote = {
                 "coop_tipo": "player",
                 "fase": int(fase_atual),
+                "seq": _player_seq_envio,
                 "x": int(pos_x),
                 "y": int(pos_y),
                 "direcao": direcao or "down",
                 "vida": int(max(0, vida)),
                 "vida_maxima": int(max(1, vida_maxima)),
                 "morto": bool(morto),
-            })
+            }
+            if eh_host():
+                pacote["host_time"] = agora
+            else:
+                pacote["client_time"] = agora
+            fila_envio.put(pacote)
             _ultimo_envio_ms = agora
             _diagnostico["fila_envio"] = fila_envio.qsize()
         except Exception as e:
@@ -660,6 +879,12 @@ def obter_diagnostico():
     dados["snapshot_ms"] = COOP_SYNC_MUNDO_MS
     dados["player_ms"] = COOP_SYNC_PLAYER_MS
     dados["interpolacao"] = COOP_INTERPOLACAO_POS
+    dados["interpolation_delay_ms"] = COOP_INTERPOLATION_DELAY_MS
+    dados["extrapolacao_max_ms"] = COOP_EXTRAPOLACAO_MAX_MS
+    dados["ping_ms"] = float(_coop_ping_ms)
+    dados["jitter_ms"] = float(_coop_jitter_ms)
+    dados["host_time_offset"] = float(_coop_host_time_offset)
+    dados["idade_snapshot_ms"] = dados.get("tempo_desde_ultimo_snapshot", 0)
     return dados
 
 
@@ -682,9 +907,12 @@ def desenhar_diagnostico(tela, fonte=None):
     dados = obter_diagnostico()
     linhas = [
         f"COOP {dados['modo']} | player {dados['player_ms']}ms | mundo {dados['snapshot_ms']}ms",
-        f"fila out/in: {dados['fila_envio']}/{dados['fila_recebimento']} | pacotes/frame: {dados['pacotes_processados_frame']}",
-        f"snapshot: {dados['tempo_desde_ultimo_snapshot']}ms | inimigos: {dados['qtd_inimigos_snapshot']} | json: {dados['tamanho_snapshot_json']}b",
-        f"interp: {dados['interpolacao']:.2f} | extrap max: {COOP_EXTRAPOLACAO_MAX_MS}ms",
+        f"ping/jitter: {dados['ping_ms']:.0f}/{dados['jitter_ms']:.0f}ms | offset host: {dados['host_time_offset']:.0f}ms",
+        f"seq mundo/player: {dados['ultimo_seq_mundo']}/{dados['ultimo_seq_player']} | drop m/p: {dados['snapshots_mundo_descartados']}/{dados['snapshots_player_descartados']}",
+        f"fila out/in: {dados['fila_envio']}/{dados['fila_recebimento']} | pacotes/frame: {dados['pacotes_processados_frame']} | coal: {dados['pacotes_coalescidos']}",
+        f"snapshot idade: {dados['idade_snapshot_ms']}ms | inimigos: {dados['qtd_inimigos_snapshot']} | json: {dados['tamanho_snapshot_json']}b",
+        f"interp delay: {dados['interpolation_delay_ms']}ms | extrap max: {dados['extrapolacao_max_ms']}ms",
+        f"erro pred: {dados['erro_predicao_player']:.1f}px | render/net max: {dados['distancia_render_net_max']:.1f}px | snaps: {dados['qtd_entidades_snapadas']}",
     ]
     largura = max(fonte.size(linha)[0] for linha in linhas) + 24
     altura = len(linhas) * (fonte.get_linesize() + 2) + 18
