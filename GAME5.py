@@ -2762,7 +2762,7 @@ def executar_jogo(game_manager=None):
                     tempo_ultimo_frame_preparo_disparo = tempo_atual
                     direcao_atual = 'disp'
                     frame_atual = 0
-                elif not pausa_por_fuga_mouse and Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade and tempo_atual >= tempo_fim_stun:
+                elif not pausa_por_fuga_mouse and Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade * lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) and tempo_atual >= tempo_fim_stun:
                     pos_mouse = obter_pos_mouse_jogo()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
@@ -4691,7 +4691,7 @@ def executar_jogo(game_manager=None):
             cooldowns = {
                 "disparo": max(0.0, (intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual) - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
                 "teleporte": max(0.0, (cooldown_teleporte_vanguarda(tempo_cooldown_dash, aurea, alvos_vanguarda_fase5(), inimigos_em_chamas, duracao_incendio_vanguarda, tempo_atual) - (pygame.time.get_ticks() - tempo_ultimo_dash)) / 1000.0),
-                "onda": max(0.0, (cooldown_habilidade - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
+                "onda": max(0.0, (cooldown_habilidade * lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
                 "loja": 1 if pontuacao_exib >= custo_carta_atual else 0,
             }
 

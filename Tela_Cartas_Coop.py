@@ -4,6 +4,7 @@ import random
 import math
 import os
 import ui_helpers
+import multiplayer_coop
 from Variaveis import *
 from audio_manager import carregar_config_audio, aplicar_volume_som
 
@@ -1071,6 +1072,15 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
         background.set_alpha(75)
     except:
         pass
+
+    multiplayer_coop.aguardar_barreira(
+        "loja_saida",
+        multiplayer_coop.fase_atual(),
+        tela,
+        fonte_instrucao,
+        "Voce terminou. Aguardando o outro jogador sair da loja...",
+        delay_ms=1200,
+    )
 
     return [velocidade_personagem, intervalo_disparo, vida, largura_disparo, altura_disparo, trembo, dano_person_hit, chance_critico, roubo_de_vida,
             quantidade_roubo_vida, tempo_cooldown_dash, vida_maxima, Petro_active, Resistencia, vida_petro, vida_maxima_petro, dano_petro, xp_petro, petro_evolucao, Resistencia_petro,

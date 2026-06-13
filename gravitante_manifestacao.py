@@ -12,24 +12,40 @@ COR_GRAVITANTE_CLARA = (218, 245, 255)
 COR_GRAVITANTE_NUCLEO = (88, 82, 210)
 COR_GRAVITANTE_ESCURA = (18, 24, 74)
 
-ORBE_DANO_IMPACTO_MULT = 0.44
+GRAVITANTE_DANO_REFERENCIA_INICIAL = 35.0
+ORBE_DANO_IMPACTO_MULT = 0.30
 ORBE_VELOCIDADE_MULT = 0.94
-ORBE_DURACAO_MS = 3600
-ORBE_TICK_MS = 520
-ORBE_TICK_MULT = 0.18
-ORBE_EXPLOSAO_MULT = 1.22
-ORBE_RAIO_EXPLOSAO = 118
-ORBE_RAIO_MIGRACAO = 230
+ORBE_DURACAO_MS = 3400
+ORBE_TICK_MS = 680
+ORBE_TICK_MULT = 0.14
+ORBE_EXPLOSAO_MULT = 0.90
+ORBE_RAIO_EXPLOSAO = 96
+ORBE_RAIO_MIGRACAO = 160
+ORBE_DANO_INICIAL_MULT = 0.55
+ORBE_DANO_ESCALA_CARTA_MULT = 1.10
+ORBE_MIGRACAO_DANO_MULT = 0.62
+ORBE_MIGRACOES_MAX = 2
 COLAPSO_DURACAO_MS = 2600
 COLAPSO_PREPARO_MS = 1450
 COLAPSO_ORBES = 3
-COLAPSO_DANO_MULT = 1.12
+COLAPSO_DANO_MULT = 0.85
 
 _EXPLOSOES = []
 
 
 def ativa(manifestacao):
     return str(manifestacao or "").strip().lower() == "gravitante"
+
+
+def dano_orbe_escalavel(dano_base, bonus=1.0):
+    dano_base = max(1.0, float(dano_base))
+    dano_inicial = min(dano_base, GRAVITANTE_DANO_REFERENCIA_INICIAL)
+    dano_build = max(0.0, dano_base - GRAVITANTE_DANO_REFERENCIA_INICIAL)
+    dano = (
+        dano_inicial * ORBE_DANO_INICIAL_MULT
+        + dano_build * ORBE_DANO_ESCALA_CARTA_MULT
+    )
+    return max(1.0, dano * float(bonus))
 
 
 def _perfil_efeito(config_graficos=None):
@@ -119,13 +135,14 @@ def _novo_orbe(tempo_atual, dano_base, origem=None, bonus=1.0):
         "criada_ms": int(tempo_atual),
         "fim_ms": int(tempo_atual) + ORBE_DURACAO_MS,
         "ultimo_tick_ms": int(tempo_atual),
-        "dano_base": max(1.0, float(dano_base) * float(bonus)),
+        "dano_base": dano_orbe_escalavel(dano_base, bonus),
         "angulo": random.random() * math.tau,
         "vel": random.choice((-1.0, 1.0)) * random.uniform(0.0045, 0.0072),
         "raio": random.uniform(18.0, 30.0),
         "seed": seed,
         "origem": origem,
         "pulso_ms": int(tempo_atual),
+        "migracoes": 0,
     }
 
 
@@ -172,6 +189,11 @@ def migrar_orbes_do_morto(morto, inimigos, tempo_atual):
         return
     destino = alvo.setdefault("orbes_gravitantes", [])
     for orbe in orbes:
+        migracoes = int(orbe.get("migracoes", 0))
+        if migracoes >= ORBE_MIGRACOES_MAX:
+            continue
+        orbe["migracoes"] = migracoes + 1
+        orbe["dano_base"] = max(1.0, float(orbe.get("dano_base", 1.0)) * ORBE_MIGRACAO_DANO_MULT)
         orbe["pulso_ms"] = int(tempo_atual)
         destino.append(orbe)
 

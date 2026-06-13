@@ -173,7 +173,7 @@ MANIFESTACOES_DADOS = {
         "nome": "Manifestacao Gravitante",
         "icone": "Sprites/manifestacao_gravitante.png",
         "estado": "encontrado",
-        "funcao": "Pressao automatica: orbes orbitam alvos, causam ticks e explodem depois.",
+        "funcao": "Pressao automatica moderada no inicio: orbes orbitam alvos, causam ticks e escalam com build.",
         "descricao_curta": (
             "Geovana prende energia instavel ao corpo do inimigo. O disparo nao controla a gravidade: "
             "ele fica orbitando o alvo como materia presa em queda."
@@ -189,7 +189,7 @@ MANIFESTACOES_DADOS = {
             "contra inimigos proximos e iniciam orbitas de dano retardado."
         ),
         "traco": "Boa quando a tela esta caotica, oferecendo protecao temporaria e dano automatico retardado.",
-        "risco": "Menos explosiva no impacto; depende do tempo de orbita para render dano total.",
+        "risco": "Menos explosiva no inicio; depende de tempo de orbita, cartas de dano e alvos bem escolhidos.",
         "frase": "Geovana nao puxa o mundo. Ela prende a Ruptura ao corpo do inimigo ate tudo colapsar.",
         "desbloqueada": True,
         "ativa": True,
@@ -289,13 +289,13 @@ MANIFESTACOES_DADOS = {
 MANIFESTACOES_DADOS["lacerante"].update({
     "funcao": "Agressiva de medio alcance, feita para cortar hordas alinhadas, punir elites moveis e aplicar Laceracao.",
     "disparo": (
-        "Corte de Ruptura: lamina curta, alcance menor e dano maior. Atravessa inimigos em linha, "
-        "aplica Laceracao e alterna cortes com formas diferentes. Com 3 acumulos, o alvo fica Aberto "
+        "Corte de Ruptura: lamina curta, alcance menor e dano moderado no inicio. Atravessa inimigos em linha, "
+        "aplica Laceracao e escala bem quando a build investe em dano. Com 3 acumulos, o alvo fica Aberto "
         "e sofre mais com movimento e ataques."
     ),
     "descricao_habilidade": (
         "Fenda Carnivora abre um rasgo a frente de Geovana. Apos breve aviso, a fissura explode em cortes, "
-        "causa dano em linha e consome Laceracao dos alvos para dano extra. O teleporte lacerante tambem rasga "
+        "causa dano em linha, tem recarga mais longa e consome Laceracao dos alvos para dano extra. O teleporte lacerante tambem rasga "
         "o caminho percorrido, aplicando Laceracao em inimigos tocados pela fenda."
     ),
     "teleporte": (

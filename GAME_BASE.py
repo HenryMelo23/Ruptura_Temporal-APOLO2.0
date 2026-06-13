@@ -857,7 +857,7 @@ def executar_jogo(game_manager=None):
                     tempo_ultimo_frame_preparo_disparo = tempo_atual
                     direcao_atual = 'disp'
                     frame_atual = 0
-                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3 and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade:  # Botão direito do mouse
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 3 and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade * lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa):  # Botão direito do mouse
                     pos_mouse = pygame.mouse.get_pos()
                     angulo = calcular_angulo_disparo((pos_x_personagem, pos_y_personagem), pos_mouse)
 
@@ -2057,7 +2057,7 @@ def executar_jogo(game_manager=None):
             cooldowns = {
                 "disparo": max(0, tempo_atual - tempo_ultimo_disparo >= intervalo_disparo),
                 "teleporte": max(0, pygame.time.get_ticks() - tempo_ultimo_dash > tempo_cooldown_dash),
-                "onda": max(0, tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade),
+                "onda": max(0.0, (cooldown_habilidade * lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
                 "loja": 1 if pontuacao_exib >= custo_carta_atual else 0, 
             }
             if not area_icones.colliderect(

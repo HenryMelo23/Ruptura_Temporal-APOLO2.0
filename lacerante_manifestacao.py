@@ -13,9 +13,9 @@ COR_SANGUE = (180, 10, 10)
 CORTE_ALCANCE = 120
 CORTE_LARGURA = 42
 CORTE_DURACAO_MS = 240
-CORTE_DANO_MULT = 1.75
-CORTE_DANO_AREA_MULT = CORTE_DANO_MULT * 0.5
-CORTE_DANO_FINAL_MULT = CORTE_DANO_MULT * 1.25
+CORTE_DANO_MULT = 1.30
+CORTE_DANO_AREA_MULT = 0.58
+CORTE_DANO_FINAL_MULT = 1.60
 LACERACAO_MAX_STACKS = 3
 LACERACAO_DURACAO_MS = 6500
 
@@ -23,14 +23,32 @@ FENDA_ALCANCE = 250
 FENDA_LARGURA = 76
 FENDA_AVISO_MS = 520
 FENDA_DURACAO_EXPLOSAO_MS = 260
-FENDA_DANO_MULT = 4.2
-FENDA_DANO_LACERADO_MULT = 1.55
+FENDA_DANO_INICIAL_MULT = 2.10
+FENDA_DANO_ESCALA_CARTA_MULT = 3.25
+FENDA_DANO_LACERADO_MULT = 1.35
+LACERANTE_DANO_REFERENCIA_INICIAL = 35.0
+LACERANTE_COOLDOWN_HABILIDADE_MULT = 1.55
 
 _sequencia_corte_auto_attack = 0
 
 
 def ativa(manifestacao):
     return str(manifestacao or "").strip().lower() == "lacerante"
+
+
+def multiplicador_cooldown_habilidade(manifestacao):
+    return LACERANTE_COOLDOWN_HABILIDADE_MULT if ativa(manifestacao) else 1.0
+
+
+def dano_fenda_escalavel(dano_base):
+    dano_base = max(1.0, float(dano_base))
+    dano_inicial = min(dano_base, LACERANTE_DANO_REFERENCIA_INICIAL)
+    dano_build = max(0.0, dano_base - LACERANTE_DANO_REFERENCIA_INICIAL)
+    return max(
+        1.0,
+        dano_inicial * FENDA_DANO_INICIAL_MULT
+        + dano_build * FENDA_DANO_ESCALA_CARTA_MULT,
+    )
 
 
 def _ponto_na_linha(origem_x, origem_y, angulo, distancia):
@@ -307,7 +325,7 @@ def criar_fenda(origem_x, origem_y, angulo, tempo_atual, dano_base):
         "tempo_inicio": int(tempo_atual),
         "explodir_ms": int(tempo_atual) + FENDA_AVISO_MS,
         "fim_ms": int(tempo_atual) + FENDA_AVISO_MS + FENDA_DURACAO_EXPLOSAO_MS,
-        "dano": max(1.0, float(dano_base) * FENDA_DANO_MULT),
+        "dano": dano_fenda_escalavel(dano_base),
         "largura_fenda": FENDA_LARGURA,
         "aplicou": False,
     }

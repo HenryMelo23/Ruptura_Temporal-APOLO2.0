@@ -16,7 +16,8 @@ import gravitante_manifestacao
 import ancorada_manifestacao
 import teleporte_manifestacao
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
-from Tela_Cartas import tela_de_pausa
+from Tela_Cartas import tela_de_pausa as tela_de_pausa_single
+from Tela_Cartas_Coop import tela_de_pausa as tela_de_pausa_coop
 from Variaveis import *
 from habilidades_personagem import processar_habilidade_onda, atualizar_e_desenhar_correntes
 import Variaveis
@@ -53,6 +54,12 @@ import multiplayer_coop
 
 instalar_captura_global()
 instalar_filtro_prints()
+
+
+def tela_de_pausa(*args, **kwargs):
+    if multiplayer_coop.modo_multiplayer():
+        return tela_de_pausa_coop(*args, **kwargs)
+    return tela_de_pausa_single(*args, **kwargs)
 
 dt = 1.0
 
@@ -434,8 +441,10 @@ piscando_vida = False
 frames_inimigo = frames_inimigo_esquerda3 + frames_inimigo_direita3
 
 
-vida_inimigo_maxima = vida_inimigo_comum_inicial(30)
+vida_inimigo_maxima = multiplayer_coop.aplicar_multiplicador_vida_inimigo(vida_inimigo_comum_inicial(30))
 vida_inimigo= vida_inimigo_maxima
+vida_boss3 = multiplayer_coop.aplicar_multiplicador_vida_boss(vida_boss3)
+vida_maxima_boss3 = vida_boss3
 carregar_atributos_na_fase=True
 imune_tempo_restante = 0  # Tempo restante de imunidade (em milissegundos)
 teleportado = False  # Controle de teleporte
@@ -2036,6 +2045,8 @@ def desenhar_sombra(tela, x, y, largura, altura, offset_y=5):
 
 def gerar_inimigo(limite_inimigos=None):
     global inimigos_comum
+    if multiplayer_coop.eh_cliente():
+        return
 
     limite_inimigos = max_inimigos2 if limite_inimigos is None else limite_inimigos
     if len(inimigos_comum) < limite_inimigos:
@@ -2640,6 +2651,36 @@ def executar_jogo(game_manager=None):
             fase_coop = multiplayer_coop.atualizar(3, pos_x_personagem, pos_y_personagem, direcao_atual, vida, vida_maxima, vida <= 0)
             if multiplayer_coop.aplicar_transicao_recebida(fase_coop, game_manager):
                 raise CleanExit()
+            mundo_coop = multiplayer_coop.sincronizar_mundo(
+                3,
+                inimigos_comum,
+                criar_inimigo,
+                boss={
+                    "vida": vida_boss3,
+                    "vida_maxima": vida_maxima_boss3,
+                    "vivo": Boss_vivo3,
+                    "r_press": r_press,
+                    "x": pos_x_chefe3,
+                    "y": pos_y_chefe3,
+                },
+                economia={
+                    "pontuacao": pontuacao,
+                    "pontuacao_exib": pontuacao_exib,
+                    "pontuacao_magia": pontuacao_magia,
+                },
+            )
+            if mundo_coop:
+                boss_coop = mundo_coop.get("boss", {})
+                economia_coop = mundo_coop.get("economia", {})
+                vida_boss3 = boss_coop.get("vida", vida_boss3)
+                vida_maxima_boss3 = boss_coop.get("vida_maxima", vida_maxima_boss3)
+                Boss_vivo3 = bool(boss_coop.get("vivo", Boss_vivo3))
+                r_press = bool(boss_coop.get("r_press", r_press))
+                pos_x_chefe3 = boss_coop.get("x", pos_x_chefe3)
+                pos_y_chefe3 = boss_coop.get("y", pos_y_chefe3)
+                pontuacao = economia_coop.get("pontuacao", pontuacao)
+                pontuacao_exib = economia_coop.get("pontuacao_exib", pontuacao_exib)
+                pontuacao_magia = economia_coop.get("pontuacao_magia", pontuacao_magia)
             for event in pygame.event.get():
                 Variaveis.atualizar_estado_mouse(event)
                 Variaveis.processar_eventos_teleporte(event, cooldown_dash)
@@ -2653,17 +2694,20 @@ def executar_jogo(game_manager=None):
                         raise CleanExit()
                     running = False
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                    # Alternar pausa
-                    jogo_pausado = not jogo_pausado
-                    if jogo_pausado:
-                        pausar_cronometro()
-                        pygame.event.set_grab(False)  # Liberar mouse
-                        pygame.mouse.set_visible(True)  # Mostrar cursor do sistema
+                    if multiplayer_coop.modo_multiplayer():
+                        multiplayer_coop.solicitar_acao("pause", 3)
                     else:
-                        retomar_cronometro()
-                        pygame.event.set_grab(True)  # Travar mouse de novo
-                        pygame.mouse.set_visible(False)  # Esconder cursor do sistema
-                elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) * parasitica_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa):
+                        # Alternar pausa
+                        jogo_pausado = not jogo_pausado
+                        if jogo_pausado:
+                            pausar_cronometro()
+                            pygame.event.set_grab(False)  # Liberar mouse
+                            pygame.mouse.set_visible(True)  # Mostrar cursor do sistema
+                        else:
+                            retomar_cronometro()
+                            pygame.event.set_grab(True)  # Travar mouse de novo
+                            pygame.mouse.set_visible(False)  # Esconder cursor do sistema
+                elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) * parasitica_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa):
                     pos_mouse = obter_pos_mouse_jogo()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
@@ -2726,6 +2770,11 @@ def executar_jogo(game_manager=None):
 
             # Verificar eventos de teclado
             # --- Tela de pausa (ESC) ---
+            if multiplayer_coop.acao_confirmada("pause", 3):
+                jogo_pausado = True
+                pausar_cronometro()
+                pygame.event.set_grab(False)
+                pygame.mouse.set_visible(True)
             if jogo_pausado:
                 pausar_cronometro()
                 pygame.event.set_grab(False)
@@ -2759,6 +2808,7 @@ def executar_jogo(game_manager=None):
                         break
                 
                 retomar_cronometro()
+                multiplayer_coop.aguardar_barreira("pause_saida", 3, tela, fonte, "Aguardando o outro jogador voltar do pause...")
                 pygame.event.set_grab(True)
                 pygame.mouse.set_visible(False)
                 jogo_pausado = False
@@ -3167,7 +3217,8 @@ def executar_jogo(game_manager=None):
             # Desenha a personagem
             # Desenhar sombra do personagem
             desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-            frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
+            frames_local = multiplayer_coop.frames_jogador_local(frames_animacao, frames_animacao2)
+            frame_para_desenhar = frames_local[direcao_atual][frame_atual % len(frames_local[direcao_atual])]
             if direcao_atual == 'disp' and math.cos(angulo_disparo_preparado) < 0:
                 frame_para_desenhar = pygame.transform.flip(frame_para_desenhar, True, False)
             desenhar_personagem_estado = desenhar_personagem_miasma if personagem_doente else desenhar_personagem_com_dano
@@ -3775,7 +3826,8 @@ def executar_jogo(game_manager=None):
                 else:
                     largura_disparo, altura_disparo = 40, 40
                     from utils import executar_animacao_morte_personagem
-                    frame_para_desenhar_morte = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
+                    frames_local = multiplayer_coop.frames_jogador_local(frames_animacao, frames_animacao2)
+                    frame_para_desenhar_morte = frames_local[direcao_atual][frame_atual % len(frames_local[direcao_atual])]
                     executar_animacao_morte_personagem(
                         tela=tela,
                         pos_x_personagem=pos_x_personagem,
@@ -4391,6 +4443,12 @@ def executar_jogo(game_manager=None):
             # Verifica se a pontuação atingiu o custo e se o jogador pressionou o botão da loja
             modo_loja_normal = Variaveis.obter_modo_cartas() != "drops"
             abrir_loja_manual = modo_loja_normal and (Variaveis.verificar_input("Comprar na loja") or (joystick and joystick.get_button(3)))
+            if abrir_loja_manual and multiplayer_coop.modo_multiplayer():
+                if pontuacao_exib >= custo_carta_atual:
+                    multiplayer_coop.solicitar_acao("loja", 3)
+                abrir_loja_manual = False
+            if multiplayer_coop.acao_confirmada("loja", 3):
+                abrir_loja_manual = True
             if abrir_loja_manual:
                 Variaveis.cancelar_aviso_loja_forcada()
             if modo_loja_normal:
@@ -4464,7 +4522,7 @@ def executar_jogo(game_manager=None):
             cooldowns = {
                 "disparo": max(0.0, (intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual) - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
                 "teleporte": max(0.0, (tempo_cooldown_dash - (pygame.time.get_ticks() - tempo_ultimo_dash)) / 1000.0),
-                "onda": max(0.0, (cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) * parasitica_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
+                "onda": max(0.0, (cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) * parasitica_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
                 "loja": 1 if pontuacao_exib >= custo_carta_atual else 0, 
             }
 
@@ -4677,6 +4735,8 @@ def executar_jogo(game_manager=None):
 
             exibir_cronometro(tela)
 
+            multiplayer_coop.desenhar_status_acao(tela, fonte, "loja", 3)
+            multiplayer_coop.desenhar_status_acao(tela, fonte, "pause", 3)
             pygame.display.flip()
             dt_ms = FPS.tick(config_graficos.get("fps_limite", 60))  # Limita a taxa de quadros conforme configuração
             dt = max(0.05, min(3.0, dt_ms / 16.666667))
