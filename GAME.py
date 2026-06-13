@@ -5126,6 +5126,7 @@ def executar_jogo(game_manager=None):
                         # Rastreie o tempo de exibição do texto
                         tempo_texto_dano = pygame.time.get_ticks()
                         inimigo["vida"] -= dano_final
+                        multiplayer_coop.enviar_dano_inimigo(inimigo, dano_final, origem="disparo")
                         if inimigo.get("tipo") == TIPO_LARAPIO:
                             registrar_hit_larapio(inimigo)
                         if disparo.get("tipo_manifestacao") == "parasitica_semente":

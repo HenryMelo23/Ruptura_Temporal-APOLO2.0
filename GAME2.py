@@ -1717,6 +1717,7 @@ def executar_jogo(game_manager=None):
                         # Rastreie o tempo de exibição do texto
                         tempo_texto_dano = pygame.time.get_ticks()
                         inimigo["vida"] -= dano
+                        multiplayer_coop.enviar_dano_inimigo(inimigo, dano, origem="disparo")
                         if disparo.get("tipo_manifestacao") == "parasitica_semente":
                             parasitica_manifestacao.implantar_semente(
                                 inimigo, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto

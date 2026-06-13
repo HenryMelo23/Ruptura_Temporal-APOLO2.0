@@ -39,11 +39,15 @@ _ultimo_seq_mundo_recebido = 0
 _ultimo_seq_player_recebido = 0
 _mundo_seq_envio = 0
 _player_seq_envio = 0
+_dano_seq_envio = 0
 _proximo_coop_id = 1
+_danos_pendentes = []
 _convites = {}
 _debug_visivel = False
 _debug_tecla_f10_ativa = False
 _ultimo_ping_envio_ms = 0
+_ultimo_snapshot_request_ms = 0
+_forcar_mundo_envio = False
 _coop_ping_ms = 0.0
 _coop_jitter_ms = 0.0
 _coop_host_time_offset = 0.0
@@ -62,6 +66,9 @@ _diagnostico = {
     "distancia_render_net_max": 0.0,
     "qtd_entidades_snapadas": 0,
     "erro_predicao_player": 0.0,
+    "danos_enviados": 0,
+    "danos_recebidos": 0,
+    "danos_aplicados": 0,
 }
 
 COOP_INIMIGO_VIDA_MULT = 1.45
@@ -79,6 +86,9 @@ COOP_MAX_PACOTES_POR_FRAME = 20
 COOP_ENTIDADE_TIMEOUT_MS = 450
 COOP_HISTORICO_POS_MS = 450
 COOP_PING_INTERVAL_MS = 1000
+COOP_SNAPSHOT_STALE_REQUEST_MS = 600
+COOP_SNAPSHOT_REQUEST_COOLDOWN_MS = 500
+COOP_DANO_MINIMO_REDE = 0.5
 
 
 def _ler_modo_jogo():
@@ -272,6 +282,29 @@ def _enviar_ping_se_preciso():
         registrar_erro("Multiplayer: erro ao enviar ping cooperativo", e)
 
 
+def _solicitar_snapshot_mundo_se_preciso(fase_atual, agora=None):
+    global _ultimo_snapshot_request_ms
+    if not eh_cliente():
+        return
+    agora = pygame.time.get_ticks() if agora is None else agora
+    idade = max(0, agora - int(_world_snapshot_recebido_ms or 0))
+    if _world_snapshot_recebido_ms and idade < COOP_SNAPSHOT_STALE_REQUEST_MS:
+        return
+    if agora - int(_ultimo_snapshot_request_ms or 0) < COOP_SNAPSHOT_REQUEST_COOLDOWN_MS:
+        return
+    try:
+        from rede import fila_envio
+        fila_envio.put({
+            "coop_tipo": "snapshot_request",
+            "fase": int(fase_atual),
+            "client_time": agora,
+        })
+        _ultimo_snapshot_request_ms = agora
+        _diagnostico["fila_envio"] = fila_envio.qsize()
+    except Exception as e:
+        registrar_erro("Multiplayer: erro ao solicitar snapshot cooperativo", e)
+
+
 def _aplicar_pacote_player(dados, fase_atual):
     agora = pygame.time.get_ticks()
     estava_ativo = bool(_remote.get("ativo"))
@@ -305,7 +338,7 @@ def _aplicar_pacote_player(dados, fase_atual):
 
 
 def _processar_pacotes(fase_atual):
-    global _world_snapshot, _world_snapshot_recebido_ms, _ultimo_seq_mundo_recebido, _ultimo_seq_player_recebido
+    global _forcar_mundo_envio, _world_snapshot, _world_snapshot_recebido_ms, _ultimo_seq_mundo_recebido, _ultimo_seq_player_recebido
     fase_solicitada = None
     if not inicializar_se_preciso():
         return None
@@ -373,6 +406,11 @@ def _processar_pacotes(fase_atual):
                 _responder_ping(dados)
             elif tipo == "pong":
                 _atualizar_clock_pong(dados)
+            elif tipo == "snapshot_request":
+                if eh_host() and int(dados.get("fase", fase_atual)) == int(fase_atual):
+                    _forcar_mundo_envio = True
+            elif tipo == "dano":
+                _registrar_dano_remoto(dados, fase_atual)
             elif "game_over" in dados and dados.get("game_over"):
                 fase_solicitada = -1
 
@@ -414,6 +452,108 @@ def _obter_coop_id(inimigo):
         _proximo_coop_id += 1
         inimigo["coop_id"] = coop_id
     return str(coop_id)
+
+
+def enviar_dano_inimigo(inimigo, dano, origem="ataque"):
+    global _dano_seq_envio
+    if not modo_multiplayer() or not eh_cliente() or not isinstance(inimigo, dict):
+        return False
+    coop_id = inimigo.get("coop_id")
+    if coop_id is None:
+        return False
+    try:
+        dano = float(dano)
+    except Exception:
+        return False
+    if dano < COOP_DANO_MINIMO_REDE:
+        return False
+    try:
+        from rede import fila_envio
+        _dano_seq_envio += 1
+        fila_envio.put({
+            "coop_tipo": "dano",
+            "alvo_tipo": "inimigo",
+            "alvo_id": str(coop_id),
+            "dano": dano,
+            "origem": str(origem or "ataque"),
+            "fase": int(_fase_atual or 1),
+            "seq": _dano_seq_envio,
+            "timestamp": pygame.time.get_ticks(),
+        })
+        inimigo["_coop_vida_reportada"] = float(inimigo.get("vida", 0.0))
+        _diagnostico["danos_enviados"] += 1
+        _diagnostico["fila_envio"] = fila_envio.qsize()
+        return True
+    except Exception as e:
+        registrar_erro("Multiplayer: erro ao enviar dano cooperativo", e)
+        return False
+
+
+def _registrar_dano_remoto(dados, fase_atual):
+    if not eh_host() or int(dados.get("fase", fase_atual)) != int(fase_atual):
+        return
+    if dados.get("alvo_tipo") != "inimigo":
+        return
+    try:
+        dano = float(dados.get("dano", 0.0))
+    except Exception:
+        return
+    if dano < COOP_DANO_MINIMO_REDE:
+        return
+    _danos_pendentes.append({
+        "alvo_id": str(dados.get("alvo_id", "")),
+        "dano": dano,
+        "seq": _seq_pacote(dados),
+        "origem": dados.get("origem", "client"),
+    })
+    _diagnostico["danos_recebidos"] += 1
+
+
+def _detectar_danos_locais_client(inimigos):
+    if not eh_cliente():
+        return
+    for inimigo in list(inimigos or []):
+        if not isinstance(inimigo, dict) or inimigo.get("coop_id") is None:
+            continue
+        try:
+            vida_atual = float(inimigo.get("vida", 0.0))
+            vida_reportada = float(inimigo.get("_coop_vida_reportada", inimigo.get("_coop_vida_autoritativa", vida_atual)))
+        except Exception:
+            continue
+        delta = vida_reportada - vida_atual
+        if delta >= COOP_DANO_MINIMO_REDE:
+            enviar_dano_inimigo(inimigo, delta, origem="delta_local")
+
+
+def _aplicar_danos_pendentes_host(inimigos):
+    global _danos_pendentes, _forcar_mundo_envio
+    if not eh_host() or not _danos_pendentes:
+        return
+    por_id = {
+        str(inimigo.get("coop_id")): inimigo
+        for inimigo in list(inimigos or [])
+        if isinstance(inimigo, dict) and inimigo.get("coop_id") is not None
+    }
+    restantes = []
+    for evento in _danos_pendentes:
+        inimigo = por_id.get(str(evento.get("alvo_id", "")))
+        if inimigo is None:
+            continue
+        try:
+            dano = float(evento.get("dano", 0.0))
+            inimigo["vida"] = float(inimigo.get("vida", 0.0)) - dano
+            _diagnostico["danos_aplicados"] += 1
+            _forcar_mundo_envio = True
+        except Exception:
+            restantes.append(evento)
+    _danos_pendentes = restantes
+    for inimigo in list(inimigos or []):
+        try:
+            if isinstance(inimigo, dict) and inimigo.get("coop_id") is not None and float(inimigo.get("vida", 1.0)) <= 0:
+                inimigos.remove(inimigo)
+                _forcar_mundo_envio = True
+        except Exception:
+            continue
 
 
 def _alvo_temporal_entidade(entidade, snap_distancia):
@@ -551,6 +691,8 @@ def _aplicar_inimigo_remoto(inimigo, dados, inicial=False):
     inimigo["coop_id"] = str(dados.get("coop_id", inimigo.get("coop_id", "")))
     inimigo["net_x"] = novo_x
     inimigo["net_y"] = novo_y
+    inimigo["_coop_vida_autoritativa"] = float(dados.get("vida", inimigo.get("vida", 1)))
+    inimigo["_coop_vida_reportada"] = inimigo["_coop_vida_autoritativa"]
     inimigo["vel_x_estimada"] = float(dados.get("vx", 0.0 if inicial else (novo_x - antigo_x) / delta_ms))
     inimigo["vel_y_estimada"] = float(dados.get("vy", 0.0 if inicial else (novo_y - antigo_y) / delta_ms))
     inimigo["ultimo_snapshot_ms"] = snapshot_time
@@ -575,14 +717,15 @@ def _aplicar_inimigo_remoto(inimigo, dados, inicial=False):
 
 def sincronizar_mundo(fase_atual, inimigos, criar_inimigo=None, boss=None, economia=None):
     """Host envia o mundo; client aplica o snapshot para ver os mesmos inimigos e economia."""
-    global _fase_atual, _mundo_seq_envio, _ultimo_mundo_envio_ms, _world_snapshot_seq_aplicado
+    global _fase_atual, _forcar_mundo_envio, _mundo_seq_envio, _ultimo_mundo_envio_ms, _world_snapshot_seq_aplicado
     _fase_atual = int(fase_atual or 1)
     if not modo_multiplayer() or not inicializar_se_preciso():
         return None
 
     if eh_host():
         agora = pygame.time.get_ticks()
-        if agora - _ultimo_mundo_envio_ms >= COOP_SYNC_MUNDO_MS:
+        _aplicar_danos_pendentes_host(inimigos)
+        if _forcar_mundo_envio or agora - _ultimo_mundo_envio_ms >= COOP_SYNC_MUNDO_MS:
             try:
                 from rede import fila_envio
                 _mundo_seq_envio += 1
@@ -596,6 +739,7 @@ def sincronizar_mundo(fase_atual, inimigos, criar_inimigo=None, boss=None, econo
                     "economia": economia or {},
                 }
                 fila_envio.put(pacote)
+                _forcar_mundo_envio = False
                 _ultimo_mundo_envio_ms = agora
                 _diagnostico["fila_envio"] = fila_envio.qsize()
                 _diagnostico["qtd_inimigos_snapshot"] = len(pacote["inimigos"])
@@ -605,6 +749,8 @@ def sincronizar_mundo(fase_atual, inimigos, criar_inimigo=None, boss=None, econo
         return None
 
     agora = pygame.time.get_ticks()
+    _detectar_danos_locais_client(inimigos)
+    _solicitar_snapshot_mundo_se_preciso(fase_atual, agora)
     if not _world_snapshot or int(_world_snapshot.get("fase", fase_atual)) != int(fase_atual):
         for inimigo in list(inimigos or []):
             _suavizar_rect_remoto(inimigo, agora)
@@ -878,6 +1024,7 @@ def obter_diagnostico():
     dados["jitter_ms"] = float(_coop_jitter_ms)
     dados["host_time_offset"] = float(_coop_host_time_offset)
     dados["idade_snapshot_ms"] = dados.get("tempo_desde_ultimo_snapshot", 0)
+    dados["danos_pendentes"] = len(_danos_pendentes)
     return dados
 
 
@@ -906,6 +1053,7 @@ def desenhar_diagnostico(tela, fonte=None):
         f"snapshot idade: {dados['idade_snapshot_ms']}ms | inimigos: {dados['qtd_inimigos_snapshot']} | json: {dados['tamanho_snapshot_json']}b",
         f"interp delay: {dados['interpolation_delay_ms']}ms | extrap max: {dados['extrapolacao_max_ms']}ms",
         f"erro pred: {dados['erro_predicao_player']:.1f}px | render/net max: {dados['distancia_render_net_max']:.1f}px | snaps: {dados['qtd_entidades_snapadas']}",
+        f"dano env/rec/apl: {dados['danos_enviados']}/{dados['danos_recebidos']}/{dados['danos_aplicados']} | pend: {dados['danos_pendentes']}",
     ]
     largura = max(fonte.size(linha)[0] for linha in linhas) + 24
     altura = len(linhas) * (fonte.get_linesize() + 2) + 18
