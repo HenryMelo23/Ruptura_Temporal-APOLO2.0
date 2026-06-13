@@ -1455,7 +1455,16 @@ def executar_jogo(game_manager=None):
                 vida_boss2 = boss_coop.get("vida", vida_boss2)
                 vida_maxima_boss2 = boss_coop.get("vida_maxima", vida_maxima_boss2)
                 boss_vivo2 = bool(boss_coop.get("vivo", boss_vivo2))
+                r_press_anterior = r_press
                 r_press = bool(boss_coop.get("r_press", r_press))
+                if r_press and not r_press_anterior:
+                    boss_entrada_ativa = True
+                    boss_entrada_tempo_inicio = pygame.time.get_ticks()
+                    tempo_boss_entrada_fim = boss_entrada_tempo_inicio + 2500
+                    boss_impacto_feito = False
+                    ice_shards = []
+                    ondas_nevasca = []
+                    ondas_nevasca_preparadas = []
                 pos_x_chefe2 = boss_coop.get("x", pos_x_chefe2)
                 pos_y_chefe2 = boss_coop.get("y", pos_y_chefe2)
                 pontuacao = economia_coop.get("pontuacao", pontuacao)
@@ -2903,7 +2912,13 @@ def executar_jogo(game_manager=None):
 
             tempo_atual = pygame.time.get_ticks()
 
-            if (keys[pygame.K_r]) or r_press:
+            chamada_boss2_solicitada = keys[pygame.K_r]
+            if multiplayer_coop.modo_multiplayer() and not r_press and chamada_boss2_solicitada:
+                multiplayer_coop.solicitar_acao("boss2", 2)
+            boss2_confirmado = multiplayer_coop.modo_multiplayer() and not r_press and multiplayer_coop.acao_confirmada(
+                "boss2", 2, delay_ms=4000, assumir_sim_apos_ms=multiplayer_coop.COOP_SILENCIO_CONFIRMA_MS
+            )
+            if boss2_confirmado or (not multiplayer_coop.modo_multiplayer() and chamada_boss2_solicitada):
                 if not r_press:
                     boss_entrada_ativa = True
                     boss_entrada_tempo_inicio = tempo_atual
@@ -2912,7 +2927,9 @@ def executar_jogo(game_manager=None):
                     ice_shards = []
                     ondas_nevasca = []
                     ondas_nevasca_preparadas = []
-                r_press=True
+                r_press = True
+
+            if r_press:
 
                 max_inimigos2=4
                 intervalo_disparo_inimigo =3000
@@ -4065,6 +4082,14 @@ def executar_jogo(game_manager=None):
 
             multiplayer_coop.desenhar_status_acao(tela, fonte, "loja", 2)
             multiplayer_coop.desenhar_status_acao(tela, fonte, "pause", 2)
+            multiplayer_coop.desenhar_status_acao(
+                tela,
+                fonte,
+                "boss2",
+                2,
+                delay_ms=4000,
+                assumir_sim_apos_ms=multiplayer_coop.COOP_SILENCIO_CONFIRMA_MS,
+            )
             pygame.display.flip()
             dt_ms = FPS.tick(config_graficos.get("fps_limite", 60))  # Limita a taxa de quadros conforme configuração
             dt = max(0.05, min(3.0, dt_ms / 16.666667))

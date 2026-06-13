@@ -1180,7 +1180,7 @@ def tela_escolha_dificuldade(tela, fonte, mostrar_tutorial=False):
         pygame.display.flip()
         clock.tick(60)
 
-def tela_escolha_modo():
+def tela_escolha_modo(mostrar_tutorial=False):
     import socket, pyperclip, random
     from rede import descobrir_host_udp
     from ui_helpers import obter_superficie_palco
@@ -1217,10 +1217,18 @@ def tela_escolha_modo():
     selecionado_principal = 0  # 0: Jogar Solo, 1: Cooperativo
     selecionado_sub = 0        # 0: Criar, 1: Entrar, 2: Voltar
     modo_interacao = "teclado"
+    multiplayer_bloqueado = bool(mostrar_tutorial)
+    aviso_texto = ""
+    aviso_fim = 0
 
     particulas = ui_helpers.criar_particulas_menu(largura, altura, 42, (0, 220, 255))
 
     btn_back_rect = pygame.Rect(40, 34, 118, 36)
+
+    def mostrar_aviso_multiplayer():
+        nonlocal aviso_texto, aviso_fim
+        aviso_texto = "Multiplayer bloqueado: conclua o tutorial ou desative em Configuracoes > Jogabilidade."
+        aviso_fim = pygame.time.get_ticks() + 2600
 
     while True:
         agora = pygame.time.get_ticks()
@@ -1283,17 +1291,26 @@ def tela_escolha_modo():
                         if selecionado_principal == 0:
                             return "offline", None
                         else:
-                            fase_tela = "coop_sub"
-                            selecionado_sub = 0
+                            if multiplayer_bloqueado:
+                                mostrar_aviso_multiplayer()
+                            else:
+                                fase_tela = "coop_sub"
+                                selecionado_sub = 0
                     elif fase_tela == "coop_sub":
                         if selecionado_sub == 0:
-                            return "host", None
-                        elif selecionado_sub == 1:
-                            ip_encontrado = descobrir_host_udp(timeout=4)
-                            if ip_encontrado:
-                                return "join", ip_encontrado
+                            if multiplayer_bloqueado:
+                                mostrar_aviso_multiplayer()
                             else:
-                                mostrar_erro_lan(tela, font_card_title, font_card_desc)
+                                return "host", None
+                        elif selecionado_sub == 1:
+                            if multiplayer_bloqueado:
+                                mostrar_aviso_multiplayer()
+                            else:
+                                ip_encontrado = descobrir_host_udp(timeout=4)
+                                if ip_encontrado:
+                                    return "join", ip_encontrado
+                                else:
+                                    mostrar_erro_lan(tela, font_card_title, font_card_desc)
                         elif selecionado_sub == 2:
                             fase_tela = "principal"
                             selecionado_sub = 0
@@ -1306,17 +1323,26 @@ def tela_escolha_modo():
                         if selecionado_principal == 0:
                             return "offline", None
                         else:
-                            fase_tela = "coop_sub"
-                            selecionado_sub = 0
+                            if multiplayer_bloqueado:
+                                mostrar_aviso_multiplayer()
+                            else:
+                                fase_tela = "coop_sub"
+                                selecionado_sub = 0
                     elif fase_tela == "coop_sub":
                         if selecionado_sub == 0:
-                            return "host", None
-                        elif selecionado_sub == 1:
-                            ip_encontrado = descobrir_host_udp(timeout=4)
-                            if ip_encontrado:
-                                return "join", ip_encontrado
+                            if multiplayer_bloqueado:
+                                mostrar_aviso_multiplayer()
                             else:
-                                mostrar_erro_lan(tela, font_card_title, font_card_desc)
+                                return "host", None
+                        elif selecionado_sub == 1:
+                            if multiplayer_bloqueado:
+                                mostrar_aviso_multiplayer()
+                            else:
+                                ip_encontrado = descobrir_host_udp(timeout=4)
+                                if ip_encontrado:
+                                    return "join", ip_encontrado
+                                else:
+                                    mostrar_erro_lan(tela, font_card_title, font_card_desc)
                         elif selecionado_sub == 2:
                             fase_tela = "principal"
                             selecionado_sub = 0
@@ -1384,25 +1410,36 @@ def tela_escolha_modo():
                     tocar_hover()
                 if clicado:
                     tocar_selecionar()
-                    fase_tela = "coop_sub"
-                    selecionado_sub = 0
+                    if multiplayer_bloqueado:
+                        mostrar_aviso_multiplayer()
+                    else:
+                        fase_tela = "coop_sub"
+                        selecionado_sub = 0
 
             is_sel_coop = (selecionado_principal == 1)
             bg_color_coop = (24, 16, 36, 205) if is_sel_coop else (12, 10, 18, 140)
             border_color_coop = (180, 100, 255) if is_sel_coop else (70, 70, 85)
+            if multiplayer_bloqueado:
+                bg_color_coop = (28, 26, 32, 175) if is_sel_coop else (12, 10, 18, 120)
+                border_color_coop = (255, 120, 80) if is_sel_coop else (80, 70, 70)
             border_w_coop = 2 if is_sel_coop else 1
 
             coop_surf = pygame.Surface((card_w, card_h), pygame.SRCALPHA)
             pygame.draw.rect(coop_surf, bg_color_coop, (0, 0, card_w, card_h), border_radius=12)
             pygame.draw.rect(coop_surf, border_color_coop, (0, 0, card_w, card_h), width=border_w_coop, border_radius=12)
 
-            if is_sel_coop:
+            if is_sel_coop and not multiplayer_bloqueado:
                 # Efeito glow interno roxo
                 pygame.draw.rect(coop_surf, (180, 100, 255, 25), (5, 5, card_w - 10, card_h - 10), border_radius=8)
+            elif is_sel_coop and multiplayer_bloqueado:
+                pygame.draw.rect(coop_surf, (255, 80, 45, 24), (5, 5, card_w - 10, card_h - 10), border_radius=8)
 
             tela.blit(coop_surf, (card_r_x, card_y))
 
-            title_coop = font_card_title.render("MULTIPLAYER", True, (255, 255, 255) if is_sel_coop else (170, 170, 180))
+            cor_titulo_coop = (255, 255, 255) if is_sel_coop else (170, 170, 180)
+            if multiplayer_bloqueado:
+                cor_titulo_coop = (180, 150, 140) if is_sel_coop else (120, 110, 110)
+            title_coop = font_card_title.render("MULTIPLAYER", True, cor_titulo_coop)
             tela.blit(title_coop, (card_r_x + card_w // 2 - title_coop.get_width() // 2, card_y + 35))
 
             lines_coop = [
@@ -1411,9 +1448,23 @@ def tela_escolha_modo():
                 "jogador para explorar",
                 "a fenda cooperativamente."
             ]
+            if multiplayer_bloqueado:
+                lines_coop = [
+                    "Bloqueado com tutorial ativo.",
+                    "Conclua o tutorial ou",
+                    "desative em Configuracoes",
+                    "> Jogabilidade."
+                ]
             for li, l_txt in enumerate(lines_coop):
-                txt_line = font_card_desc.render(l_txt, True, (215, 220, 230) if is_sel_coop else (130, 130, 140))
+                cor_linha = (215, 220, 230) if is_sel_coop else (130, 130, 140)
+                if multiplayer_bloqueado:
+                    cor_linha = (210, 165, 145) if is_sel_coop else (125, 105, 100)
+                txt_line = font_card_desc.render(l_txt, True, cor_linha)
                 tela.blit(txt_line, (card_r_x + card_w // 2 - txt_line.get_width() // 2, card_y + 95 + li * 24))
+
+            if multiplayer_bloqueado:
+                txt_travado = font_card_desc.render("BLOQUEADO", True, (255, 115, 80) if is_sel_coop else (150, 105, 95))
+                tela.blit(txt_travado, (card_r_x + card_w // 2 - txt_travado.get_width() // 2, card_y + card_h - 34))
 
         # Renderizar Subfase: OpÃ§Ãµes Multiplayer LAN
         elif fase_tela == "coop_sub":
@@ -1443,20 +1494,30 @@ def tela_escolha_modo():
                     if clicado:
                         tocar_selecionar()
                         if mode == "host":
-                            return "host", None
-                        elif mode == "join":
-                            ip_encontrado = descobrir_host_udp(timeout=4)
-                            if ip_encontrado:
-                                return "join", ip_encontrado
+                            if multiplayer_bloqueado:
+                                mostrar_aviso_multiplayer()
                             else:
-                                mostrar_erro_lan(tela, font_card_title, font_card_desc)
+                                return "host", None
+                        elif mode == "join":
+                            if multiplayer_bloqueado:
+                                mostrar_aviso_multiplayer()
+                            else:
+                                ip_encontrado = descobrir_host_udp(timeout=4)
+                                if ip_encontrado:
+                                    return "join", ip_encontrado
+                                else:
+                                    mostrar_erro_lan(tela, font_card_title, font_card_desc)
                         elif mode == "voltar":
                             fase_tela = "principal"
                             selecionado_sub = 0
 
                 is_sel = (selecionado_sub == idx)
+                item_bloqueado = multiplayer_bloqueado and mode in ("host", "join")
                 bg_color = (25, 20, 42, 210) if is_sel else (12, 10, 18, 140)
                 border_color = (180, 100, 255) if is_sel else (65, 55, 80)
+                if item_bloqueado:
+                    bg_color = (30, 27, 32, 185) if is_sel else (14, 12, 18, 120)
+                    border_color = (255, 120, 80) if is_sel else (80, 68, 68)
                 border_w = 2 if is_sel else 1
 
                 btn_surf = pygame.Surface((btn_w, btn_h), pygame.SRCALPHA)
@@ -1464,8 +1525,23 @@ def tela_escolha_modo():
                 pygame.draw.rect(btn_surf, border_color, (0, 0, btn_w, btn_h), width=border_w, border_radius=8)
                 tela.blit(btn_surf, (btn_x, item_y))
 
-                txt_lbl = font_btn.render(label, True, (255, 255, 255) if is_sel else (175, 175, 185))
+                cor_label = (255, 255, 255) if is_sel else (175, 175, 185)
+                if item_bloqueado:
+                    cor_label = (190, 150, 140) if is_sel else (120, 105, 105)
+                txt_lbl = font_btn.render(label, True, cor_label)
                 tela.blit(txt_lbl, (btn_x + btn_w // 2 - txt_lbl.get_width() // 2, item_y + btn_h // 2 - txt_lbl.get_height() // 2))
+
+            if multiplayer_bloqueado:
+                txt_lock = font_card_desc.render("Multiplayer bloqueado enquanto o tutorial estiver ativo.", True, (255, 170, 120))
+                tela.blit(txt_lock, (largura // 2 - txt_lock.get_width() // 2, sub_y + len(opcoes_sub) * 70 + 8))
+
+        if aviso_texto and agora < aviso_fim:
+            aviso = font_card_desc.render(aviso_texto, True, (255, 180, 100))
+            painel = pygame.Surface((aviso.get_width() + 42, 44), pygame.SRCALPHA)
+            pygame.draw.rect(painel, (24, 10, 8, 225), painel.get_rect(), border_radius=7)
+            pygame.draw.rect(painel, (255, 92, 32, 120), painel.get_rect(), width=1, border_radius=7)
+            painel.blit(aviso, (21, 22 - aviso.get_height() // 2))
+            tela.blit(painel, (largura // 2 - painel.get_width() // 2, altura - 94))
 
         rodape = "A/D ou SETAS: navegar | ENTER/ESPACO: selecionar | ESC: voltar"
         ui_helpers.desenhar_rodape_menu(tela, rodape, font_card_desc, cor_tela, altura - 36)
@@ -3734,7 +3810,7 @@ def executar_menu_principal(game_manager=None):
 
                 while True:
                     if estado_jornada == "modo":
-                        modo, ip = tela_escolha_modo()
+                        modo, ip = tela_escolha_modo(mostrar_tutorial)
                         if modo is None:
                             retornar_ao_menu = True
                             break

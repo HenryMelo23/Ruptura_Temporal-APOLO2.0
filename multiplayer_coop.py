@@ -33,6 +33,7 @@ COOP_INIMIGO_VIDA_MULT = 1.45
 COOP_BOSS_VIDA_MULT = 1.75
 COOP_SYNC_MUNDO_MS = 120
 COOP_CONVITE_DELAY_MS = 4000
+COOP_SILENCIO_CONFIRMA_MS = 10000
 
 
 def _ler_modo_jogo():
@@ -330,15 +331,18 @@ def solicitar_acao(acao, fase_atual):
     return False
 
 
-def acao_confirmada(acao, fase_atual, delay_ms=COOP_CONVITE_DELAY_MS):
+def acao_confirmada(acao, fase_atual, delay_ms=COOP_CONVITE_DELAY_MS, assumir_sim_apos_ms=None):
     if not modo_multiplayer():
         return False
     _processar_pacotes(fase_atual)
     estado = _estado_convite(acao)
-    if not (estado["local"] and estado["remoto"]):
-        return False
-    if estado["inicio_ms"] is None:
+    if estado["inicio_ms"] is None and (estado["local"] or estado["remoto"]):
         estado["inicio_ms"] = pygame.time.get_ticks()
+    if assumir_sim_apos_ms and (estado["local"] or estado["remoto"]):
+        if pygame.time.get_ticks() - int(estado.get("inicio_ms") or 0) >= int(assumir_sim_apos_ms):
+            _convites.pop(acao, None)
+            return True
+    if not (estado["local"] and estado["remoto"]):
         return False
     if pygame.time.get_ticks() - estado["inicio_ms"] < int(delay_ms):
         return False
@@ -350,7 +354,7 @@ def cancelar_acao(acao):
     _convites.pop(acao, None)
 
 
-def desenhar_status_acao(tela, fonte, acao, fase_atual, delay_ms=COOP_CONVITE_DELAY_MS):
+def desenhar_status_acao(tela, fonte, acao, fase_atual, delay_ms=COOP_CONVITE_DELAY_MS, assumir_sim_apos_ms=None):
     if not modo_multiplayer() or tela is None:
         return
     estado = _estado_convite(acao)
@@ -359,9 +363,12 @@ def desenhar_status_acao(tela, fonte, acao, fase_atual, delay_ms=COOP_CONVITE_DE
     restante = None
     if estado["local"] and estado["remoto"] and estado["inicio_ms"] is not None:
         restante = max(0.0, (int(delay_ms) - (pygame.time.get_ticks() - estado["inicio_ms"])) / 1000.0)
-    texto_acao = "loja" if acao.startswith("loja") else "pause"
+    texto_acao = "loja" if acao.startswith("loja") else ("boss" if acao.startswith("boss") else "pause")
     if restante is None:
         texto = f"Aguardando o outro jogador para abrir {texto_acao}"
+        if assumir_sim_apos_ms and estado["inicio_ms"] is not None:
+            restante_auto = max(0.0, (int(assumir_sim_apos_ms) - (pygame.time.get_ticks() - estado["inicio_ms"])) / 1000.0)
+            texto = f"Aguardando {texto_acao}: silencio confirma em {restante_auto:.1f}s"
     else:
         texto = f"{texto_acao.capitalize()} em {restante:.1f}s"
     fonte = fonte or pygame.font.Font(None, 28)
@@ -473,6 +480,16 @@ def desenhar_jogador_remoto(tela, fase_atual, frame_atual, frames_host, frames_c
     if not frames:
         return
     tela.blit(frames[frame_atual % len(frames)], (x, y))
+
+
+def jogador_remoto_rect(fase_atual, largura, altura):
+    if not modo_multiplayer() or not _remote.get("ativo"):
+        return None
+    if int(_remote.get("fase", fase_atual)) != int(fase_atual):
+        return None
+    if pygame.time.get_ticks() - int(_remote.get("ultimo_ms", 0)) > 2500:
+        return None
+    return pygame.Rect(int(_remote.get("x", 0)), int(_remote.get("y", 0)), int(largura), int(altura))
 
 
 def aplicar_transicao_recebida(fase_solicitada, game_manager):

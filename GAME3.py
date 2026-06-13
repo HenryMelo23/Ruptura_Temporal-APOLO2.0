@@ -2675,7 +2675,10 @@ def executar_jogo(game_manager=None):
                 vida_boss3 = boss_coop.get("vida", vida_boss3)
                 vida_maxima_boss3 = boss_coop.get("vida_maxima", vida_maxima_boss3)
                 Boss_vivo3 = bool(boss_coop.get("vivo", Boss_vivo3))
+                r_press_anterior = r_press
                 r_press = bool(boss_coop.get("r_press", r_press))
+                if r_press and not r_press_anterior:
+                    tempo_boss_entrada_fim = pygame.time.get_ticks() + 2500
                 pos_x_chefe3 = boss_coop.get("x", pos_x_chefe3)
                 pos_y_chefe3 = boss_coop.get("y", pos_y_chefe3)
                 pontuacao = economia_coop.get("pontuacao", pontuacao)
@@ -3889,10 +3892,18 @@ def executar_jogo(game_manager=None):
 
             if Boss_vivo3:
 
-                if (keys[pygame.K_r]) or r_press:
+                chamada_boss3_solicitada = keys[pygame.K_r]
+                if multiplayer_coop.modo_multiplayer() and not r_press and chamada_boss3_solicitada:
+                    multiplayer_coop.solicitar_acao("boss3", 3)
+                boss3_confirmado = multiplayer_coop.modo_multiplayer() and not r_press and multiplayer_coop.acao_confirmada(
+                    "boss3", 3, delay_ms=4000, assumir_sim_apos_ms=multiplayer_coop.COOP_SILENCIO_CONFIRMA_MS
+                )
+                if boss3_confirmado or (not multiplayer_coop.modo_multiplayer() and chamada_boss3_solicitada):
                     if not r_press:
                         tempo_boss_entrada_fim = tempo_atual + 2500
-                    r_press=True
+                    r_press = True
+
+                if r_press:
                     Musica_tema_fases.stop()
                     max_inimigos2=9
                     if musica_boss3 == 1:
@@ -4737,6 +4748,14 @@ def executar_jogo(game_manager=None):
 
             multiplayer_coop.desenhar_status_acao(tela, fonte, "loja", 3)
             multiplayer_coop.desenhar_status_acao(tela, fonte, "pause", 3)
+            multiplayer_coop.desenhar_status_acao(
+                tela,
+                fonte,
+                "boss3",
+                3,
+                delay_ms=4000,
+                assumir_sim_apos_ms=multiplayer_coop.COOP_SILENCIO_CONFIRMA_MS,
+            )
             pygame.display.flip()
             dt_ms = FPS.tick(config_graficos.get("fps_limite", 60))  # Limita a taxa de quadros conforme configuração
             dt = max(0.05, min(3.0, dt_ms / 16.666667))

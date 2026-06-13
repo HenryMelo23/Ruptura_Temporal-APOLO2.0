@@ -15,6 +15,7 @@ class AtaqueBoss1:
         self.danificou = False
         self.boss_pos = list(boss_pos)
         self.jogador_pos = list(jogador_pos)
+        self.alvo_fixo = None
         self.largura_mapa = largura_mapa
         self.altura_mapa = altura_mapa
         self.particulas = []
@@ -208,6 +209,7 @@ class DiluvioSuspenso(AtaqueBoss1):
         if self.estado == "terminado":
             return
 
+        pos_alvo = self.alvo_fixo or pos_jogador
         todos_terminados = True
         
         for g in self.gotas:
@@ -219,7 +221,7 @@ class DiluvioSuspenso(AtaqueBoss1):
                 g["estado_gota"] = "subindo"
                 g["tempo_gota"] = tempo_atual
                 g["y_gota"] = boss_pos[1]
-                g["target_pos"] = list(pos_jogador) # Trava a mira na posição atual do jogador!
+                g["target_pos"] = list(pos_alvo) # Trava a mira na posicao atual do alvo.
                 # Criar partículas saindo do boss para cima
                 for _ in range(5):
                     self.particulas.append({
@@ -933,11 +935,12 @@ class InvestidaTemporal(AtaqueBoss1):
         if self.tempo_decorrido >= self.duracao:
             self.estado = "terminado"
             return
+        pos_alvo = self.alvo_fixo or pos_jogador
         
         if self.tempo_decorrido < 2000:
             # Fase 1: MIRA
             self.estado = "telegraph"
-            self.target_pos = list(pos_jogador)
+            self.target_pos = list(pos_alvo)
             self.boss_pos = list(boss_pos)
         else:
             # Fase 2: CORRIDA
@@ -1036,9 +1039,36 @@ class GerenciadorAtaquesBoss1:
         self.tempo_ultimo_ataque = pygame.time.get_ticks()
         self.cooldown_base = 3800  # Intervalo padrão entre os ataques
 
-    def escolher_e_lancar_ataque(self, pos_chefe, pos_jogador, vida_boss, vida_maxima_boss, largura_mapa, altura_mapa, tempo_atual):
+    def _fixar_alvo(self, ataque, alvo):
+        ataque.alvo_fixo = list(alvo)
+        return ataque
+
+    def _alvos_validos(self, pos_jogador, alvos_jogadores=None):
+        alvos = []
+        for alvo in alvos_jogadores or []:
+            if alvo is None:
+                continue
+            try:
+                alvos.append((float(alvo[0]), float(alvo[1])))
+            except Exception:
+                continue
+        if not alvos:
+            alvos.append((float(pos_jogador[0]), float(pos_jogador[1])))
+        return alvos[:2]
+
+    def _adicionar_diluvio_por_alvo(self, pos_chefe, alvos, largura_mapa, altura_mapa, num_gotas):
+        gotas_por_alvo = max(4, int(num_gotas / max(1, len(alvos))))
+        for alvo in alvos:
+            self.ataques_ativos.append(self._fixar_alvo(
+                DiluvioSuspenso(pos_chefe, alvo, largura_mapa, altura_mapa, num_gotas=gotas_por_alvo),
+                alvo,
+            ))
+
+    def escolher_e_lancar_ataque(self, pos_chefe, pos_jogador, vida_boss, vida_maxima_boss, largura_mapa, altura_mapa, tempo_atual, alvos_jogadores=None):
         # Determinar a porcentagem de vida
         porcentagem_vida = vida_boss / vida_maxima_boss if vida_maxima_boss > 0 else 0.0
+        alvos = self._alvos_validos(pos_jogador, alvos_jogadores)
+        alvo_principal = random.choice(alvos)
         
         # Escolher a pool de ataques disponíveis baseado no estágio da luta
         if porcentagem_vida > 0.70:
@@ -1052,31 +1082,34 @@ class GerenciadorAtaquesBoss1:
         
         # Instanciar e lançar ataques
         if escolha == "bolha":
-            self.ataques_ativos.append(BolhaPressaoTemporal(pos_chefe, pos_jogador, largura_mapa, altura_mapa))
+            for alvo in alvos:
+                self.ataques_ativos.append(BolhaPressaoTemporal(pos_chefe, alvo, largura_mapa, altura_mapa))
         elif escolha == "diluvio_simples":
-            self.ataques_ativos.append(DiluvioSuspenso(pos_chefe, pos_jogador, largura_mapa, altura_mapa, num_gotas=5))
+            self._adicionar_diluvio_por_alvo(pos_chefe, alvos, largura_mapa, altura_mapa, num_gotas=6)
         elif escolha == "diluvio":
-            self.ataques_ativos.append(DiluvioSuspenso(pos_chefe, pos_jogador, largura_mapa, altura_mapa, num_gotas=8))
+            self._adicionar_diluvio_por_alvo(pos_chefe, alvos, largura_mapa, altura_mapa, num_gotas=8)
         elif escolha == "mare":
-            self.ataques_ativos.append(MareFraturada(pos_chefe, pos_jogador, largura_mapa, altura_mapa))
+            self.ataques_ativos.append(MareFraturada(pos_chefe, alvo_principal, largura_mapa, altura_mapa))
         elif escolha == "areia":
-            self.ataques_ativos.append(AreiaViva(pos_chefe, pos_jogador, largura_mapa, altura_mapa, num_redemoinhos=3))
+            self.ataques_ativos.append(AreiaViva(pos_chefe, alvo_principal, largura_mapa, altura_mapa, num_redemoinhos=3))
         elif escolha == "investida":
-            self.ataques_ativos.append(InvestidaTemporal(pos_chefe, pos_jogador, largura_mapa, altura_mapa))
+            self.ataques_ativos.append(self._fixar_alvo(InvestidaTemporal(pos_chefe, alvo_principal, largura_mapa, altura_mapa), alvo_principal))
         
         # Combinações do Estágio Crítico (vida < 35%)
         elif escolha == "bolha_combo":
-            self.ataques_ativos.append(BolhaPressaoTemporal(pos_chefe, pos_jogador, largura_mapa, altura_mapa))
-            self.ataques_ativos.append(AreiaViva(pos_chefe, pos_jogador, largura_mapa, altura_mapa, num_redemoinhos=2))
+            for alvo in alvos:
+                self.ataques_ativos.append(BolhaPressaoTemporal(pos_chefe, alvo, largura_mapa, altura_mapa))
+            self.ataques_ativos.append(AreiaViva(pos_chefe, alvo_principal, largura_mapa, altura_mapa, num_redemoinhos=2))
         elif escolha == "mare_combo":
-            self.ataques_ativos.append(MareFraturada(pos_chefe, pos_jogador, largura_mapa, altura_mapa))
-            self.ataques_ativos.append(AreiaViva(pos_chefe, pos_jogador, largura_mapa, altura_mapa, num_redemoinhos=3))
+            self.ataques_ativos.append(MareFraturada(pos_chefe, alvo_principal, largura_mapa, altura_mapa))
+            self.ataques_ativos.append(AreiaViva(pos_chefe, alvo_principal, largura_mapa, altura_mapa, num_redemoinhos=3))
         elif escolha == "pinca_gotas":
-            self.ataques_ativos.append(PincaRuptura(pos_chefe, pos_jogador, largura_mapa, altura_mapa))
-            self.ataques_ativos.append(DiluvioSuspenso(pos_chefe, pos_jogador, largura_mapa, altura_mapa, num_gotas=6))
+            for alvo in alvos:
+                self.ataques_ativos.append(PincaRuptura(pos_chefe, alvo, largura_mapa, altura_mapa))
+            self._adicionar_diluvio_por_alvo(pos_chefe, alvos, largura_mapa, altura_mapa, num_gotas=6)
         elif escolha == "investida_combo":
-            self.ataques_ativos.append(InvestidaTemporal(pos_chefe, pos_jogador, largura_mapa, altura_mapa))
-            self.ataques_ativos.append(DiluvioSuspenso(pos_chefe, pos_jogador, largura_mapa, altura_mapa, num_gotas=10))
+            self.ataques_ativos.append(self._fixar_alvo(InvestidaTemporal(pos_chefe, alvo_principal, largura_mapa, altura_mapa), alvo_principal))
+            self._adicionar_diluvio_por_alvo(pos_chefe, alvos, largura_mapa, altura_mapa, num_gotas=10)
 
         self.tempo_ultimo_ataque = tempo_atual
 
@@ -1087,7 +1120,7 @@ class GerenciadorAtaquesBoss1:
         return False
 
     def update(self, dt, pos_jogador, largura_j, altura_j, vida, vida_maxima, escudo_ativo, dano_adicional,
-               pos_chefe, pos_chefe_larg, pos_chefe_alt, vida_boss, vida_maxima_boss, largura_mapa, altura_mapa, tempo_atual):
+               pos_chefe, pos_chefe_larg, pos_chefe_alt, vida_boss, vida_maxima_boss, largura_mapa, altura_mapa, tempo_atual, alvos_jogadores=None):
         
         # 1. Verificar se precisa e pode lançar um novo ataque
         if vida_boss > 0:
@@ -1101,7 +1134,7 @@ class GerenciadorAtaquesBoss1:
             if len(self.ataques_ativos) == 0 and (tempo_atual - self.tempo_ultimo_ataque >= cooldown_atual):
                 centro_chefe = (pos_chefe[0] + pos_chefe_larg // 2, pos_chefe[1] + pos_chefe_alt // 2)
                 centro_jogador = (pos_jogador[0] + largura_j // 2, pos_jogador[1] + altura_j // 2)
-                self.escolher_e_lancar_ataque(centro_chefe, centro_jogador, vida_boss, vida_maxima_boss, largura_mapa, altura_mapa, tempo_atual)
+                self.escolher_e_lancar_ataque(centro_chefe, centro_jogador, vida_boss, vida_maxima_boss, largura_mapa, altura_mapa, tempo_atual, alvos_jogadores)
 
         # 2. Atualizar todos os ataques ativos e resolver colisões
         fator_slow_geral = 1.0

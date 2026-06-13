@@ -4343,11 +4343,15 @@ def executar_jogo(game_manager=None):
                 else:
                     escudo_devota_pre_boss = escudo_devota_ativo
                     vida_pre_boss_devota = vida
+                    alvos_boss1 = [(pos_x_personagem + largura_personagem // 2, pos_y_personagem + altura_personagem // 2)]
+                    rect_jogador_remoto = multiplayer_coop.jogador_remoto_rect(1, largura_personagem, altura_personagem)
+                    if rect_jogador_remoto is not None:
+                        alvos_boss1.append(rect_jogador_remoto.center)
                     pos_x_personagem, pos_y_personagem, vida, escudo_devota_ativo, slow_f, pos_chefe_nova, stun_req, kb_x_boss, kb_y_boss = gerenciador_ataques_boss1.update(
                         dt, [pos_x_personagem, pos_y_personagem], largura_personagem, altura_personagem,
                         vida, vida_maxima, escudo_devota_ativo, Dano_Boss_Habilit,
                         [pos_x_chefe, pos_y_chefe], chefe_largura, chefe_altura, vida_boss, vida_maxima_boss1,
-                        largura_mapa, altura_mapa, tempo_atual
+                        largura_mapa, altura_mapa, tempo_atual, alvos_jogadores=alvos_boss1
                     )
                     if aurea == "Devota" and escudo_devota_pre_boss and not escudo_devota_ativo and vida == vida_pre_boss_devota:
                         escudo_devota_ativo = True
@@ -4656,8 +4660,17 @@ def executar_jogo(game_manager=None):
 
 
         #AQUI GERAMOS O BOSS:
-            if pontuacao >= 3000500 or (keys[pygame.K_r]) or r_press:
-                r_press=True
+            chamada_boss1_solicitada = pontuacao >= 3000500 or keys[pygame.K_r]
+            if multiplayer_coop.modo_multiplayer() and not r_press and chamada_boss1_solicitada:
+                multiplayer_coop.solicitar_acao("boss1", 1)
+            if multiplayer_coop.modo_multiplayer() and not r_press and multiplayer_coop.acao_confirmada(
+                "boss1", 1, delay_ms=4000, assumir_sim_apos_ms=multiplayer_coop.COOP_SILENCIO_CONFIRMA_MS
+            ):
+                r_press = True
+            elif not multiplayer_coop.modo_multiplayer() and chamada_boss1_solicitada:
+                r_press = True
+
+            if r_press:
                 # Verificar se é hora de realizar um ataque do boss
                 Musica_tema_fases.stop()
                 tempo_atual = pygame.time.get_ticks()
@@ -6078,6 +6091,14 @@ def executar_jogo(game_manager=None):
 
             multiplayer_coop.desenhar_status_acao(tela, fonte, "loja", 1)
             multiplayer_coop.desenhar_status_acao(tela, fonte, "pause", 1)
+            multiplayer_coop.desenhar_status_acao(
+                tela,
+                fonte,
+                "boss1",
+                1,
+                delay_ms=4000,
+                assumir_sim_apos_ms=multiplayer_coop.COOP_SILENCIO_CONFIRMA_MS,
+            )
             pygame.display.flip()
             dt_ms = FPS.tick(config_graficos.get("fps_limite", 60))  # Limita a taxa de quadros conforme configuração
             dt = max(0.05, min(3.0, dt_ms / 16.666667))
