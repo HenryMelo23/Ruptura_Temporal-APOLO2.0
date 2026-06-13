@@ -199,26 +199,16 @@ def _seq_pacote(dados):
         return 0
 
 
-def _tempo_host_estimado():
-    return pygame.time.get_ticks() + float(_coop_host_time_offset)
-
-
 def _tempo_render_host():
     return pygame.time.get_ticks() - COOP_INTERPOLATION_DELAY_MS
 
 
-def _host_time_pacote(dados, fallback_ms=None):
+def _tempo_local_snapshot(dados, fallback_ms=None):
     fallback_ms = pygame.time.get_ticks() if fallback_ms is None else fallback_ms
     try:
-        if dados.get("host_time") is not None:
-            if eh_cliente() and _coop_ping_ms > 0:
-                return int(float(dados.get("host_time")) - float(_coop_host_time_offset))
-            if eh_cliente():
-                return int(fallback_ms)
-            return int(dados.get("host_time"))
+        return int(dados.get("_recv_time", fallback_ms))
     except Exception:
-        pass
-    return int(fallback_ms)
+        return int(fallback_ms)
 
 
 def _adicionar_historico_pos(entidade, host_time, x, y, seq=0):
@@ -292,8 +282,8 @@ def _aplicar_pacote_player(dados, fase_atual):
     ultimo_ms = int(_remote.get("ultimo_ms", agora))
     delta_ms = max(1, agora - ultimo_ms)
     seq = _seq_pacote(dados)
-    host_time = _host_time_pacote(dados, agora)
-    _adicionar_historico_pos(_remote, host_time, novo_x, novo_y, seq)
+    snapshot_time = _tempo_local_snapshot(dados, agora)
+    _adicionar_historico_pos(_remote, snapshot_time, novo_x, novo_y, seq)
     _remote.update({
         "ativo": True,
         "x": int(novo_x),
@@ -310,7 +300,7 @@ def _aplicar_pacote_player(dados, fase_atual):
         "morto": bool(dados.get("morto", False)),
         "fase": int(dados.get("fase", fase_atual)),
         "ultimo_ms": agora,
-        "ultimo_snapshot_ms": host_time,
+        "ultimo_snapshot_ms": snapshot_time,
     })
 
 
@@ -387,18 +377,21 @@ def _processar_pacotes(fase_atual):
                 fase_solicitada = -1
 
         if player_mais_recente is not None:
+            player_mais_recente["_recv_time"] = pygame.time.get_ticks()
             _aplicar_pacote_player(player_mais_recente, fase_atual)
             seq = _seq_pacote(player_mais_recente)
             if seq:
                 _ultimo_seq_player_recebido = max(_ultimo_seq_player_recebido, seq)
                 _diagnostico["ultimo_seq_player"] = _ultimo_seq_player_recebido
         if mundo_mais_recente is not None:
+            mundo_mais_recente["_recv_time"] = pygame.time.get_ticks()
             _world_snapshot = mundo_mais_recente
             _world_snapshot_recebido_ms = pygame.time.get_ticks()
             seq = _seq_pacote(mundo_mais_recente)
             if seq:
                 _ultimo_seq_mundo_recebido = max(_ultimo_seq_mundo_recebido, seq)
                 _diagnostico["ultimo_seq_mundo"] = _ultimo_seq_mundo_recebido
+            _diagnostico["tamanho_snapshot_json"] = len(json.dumps(mundo_mais_recente, separators=(",", ":")))
 
         _diagnostico["pacotes_processados_frame"] = processados
         _diagnostico["pacotes_coalescidos"] += coalescidos
@@ -552,7 +545,7 @@ def _aplicar_inimigo_remoto(inimigo, dados, inicial=False):
     antigo_y = float(inimigo.get("net_y", rect.y))
     ultimo_ms = int(inimigo.get("ultimo_snapshot_ms", agora))
     delta_ms = max(1, agora - ultimo_ms)
-    host_time = int(dados.get("_host_time", _host_time_pacote(dados, agora)))
+    snapshot_time = _tempo_local_snapshot(dados, agora)
     seq = _seq_pacote(dados)
 
     inimigo["coop_id"] = str(dados.get("coop_id", inimigo.get("coop_id", "")))
@@ -560,8 +553,8 @@ def _aplicar_inimigo_remoto(inimigo, dados, inicial=False):
     inimigo["net_y"] = novo_y
     inimigo["vel_x_estimada"] = float(dados.get("vx", 0.0 if inicial else (novo_x - antigo_x) / delta_ms))
     inimigo["vel_y_estimada"] = float(dados.get("vy", 0.0 if inicial else (novo_y - antigo_y) / delta_ms))
-    inimigo["ultimo_snapshot_ms"] = host_time
-    _adicionar_historico_pos(inimigo, host_time, novo_x, novo_y, seq)
+    inimigo["ultimo_snapshot_ms"] = snapshot_time
+    _adicionar_historico_pos(inimigo, snapshot_time, novo_x, novo_y, seq)
     if inicial or "render_x" not in inimigo:
         inimigo["render_x"] = novo_x
         inimigo["render_y"] = novo_y
@@ -620,7 +613,7 @@ def sincronizar_mundo(fase_atual, inimigos, criar_inimigo=None, boss=None, econo
     _diagnostico["tempo_desde_ultimo_snapshot"] = max(0, agora - int(_world_snapshot_recebido_ms or agora))
     dados_inimigos = _world_snapshot.get("inimigos", [])
     seq = _world_snapshot.get("seq")
-    snapshot_host_time = _host_time_pacote(_world_snapshot, agora)
+    snapshot_recv_time = _tempo_local_snapshot(_world_snapshot, agora)
     if seq != _world_snapshot_seq_aplicado:
         existentes = {
             str(inimigo.get("coop_id")): inimigo
@@ -630,7 +623,7 @@ def sincronizar_mundo(fase_atual, inimigos, criar_inimigo=None, boss=None, econo
         ids_recebidos = set()
         for dados in dados_inimigos:
             dados = dict(dados)
-            dados["_host_time"] = snapshot_host_time
+            dados["_recv_time"] = snapshot_recv_time
             dados["seq"] = seq
             coop_id = str(dados.get("coop_id", ""))
             if not coop_id:

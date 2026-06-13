@@ -2667,6 +2667,7 @@ def executar_jogo(game_manager=None):
                     "pontuacao": pontuacao,
                     "pontuacao_exib": pontuacao_exib,
                     "pontuacao_magia": pontuacao_magia,
+                    "tempo_cronometro": Variaveis.obter_tempo_decorrido(),
                 },
             )
             if mundo_coop:
@@ -2684,6 +2685,8 @@ def executar_jogo(game_manager=None):
                 pontuacao = economia_coop.get("pontuacao", pontuacao)
                 pontuacao_exib = economia_coop.get("pontuacao_exib", pontuacao_exib)
                 pontuacao_magia = economia_coop.get("pontuacao_magia", pontuacao_magia)
+                if "tempo_cronometro" in economia_coop:
+                    Variaveis.definir_tempo_cronometro(economia_coop.get("tempo_cronometro", Variaveis.obter_tempo_decorrido()))
             for event in pygame.event.get():
                 Variaveis.atualizar_estado_mouse(event)
                 Variaveis.processar_eventos_teleporte(event, cooldown_dash)
