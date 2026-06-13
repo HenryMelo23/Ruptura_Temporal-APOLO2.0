@@ -6099,6 +6099,7 @@ def executar_jogo(game_manager=None):
                 delay_ms=4000,
                 assumir_sim_apos_ms=multiplayer_coop.COOP_SILENCIO_CONFIRMA_MS,
             )
+            multiplayer_coop.desenhar_diagnostico(tela, fonte)
             pygame.display.flip()
             dt_ms = FPS.tick(config_graficos.get("fps_limite", 60))  # Limita a taxa de quadros conforme configuração
             dt = max(0.05, min(3.0, dt_ms / 16.666667))

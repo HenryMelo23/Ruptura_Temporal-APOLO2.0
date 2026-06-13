@@ -59,6 +59,7 @@ def iniciar_host(porta=5050):
 
     # Cria o socket
     s = socket.socket()
+    s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     s.bind(("0.0.0.0", porta))
     s.listen(1)
     s.settimeout(0.1)  # não trava o loop
@@ -95,6 +96,7 @@ def iniciar_host(porta=5050):
         # tenta aceitar conexão sem travar
         try:
             conn, addr = s.accept()
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             return conn
         except socket.timeout:
             pass
@@ -160,7 +162,9 @@ def descobrir_host_udp(porta_udp=5051, timeout=5):
 
 def conectar_ao_host(ip, porta=5050):
     s = socket.socket()
+    s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     s.connect((ip, porta))
+    s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     return s
 
 
