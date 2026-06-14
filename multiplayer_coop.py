@@ -75,12 +75,28 @@ _diagnostico = {
     "fila_udp_recebimento": 0,
     "udp_conectado": False,
     "udp_idade_ultimo_recebido": 0,
+    "udp_player_conectado": False,
+    "udp_world_conectado": False,
+    "udp_damage_conectado": False,
+    "udp_heartbeat_conectado": False,
+    "udp_player_age": 0,
+    "udp_world_age": 0,
+    "udp_damage_age": 0,
+    "udp_heartbeat_age": 0,
+    "fila_udp_player_envio": 0,
+    "fila_udp_player_recebimento": 0,
+    "fila_udp_world_envio": 0,
+    "fila_udp_world_recebimento": 0,
+    "fila_udp_damage_envio": 0,
+    "fila_udp_damage_recebimento": 0,
+    "fila_udp_heartbeat_envio": 0,
+    "fila_udp_heartbeat_recebimento": 0,
 }
 
 COOP_INIMIGO_VIDA_MULT = 1.45
 COOP_BOSS_VIDA_MULT = 1.75
 COOP_SYNC_PLAYER_MS = 33
-COOP_SYNC_MUNDO_MS = 80
+COOP_SYNC_MUNDO_MS = 50
 COOP_CONVITE_DELAY_MS = 4000
 COOP_SILENCIO_CONFIRMA_MS = 10000
 COOP_INTERPOLACAO_POS = 0.18
@@ -88,7 +104,7 @@ COOP_INTERPOLATION_DELAY_MS = 100
 COOP_EXTRAPOLACAO_MAX_MS = 120
 COOP_DISTANCIA_SNAP_INIMIGO = 250
 COOP_DISTANCIA_SNAP_PLAYER = 350
-COOP_MAX_PACOTES_POR_FRAME = 20
+COOP_MAX_PACOTES_POR_FRAME = 48
 COOP_ENTIDADE_TIMEOUT_MS = 450
 COOP_HISTORICO_POS_MS = 450
 COOP_PING_INTERVAL_MS = 1000
@@ -214,6 +230,11 @@ def _atualizar_diagnostico_udp():
         _diagnostico["fila_udp_recebimento"] = int(udp.get("fila_udp_recebimento", 0))
         _diagnostico["udp_conectado"] = bool(udp.get("udp_conectado", False))
         _diagnostico["udp_idade_ultimo_recebido"] = int(udp.get("udp_idade_ultimo_recebido", 0) or 0)
+        for canal in ("player", "world", "damage", "heartbeat"):
+            _diagnostico[f"udp_{canal}_conectado"] = bool(udp.get(f"udp_{canal}_conectado", False))
+            _diagnostico[f"udp_{canal}_age"] = int(udp.get(f"udp_{canal}_age", 0) or 0)
+            _diagnostico[f"fila_udp_{canal}_envio"] = int(udp.get(f"fila_udp_{canal}_envio", 0) or 0)
+            _diagnostico[f"fila_udp_{canal}_recebimento"] = int(udp.get(f"fila_udp_{canal}_recebimento", 0) or 0)
         return udp
     except Exception:
         return {}
@@ -229,9 +250,10 @@ def _enviar_confiavel(dados):
 
 def _enviar_descartavel(dados):
     try:
-        from net_transport import enviar_udp, obter_diagnostico as obter_udp
+        from net_transport import canal_para_pacote, enviar_udp, obter_diagnostico as obter_udp
+        canal = canal_para_pacote(dados)
         udp = obter_udp()
-        if udp.get("udp_conectado") and enviar_udp(dados):
+        if udp.get(f"udp_{canal}_conectado") and enviar_udp(dados, canal=canal):
             _atualizar_diagnostico_udp()
             return True
     except Exception:
@@ -377,12 +399,15 @@ def _processar_pacotes(fase_atual):
     try:
         from rede import fila_recebimento
         filas_recebimento = [fila_recebimento]
+        filas_udp = []
         try:
-            from net_transport import fila_udp_recebimento
-            filas_recebimento.append(fila_udp_recebimento)
+            from net_transport import obter_filas_recebimento
+            filas_udp = obter_filas_recebimento()
+            filas_recebimento.extend(filas_udp)
         except Exception:
-            fila_udp_recebimento = None
+            filas_udp = []
         processados = 0
+        indice_fila = 0
         player_mais_recente = None
         mundo_mais_recente = None
         coalescidos = 0
@@ -391,7 +416,11 @@ def _processar_pacotes(fase_atual):
 
         while processados < COOP_MAX_PACOTES_POR_FRAME:
             dados = None
-            for fila in filas_recebimento:
+            tentativas = 0
+            while tentativas < len(filas_recebimento):
+                fila = filas_recebimento[indice_fila % len(filas_recebimento)]
+                indice_fila = (indice_fila + 1) % len(filas_recebimento)
+                tentativas += 1
                 try:
                     dados = fila.get_nowait()
                     break
@@ -477,12 +506,7 @@ def _processar_pacotes(fase_atual):
         _diagnostico["pacotes_coalescidos"] += coalescidos
         _diagnostico["snapshots_mundo_descartados"] += mundo_descartados
         _diagnostico["snapshots_player_descartados"] += player_descartados
-        udp_qsize = 0
-        if fila_udp_recebimento is not None:
-            try:
-                udp_qsize = fila_udp_recebimento.qsize()
-            except Exception:
-                udp_qsize = 0
+        udp_qsize = sum(fila.qsize() for fila in filas_udp)
         _diagnostico["fila_recebimento"] = fila_recebimento.qsize() + udp_qsize
         _diagnostico["fila_tcp_recebimento"] = fila_recebimento.qsize()
         _atualizar_diagnostico_udp()
@@ -1087,9 +1111,16 @@ def desenhar_diagnostico(tela, fonte=None):
 
     fonte = fonte or pygame.font.Font(None, 22)
     dados = obter_diagnostico()
+    udp_canais = (
+        f"p:{'on' if dados['udp_player_conectado'] else 'off'} "
+        f"w:{'on' if dados['udp_world_conectado'] else 'off'} "
+        f"d:{'on' if dados['udp_damage_conectado'] else 'off'} "
+        f"h:{'on' if dados['udp_heartbeat_conectado'] else 'off'}"
+    )
     linhas = [
         f"COOP {dados['modo']} | player {dados['player_ms']}ms | mundo {dados['snapshot_ms']}ms",
-        f"udp: {'on' if dados['udp_conectado'] else 'off'} | fila tcp {dados['fila_tcp_envio']}/{dados['fila_tcp_recebimento']} | udp {dados['fila_udp_envio']}/{dados['fila_udp_recebimento']} | udp age {dados['udp_idade_ultimo_recebido']}ms",
+        f"udp {udp_canais} | tcp {dados['fila_tcp_envio']}/{dados['fila_tcp_recebimento']} | udp {dados['fila_udp_envio']}/{dados['fila_udp_recebimento']}",
+        f"udp age p/w/d/h: {dados['udp_player_age']}/{dados['udp_world_age']}/{dados['udp_damage_age']}/{dados['udp_heartbeat_age']}ms | fila world {dados['fila_udp_world_envio']}/{dados['fila_udp_world_recebimento']}",
         f"ping/jitter: {dados['ping_ms']:.0f}/{dados['jitter_ms']:.0f}ms | offset host: {dados['host_time_offset']:.0f}ms",
         f"seq mundo/player: {dados['ultimo_seq_mundo']}/{dados['ultimo_seq_player']} | drop m/p: {dados['snapshots_mundo_descartados']}/{dados['snapshots_player_descartados']}",
         f"fila out/in: {dados['fila_envio']}/{dados['fila_recebimento']} | pacotes/frame: {dados['pacotes_processados_frame']} | coal: {dados['pacotes_coalescidos']}",

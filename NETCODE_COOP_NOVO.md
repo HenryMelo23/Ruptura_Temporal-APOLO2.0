@@ -57,7 +57,7 @@
 
 1. Abrir host e client em LAN.
 2. Ativar overlay F10 nos dois.
-3. Verificar `udp: on` no overlay.
+3. Verificar `udp p/w/d/h` no overlay.
 4. No client, confirmar que `snapshot idade` fica baixo.
 5. Atirar em inimigos pelo client e observar `dano env/rec/apl`.
 6. Abrir pause/loja e confirmar que ping/snapshot nao ficam varios segundos parados.
@@ -65,14 +65,17 @@
 ## Constantes Importantes
 
 - `COOP_SYNC_PLAYER_MS = 33`
-- `COOP_SYNC_MUNDO_MS = 80`
+- `COOP_SYNC_MUNDO_MS = 50`
 - `COOP_INTERPOLATION_DELAY_MS = 100`
 - `COOP_EXTRAPOLACAO_MAX_MS = 120`
-- `UDP_GAME_PORT = 5052`
+- `UDP_PLAYER_PORT = 5052`
+- `UDP_WORLD_PORT = 5053`
+- `UDP_DAMAGE_PORT = 5054`
+- `UDP_HEARTBEAT_PORT = 5055`
 - `COOP_SNAPSHOT_STALE_REQUEST_MS = 600`
 
 ## Limitacoes Atuais
 
 - Input autoritativo completo ainda nao foi migrado; o canal UDP ja esta pronto para isso.
 - Dano remoto aplica vida/morte no host, mas recompensas especificas por fase ainda precisam ser refinadas.
-- Heartbeat de sessao existe parcialmente via ping/pong e snapshot request; ainda falta um `SESSION_STATE` confiavel formal.
+- Heartbeat de sessao existe parcialmente via canal dedicado de ping/pong e snapshot request; ainda falta um `SESSION_STATE` confiavel formal.
