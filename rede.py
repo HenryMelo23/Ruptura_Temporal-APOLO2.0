@@ -1,9 +1,10 @@
 import threading
 import queue
 import socket
-import json
 import time
 import requests
+from net_protocol import ProtocolError, decode_packet, encode_stream_packet
+from net_transport import iniciar_udp_cliente, iniciar_udp_host
 from qa_logger import registrar_erro
 
 RENDER_SERVER = "https://servidor-matchmaking-gsmh.onrender.com"
@@ -17,11 +18,11 @@ def thread_envio(conn):
     while rodando_rede:
         try:
             dados = fila_envio.get(timeout=0.05)  # espera 50ms por pacotes
-            json_data = json.dumps(dados) + "\n"  # adiciona delimitador
-            conn.sendall(json_data.encode())
+            conn.sendall(encode_stream_packet(dados, reliable=True, channel="tcp"))
         except queue.Empty:
             continue
         except Exception as e:
+            registrar_erro("Rede TCP: erro ao enviar pacote", e)
             break
 
 
@@ -38,12 +39,13 @@ def thread_recebimento(conn):
             while b"\n" in buffer:
                 pacote, buffer = buffer.split(b"\n", 1)
                 try:
-                    dados = json.loads(pacote.decode())
+                    dados = decode_packet(pacote)
                     fila_recebimento.put(dados)
-                except json.JSONDecodeError:
+                except (ProtocolError, ValueError):
                     continue
 
         except Exception as e:
+            registrar_erro("Rede TCP: erro ao receber pacote", e)
             break
 
 
@@ -97,6 +99,7 @@ def iniciar_host(porta=5050):
         try:
             conn, addr = s.accept()
             conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            iniciar_udp_host()
             return conn
         except socket.timeout:
             pass
@@ -165,6 +168,7 @@ def conectar_ao_host(ip, porta=5050):
     s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     s.connect((ip, porta))
     s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    iniciar_udp_cliente(ip)
     return s
 
 

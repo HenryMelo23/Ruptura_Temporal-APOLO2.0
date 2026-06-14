@@ -69,6 +69,12 @@ _diagnostico = {
     "danos_enviados": 0,
     "danos_recebidos": 0,
     "danos_aplicados": 0,
+    "fila_tcp_envio": 0,
+    "fila_tcp_recebimento": 0,
+    "fila_udp_envio": 0,
+    "fila_udp_recebimento": 0,
+    "udp_conectado": False,
+    "udp_idade_ultimo_recebido": 0,
 }
 
 COOP_INIMIGO_VIDA_MULT = 1.45
@@ -194,12 +200,43 @@ def enviar_transicao_fase(fase_destino):
     if _ultimo_fase_enviada == fase_destino:
         return
     try:
-        from rede import fila_envio
-
-        fila_envio.put({"coop_tipo": "fase", "fase": int(fase_destino)})
+        _enviar_confiavel({"coop_tipo": "fase", "fase": int(fase_destino)})
         _ultimo_fase_enviada = fase_destino
     except Exception as e:
         registrar_erro("Multiplayer: erro ao enviar transicao de fase", e)
+
+
+def _atualizar_diagnostico_udp():
+    try:
+        from net_transport import obter_diagnostico as obter_udp
+        udp = obter_udp()
+        _diagnostico["fila_udp_envio"] = int(udp.get("fila_udp_envio", 0))
+        _diagnostico["fila_udp_recebimento"] = int(udp.get("fila_udp_recebimento", 0))
+        _diagnostico["udp_conectado"] = bool(udp.get("udp_conectado", False))
+        _diagnostico["udp_idade_ultimo_recebido"] = int(udp.get("udp_idade_ultimo_recebido", 0) or 0)
+        return udp
+    except Exception:
+        return {}
+
+
+def _enviar_confiavel(dados):
+    from rede import fila_envio
+    fila_envio.put(dados)
+    _diagnostico["fila_envio"] = fila_envio.qsize()
+    _diagnostico["fila_tcp_envio"] = fila_envio.qsize()
+    return True
+
+
+def _enviar_descartavel(dados):
+    try:
+        from net_transport import enviar_udp, obter_diagnostico as obter_udp
+        udp = obter_udp()
+        if udp.get("udp_conectado") and enviar_udp(dados):
+            _atualizar_diagnostico_udp()
+            return True
+    except Exception:
+        pass
+    return _enviar_confiavel(dados)
 
 
 def _seq_pacote(dados):
@@ -255,13 +292,11 @@ def _responder_ping(dados):
     if not eh_host():
         return
     try:
-        from rede import fila_envio
-        fila_envio.put({
+        _enviar_descartavel({
             "coop_tipo": "pong",
             "client_time": int(dados.get("client_time", 0) or 0),
             "host_time": pygame.time.get_ticks(),
         })
-        _diagnostico["fila_envio"] = fila_envio.qsize()
     except Exception as e:
         registrar_erro("Multiplayer: erro ao responder ping cooperativo", e)
 
@@ -274,10 +309,8 @@ def _enviar_ping_se_preciso():
     if agora - _ultimo_ping_envio_ms < COOP_PING_INTERVAL_MS:
         return
     try:
-        from rede import fila_envio
-        fila_envio.put({"coop_tipo": "ping", "client_time": agora})
+        _enviar_descartavel({"coop_tipo": "ping", "client_time": agora})
         _ultimo_ping_envio_ms = agora
-        _diagnostico["fila_envio"] = fila_envio.qsize()
     except Exception as e:
         registrar_erro("Multiplayer: erro ao enviar ping cooperativo", e)
 
@@ -293,14 +326,12 @@ def _solicitar_snapshot_mundo_se_preciso(fase_atual, agora=None):
     if agora - int(_ultimo_snapshot_request_ms or 0) < COOP_SNAPSHOT_REQUEST_COOLDOWN_MS:
         return
     try:
-        from rede import fila_envio
-        fila_envio.put({
+        _enviar_descartavel({
             "coop_tipo": "snapshot_request",
             "fase": int(fase_atual),
             "client_time": agora,
         })
         _ultimo_snapshot_request_ms = agora
-        _diagnostico["fila_envio"] = fila_envio.qsize()
     except Exception as e:
         registrar_erro("Multiplayer: erro ao solicitar snapshot cooperativo", e)
 
@@ -345,6 +376,12 @@ def _processar_pacotes(fase_atual):
 
     try:
         from rede import fila_recebimento
+        filas_recebimento = [fila_recebimento]
+        try:
+            from net_transport import fila_udp_recebimento
+            filas_recebimento.append(fila_udp_recebimento)
+        except Exception:
+            fila_udp_recebimento = None
         processados = 0
         player_mais_recente = None
         mundo_mais_recente = None
@@ -353,9 +390,14 @@ def _processar_pacotes(fase_atual):
         player_descartados = 0
 
         while processados < COOP_MAX_PACOTES_POR_FRAME:
-            try:
-                dados = fila_recebimento.get_nowait()
-            except queue.Empty:
+            dados = None
+            for fila in filas_recebimento:
+                try:
+                    dados = fila.get_nowait()
+                    break
+                except queue.Empty:
+                    continue
+            if dados is None:
                 break
             processados += 1
 
@@ -435,7 +477,15 @@ def _processar_pacotes(fase_atual):
         _diagnostico["pacotes_coalescidos"] += coalescidos
         _diagnostico["snapshots_mundo_descartados"] += mundo_descartados
         _diagnostico["snapshots_player_descartados"] += player_descartados
-        _diagnostico["fila_recebimento"] = fila_recebimento.qsize()
+        udp_qsize = 0
+        if fila_udp_recebimento is not None:
+            try:
+                udp_qsize = fila_udp_recebimento.qsize()
+            except Exception:
+                udp_qsize = 0
+        _diagnostico["fila_recebimento"] = fila_recebimento.qsize() + udp_qsize
+        _diagnostico["fila_tcp_recebimento"] = fila_recebimento.qsize()
+        _atualizar_diagnostico_udp()
     except Exception as e:
         registrar_erro("Multiplayer: erro ao processar pacotes cooperativos", e)
 
@@ -468,9 +518,8 @@ def enviar_dano_inimigo(inimigo, dano, origem="ataque"):
     if dano < COOP_DANO_MINIMO_REDE:
         return False
     try:
-        from rede import fila_envio
         _dano_seq_envio += 1
-        fila_envio.put({
+        _enviar_descartavel({
             "coop_tipo": "dano",
             "alvo_tipo": "inimigo",
             "alvo_id": str(coop_id),
@@ -482,7 +531,6 @@ def enviar_dano_inimigo(inimigo, dano, origem="ataque"):
         })
         inimigo["_coop_vida_reportada"] = float(inimigo.get("vida", 0.0))
         _diagnostico["danos_enviados"] += 1
-        _diagnostico["fila_envio"] = fila_envio.qsize()
         return True
     except Exception as e:
         registrar_erro("Multiplayer: erro ao enviar dano cooperativo", e)
@@ -727,7 +775,6 @@ def sincronizar_mundo(fase_atual, inimigos, criar_inimigo=None, boss=None, econo
         _aplicar_danos_pendentes_host(inimigos)
         if _forcar_mundo_envio or agora - _ultimo_mundo_envio_ms >= COOP_SYNC_MUNDO_MS:
             try:
-                from rede import fila_envio
                 _mundo_seq_envio += 1
                 pacote = {
                     "coop_tipo": "mundo",
@@ -738,10 +785,9 @@ def sincronizar_mundo(fase_atual, inimigos, criar_inimigo=None, boss=None, econo
                     "boss": boss or {},
                     "economia": economia or {},
                 }
-                fila_envio.put(pacote)
+                _enviar_descartavel(pacote)
                 _forcar_mundo_envio = False
                 _ultimo_mundo_envio_ms = agora
-                _diagnostico["fila_envio"] = fila_envio.qsize()
                 _diagnostico["qtd_inimigos_snapshot"] = len(pacote["inimigos"])
                 _diagnostico["tamanho_snapshot_json"] = len(json.dumps(pacote, separators=(",", ":")))
             except Exception as e:
@@ -831,8 +877,7 @@ def solicitar_acao(acao, fase_atual):
     if not estado["local"]:
         estado["local"] = True
         try:
-            from rede import fila_envio
-            fila_envio.put({"coop_tipo": "convite", "acao": acao, "fase": int(fase_atual)})
+            _enviar_confiavel({"coop_tipo": "convite", "acao": acao, "fase": int(fase_atual)})
         except Exception as e:
             registrar_erro("Multiplayer: erro ao enviar convite cooperativo", e)
     if estado["remoto"] and estado["inicio_ms"] is None:
@@ -899,8 +944,7 @@ def aguardar_barreira(acao, fase_atual, tela=None, fonte=None, mensagem="Aguarda
     if not estado["barreira_local"]:
         estado["barreira_local"] = True
         try:
-            from rede import fila_envio
-            fila_envio.put({"coop_tipo": "barreira", "acao": acao, "fase": int(fase_atual)})
+            _enviar_confiavel({"coop_tipo": "barreira", "acao": acao, "fase": int(fase_atual)})
         except Exception as e:
             registrar_erro("Multiplayer: erro ao enviar barreira cooperativa", e)
 
@@ -951,8 +995,6 @@ def atualizar(fase_atual, pos_x, pos_y, direcao, vida, vida_maxima, morto=False)
     agora = pygame.time.get_ticks()
     if agora - _ultimo_envio_ms >= COOP_SYNC_PLAYER_MS:
         try:
-            from rede import fila_envio
-
             _player_seq_envio += 1
             pacote = {
                 "coop_tipo": "player",
@@ -969,9 +1011,8 @@ def atualizar(fase_atual, pos_x, pos_y, direcao, vida, vida_maxima, morto=False)
                 pacote["host_time"] = agora
             else:
                 pacote["client_time"] = agora
-            fila_envio.put(pacote)
+            _enviar_descartavel(pacote)
             _ultimo_envio_ms = agora
-            _diagnostico["fila_envio"] = fila_envio.qsize()
         except Exception as e:
             registrar_erro("Multiplayer: erro ao enviar estado do jogador", e)
 
@@ -1013,6 +1054,7 @@ def jogador_remoto_rect(fase_atual, largura, altura):
 
 
 def obter_diagnostico():
+    _atualizar_diagnostico_udp()
     dados = dict(_diagnostico)
     dados["modo"] = modo_atual()
     dados["snapshot_ms"] = COOP_SYNC_MUNDO_MS
@@ -1047,6 +1089,7 @@ def desenhar_diagnostico(tela, fonte=None):
     dados = obter_diagnostico()
     linhas = [
         f"COOP {dados['modo']} | player {dados['player_ms']}ms | mundo {dados['snapshot_ms']}ms",
+        f"udp: {'on' if dados['udp_conectado'] else 'off'} | fila tcp {dados['fila_tcp_envio']}/{dados['fila_tcp_recebimento']} | udp {dados['fila_udp_envio']}/{dados['fila_udp_recebimento']} | udp age {dados['udp_idade_ultimo_recebido']}ms",
         f"ping/jitter: {dados['ping_ms']:.0f}/{dados['jitter_ms']:.0f}ms | offset host: {dados['host_time_offset']:.0f}ms",
         f"seq mundo/player: {dados['ultimo_seq_mundo']}/{dados['ultimo_seq_player']} | drop m/p: {dados['snapshots_mundo_descartados']}/{dados['snapshots_player_descartados']}",
         f"fila out/in: {dados['fila_envio']}/{dados['fila_recebimento']} | pacotes/frame: {dados['pacotes_processados_frame']} | coal: {dados['pacotes_coalescidos']}",
