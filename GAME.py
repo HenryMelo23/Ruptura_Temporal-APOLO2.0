@@ -3858,7 +3858,7 @@ def executar_jogo(game_manager=None):
                         vida_maxima_boss4 = vida_boss4
 
             tempo_atual = pygame.time.get_ticks()
-            if movendo:
+            if movendo and not multiplayer_coop.eh_cliente():
                 if tempo_atual - tempo_anterior >= tempo_movimento:
                     # Atualize o tempo anterior para o tempo atual
                     tempo_anterior = tempo_atual
@@ -3872,7 +3872,7 @@ def executar_jogo(game_manager=None):
                 )
                 pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem))
                 pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem))
-            else:
+            elif not multiplayer_coop.eh_cliente():
                 if tempo_atual - tempo_anterior >= tempo_parado:
                     # Atualize o tempo anterior para o tempo atual
                     tempo_anterior = tempo_atual
@@ -3880,21 +3880,22 @@ def executar_jogo(game_manager=None):
                     tempo_parado = random.randint(10, 3000)
 
             # --- ATUALIZAR COMPORTAMENTOS DAS VARIANTES ---
-            for inimigo in inimigos_comum[:]:
-                tipo = inimigo.get("tipo", 1)
-                if tipo == 3: # Espreitador
-                    atualizar_espreitador(inimigo)
-                elif tipo == 5: # Projetador
-                    atualizar_projetador(inimigo)
-                elif tipo == TIPO_CURATER:
-                    atualizar_curater(inimigo, tempo_atual)
-                elif tipo == TIPO_LARAPIO:
-                    atualizar_larapio(inimigo)
-            atualizar_condutor()
+            if not multiplayer_coop.eh_cliente():
+                for inimigo in inimigos_comum[:]:
+                    tipo = inimigo.get("tipo", 1)
+                    if tipo == 3: # Espreitador
+                        atualizar_espreitador(inimigo)
+                    elif tipo == 5: # Projetador
+                        atualizar_projetador(inimigo)
+                    elif tipo == TIPO_CURATER:
+                        atualizar_curater(inimigo, tempo_atual)
+                    elif tipo == TIPO_LARAPIO:
+                        atualizar_larapio(inimigo)
+                atualizar_condutor()
                     
             # --- CHEQUE DE FUSÃO DO AGLOMERADOR (A cada 1 segundo) ---
             tempo_decorrido = Variaveis.obter_tempo_decorrido()
-            if tempo_atual - tempo_ultimo_cheque_fusao >= 1000 and not r_press:
+            if tempo_atual - tempo_ultimo_cheque_fusao >= 1000 and not r_press and not multiplayer_coop.eh_cliente():
                 delta_fusao = tempo_atual - tempo_ultimo_cheque_fusao if tempo_ultimo_cheque_fusao else 1000
                 tempo_ultimo_cheque_fusao = tempo_atual
                 standard_enemies = [ini for ini in inimigos_comum if ini.get("tipo", 1) == 1]

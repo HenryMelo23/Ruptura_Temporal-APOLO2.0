@@ -2546,6 +2546,8 @@ def executar_jogo(game_manager=None):
                 intervalo_disparo_inimigo = random.randint(1800, 4000) 
             kamikazes_explodidos = []
             for inimigo in inimigos_comum:
+                if multiplayer_coop.eh_cliente():
+                    continue
                 dx = pos_x_personagem - inimigo["rect"].x
                 dy = pos_y_personagem - inimigo["rect"].y
                 dist = max(40, abs(dx) + abs(dy))
@@ -2591,7 +2593,8 @@ def executar_jogo(game_manager=None):
             )
             pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem))
             pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem))
-            Variaveis.resolver_colisoes_e_separacao(inimigos_comum, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+            if not multiplayer_coop.eh_cliente():
+                Variaveis.resolver_colisoes_e_separacao(inimigos_comum, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
 
             lacerante_manifestacao.atualizar_e_desenhar_sangue_lacerante(tela, inimigos_comum, config_graficos)
 

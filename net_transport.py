@@ -9,6 +9,7 @@ from qa_logger import registrar_erro
 
 CANAL_PLAYER = "player"
 CANAL_WORLD = "world"
+CANAL_ENEMY_MOVE = "enemy_move"
 CANAL_DAMAGE = "damage"
 CANAL_HEARTBEAT = "heartbeat"
 CANAL_DEFAULT = CANAL_PLAYER
@@ -17,11 +18,13 @@ UDP_PLAYER_PORT = 5052
 UDP_WORLD_PORT = 5053
 UDP_DAMAGE_PORT = 5054
 UDP_HEARTBEAT_PORT = 5055
+UDP_ENEMY_MOVE_PORT = 5056
 UDP_GAME_PORT = UDP_PLAYER_PORT
 
 UDP_CHANNEL_PORTS = {
     CANAL_PLAYER: UDP_PLAYER_PORT,
     CANAL_WORLD: UDP_WORLD_PORT,
+    CANAL_ENEMY_MOVE: UDP_ENEMY_MOVE_PORT,
     CANAL_DAMAGE: UDP_DAMAGE_PORT,
     CANAL_HEARTBEAT: UDP_HEARTBEAT_PORT,
 }
@@ -78,6 +81,8 @@ def iniciar_udp_cliente(ip_host, porta=UDP_GAME_PORT):
 
 def canal_para_pacote(dados):
     tipo = dados.get("coop_tipo") if isinstance(dados, dict) else None
+    if tipo == "inimigos_mov":
+        return CANAL_ENEMY_MOVE
     if tipo == "mundo":
         return CANAL_WORLD
     if tipo == "dano":

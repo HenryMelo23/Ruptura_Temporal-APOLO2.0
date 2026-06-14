@@ -32,14 +32,21 @@ _ultimo_envio_ms = 0
 _ultimo_fase_enviada = None
 _fase_atual = 1
 _ultimo_mundo_envio_ms = 0
+_ultimo_enemy_move_envio_ms = 0
 _world_snapshot = None
 _world_snapshot_recebido_ms = 0
 _world_snapshot_seq_aplicado = None
+_enemy_move_snapshot = None
+_enemy_move_recebido_ms = 0
+_enemy_move_seq_aplicado = None
 _ultimo_seq_mundo_recebido = 0
+_ultimo_seq_mov_recebido = 0
 _ultimo_seq_player_recebido = 0
 _mundo_seq_envio = 0
+_enemy_move_seq_envio = 0
 _player_seq_envio = 0
 _dano_seq_envio = 0
+_game_over_enviado = False
 _proximo_coop_id = 1
 _danos_pendentes = []
 _convites = {}
@@ -60,8 +67,10 @@ _diagnostico = {
     "qtd_inimigos_snapshot": 0,
     "tamanho_snapshot_json": 0,
     "ultimo_seq_mundo": 0,
+    "ultimo_seq_movimento": 0,
     "ultimo_seq_player": 0,
     "snapshots_mundo_descartados": 0,
+    "snapshots_movimento_descartados": 0,
     "snapshots_player_descartados": 0,
     "distancia_render_net_max": 0.0,
     "qtd_entidades_snapadas": 0,
@@ -77,16 +86,20 @@ _diagnostico = {
     "udp_idade_ultimo_recebido": 0,
     "udp_player_conectado": False,
     "udp_world_conectado": False,
+    "udp_enemy_move_conectado": False,
     "udp_damage_conectado": False,
     "udp_heartbeat_conectado": False,
     "udp_player_age": 0,
     "udp_world_age": 0,
+    "udp_enemy_move_age": 0,
     "udp_damage_age": 0,
     "udp_heartbeat_age": 0,
     "fila_udp_player_envio": 0,
     "fila_udp_player_recebimento": 0,
     "fila_udp_world_envio": 0,
     "fila_udp_world_recebimento": 0,
+    "fila_udp_enemy_move_envio": 0,
+    "fila_udp_enemy_move_recebimento": 0,
     "fila_udp_damage_envio": 0,
     "fila_udp_damage_recebimento": 0,
     "fila_udp_heartbeat_envio": 0,
@@ -96,7 +109,8 @@ _diagnostico = {
 COOP_INIMIGO_VIDA_MULT = 1.45
 COOP_BOSS_VIDA_MULT = 1.75
 COOP_SYNC_PLAYER_MS = 33
-COOP_SYNC_MUNDO_MS = 50
+COOP_SYNC_INIMIGOS_MOV_MS = 33
+COOP_SYNC_MUNDO_MS = 150
 COOP_CONVITE_DELAY_MS = 4000
 COOP_SILENCIO_CONFIRMA_MS = 10000
 COOP_INTERPOLACAO_POS = 0.18
@@ -230,7 +244,7 @@ def _atualizar_diagnostico_udp():
         _diagnostico["fila_udp_recebimento"] = int(udp.get("fila_udp_recebimento", 0))
         _diagnostico["udp_conectado"] = bool(udp.get("udp_conectado", False))
         _diagnostico["udp_idade_ultimo_recebido"] = int(udp.get("udp_idade_ultimo_recebido", 0) or 0)
-        for canal in ("player", "world", "damage", "heartbeat"):
+        for canal in ("player", "world", "enemy_move", "damage", "heartbeat"):
             _diagnostico[f"udp_{canal}_conectado"] = bool(udp.get(f"udp_{canal}_conectado", False))
             _diagnostico[f"udp_{canal}_age"] = int(udp.get(f"udp_{canal}_age", 0) or 0)
             _diagnostico[f"fila_udp_{canal}_envio"] = int(udp.get(f"fila_udp_{canal}_envio", 0) or 0)
@@ -261,6 +275,22 @@ def _enviar_descartavel(dados):
     return _enviar_confiavel(dados)
 
 
+def _enviar_game_over_se_preciso(motivo="jogador_morto"):
+    global _game_over_enviado
+    if _game_over_enviado:
+        return
+    try:
+        _enviar_confiavel({
+            "coop_tipo": "sessao",
+            "game_over": True,
+            "motivo": str(motivo or "jogador_morto"),
+            "fase": int(_fase_atual or 1),
+        })
+        _game_over_enviado = True
+    except Exception as e:
+        registrar_erro("Multiplayer: erro ao enviar game over cooperativo", e)
+
+
 def _seq_pacote(dados):
     try:
         return int(dados.get("seq", 0) or 0)
@@ -272,8 +302,21 @@ def _tempo_render_host():
     return pygame.time.get_ticks() - COOP_INTERPOLATION_DELAY_MS
 
 
+def _tempo_host_para_local(host_time, fallback_ms=None):
+    fallback_ms = pygame.time.get_ticks() if fallback_ms is None else fallback_ms
+    try:
+        host_time = int(host_time)
+    except Exception:
+        return int(fallback_ms)
+    if _coop_host_time_offset:
+        return int(round(float(host_time) - float(_coop_host_time_offset)))
+    return int(fallback_ms)
+
+
 def _tempo_local_snapshot(dados, fallback_ms=None):
     fallback_ms = pygame.time.get_ticks() if fallback_ms is None else fallback_ms
+    if isinstance(dados, dict) and dados.get("host_time") is not None:
+        return _tempo_host_para_local(dados.get("host_time"), fallback_ms)
     try:
         return int(dados.get("_recv_time", fallback_ms))
     except Exception:
@@ -391,7 +434,7 @@ def _aplicar_pacote_player(dados, fase_atual):
 
 
 def _processar_pacotes(fase_atual):
-    global _forcar_mundo_envio, _world_snapshot, _world_snapshot_recebido_ms, _ultimo_seq_mundo_recebido, _ultimo_seq_player_recebido
+    global _forcar_mundo_envio, _world_snapshot, _world_snapshot_recebido_ms, _enemy_move_snapshot, _enemy_move_recebido_ms, _ultimo_seq_mundo_recebido, _ultimo_seq_mov_recebido, _ultimo_seq_player_recebido
     fase_solicitada = None
     if not inicializar_se_preciso():
         return None
@@ -410,8 +453,10 @@ def _processar_pacotes(fase_atual):
         indice_fila = 0
         player_mais_recente = None
         mundo_mais_recente = None
+        movimento_mais_recente = None
         coalescidos = 0
         mundo_descartados = 0
+        movimento_descartados = 0
         player_descartados = 0
 
         while processados < COOP_MAX_PACOTES_POR_FRAME:
@@ -464,6 +509,22 @@ def _processar_pacotes(fase_atual):
                         mundo_descartados += 1
                 else:
                     mundo_mais_recente = dados
+            elif tipo == "inimigos_mov":
+                if int(dados.get("fase", fase_atual)) != int(fase_atual):
+                    continue
+                seq = _seq_pacote(dados)
+                seq_atual = _seq_pacote(movimento_mais_recente) if movimento_mais_recente else 0
+                if seq and seq <= _ultimo_seq_mov_recebido:
+                    movimento_descartados += 1
+                    continue
+                if movimento_mais_recente is not None:
+                    if not seq or not seq_atual or seq > seq_atual:
+                        coalescidos += 1
+                        movimento_mais_recente = dados
+                    else:
+                        movimento_descartados += 1
+                else:
+                    movimento_mais_recente = dados
             elif tipo == "fase":
                 try:
                     fase_solicitada = int(dados.get("fase", fase_atual))
@@ -501,10 +562,19 @@ def _processar_pacotes(fase_atual):
                 _ultimo_seq_mundo_recebido = max(_ultimo_seq_mundo_recebido, seq)
                 _diagnostico["ultimo_seq_mundo"] = _ultimo_seq_mundo_recebido
             _diagnostico["tamanho_snapshot_json"] = len(json.dumps(mundo_mais_recente, separators=(",", ":")))
+        if movimento_mais_recente is not None:
+            movimento_mais_recente["_recv_time"] = pygame.time.get_ticks()
+            _enemy_move_snapshot = movimento_mais_recente
+            _enemy_move_recebido_ms = pygame.time.get_ticks()
+            seq = _seq_pacote(movimento_mais_recente)
+            if seq:
+                _ultimo_seq_mov_recebido = max(_ultimo_seq_mov_recebido, seq)
+                _diagnostico["ultimo_seq_movimento"] = _ultimo_seq_mov_recebido
 
         _diagnostico["pacotes_processados_frame"] = processados
         _diagnostico["pacotes_coalescidos"] += coalescidos
         _diagnostico["snapshots_mundo_descartados"] += mundo_descartados
+        _diagnostico["snapshots_movimento_descartados"] += movimento_descartados
         _diagnostico["snapshots_player_descartados"] += player_descartados
         udp_qsize = sum(fila.qsize() for fila in filas_udp)
         _diagnostico["fila_recebimento"] = fila_recebimento.qsize() + udp_qsize
@@ -724,6 +794,29 @@ def _serializar_inimigo(inimigo):
     }
 
 
+def _serializar_movimento_inimigo(inimigo):
+    rect = inimigo.get("rect") if isinstance(inimigo, dict) else None
+    if rect is None:
+        return None
+    agora = pygame.time.get_ticks()
+    ultimo_ms = int(inimigo.get("_coop_mov_serializado_ms", agora))
+    delta_ms = max(1, agora - ultimo_ms)
+    ultimo_x = float(inimigo.get("_coop_mov_serializado_x", rect.x))
+    ultimo_y = float(inimigo.get("_coop_mov_serializado_y", rect.y))
+    vx = (float(rect.x) - ultimo_x) / delta_ms
+    vy = (float(rect.y) - ultimo_y) / delta_ms
+    inimigo["_coop_mov_serializado_ms"] = agora
+    inimigo["_coop_mov_serializado_x"] = float(rect.x)
+    inimigo["_coop_mov_serializado_y"] = float(rect.y)
+    return {
+        "coop_id": _obter_coop_id(inimigo),
+        "x": int(rect.x),
+        "y": int(rect.y),
+        "vx": vx,
+        "vy": vy,
+    }
+
+
 def _criar_inimigo_remoto(dados, criar_inimigo):
     x = int(dados.get("x", 0))
     y = int(dados.get("y", 0))
@@ -787,9 +880,56 @@ def _aplicar_inimigo_remoto(inimigo, dados, inicial=False):
     _suavizar_rect_remoto(inimigo, agora)
 
 
+def _aplicar_movimento_inimigo_remoto(inimigo, dados, snapshot_time, seq=0):
+    rect = inimigo.get("rect") if isinstance(inimigo, dict) else None
+    if rect is None:
+        return
+    agora = pygame.time.get_ticks()
+    novo_x = float(dados.get("x", inimigo.get("net_x", rect.x)))
+    novo_y = float(dados.get("y", inimigo.get("net_y", rect.y)))
+    antigo_x = float(inimigo.get("net_x", rect.x))
+    antigo_y = float(inimigo.get("net_y", rect.y))
+    ultimo_ms = int(inimigo.get("ultimo_snapshot_ms", agora))
+    delta_ms = max(1, agora - ultimo_ms)
+    inimigo["net_x"] = novo_x
+    inimigo["net_y"] = novo_y
+    inimigo["vel_x_estimada"] = float(dados.get("vx", (novo_x - antigo_x) / delta_ms))
+    inimigo["vel_y_estimada"] = float(dados.get("vy", (novo_y - antigo_y) / delta_ms))
+    inimigo["ultimo_snapshot_ms"] = int(snapshot_time)
+    _adicionar_historico_pos(inimigo, snapshot_time, novo_x, novo_y, seq)
+    if "render_x" not in inimigo:
+        inimigo["render_x"] = novo_x
+        inimigo["render_y"] = novo_y
+        rect.x = int(round(novo_x))
+        rect.y = int(round(novo_y))
+
+
+def _aplicar_snapshot_movimento_inimigos(inimigos):
+    global _enemy_move_seq_aplicado
+    if not _enemy_move_snapshot:
+        return
+    seq = _enemy_move_snapshot.get("seq")
+    if seq == _enemy_move_seq_aplicado:
+        return
+    existentes = {
+        str(inimigo.get("coop_id")): inimigo
+        for inimigo in list(inimigos or [])
+        if isinstance(inimigo, dict) and inimigo.get("coop_id") is not None
+    }
+    snapshot_time = _tempo_local_snapshot(_enemy_move_snapshot, pygame.time.get_ticks())
+    for dados in _enemy_move_snapshot.get("inimigos", []):
+        coop_id = str(dados.get("coop_id", ""))
+        inimigo = existentes.get(coop_id)
+        if inimigo is None:
+            continue
+        _aplicar_movimento_inimigo_remoto(inimigo, dados, snapshot_time, seq)
+        inimigo["_coop_seen_ms"] = pygame.time.get_ticks()
+    _enemy_move_seq_aplicado = seq
+
+
 def sincronizar_mundo(fase_atual, inimigos, criar_inimigo=None, boss=None, economia=None):
     """Host envia o mundo; client aplica o snapshot para ver os mesmos inimigos e economia."""
-    global _fase_atual, _forcar_mundo_envio, _mundo_seq_envio, _ultimo_mundo_envio_ms, _world_snapshot_seq_aplicado
+    global _fase_atual, _forcar_mundo_envio, _mundo_seq_envio, _enemy_move_seq_envio, _ultimo_mundo_envio_ms, _ultimo_enemy_move_envio_ms, _world_snapshot_seq_aplicado
     _fase_atual = int(fase_atual or 1)
     if not modo_multiplayer() or not inicializar_se_preciso():
         return None
@@ -797,6 +937,20 @@ def sincronizar_mundo(fase_atual, inimigos, criar_inimigo=None, boss=None, econo
     if eh_host():
         agora = pygame.time.get_ticks()
         _aplicar_danos_pendentes_host(inimigos)
+        if agora - _ultimo_enemy_move_envio_ms >= COOP_SYNC_INIMIGOS_MOV_MS:
+            try:
+                _enemy_move_seq_envio += 1
+                pacote_mov = {
+                    "coop_tipo": "inimigos_mov",
+                    "fase": int(fase_atual),
+                    "seq": _enemy_move_seq_envio,
+                    "host_time": agora,
+                    "inimigos": [d for d in (_serializar_movimento_inimigo(i) for i in list(inimigos or [])) if d],
+                }
+                _enviar_descartavel(pacote_mov)
+                _ultimo_enemy_move_envio_ms = agora
+            except Exception as e:
+                registrar_erro("Multiplayer: erro ao enviar movimento de inimigos", e)
         if _forcar_mundo_envio or agora - _ultimo_mundo_envio_ms >= COOP_SYNC_MUNDO_MS:
             try:
                 _mundo_seq_envio += 1
@@ -821,6 +975,7 @@ def sincronizar_mundo(fase_atual, inimigos, criar_inimigo=None, boss=None, econo
     agora = pygame.time.get_ticks()
     _detectar_danos_locais_client(inimigos)
     _solicitar_snapshot_mundo_se_preciso(fase_atual, agora)
+    _aplicar_snapshot_movimento_inimigos(inimigos)
     if not _world_snapshot or int(_world_snapshot.get("fase", fase_atual)) != int(fase_atual):
         for inimigo in list(inimigos or []):
             _suavizar_rect_remoto(inimigo, agora)
@@ -860,6 +1015,7 @@ def sincronizar_mundo(fase_atual, inimigos, criar_inimigo=None, boss=None, econo
                 if agora - visto_ms >= COOP_ENTIDADE_TIMEOUT_MS:
                     inimigos.remove(inimigo)
         _world_snapshot_seq_aplicado = seq
+        _aplicar_snapshot_movimento_inimigos(inimigos)
 
     for inimigo in list(inimigos or []):
         _suavizar_rect_remoto(inimigo, agora)
@@ -1005,7 +1161,7 @@ def aguardar_barreira(acao, fase_atual, tela=None, fonte=None, mensagem="Aguarda
 
 
 def atualizar(fase_atual, pos_x, pos_y, direcao, vida, vida_maxima, morto=False):
-    global _fase_atual, _ultimo_envio_ms, _player_seq_envio
+    global _fase_atual, _ultimo_envio_ms, _player_seq_envio, _game_over_enviado
     _fase_atual = int(fase_atual or 1)
 
     if not inicializar_se_preciso():
@@ -1015,6 +1171,11 @@ def atualizar(fase_atual, pos_x, pos_y, direcao, vida, vida_maxima, morto=False)
     _diagnostico["qtd_entidades_snapadas"] = 0
     _enviar_ping_se_preciso()
     fase_solicitada = _processar_pacotes(fase_atual)
+    if morto:
+        _enviar_game_over_se_preciso("jogador_local_morto")
+        fase_solicitada = -1
+    elif fase_solicitada != -1:
+        _game_over_enviado = False
 
     agora = pygame.time.get_ticks()
     if agora - _ultimo_envio_ms >= COOP_SYNC_PLAYER_MS:
@@ -1082,6 +1243,7 @@ def obter_diagnostico():
     dados = dict(_diagnostico)
     dados["modo"] = modo_atual()
     dados["snapshot_ms"] = COOP_SYNC_MUNDO_MS
+    dados["enemy_move_ms"] = COOP_SYNC_INIMIGOS_MOV_MS
     dados["player_ms"] = COOP_SYNC_PLAYER_MS
     dados["interpolacao"] = COOP_INTERPOLACAO_POS
     dados["interpolation_delay_ms"] = COOP_INTERPOLATION_DELAY_MS
@@ -1114,15 +1276,16 @@ def desenhar_diagnostico(tela, fonte=None):
     udp_canais = (
         f"p:{'on' if dados['udp_player_conectado'] else 'off'} "
         f"w:{'on' if dados['udp_world_conectado'] else 'off'} "
+        f"m:{'on' if dados['udp_enemy_move_conectado'] else 'off'} "
         f"d:{'on' if dados['udp_damage_conectado'] else 'off'} "
         f"h:{'on' if dados['udp_heartbeat_conectado'] else 'off'}"
     )
     linhas = [
-        f"COOP {dados['modo']} | player {dados['player_ms']}ms | mundo {dados['snapshot_ms']}ms",
+        f"COOP {dados['modo']} | player {dados['player_ms']}ms | mov {dados['enemy_move_ms']}ms | mundo {dados['snapshot_ms']}ms",
         f"udp {udp_canais} | tcp {dados['fila_tcp_envio']}/{dados['fila_tcp_recebimento']} | udp {dados['fila_udp_envio']}/{dados['fila_udp_recebimento']}",
-        f"udp age p/w/d/h: {dados['udp_player_age']}/{dados['udp_world_age']}/{dados['udp_damage_age']}/{dados['udp_heartbeat_age']}ms | fila world {dados['fila_udp_world_envio']}/{dados['fila_udp_world_recebimento']}",
+        f"udp age p/w/m/d/h: {dados['udp_player_age']}/{dados['udp_world_age']}/{dados['udp_enemy_move_age']}/{dados['udp_damage_age']}/{dados['udp_heartbeat_age']}ms | fila move {dados['fila_udp_enemy_move_envio']}/{dados['fila_udp_enemy_move_recebimento']}",
         f"ping/jitter: {dados['ping_ms']:.0f}/{dados['jitter_ms']:.0f}ms | offset host: {dados['host_time_offset']:.0f}ms",
-        f"seq mundo/player: {dados['ultimo_seq_mundo']}/{dados['ultimo_seq_player']} | drop m/p: {dados['snapshots_mundo_descartados']}/{dados['snapshots_player_descartados']}",
+        f"seq mundo/mov/player: {dados['ultimo_seq_mundo']}/{dados['ultimo_seq_movimento']}/{dados['ultimo_seq_player']} | drop w/m/p: {dados['snapshots_mundo_descartados']}/{dados['snapshots_movimento_descartados']}/{dados['snapshots_player_descartados']}",
         f"fila out/in: {dados['fila_envio']}/{dados['fila_recebimento']} | pacotes/frame: {dados['pacotes_processados_frame']} | coal: {dados['pacotes_coalescidos']}",
         f"snapshot idade: {dados['idade_snapshot_ms']}ms | inimigos: {dados['qtd_inimigos_snapshot']} | json: {dados['tamanho_snapshot_json']}b",
         f"interp delay: {dados['interpolation_delay_ms']}ms | extrap max: {dados['extrapolacao_max_ms']}ms",

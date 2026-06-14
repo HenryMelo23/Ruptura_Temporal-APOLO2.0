@@ -10,6 +10,7 @@ NET_USAR_COMPRESSAO_SNAPSHOT = False
 
 TYPE_LEGACY = "LEGACY_COOP"
 TYPE_WORLD_SNAPSHOT = "WORLD_SNAPSHOT"
+TYPE_ENEMY_MOVEMENT = "ENEMY_MOVEMENT"
 TYPE_PLAYER_STATE = "PLAYER_STATE"
 TYPE_DAMAGE_REQUEST = "DAMAGE_REQUEST"
 TYPE_PING = "PING"
@@ -20,6 +21,7 @@ TYPE_UDP_HELLO = "UDP_HELLO"
 KNOWN_TYPES = {
     TYPE_LEGACY,
     TYPE_WORLD_SNAPSHOT,
+    TYPE_ENEMY_MOVEMENT,
     TYPE_PLAYER_STATE,
     TYPE_DAMAGE_REQUEST,
     TYPE_PING,
@@ -37,6 +39,8 @@ def packet_type_for_legacy(dados):
     tipo = dados.get("coop_tipo") if isinstance(dados, dict) else None
     if tipo == "mundo":
         return TYPE_WORLD_SNAPSHOT
+    if tipo == "inimigos_mov":
+        return TYPE_ENEMY_MOVEMENT
     if tipo == "player":
         return TYPE_PLAYER_STATE
     if tipo == "dano":

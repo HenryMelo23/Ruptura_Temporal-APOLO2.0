@@ -3608,6 +3608,8 @@ def executar_jogo(game_manager=None):
                         vida_maxima_boss4 = vida_boss4
             # loop principal, onde o inimigo é desenhado:
             for inimigo in inimigos_comum:
+                if multiplayer_coop.eh_cliente():
+                    continue
                 dx = pos_x_personagem - inimigo["rect"].x
                 dy = pos_y_personagem - inimigo["rect"].y
                 dist = max(40, abs(dx) + abs(dy))
@@ -3644,7 +3646,8 @@ def executar_jogo(game_manager=None):
             )
             pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem))
             pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem))
-            Variaveis.resolver_colisoes_e_separacao(inimigos_comum, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+            if not multiplayer_coop.eh_cliente():
+                Variaveis.resolver_colisoes_e_separacao(inimigos_comum, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
 
             personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
             atualizar_rastros_toxicos(personagem_rect, tempo_atual)
