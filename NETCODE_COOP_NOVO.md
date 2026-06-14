@@ -57,7 +57,7 @@
 
 1. Abrir host e client em LAN.
 2. Ativar overlay F10 nos dois.
-3. Verificar `udp p/w/m/d/h` no overlay.
+3. Verificar `udp p/w/m/d/e/h` no overlay.
 4. No client, confirmar que `snapshot idade` fica baixo.
 5. Atirar em inimigos pelo client e observar `dano env/rec/apl`.
 6. Abrir pause/loja e confirmar que ping/snapshot nao ficam varios segundos parados.
@@ -73,6 +73,7 @@
 - `UDP_WORLD_PORT = 5053`
 - `UDP_ENEMY_MOVE_PORT = 5056`
 - `UDP_DAMAGE_PORT = 5054`
+- `UDP_EVENT_PORT = 5057`
 - `UDP_HEARTBEAT_PORT = 5055`
 - `COOP_SNAPSHOT_STALE_REQUEST_MS = 600`
 

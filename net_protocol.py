@@ -13,6 +13,7 @@ TYPE_WORLD_SNAPSHOT = "WORLD_SNAPSHOT"
 TYPE_ENEMY_MOVEMENT = "ENEMY_MOVEMENT"
 TYPE_PLAYER_STATE = "PLAYER_STATE"
 TYPE_DAMAGE_REQUEST = "DAMAGE_REQUEST"
+TYPE_VISUAL_EVENT = "VISUAL_EVENT"
 TYPE_PING = "PING"
 TYPE_PONG = "PONG"
 TYPE_HEARTBEAT_FAST = "HEARTBEAT_FAST"
@@ -24,6 +25,7 @@ KNOWN_TYPES = {
     TYPE_ENEMY_MOVEMENT,
     TYPE_PLAYER_STATE,
     TYPE_DAMAGE_REQUEST,
+    TYPE_VISUAL_EVENT,
     TYPE_PING,
     TYPE_PONG,
     TYPE_HEARTBEAT_FAST,
@@ -45,6 +47,8 @@ def packet_type_for_legacy(dados):
         return TYPE_PLAYER_STATE
     if tipo == "dano":
         return TYPE_DAMAGE_REQUEST
+    if tipo in ("evento", "eventos"):
+        return TYPE_VISUAL_EVENT
     if tipo == "ping":
         return TYPE_PING
     if tipo == "pong":

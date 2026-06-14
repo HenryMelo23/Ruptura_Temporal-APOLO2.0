@@ -11,6 +11,7 @@ CANAL_PLAYER = "player"
 CANAL_WORLD = "world"
 CANAL_ENEMY_MOVE = "enemy_move"
 CANAL_DAMAGE = "damage"
+CANAL_EVENT = "event"
 CANAL_HEARTBEAT = "heartbeat"
 CANAL_DEFAULT = CANAL_PLAYER
 
@@ -19,6 +20,7 @@ UDP_WORLD_PORT = 5053
 UDP_DAMAGE_PORT = 5054
 UDP_HEARTBEAT_PORT = 5055
 UDP_ENEMY_MOVE_PORT = 5056
+UDP_EVENT_PORT = 5057
 UDP_GAME_PORT = UDP_PLAYER_PORT
 
 UDP_CHANNEL_PORTS = {
@@ -26,6 +28,7 @@ UDP_CHANNEL_PORTS = {
     CANAL_WORLD: UDP_WORLD_PORT,
     CANAL_ENEMY_MOVE: UDP_ENEMY_MOVE_PORT,
     CANAL_DAMAGE: UDP_DAMAGE_PORT,
+    CANAL_EVENT: UDP_EVENT_PORT,
     CANAL_HEARTBEAT: UDP_HEARTBEAT_PORT,
 }
 
@@ -87,6 +90,8 @@ def canal_para_pacote(dados):
         return CANAL_WORLD
     if tipo == "dano":
         return CANAL_DAMAGE
+    if tipo in ("evento", "eventos"):
+        return CANAL_EVENT
     if tipo in ("ping", "pong", "snapshot_request", "udp_hello", "heartbeat"):
         return CANAL_HEARTBEAT
     if tipo == "player":

@@ -46,9 +46,14 @@ _mundo_seq_envio = 0
 _enemy_move_seq_envio = 0
 _player_seq_envio = 0
 _dano_seq_envio = 0
+_evento_seq_envio = 0
 _game_over_enviado = False
+_ultimo_teleporte_evento_ms = 0
+_ultimo_pos_evento_x = None
+_ultimo_pos_evento_y = None
 _proximo_coop_id = 1
 _danos_pendentes = []
+_eventos_visuais_pendentes = []
 _convites = {}
 _debug_visivel = False
 _debug_tecla_f10_ativa = False
@@ -58,6 +63,7 @@ _forcar_mundo_envio = False
 _coop_ping_ms = 0.0
 _coop_jitter_ms = 0.0
 _coop_host_time_offset = 0.0
+_coop_clock_amostras = 0
 _diagnostico = {
     "pacotes_processados_frame": 0,
     "pacotes_coalescidos": 0,
@@ -78,6 +84,9 @@ _diagnostico = {
     "danos_enviados": 0,
     "danos_recebidos": 0,
     "danos_aplicados": 0,
+    "eventos_visuais_recebidos": 0,
+    "eventos_visuais_aplicados": 0,
+    "clock_amostras": 0,
     "fila_tcp_envio": 0,
     "fila_tcp_recebimento": 0,
     "fila_udp_envio": 0,
@@ -88,11 +97,13 @@ _diagnostico = {
     "udp_world_conectado": False,
     "udp_enemy_move_conectado": False,
     "udp_damage_conectado": False,
+    "udp_event_conectado": False,
     "udp_heartbeat_conectado": False,
     "udp_player_age": 0,
     "udp_world_age": 0,
     "udp_enemy_move_age": 0,
     "udp_damage_age": 0,
+    "udp_event_age": 0,
     "udp_heartbeat_age": 0,
     "fila_udp_player_envio": 0,
     "fila_udp_player_recebimento": 0,
@@ -102,6 +113,8 @@ _diagnostico = {
     "fila_udp_enemy_move_recebimento": 0,
     "fila_udp_damage_envio": 0,
     "fila_udp_damage_recebimento": 0,
+    "fila_udp_event_envio": 0,
+    "fila_udp_event_recebimento": 0,
     "fila_udp_heartbeat_envio": 0,
     "fila_udp_heartbeat_recebimento": 0,
 }
@@ -244,7 +257,7 @@ def _atualizar_diagnostico_udp():
         _diagnostico["fila_udp_recebimento"] = int(udp.get("fila_udp_recebimento", 0))
         _diagnostico["udp_conectado"] = bool(udp.get("udp_conectado", False))
         _diagnostico["udp_idade_ultimo_recebido"] = int(udp.get("udp_idade_ultimo_recebido", 0) or 0)
-        for canal in ("player", "world", "enemy_move", "damage", "heartbeat"):
+        for canal in ("player", "world", "enemy_move", "damage", "event", "heartbeat"):
             _diagnostico[f"udp_{canal}_conectado"] = bool(udp.get(f"udp_{canal}_conectado", False))
             _diagnostico[f"udp_{canal}_age"] = int(udp.get(f"udp_{canal}_age", 0) or 0)
             _diagnostico[f"fila_udp_{canal}_envio"] = int(udp.get(f"fila_udp_{canal}_envio", 0) or 0)
@@ -273,6 +286,27 @@ def _enviar_descartavel(dados):
     except Exception:
         pass
     return _enviar_confiavel(dados)
+
+
+def _observar_clock_host_packet(dados, recv_ms=None):
+    global _coop_host_time_offset, _coop_clock_amostras
+    if not eh_cliente() or not isinstance(dados, dict) or dados.get("host_time") is None:
+        return
+    recv_ms = pygame.time.get_ticks() if recv_ms is None else recv_ms
+    try:
+        host_time = int(dados.get("host_time"))
+    except Exception:
+        return
+    amostra = float(host_time - int(recv_ms))
+    if abs(amostra) > 120000:
+        return
+    if _coop_clock_amostras <= 0 or not _coop_host_time_offset:
+        _coop_host_time_offset = amostra
+    else:
+        peso = 0.35 if _coop_clock_amostras < 20 else 0.08
+        _coop_host_time_offset = (_coop_host_time_offset * (1.0 - peso)) + (amostra * peso)
+    _coop_clock_amostras += 1
+    _diagnostico["clock_amostras"] = _coop_clock_amostras
 
 
 def _enviar_game_over_se_preciso(motivo="jogador_morto"):
@@ -336,7 +370,7 @@ def _adicionar_historico_pos(entidade, host_time, x, y, seq=0):
 
 
 def _atualizar_clock_pong(dados):
-    global _coop_ping_ms, _coop_jitter_ms, _coop_host_time_offset
+    global _coop_ping_ms, _coop_jitter_ms, _coop_host_time_offset, _coop_clock_amostras
     if not eh_cliente():
         return
     agora = pygame.time.get_ticks()
@@ -350,7 +384,13 @@ def _atualizar_clock_pong(dados):
     jitter_amostra = abs(float(rtt) - float(_coop_ping_ms or rtt))
     _coop_ping_ms = (float(_coop_ping_ms) * 0.8) + (float(rtt) * 0.2) if _coop_ping_ms else float(rtt)
     _coop_jitter_ms = (float(_coop_jitter_ms) * 0.8) + (jitter_amostra * 0.2)
-    _coop_host_time_offset = (float(_coop_host_time_offset) * 0.9) + (offset_estimado * 0.1)
+    if _coop_clock_amostras <= 0 or not _coop_host_time_offset:
+        _coop_host_time_offset = offset_estimado
+    else:
+        peso = 0.35 if _coop_clock_amostras < 20 else 0.12
+        _coop_host_time_offset = (float(_coop_host_time_offset) * (1.0 - peso)) + (offset_estimado * peso)
+    _coop_clock_amostras += 1
+    _diagnostico["clock_amostras"] = _coop_clock_amostras
 
 
 def _responder_ping(dados):
@@ -478,6 +518,9 @@ def _processar_pacotes(fase_atual):
             if not isinstance(dados, dict):
                 continue
 
+            recv_ms = pygame.time.get_ticks()
+            dados.setdefault("_recv_time", recv_ms)
+            _observar_clock_host_packet(dados, recv_ms)
             tipo = dados.get("coop_tipo")
             if tipo == "player":
                 seq = _seq_pacote(dados)
@@ -543,6 +586,8 @@ def _processar_pacotes(fase_atual):
                     _forcar_mundo_envio = True
             elif tipo == "dano":
                 _registrar_dano_remoto(dados, fase_atual)
+            elif tipo in ("evento", "eventos"):
+                _registrar_evento_remoto(dados, fase_atual)
             elif "game_over" in dados and dados.get("game_over"):
                 fase_solicitada = -1
 
@@ -623,12 +668,175 @@ def enviar_dano_inimigo(inimigo, dano, origem="ataque"):
             "seq": _dano_seq_envio,
             "timestamp": pygame.time.get_ticks(),
         })
+        registrar_evento_visual_dano_inimigo(inimigo, dano, origem=origem)
         inimigo["_coop_vida_reportada"] = float(inimigo.get("vida", 0.0))
         _diagnostico["danos_enviados"] += 1
         return True
     except Exception as e:
         registrar_erro("Multiplayer: erro ao enviar dano cooperativo", e)
         return False
+
+
+def enviar_evento_visual(tipo_evento, fase=None, payload=None, confiavel=False):
+    global _evento_seq_envio
+    if not modo_multiplayer():
+        return False
+    payload = dict(payload or {})
+    try:
+        _evento_seq_envio += 1
+        pacote = {
+            "coop_tipo": "evento",
+            "fase": int(fase if fase is not None else (_fase_atual or 1)),
+            "seq": _evento_seq_envio,
+            "evento": str(tipo_evento or "generico"),
+            "payload": payload,
+        }
+        if eh_host():
+            pacote["host_time"] = pygame.time.get_ticks()
+        else:
+            pacote["client_time"] = pygame.time.get_ticks()
+        if confiavel:
+            return _enviar_confiavel(pacote)
+        return _enviar_descartavel(pacote)
+    except Exception as e:
+        registrar_erro("Multiplayer: erro ao enviar evento visual", e)
+        return False
+
+
+def registrar_evento_visual_dano_inimigo(inimigo, dano, texto=None, cor=None, origem="ataque"):
+    if not isinstance(inimigo, dict):
+        return False
+    rect = inimigo.get("rect")
+    if rect is None:
+        return False
+    try:
+        dano_int = int(max(1, float(dano)))
+    except Exception:
+        dano_int = 1
+    payload = {
+        "coop_id": str(inimigo.get("coop_id", "")),
+        "x": int(rect.centerx),
+        "y": int(rect.y - 18),
+        "texto": texto or f"-{dano_int}",
+        "cor": list(cor or (255, 230, 120)),
+        "origem": str(origem or "ataque"),
+    }
+    return enviar_evento_visual("dano_inimigo", payload=payload)
+
+
+def registrar_evento_teleporte(origem, destino, cor=None):
+    payload = {
+        "origem": [int(origem[0]), int(origem[1])] if origem else None,
+        "destino": [int(destino[0]), int(destino[1])] if destino else None,
+        "cor": list(cor or (90, 230, 255)),
+    }
+    return enviar_evento_visual("teleporte", payload=payload)
+
+
+def _registrar_evento_remoto(dados, fase_atual):
+    if int(dados.get("fase", fase_atual)) != int(fase_atual):
+        return
+    evento = {
+        "seq": _seq_pacote(dados),
+        "tipo": str(dados.get("evento", "generico")),
+        "payload": dict(dados.get("payload", {}) or {}),
+        "host_time": dados.get("host_time"),
+        "_recv_time": dados.get("_recv_time", pygame.time.get_ticks()),
+    }
+    _eventos_visuais_pendentes.append(evento)
+    if len(_eventos_visuais_pendentes) > 160:
+        del _eventos_visuais_pendentes[: len(_eventos_visuais_pendentes) - 160]
+    _diagnostico["eventos_visuais_recebidos"] += 1
+
+
+def _cor_payload(valor, padrao=(255, 230, 120)):
+    try:
+        if isinstance(valor, (list, tuple)) and len(valor) >= 3:
+            return tuple(max(0, min(255, int(c))) for c in valor[:3])
+    except Exception:
+        pass
+    return tuple(padrao)
+
+
+def _evento_texto(tipo, payload, efeitos_texto):
+    if efeitos_texto is None:
+        return False
+    texto = str(payload.get("texto") or ("TELEPORTE" if tipo == "teleporte" else "HIT"))
+    try:
+        x = int(payload.get("x", 0))
+        y = int(payload.get("y", 0))
+    except Exception:
+        x, y = 0, 0
+    if tipo == "teleporte" and payload.get("destino"):
+        try:
+            x, y = int(payload["destino"][0]), int(payload["destino"][1]) - 28
+        except Exception:
+            pass
+    efeitos_texto.append({
+        "texto": texto,
+        "x": x,
+        "y": y,
+        "tempo_inicio": pygame.time.get_ticks(),
+        "cor": _cor_payload(payload.get("cor")),
+    })
+    return True
+
+
+def _evento_onda_teleporte(payload, ondas_choque):
+    if ondas_choque is None or not payload.get("destino"):
+        return False
+    try:
+        x, y = int(payload["destino"][0]), int(payload["destino"][1])
+    except Exception:
+        return False
+    ondas_choque.append({
+        "x": x,
+        "y": y,
+        "raio_atual": 0,
+        "raio_max": 90,
+        "velocidade": 7,
+        "cor": _cor_payload(payload.get("cor"), (90, 230, 255)),
+    })
+    return True
+
+
+def _evento_particulas_pontos(payload, gerar_particulas_pontos):
+    if gerar_particulas_pontos is None:
+        return False
+    try:
+        x = int(payload.get("x", 0))
+        y = int(payload.get("y", 0))
+        rect = pygame.Rect(x - 12, y - 12, 24, 24)
+        gerar_particulas_pontos(rect)
+        return True
+    except Exception:
+        return False
+
+
+def processar_eventos_visuais(fase_atual, efeitos_texto=None, ondas_choque=None, gerar_particulas_pontos=None):
+    if not modo_multiplayer() or not _eventos_visuais_pendentes:
+        return 0
+    aplicados = 0
+    pendentes = list(_eventos_visuais_pendentes)
+    _eventos_visuais_pendentes.clear()
+    for evento in pendentes:
+        tipo = evento.get("tipo")
+        payload = dict(evento.get("payload", {}) or {})
+        if tipo == "dano_inimigo":
+            aplicados += 1 if _evento_texto(tipo, payload, efeitos_texto) else 0
+        elif tipo == "pontos":
+            aplicou = _evento_particulas_pontos(payload, gerar_particulas_pontos)
+            if not aplicou:
+                aplicou = _evento_texto(tipo, payload, efeitos_texto)
+            aplicados += 1 if aplicou else 0
+        elif tipo == "teleporte":
+            aplicou_onda = _evento_onda_teleporte(payload, ondas_choque)
+            aplicou_texto = _evento_texto(tipo, payload, efeitos_texto)
+            aplicados += 1 if (aplicou_onda or aplicou_texto) else 0
+        else:
+            aplicados += 1 if _evento_texto(tipo, payload, efeitos_texto) else 0
+    _diagnostico["eventos_visuais_aplicados"] += aplicados
+    return aplicados
 
 
 def _registrar_dano_remoto(dados, fase_atual):
@@ -846,6 +1054,8 @@ def _aplicar_inimigo_remoto(inimigo, dados, inicial=False):
         inimigo["rect"] = rect
     novo_x = float(dados.get("x", rect.x))
     novo_y = float(dados.get("y", rect.y))
+    vida_anterior = float(inimigo.get("_coop_vida_autoritativa", inimigo.get("vida", dados.get("vida", 1))))
+    vida_nova = float(dados.get("vida", vida_anterior))
     antigo_x = float(inimigo.get("net_x", rect.x))
     antigo_y = float(inimigo.get("net_y", rect.y))
     ultimo_ms = int(inimigo.get("ultimo_snapshot_ms", agora))
@@ -856,7 +1066,7 @@ def _aplicar_inimigo_remoto(inimigo, dados, inicial=False):
     inimigo["coop_id"] = str(dados.get("coop_id", inimigo.get("coop_id", "")))
     inimigo["net_x"] = novo_x
     inimigo["net_y"] = novo_y
-    inimigo["_coop_vida_autoritativa"] = float(dados.get("vida", inimigo.get("vida", 1)))
+    inimigo["_coop_vida_autoritativa"] = vida_nova
     inimigo["_coop_vida_reportada"] = inimigo["_coop_vida_autoritativa"]
     inimigo["vel_x_estimada"] = float(dados.get("vx", 0.0 if inicial else (novo_x - antigo_x) / delta_ms))
     inimigo["vel_y_estimada"] = float(dados.get("vy", 0.0 if inicial else (novo_y - antigo_y) / delta_ms))
@@ -869,7 +1079,7 @@ def _aplicar_inimigo_remoto(inimigo, dados, inicial=False):
         rect.y = int(round(novo_y))
     rect.width = int(dados.get("w", rect.width))
     rect.height = int(dados.get("h", rect.height))
-    inimigo["vida"] = float(dados.get("vida", inimigo.get("vida", 1)))
+    inimigo["vida"] = vida_nova
     inimigo["vida_maxima"] = float(dados.get("vida_maxima", inimigo.get("vida_maxima", inimigo["vida"])))
     inimigo["tipo"] = dados.get("tipo", inimigo.get("tipo", 1))
     inimigo["elite"] = bool(dados.get("elite", inimigo.get("elite", False)))
@@ -877,6 +1087,17 @@ def _aplicar_inimigo_remoto(inimigo, dados, inicial=False):
     inimigo["pos_y"] = float(dados.get("pos_y", rect.y))
     if dados.get("estado") is not None:
         inimigo["estado"] = dados.get("estado")
+    if not inicial and eh_cliente() and vida_nova < vida_anterior:
+        delta = max(1, int(vida_anterior - vida_nova))
+        _eventos_visuais_pendentes.append({
+            "tipo": "dano_inimigo",
+            "payload": {
+                "x": int(novo_x + rect.width // 2),
+                "y": int(novo_y - 18),
+                "texto": f"-{delta}",
+                "cor": [255, 230, 120],
+            },
+        })
     _suavizar_rect_remoto(inimigo, agora)
 
 
@@ -1013,6 +1234,17 @@ def sincronizar_mundo(fase_atual, inimigos, criar_inimigo=None, boss=None, econo
             if coop_id and coop_id not in ids_recebidos:
                 visto_ms = int(inimigo.get("_coop_seen_ms", agora))
                 if agora - visto_ms >= COOP_ENTIDADE_TIMEOUT_MS:
+                    rect = inimigo.get("rect")
+                    if rect is not None and eh_cliente():
+                        _eventos_visuais_pendentes.append({
+                            "tipo": "pontos",
+                            "payload": {
+                                "x": int(rect.centerx),
+                                "y": int(rect.centery),
+                                "texto": "+PONTOS",
+                                "cor": [255, 220, 80],
+                            },
+                        })
                     inimigos.remove(inimigo)
         _world_snapshot_seq_aplicado = seq
         _aplicar_snapshot_movimento_inimigos(inimigos)
@@ -1161,7 +1393,7 @@ def aguardar_barreira(acao, fase_atual, tela=None, fonte=None, mensagem="Aguarda
 
 
 def atualizar(fase_atual, pos_x, pos_y, direcao, vida, vida_maxima, morto=False):
-    global _fase_atual, _ultimo_envio_ms, _player_seq_envio, _game_over_enviado
+    global _fase_atual, _ultimo_envio_ms, _player_seq_envio, _game_over_enviado, _ultimo_pos_evento_x, _ultimo_pos_evento_y, _ultimo_teleporte_evento_ms
     _fase_atual = int(fase_atual or 1)
 
     if not inicializar_se_preciso():
@@ -1178,6 +1410,17 @@ def atualizar(fase_atual, pos_x, pos_y, direcao, vida, vida_maxima, morto=False)
         _game_over_enviado = False
 
     agora = pygame.time.get_ticks()
+    if _ultimo_pos_evento_x is not None and _ultimo_pos_evento_y is not None:
+        dx_evento = float(pos_x) - float(_ultimo_pos_evento_x)
+        dy_evento = float(pos_y) - float(_ultimo_pos_evento_y)
+        if (dx_evento * dx_evento + dy_evento * dy_evento) ** 0.5 >= 110 and agora - int(_ultimo_teleporte_evento_ms or 0) >= 220:
+            registrar_evento_teleporte(
+                (int(_ultimo_pos_evento_x), int(_ultimo_pos_evento_y)),
+                (int(pos_x), int(pos_y)),
+            )
+            _ultimo_teleporte_evento_ms = agora
+    _ultimo_pos_evento_x = float(pos_x)
+    _ultimo_pos_evento_y = float(pos_y)
     if agora - _ultimo_envio_ms >= COOP_SYNC_PLAYER_MS:
         try:
             _player_seq_envio += 1
@@ -1251,6 +1494,7 @@ def obter_diagnostico():
     dados["ping_ms"] = float(_coop_ping_ms)
     dados["jitter_ms"] = float(_coop_jitter_ms)
     dados["host_time_offset"] = float(_coop_host_time_offset)
+    dados["clock_amostras"] = int(_coop_clock_amostras)
     dados["idade_snapshot_ms"] = dados.get("tempo_desde_ultimo_snapshot", 0)
     dados["danos_pendentes"] = len(_danos_pendentes)
     return dados
@@ -1278,19 +1522,21 @@ def desenhar_diagnostico(tela, fonte=None):
         f"w:{'on' if dados['udp_world_conectado'] else 'off'} "
         f"m:{'on' if dados['udp_enemy_move_conectado'] else 'off'} "
         f"d:{'on' if dados['udp_damage_conectado'] else 'off'} "
+        f"e:{'on' if dados['udp_event_conectado'] else 'off'} "
         f"h:{'on' if dados['udp_heartbeat_conectado'] else 'off'}"
     )
     linhas = [
         f"COOP {dados['modo']} | player {dados['player_ms']}ms | mov {dados['enemy_move_ms']}ms | mundo {dados['snapshot_ms']}ms",
         f"udp {udp_canais} | tcp {dados['fila_tcp_envio']}/{dados['fila_tcp_recebimento']} | udp {dados['fila_udp_envio']}/{dados['fila_udp_recebimento']}",
-        f"udp age p/w/m/d/h: {dados['udp_player_age']}/{dados['udp_world_age']}/{dados['udp_enemy_move_age']}/{dados['udp_damage_age']}/{dados['udp_heartbeat_age']}ms | fila move {dados['fila_udp_enemy_move_envio']}/{dados['fila_udp_enemy_move_recebimento']}",
-        f"ping/jitter: {dados['ping_ms']:.0f}/{dados['jitter_ms']:.0f}ms | offset host: {dados['host_time_offset']:.0f}ms",
+        f"udp age p/w/m/d/e/h: {dados['udp_player_age']}/{dados['udp_world_age']}/{dados['udp_enemy_move_age']}/{dados['udp_damage_age']}/{dados['udp_event_age']}/{dados['udp_heartbeat_age']}ms | fila move {dados['fila_udp_enemy_move_envio']}/{dados['fila_udp_enemy_move_recebimento']}",
+        f"ping/jitter: {dados['ping_ms']:.0f}/{dados['jitter_ms']:.0f}ms | offset host: {dados['host_time_offset']:.0f}ms | clock: {dados['clock_amostras']}",
         f"seq mundo/mov/player: {dados['ultimo_seq_mundo']}/{dados['ultimo_seq_movimento']}/{dados['ultimo_seq_player']} | drop w/m/p: {dados['snapshots_mundo_descartados']}/{dados['snapshots_movimento_descartados']}/{dados['snapshots_player_descartados']}",
         f"fila out/in: {dados['fila_envio']}/{dados['fila_recebimento']} | pacotes/frame: {dados['pacotes_processados_frame']} | coal: {dados['pacotes_coalescidos']}",
         f"snapshot idade: {dados['idade_snapshot_ms']}ms | inimigos: {dados['qtd_inimigos_snapshot']} | json: {dados['tamanho_snapshot_json']}b",
         f"interp delay: {dados['interpolation_delay_ms']}ms | extrap max: {dados['extrapolacao_max_ms']}ms",
         f"erro pred: {dados['erro_predicao_player']:.1f}px | render/net max: {dados['distancia_render_net_max']:.1f}px | snaps: {dados['qtd_entidades_snapadas']}",
         f"dano env/rec/apl: {dados['danos_enviados']}/{dados['danos_recebidos']}/{dados['danos_aplicados']} | pend: {dados['danos_pendentes']}",
+        f"vfx rec/apl: {dados['eventos_visuais_recebidos']}/{dados['eventos_visuais_aplicados']} | fila event {dados['fila_udp_event_envio']}/{dados['fila_udp_event_recebimento']}",
     ]
     largura = max(fonte.size(linha)[0] for linha in linhas) + 24
     altura = len(linhas) * (fonte.get_linesize() + 2) + 18
