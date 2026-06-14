@@ -126,18 +126,53 @@ def iniciar_host(porta=5050):
 # ===============================================================
 def anunciar_host_udp(porta_udp=5051):
     """Host envia broadcast UDP para anunciar sua presença na rede local."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    ip_local = socket.gethostbyname(socket.gethostname())
-    mensagem = f"RupturaTemporalHost:{ip_local}".encode()
+    ips = []
+    try:
+        addr_info = socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)
+        ips = list(set([x[4][0] for x in addr_info]))
+    except Exception:
+        pass
+    
+    if not ips:
+        try:
+            ips = [socket.gethostbyname(socket.gethostname())]
+        except Exception:
+            ips = ["127.0.0.1"]
 
     def enviar():
-        while rodando_rede:
+        sockets = []
+        for ip in ips:
             try:
-                s.sendto(mensagem, ("<broadcast>", porta_udp))
-                time.sleep(1)  # envia a cada 1s
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                s.bind((ip, 0))
+                sockets.append((s, ip))
             except Exception:
-                break
+                pass
+        
+        if not sockets:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                sockets.append((s, "0.0.0.0"))
+            except Exception:
+                return
+
+        while rodando_rede:
+            for s, ip in sockets:
+                try:
+                    target_ip = "<broadcast>" if ip != "127.0.0.1" else "127.0.0.1"
+                    mensagem = f"RupturaTemporalHost:{ip}".encode()
+                    s.sendto(mensagem, (target_ip, porta_udp))
+                except Exception:
+                    pass
+            time.sleep(1)
+
+        for s, _ in sockets:
+            try:
+                s.close()
+            except Exception:
+                pass
 
     threading.Thread(target=enviar, daemon=True).start()
     

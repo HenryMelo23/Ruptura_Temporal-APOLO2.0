@@ -1180,6 +1180,86 @@ def tela_escolha_dificuldade(tela, fonte, mostrar_tutorial=False):
         pygame.display.flip()
         clock.tick(60)
 
+def tela_inserir_ip(tela):
+    ip = ""
+    clock = pygame.time.Clock()
+    largura, altura = largura_tela, altura_tela
+    
+    try:
+        font_titulo = pygame.font.Font("Texto/Top_Menu.otf", 44)
+    except:
+        font_titulo = pygame.font.Font(None, 44)
+
+    try:
+        font_input = pygame.font.Font("Texto/World.otf", 36)
+    except:
+        font_input = pygame.font.Font(None, 36)
+
+    try:
+        font_desc = pygame.font.Font("Texto/rainyhearts.ttf", 20)
+    except:
+        font_desc = pygame.font.Font(None, 20)
+
+    particulas = ui_helpers.criar_particulas_menu(largura, altura, 30, (170, 100, 255))
+
+    while True:
+        agora = pygame.time.get_ticks()
+        ui_helpers.desenhar_fundo_menu_ruptura(tela, agora, particulas, (5, 8, 17), (170, 100, 255), 0.9)
+
+        ui_helpers.desenhar_cabecalho_menu(
+            tela,
+            "CONEXAO MANUAL",
+            "Insira o IP do Host exibido na tela dele.",
+            font_titulo,
+            font_desc,
+            (170, 100, 255),
+            y=88
+        )
+
+        largura_box = 450
+        altura_box = 80
+        x_box = largura // 2 - largura_box // 2
+        y_box = altura // 2 - 40
+        pygame.draw.rect(tela, (20, 15, 35, 220), (x_box, y_box, largura_box, altura_box), border_radius=12)
+        pygame.draw.rect(tela, (170, 100, 255), (x_box, y_box, largura_box, altura_box), width=2, border_radius=12)
+
+        texto_ip = font_input.render(ip + "_", True, (255, 255, 255))
+        tela.blit(texto_ip, (largura // 2 - texto_ip.get_width() // 2, y_box + (altura_box - texto_ip.get_height()) // 2))
+
+        instrucao = font_desc.render("Pressione ENTER para conectar ou ESC para voltar (CTRL+V para colar)", True, (180, 180, 195))
+        tela.blit(instrucao, (largura // 2 - instrucao.get_width() // 2, altura - 80))
+
+        ui_helpers.desenhar_cursor_personalizado(tela)
+        pygame.display.flip()
+
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif evento.type == pygame.KEYDOWN:
+                if evento.key == pygame.K_ESCAPE:
+                    tocar_selecionar()
+                    return None
+                elif evento.key in [pygame.K_RETURN, pygame.K_KP_ENTER]:
+                    if len(ip) > 0:
+                        tocar_selecionar()
+                        return ip
+                elif evento.key == pygame.K_BACKSPACE:
+                    ip = ip[:-1]
+                elif evento.key == pygame.K_v and (pygame.key.get_mods() & pygame.KMOD_CTRL):
+                    try:
+                        import pyperclip
+                        clip = pyperclip.paste()
+                        for char in clip:
+                            if len(ip) < 15 and (char.isdigit() or char == '.'):
+                                ip += char
+                    except Exception:
+                        pass
+                else:
+                    if len(ip) < 15 and (evento.unicode.isdigit() or evento.unicode == "."):
+                        ip += evento.unicode
+        clock.tick(60)
+
 def tela_escolha_modo(mostrar_tutorial=False):
     import socket, pyperclip, random
     from rede import descobrir_host_udp
@@ -1189,7 +1269,6 @@ def tela_escolha_modo(mostrar_tutorial=False):
     tela = obter_superficie_palco() or pygame.display.set_mode((largura, altura))
     pygame.display.set_caption("Escolher Modo de Jogo")
 
-    # Carregar fontes com fallback seguro
     try:
         font_titulo = pygame.font.Font("Texto/Top_Menu.otf", 44)
     except:
@@ -1212,10 +1291,9 @@ def tela_escolha_modo(mostrar_tutorial=False):
 
     clock = pygame.time.Clock()
 
-    # Fase: "principal" (Solo ou Coop) ou "coop_sub" (Criar ou Entrar)
     fase_tela = "principal"
-    selecionado_principal = 0  # 0: Jogar Solo, 1: Cooperativo
-    selecionado_sub = 0        # 0: Criar, 1: Entrar, 2: Voltar
+    selecionado_principal = 0
+    selecionado_sub = 0
     modo_interacao = "teclado"
     multiplayer_bloqueado = bool(mostrar_tutorial)
     aviso_texto = ""
@@ -1278,13 +1356,13 @@ def tela_escolha_modo(mostrar_tutorial=False):
                     if fase_tela == "principal":
                         selecionado_principal = (selecionado_principal - 1) % 2
                     elif fase_tela == "coop_sub":
-                        selecionado_sub = (selecionado_sub - 1) % 3
+                        selecionado_sub = (selecionado_sub - 1) % 4
                 elif evento.key in [pygame.K_RIGHT, pygame.K_d, pygame.K_DOWN, pygame.K_s]:
                     tocar_hover()
                     if fase_tela == "principal":
                         selecionado_principal = (selecionado_principal + 1) % 2
                     elif fase_tela == "coop_sub":
-                        selecionado_sub = (selecionado_sub + 1) % 3
+                        selecionado_sub = (selecionado_sub + 1) % 4
                 elif evento.key in [pygame.K_RETURN, pygame.K_SPACE]:
                     tocar_selecionar()
                     if fase_tela == "principal":
@@ -1312,12 +1390,18 @@ def tela_escolha_modo(mostrar_tutorial=False):
                                 else:
                                     mostrar_erro_lan(tela, font_card_title, font_card_desc)
                         elif selecionado_sub == 2:
+                            if multiplayer_bloqueado:
+                                mostrar_aviso_multiplayer()
+                            else:
+                                ip_manual = tela_inserir_ip(tela)
+                                if ip_manual:
+                                    return "join", ip_manual
+                        elif selecionado_sub == 3:
                             fase_tela = "principal"
                             selecionado_sub = 0
 
-            # Suporte a Controle / Gamepad
             elif evento.type == pygame.JOYBUTTONDOWN and controle is not None:
-                if evento.button == 0:  # BotÃ£o A
+                if evento.button == 0:
                     tocar_selecionar()
                     if fase_tela == "principal":
                         if selecionado_principal == 0:
@@ -1344,15 +1428,20 @@ def tela_escolha_modo(mostrar_tutorial=False):
                                 else:
                                     mostrar_erro_lan(tela, font_card_title, font_card_desc)
                         elif selecionado_sub == 2:
+                            if multiplayer_bloqueado:
+                                mostrar_aviso_multiplayer()
+                            else:
+                                ip_manual = tela_inserir_ip(tela)
+                                if ip_manual:
+                                    return "join", ip_manual
+                        elif selecionado_sub == 3:
                             fase_tela = "principal"
                             selecionado_sub = 0
-                elif evento.button == 1:  # BotÃ£o B
+                elif evento.button == 1:
                     tocar_selecionar()
                     if fase_tela == "coop_sub":
                         fase_tela = "principal"
                         selecionado_sub = 0
-                    else:
-                        return None, None
 
         # Renderizar Fase Principal: Cards lado a lado
         if fase_tela == "principal":
@@ -1466,15 +1555,16 @@ def tela_escolha_modo(mostrar_tutorial=False):
                 txt_travado = font_card_desc.render("BLOQUEADO", True, (255, 115, 80) if is_sel_coop else (150, 105, 95))
                 tela.blit(txt_travado, (card_r_x + card_w // 2 - txt_travado.get_width() // 2, card_y + card_h - 34))
 
-        # Renderizar Subfase: OpÃ§Ãµes Multiplayer LAN
+        # Renderizar Subfase: Opções Multiplayer LAN
         elif fase_tela == "coop_sub":
-            sub_y = altura // 2 - 50
+            sub_y = altura // 2 - 90
             btn_w = 340
             btn_h = 52
 
             opcoes_sub = [
                 ("Criar Sala (Host)", "host"),
-                ("Entrar em Sala (Join)", "join"),
+                ("Entrar em Sala (Auto)", "join"),
+                ("Conectar via IP (Manual)", "ip_manual"),
                 ("Voltar", "voltar")
             ]
 
@@ -1483,7 +1573,7 @@ def tela_escolha_modo(mostrar_tutorial=False):
 
             for idx, (label, mode) in enumerate(opcoes_sub):
                 btn_x = largura // 2 - btn_w // 2
-                item_y = sub_y + idx * 70
+                item_y = sub_y + idx * 64
                 rect_btn = pygame.Rect(btn_x, item_y, btn_w, btn_h)
 
                 is_hover = modo_interacao == "mouse" and rect_btn.collidepoint(mx, my)
@@ -1507,12 +1597,19 @@ def tela_escolha_modo(mostrar_tutorial=False):
                                     return "join", ip_encontrado
                                 else:
                                     mostrar_erro_lan(tela, font_card_title, font_card_desc)
+                        elif mode == "ip_manual":
+                            if multiplayer_bloqueado:
+                                mostrar_aviso_multiplayer()
+                            else:
+                                ip_manual = tela_inserir_ip(tela)
+                                if ip_manual:
+                                    return "join", ip_manual
                         elif mode == "voltar":
                             fase_tela = "principal"
                             selecionado_sub = 0
 
                 is_sel = (selecionado_sub == idx)
-                item_bloqueado = multiplayer_bloqueado and mode in ("host", "join")
+                item_bloqueado = multiplayer_bloqueado and mode in ("host", "join", "ip_manual")
                 bg_color = (25, 20, 42, 210) if is_sel else (12, 10, 18, 140)
                 border_color = (180, 100, 255) if is_sel else (65, 55, 80)
                 if item_bloqueado:
@@ -1533,7 +1630,7 @@ def tela_escolha_modo(mostrar_tutorial=False):
 
             if multiplayer_bloqueado:
                 txt_lock = font_card_desc.render("Multiplayer bloqueado enquanto o tutorial estiver ativo.", True, (255, 170, 120))
-                tela.blit(txt_lock, (largura // 2 - txt_lock.get_width() // 2, sub_y + len(opcoes_sub) * 70 + 8))
+                tela.blit(txt_lock, (largura // 2 - txt_lock.get_width() // 2, sub_y + len(opcoes_sub) * 64 + 8))
 
         if aviso_texto and agora < aviso_fim:
             aviso = font_card_desc.render(aviso_texto, True, (255, 180, 100))

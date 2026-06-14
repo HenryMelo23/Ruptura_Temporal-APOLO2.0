@@ -77,7 +77,7 @@ if modo == "host":
     conn = iniciar_host()
 
 elif modo == "join":
-    ip_detectado = descobrir_host_udp()
+    ip_detectado = ip or descobrir_host_udp()
     if ip_detectado:
         conn = conectar_ao_host(ip_detectado)
     else:
