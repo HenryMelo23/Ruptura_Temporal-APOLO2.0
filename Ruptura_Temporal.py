@@ -3257,7 +3257,179 @@ def aplicar_volumes_audio(config):
 
 
 def _dados_catalogo_temporal():
+    import lacerante_manifestacao as lac
+    import prismatica_manifestacao as pri
+    import retornante_manifestacao as ret
+    import parasitica_manifestacao as par
+    import condutora_manifestacao as con
+    import gravitante_manifestacao as gra
+    import ancorada_manifestacao as anc
+    import teleporte_manifestacao as tel
+
+    manifestacoes_catalogo = [
+        {
+            "nome": "Manifestacao Eletrica",
+            "imagem": "Sprites/manifestacao_eletrica.png",
+            "funcionamento": (
+                "Papel: arma-base equilibrada. O disparo temporal eletrico usa o dano normal do jogador como referencia "
+                "e nao aplica multiplicador de manifestacao proprio, entao todo aumento de Dano, Critico, Veneno, Roubo "
+                "de Vida e Speed Attack funciona de forma direta. O tiro viaja em linha reta, e por isso e a manifestacao "
+                "mais legivel para comparar cartas e upgrades.\n\n"
+                "Ataque primario: projeteis eletricos padrao. Formula pratica: dano final = dano do jogador x cartas x "
+                "critico/veneno/outros modificadores globais. Como nao ha reducao ou conversao especial, +10 de Dano "
+                "equivale a +10 antes dos multiplicadores globais.\n\n"
+                "Habilidade 2 - Onda Cinetica: cria uma onda de choque na direcao da mira. A onda empurra/recuoa, causa "
+                "dano em area e ajuda a abrir espaco quando a horda encosta. E a habilidade mais simples: use para "
+                "reposicionar, interromper aglomeracoes e confirmar dano em grupos.\n\n"
+                "Teleporte: teleporte comum, sem custo extra especifico de manifestacao. Serve para reposicionamento puro."
+            ),
+            "historia": "Entrada recomendada para entender o sistema: se algo altera dano, cadencia, critico ou teleporte, a Eletrica mostra o resultado sem uma camada extra de regra."
+        },
+        {
+            "nome": "Manifestacao Lacerante",
+            "imagem": "Sprites/manifestacao_lacerante.png",
+            "funcionamento": (
+                f"Papel: corte de medio alcance e alto compromisso. O Corte de Ruptura tem alcance {lac.CORTE_ALCANCE}px, "
+                f"largura {lac.CORTE_LARGURA}px e dura {lac.CORTE_DURACAO_MS}ms. O acerto principal multiplica o dano do "
+                f"jogador por {lac.CORTE_DANO_MULT:.2f}x. Quando a zona pega como area/rasgo, usa {lac.CORTE_DANO_AREA_MULT:.2f}x; "
+                f"o golpe final usa {lac.CORTE_DANO_FINAL_MULT:.2f}x.\n\n"
+                f"Laceracao: cada acerto aplica 1 stack ate {lac.LACERACAO_MAX_STACKS}. Os stacks duram {lac.LACERACAO_DURACAO_MS/1000:.1f}s. "
+                "Com 3 stacks o alvo fica Aberto, tornando a Fenda mais valiosa. A manifestacao recompensa alinhar varios "
+                "inimigos em uma linha curta em vez de atirar de longe.\n\n"
+                f"Habilidade 2 - Fenda Carnivora: alcance {lac.FENDA_ALCANCE}px, largura {lac.FENDA_LARGURA}px, aviso de "
+                f"{lac.FENDA_AVISO_MS}ms e explosao por {lac.FENDA_DURACAO_EXPLOSAO_MS}ms. O dano separa dano inicial e dano "
+                f"de build: ate {lac.LACERANTE_DANO_REFERENCIA_INICIAL:.0f} de dano-base usa {lac.FENDA_DANO_INICIAL_MULT:.2f}x; "
+                f"o excedente de build escala por {lac.FENDA_DANO_ESCALA_CARTA_MULT:.2f}x. Alvos lacerados recebem "
+                f"{lac.FENDA_DANO_LACERADO_MULT:.2f}x.\n\n"
+                f"Cooldown: a habilidade da Lacerante multiplica a recarga por {lac.LACERANTE_COOLDOWN_HABILIDADE_MULT:.2f}x. "
+                "O custo existe porque a Fenda escala muito bem com cartas de Dano."
+            ),
+            "historia": "Use quando quiser trocar alcance por controle de linha. Se a tela esta espalhada, ela perde valor; se os inimigos empilham em corredores, ela derrete."
+        },
+        {
+            "nome": "Manifestacao Prismatica",
+            "imagem": "Sprites/manifestacao_prismatica.png",
+            "funcionamento": (
+                f"Papel: geometria, ricochete e prismas. O Feixe Prismatico causa {pri.FEIXE_DANO_MULT:.2f}x do dano do jogador "
+                f"antes de outros modificadores, mas viaja a {pri.FEIXE_VELOCIDADE_MULT:.2f}x da velocidade-base. Cada feixe tem "
+                f"{pri.FEIXE_RICOCHETES} ricochete inicial.\n\n"
+                f"Ricochete: ao ricochetear, o dano do feixe e multiplicado por {pri.FEIXE_RICOCHETE_MULT:.2f}x. Se a geometria "
+                f"permite voltar ao mesmo alvo, o critico prismatico usa {pri.FEIXE_CRITICO_MULT:.2f}x. Isso faz parede e angulo "
+                "valerem tanto quanto dano bruto.\n\n"
+                f"Habilidade 2 - Prisma de Refracao: cria prisma por {pri.PRISMA_DURACAO_MS/1000:.1f}s, tamanho {pri.PRISMA_TAMANHO}px. "
+                f"Disparos que atravessam o prisma se dividem em 3 feixes menores. Fragmentos usam 56% do dano do feixe original "
+                "na criacao e podem receber ajustes adicionais ao refratar. Inimigos que tocam o prisma recebem "
+                f"{pri.PRISMA_DANO_TOQUE_MULT:.2f}x do dano-base.\n\n"
+                f"Teleporte prismatico: adiciona {tel.PRISMATICA_COOLDOWN_EXTRA_MS/1000:.1f}s ao cooldown do teleporte, mas cria "
+                "um prisma maior no destino. Esse prisma permite combos de refracao com a habilidade 2."
+            ),
+            "historia": "A Prismatica parece fraca se usada como tiro reto. Ela e forte quando o jogador pensa em arena: parede, prisma, retorno do feixe e alvo marcado."
+        },
+        {
+            "nome": "Manifestacao Retornante",
+            "imagem": "Sprites/manifestacao_retornante.png",
+            "funcionamento": (
+                f"Papel: dano na volta. Na ida, o Pulso Retornante causa {ret.PULSO_DANO_IDA_MULT:.2f}x do dano do jogador e "
+                f"viaja a {ret.PULSO_VELOCIDADE_IDA_MULT:.2f}x. Ao retornar, causa {ret.PULSO_DANO_VOLTA_MULT:.2f}x e viaja a "
+                f"{ret.PULSO_VELOCIDADE_VOLTA_MULT:.2f}x. O alcance de ida e {ret.PULSO_ALCANCE}px.\n\n"
+                f"Critico de costas: se o pulso atravessa o alvo pelas costas na volta, aplica {ret.PULSO_CRITICO_COSTAS_MULT:.2f}x. "
+                "A manifestacao recompensa passar por inimigos, reposicionar Geovana e deixar o retorno cortar a horda.\n\n"
+                f"Habilidade 2 - Chamado Reverso: dura {ret.CHAMADO_DURACAO_MS}ms e forca projeteis retornantes ativos a voltarem. "
+                f"Projeteis chamados recebem multiplicador extra de {ret.PULSO_RETORNO_FORCADO_MULT:.2f}x. A marca visual de retorno "
+                f"dura {ret.MARCA_RETORNANTE_MS}ms.\n\n"
+                f"Teleporte retornante: o primeiro salto abre uma janela de retorno de {tel.RETORNANTE_JANELA_MS/1000:.1f}s. "
+                f"Usar o retorno adiciona {tel.RETORNANTE_COOLDOWN_EXTRA_MS/1000:.1f}s de cooldown; o primeiro salto pode liberar "
+                "reposicionamento sem punir o cooldown normal."
+            ),
+            "historia": "Nao basta acertar: e preciso decidir onde Geovana estara quando o pulso voltar. O dano real mora no caminho de retorno."
+        },
+        {
+            "nome": "Manifestacao Parasitica",
+            "imagem": "Sprites/manifestacao_parasitica.png",
+            "funcionamento": (
+                f"Papel: preparar e colher. O disparo inicial causa {par.SEMENTE_DANO_INICIAL_MULT:.2f}x do dano do jogador e implanta "
+                f"uma semente com valor {par.SEMENTE_INICIAL:.0f}. Cada novo acerto reforca em +{par.SEMENTE_REFORCO_ACERTO:.0f}. "
+                f"A semente madura em {par.SEMENTE_MADURA:.0f} e dura {par.SEMENTE_DURACAO_MS/1000:.1f}s.\n\n"
+                f"Crescimento passivo: a cada {par.SEMENTE_TICK_MS}ms, inimigos proximos em {par.SEMENTE_RAIO_PROXIMIDADE}px ajudam a "
+                "semente a amadurecer. A ideia e infectar alvos que ficarao vivos e perto da horda, nao apenas finalizar alvos fracos.\n\n"
+                f"Habilidade 2 - Eclosao: explode todas as sementes. Semente imatura causa {par.SEMENTE_DANO_IMATURA_MULT:.2f}x do dano "
+                f"armazenado; madura causa {par.SEMENTE_DANO_MADURA_MULT:.2f}x. O raio de explosao e {par.SEMENTE_RAIO_EXPLOSAO}px, "
+                f"com queda minima de dano. Sementes espalhadas nascem com valor {par.SEMENTE_ESPALHADA_VALOR:.0f}.\n\n"
+                f"Cooldown: Eclosao multiplica a recarga por {par.ECLOSAO_COOLDOWN_MULT:.2f}x. O dano e atrasado, mas a explosao madura "
+                "paga muito quando a tela esta cheia."
+            ),
+            "historia": "E uma manifestacao de paciencia. Tiro ruim agora pode virar explosao excelente depois."
+        },
+        {
+            "nome": "Manifestacao Condutora",
+            "imagem": "Sprites/manifestacao_condutora.png",
+            "funcionamento": (
+                f"Papel: circuitos logicos e estados. O Pulso Logico causa {con.FIO_DANO_MULT:.2f}x do dano do jogador e viaja a "
+                f"{con.FIO_VELOCIDADE_MULT:.2f}x. Cada inimigo recebe bit 0 ou 1. O primeiro acerto marca Entrada A por "
+                f"{con.ENTRADA_A_DURACAO_MS/1000:.1f}s; o segundo acerto em outro alvo vira B e avalia a porta atual.\n\n"
+                f"Portas em pente: {', '.join(con.PORTAS_LOGICAS)}. OR aceita qualquer 1; AND pede 1/1; XOR pede bits diferentes; "
+                "NAND falha apenas em 1/1; NOR pede 0/0. Resultado 1 usa multiplicador "
+                f"{con.LINK_RESULTADO_1_MULT:.2f}x; resultado 0 usa {con.LINK_RESULTADO_0_MULT:.2f}x e aplica Ruido Logico por "
+                f"{con.RUIDO_LOGICO_DURACAO_MS/1000:.1f}s, reduzindo movimento para {con.RUIDO_LOGICO_VELOCIDADE_MULT:.2f}x.\n\n"
+                f"Links: link correto dura {con.LINK_CORRETO_DURACAO_MS/1000:.1f}s; link errado dura {con.LINK_ERRO_DURACAO_MS/1000:.2f}s. "
+                f"Links corretos tickam a cada {con.LINK_LOGICO_TICK_MS}ms por {con.LINK_LOGICO_TICK_MULT:.2f}x do dano-base. "
+                f"Dois erros na mesma porta avancam o pente; acerto reseta o contador.\n\n"
+                f"Habilidade 2 - Registrador Instavel: cooldown base {con.COOLDOWN_REGISTRADOR_INSTAVEL/1000:.1f}s; falha usa "
+                f"{con.COOLDOWN_FALHA_REGISTRADOR/1000:.1f}s. Ao ativar, abre 3 rolos de flip-flop por "
+                f"{con.REGISTRADOR_ROLETAGEM_MS/1000:.1f}s; o rolo central define D, T, RS ou JK. Durante a sequencia e no retorno, "
+                f"o disparo fica bloqueado e o jogo volta do slow em {con.REGISTRADOR_RETORNO_SLOW_MS/1000:.1f}s. link_correto vale se ha link correto "
+                f"ativo ou acerto correto nos ultimos {con.JANELA_LINK_CORRETO_MS/1000:.1f}s. teleporte_recente vale por "
+                f"{con.JANELA_TELEPORTE_CONDUTOR_MS/1000:.1f}s apos teleporte Condutor.\n\n"
+                f"Q ofensivo: +{con.BUFF_Q_DANO_LOGICO*100:.0f}% dano logico, +{con.BUFF_Q_CADENCIA*100:.0f}% cadencia e "
+                f"+{con.BUFF_Q_CORRENTE_EXTRA} salto extra de corrente. Q' defensivo: -{con.BUFF_Q_LINHA_INIMIGOS*100:.0f}% velocidade "
+                f"de inimigos proximos, -{con.BUFF_Q_REDUCAO_RUIDO*100:.0f}% penalidade de ruido e {con.BUFF_Q_ESCUDO_HITS} bloqueio.\n\n"
+                f"D captura porta por {con.DURACAO_BUFF_D/1000:.1f}s (+{con.BONUS_DURACAO_D_COM_TELEPORTE*100:.0f}% duracao se teleportou). "
+                f"T alterna Q/Q' por {con.DURACAO_BUFF_T/1000:.1f}s. RS usa link como SET e teleporte como RESET; ambos causam "
+                f"Sobrecarga por {con.DURACAO_SOBRECARGA_RS/1000:.1f}s e +{con.PENALIDADE_COOLDOWN_RS/1000:.1f}s cooldown. "
+                f"JK usa as mesmas entradas, mas ambos fazem toggle controlado por {con.DURACAO_BUFF_JK/1000:.1f}s."
+            ),
+            "historia": "A Condutora nao e so dano: e uma arma de leitura. O jogador prepara bits com tiros, usa teleporte como entrada e aperta a habilidade como clock."
+        },
+        {
+            "nome": "Manifestacao Gravitante",
+            "imagem": "Sprites/manifestacao_gravitante.png",
+            "funcionamento": (
+                f"Papel: dano retardado e automatico. O impacto inicial do disparo causa {gra.ORBE_DANO_IMPACTO_MULT:.2f}x do dano "
+                f"do jogador. Ao prender no alvo, o orbe calcula dano-base interno: ate {gra.GRAVITANTE_DANO_REFERENCIA_INICIAL:.0f} "
+                f"de dano do jogador entra por {gra.ORBE_DANO_INICIAL_MULT:.2f}x; o excedente de build entra por "
+                f"{gra.ORBE_DANO_ESCALA_CARTA_MULT:.2f}x.\n\n"
+                f"Orbita: dura {gra.ORBE_DURACAO_MS/1000:.1f}s, ticka a cada {gra.ORBE_TICK_MS}ms por {gra.ORBE_TICK_MULT:.2f}x "
+                f"e explode por {gra.ORBE_EXPLOSAO_MULT:.2f}x em raio {gra.ORBE_RAIO_EXPLOSAO}px. Se o hospedeiro morre, tenta migrar "
+                f"ate {gra.ORBE_MIGRACOES_MAX} vezes para alvo em {gra.ORBE_RAIO_MIGRACAO}px, mantendo {gra.ORBE_MIGRACAO_DANO_MULT:.2f}x "
+                "do dano do orbe anterior.\n\n"
+                f"Habilidade 2 - Colapso Orbital: cria {gra.COLAPSO_ORBES} orbes por {gra.COLAPSO_DURACAO_MS/1000:.1f}s. Eles preparam por "
+                f"{gra.COLAPSO_PREPARO_MS/1000:.2f}s e disparam automaticamente, usando {gra.COLAPSO_DANO_MULT:.2f}x como base de colapso.\n\n"
+                f"Teleporte gravitante: adiciona {tel.GRAVITANTE_COOLDOWN_EXTRA_MS/1000:.2f}s ao cooldown e gera impulso/efeito gravitante no deslocamento."
+            ),
+            "historia": "Ideal quando voce quer plantar dano e continuar fugindo. O orbe trabalha enquanto Geovana reposiciona."
+        },
+        {
+            "nome": "Manifestacao Ancorada",
+            "imagem": "Sprites/manifestacao_ancorada.png",
+            "funcionamento": (
+                f"Papel: territorio. Cada ataque pode plantar uma Ancora, respeitando intervalo de {anc.ANCORA_PLANTAR_INTERVALO_MS/1000:.2f}s. "
+                f"Cada ancora dura {anc.ANCORA_DURACAO_MS/1000:.1f}s, tem raio {anc.ANCORA_RAIO}px e o maximo ativo e {anc.ANCORA_MAX}. "
+                f"Dentro da ancora, disparos usam {anc.ANCORA_DANO_DISPARO_MULT:.2f}x e intervalo de tiro {anc.ANCORA_INTERVALO_MULT:.2f}x "
+                f"(menor intervalo = mais cadencia). Inimigos na area tomam tick a cada {anc.ANCORA_TICK_MS}ms por "
+                f"{anc.ANCORA_DANO_TICK_MULT:.2f}x.\n\n"
+                f"Habilidade 2 - Dominio Fixo: cria dominio por {anc.DOMINIO_DURACAO_MS/1000:.1f}s com raio {anc.DOMINIO_RAIO}px. "
+                f"Dentro dele, disparos usam {anc.DOMINIO_DANO_DISPARO_MULT:.2f}x e intervalo {anc.DOMINIO_INTERVALO_MULT:.2f}x. "
+                f"O dominio ticka a cada {anc.DOMINIO_TICK_MS}ms por {anc.DOMINIO_DANO_TICK_MULT:.2f}x e deixa projeteis inimigos "
+                f"em {anc.DOMINIO_LENTIDAO_PROJETIL:.2f}x da velocidade.\n\n"
+                f"Sustentacao: ancoras exigem ficar perto por {anc.ANCORA_SUSTENTAR_MS}ms; dominio por {anc.DOMINIO_SUSTENTAR_MS}ms. "
+                f"Se Geovana abandona a area, ha dissipacao em {anc.ANCORA_DISSIPAR_MS}ms ou {anc.DOMINIO_DISSIPAR_MS}ms no dominio."
+            ),
+            "historia": "A Ancorada transforma posicionamento em multiplicador. Ela e ruim se voce foge sem plano, excelente se escolhe onde lutar."
+        },
+    ]
+
     return {
+        "Manifestacoes": manifestacoes_catalogo,
         "Inimigos": [
             {"nome": "Errante Temporal", "imagem": "Sprites/Inimig1.png", "funcionamento": "Persegue o jogador em linha direta, pressiona espaco e serve como base para o escalonamento das fases.", "historia": "Fragmentos de pessoas e criaturas presos no primeiro pulso da ruptura. Eles nao pensam em vencer, apenas em voltar para uma linha do tempo que ja nao existe."},
             {"nome": "Atirador", "imagem": "Sprites/inimigo_direita2-1.png", "funcionamento": "Mantem distancia e cria projeteis para quebrar rotas seguras. Fica mais perigoso quando o jogador para de se mover.", "historia": "Uma variante que aprendeu a usar a propria instabilidade como municao. Cada disparo e uma pequena tentativa de fixar Geovana no tempo."},
@@ -3368,6 +3540,45 @@ def _catalogo_texto_wrap(superficie, texto, fonte_local, cor, rect, espacamento=
     return y
 
 
+def _catalogo_quebrar_linhas(texto, fonte_local, largura_maxima):
+    linhas = []
+    for paragrafo in str(texto or "").splitlines():
+        if not paragrafo.strip():
+            linhas.append("")
+            continue
+        palavras = paragrafo.split()
+        linha = ""
+        for palavra in palavras:
+            tentativa = palavra if not linha else f"{linha} {palavra}"
+            if fonte_local.size(tentativa)[0] <= largura_maxima:
+                linha = tentativa
+            else:
+                if linha:
+                    linhas.append(linha)
+                linha = palavra
+        if linha:
+            linhas.append(linha)
+    return linhas
+
+
+def _catalogo_desenhar_texto_rolavel(superficie, linhas, fonte_local, cor, rect, scroll, espacamento=5):
+    altura_linha = fonte_local.get_height() + espacamento
+    total_altura = max(0, len(linhas) * altura_linha)
+    scroll_max = max(0, total_altura - rect.height)
+    scroll = max(0, min(int(scroll), scroll_max))
+    clip_anterior = superficie.get_clip()
+    superficie.set_clip(rect)
+    y = rect.top - scroll
+    for linha in linhas:
+        if y + altura_linha >= rect.top and y <= rect.bottom:
+            if linha:
+                render = fonte_local.render(linha, True, cor)
+                superficie.blit(render, (rect.left, y))
+        y += altura_linha
+    superficie.set_clip(clip_anterior)
+    return scroll_max
+
+
 def tela_catalogo_temporal():
     pygame.event.set_grab(False)
     pygame.mouse.set_visible(False)
@@ -3377,6 +3588,7 @@ def tela_catalogo_temporal():
     categoria_idx = 0
     item_idx = 0
     scroll_lista = 0
+    scroll_detalhe = 0
     imagens_cache = {}
 
     fonte_titulo_local = pygame.font.Font(caminho_fonte_titulo, 44)
@@ -3401,9 +3613,9 @@ def tela_catalogo_temporal():
         item_idx = max(0, min(item_idx, len(itens) - 1))
 
         tab_rects = []
-        tab_w = 148
         tab_h = 38
         tab_gap = 10
+        tab_w = min(148, max(104, (largura_tela - 60 - (len(categorias) - 1) * tab_gap) // max(1, len(categorias))))
         tab_total_w = len(categorias) * tab_w + (len(categorias) - 1) * tab_gap
         tab_x0 = max(30, (largura_tela - tab_total_w) // 2)
         tab_y = 106
@@ -3440,22 +3652,32 @@ def tela_catalogo_temporal():
                     categoria_idx = (categoria_idx - 1) % len(categorias)
                     item_idx = 0
                     scroll_lista = 0
+                    scroll_detalhe = 0
                     tocar_hover()
                 elif event.key in [pygame.K_d, pygame.K_RIGHT]:
                     categoria_idx = (categoria_idx + 1) % len(categorias)
                     item_idx = 0
                     scroll_lista = 0
+                    scroll_detalhe = 0
                     tocar_hover()
                 elif event.key in [pygame.K_w, pygame.K_UP]:
                     item_idx = (item_idx - 1) % len(itens)
+                    scroll_detalhe = 0
                     tocar_hover()
                 elif event.key in [pygame.K_s, pygame.K_DOWN]:
                     item_idx = (item_idx + 1) % len(itens)
+                    scroll_detalhe = 0
                     tocar_hover()
+                elif event.key == pygame.K_PAGEUP:
+                    scroll_detalhe = max(0, scroll_detalhe - 160)
+                elif event.key == pygame.K_PAGEDOWN:
+                    scroll_detalhe += 160
             elif event.type == pygame.MOUSEWHEEL:
                 if lista_rect.collidepoint(mx, my):
                     scroll_lista -= event.y
                     scroll_lista = max(0, min(scroll_lista, max(0, len(itens) - visiveis)))
+                elif detalhe_rect.collidepoint(mx, my):
+                    scroll_detalhe = max(0, scroll_detalhe - event.y * 70)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 modo_interacao = "mouse"
                 pos_clique = ui_helpers.converter_pos_mouse_jogo(event.pos)
@@ -3467,11 +3689,13 @@ def tela_catalogo_temporal():
                         categoria_idx = i
                         item_idx = 0
                         scroll_lista = 0
+                        scroll_detalhe = 0
                         tocar_selecionar()
                         break
                 for idx_real, rect_item in item_rects:
                     if rect_item.collidepoint(pos_clique):
                         item_idx = idx_real
+                        scroll_detalhe = 0
                         tocar_selecionar()
                         break
 
@@ -3479,6 +3703,7 @@ def tela_catalogo_temporal():
             for idx_real, rect_item in item_rects:
                 if rect_item.collidepoint(mx, my) and item_idx != idx_real:
                     item_idx = idx_real
+                    scroll_detalhe = 0
                     tocar_hover()
                     break
 
@@ -3498,7 +3723,8 @@ def tela_catalogo_temporal():
             cor_borda = (0, 255, 230) if ativo or hover else (90, 90, 120)
             pygame.draw.rect(tela, cor_bg, rect_tab, border_radius=8)
             pygame.draw.rect(tela, cor_borda, rect_tab, width=2 if ativo or hover else 1, border_radius=8)
-            txt = fonte_cat.render(categorias[i].upper(), True, (255, 255, 255) if ativo else (190, 200, 215))
+            texto_tab = _catalogo_texto_elipsado(categorias[i].upper(), fonte_cat, rect_tab.width - 14)
+            txt = fonte_cat.render(texto_tab, True, (255, 255, 255) if ativo else (190, 200, 215))
             tela.blit(txt, (rect_tab.centerx - txt.get_width() // 2, rect_tab.centery - txt.get_height() // 2))
 
         pygame.draw.rect(tela, (10, 10, 18, 210), lista_rect, border_radius=10)
@@ -3537,17 +3763,21 @@ def tela_catalogo_temporal():
         nome = fonte_nome.render(nome_seguro, True, (0, 255, 204))
         tela.blit(nome, (x_texto, detalhe_rect.top + 24))
 
-        y_texto = detalhe_rect.top + 82
-        lbl_func = fonte_cat.render("FUNCIONAMENTO", True, (255, 255, 255))
+        y_texto = max(detalhe_rect.top + 82, img_area.bottom + 18)
+        lbl_func = fonte_cat.render("MECANICA DETALHADA", True, (255, 255, 255))
         tela.blit(lbl_func, (x_texto, y_texto))
         y_texto += 32
-        y_texto = _catalogo_texto_wrap(tela, item["funcionamento"], fonte_texto, (210, 220, 230), pygame.Rect(x_texto, y_texto, largura_lateral, 150))
-
-        y_texto = max(y_texto + 22, img_area.bottom + 18)
-        lbl_hist = fonte_cat.render("HISTORIA E CONTEXTO", True, (255, 255, 255))
-        tela.blit(lbl_hist, (x_texto, y_texto))
-        y_texto += 32
-        _catalogo_texto_wrap(tela, item["historia"], fonte_texto, (190, 195, 210), pygame.Rect(x_texto, y_texto, detalhe_rect.width - 56, detalhe_rect.bottom - y_texto - 26))
+        texto_detalhe = f"{item.get('funcionamento', '')}\n\nCONTEXTO\n{item.get('historia', '')}"
+        texto_rect = pygame.Rect(x_texto, y_texto, detalhe_rect.width - 56, detalhe_rect.bottom - y_texto - 26)
+        linhas_detalhe = _catalogo_quebrar_linhas(texto_detalhe, fonte_texto, texto_rect.width)
+        scroll_max_detalhe = _catalogo_desenhar_texto_rolavel(
+            tela, linhas_detalhe, fonte_texto, (210, 220, 230), texto_rect, scroll_detalhe
+        )
+        scroll_detalhe = max(0, min(scroll_detalhe, scroll_max_detalhe))
+        if scroll_max_detalhe > 0:
+            barra_h = max(28, int(texto_rect.height * (texto_rect.height / (texto_rect.height + scroll_max_detalhe))))
+            barra_y = texto_rect.top + int((texto_rect.height - barra_h) * (scroll_detalhe / max(1, scroll_max_detalhe)))
+            pygame.draw.rect(tela, (0, 255, 230, 150), (texto_rect.right + 8, barra_y, 4, barra_h), border_radius=3)
 
         hover_voltar = modo_interacao == "mouse" and btn_voltar.collidepoint(mx, my)
         pygame.draw.rect(tela, (18, 18, 28), btn_voltar, border_radius=8)

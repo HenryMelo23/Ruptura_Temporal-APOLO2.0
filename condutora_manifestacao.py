@@ -30,7 +30,7 @@ FECHAMENTO_LINK_MULT = 0.18
 
 _FECHAMENTOS = []
 
-PORTAS_LOGICAS = ("OR", "XOR", "AND", "NAND", "NOR")
+PORTAS_LOGICAS = ("OR", "AND", "XOR", "NAND", "NOR")
 ENTRADA_A_DURACAO_MS = 3000
 LINK_CORRETO_DURACAO_MS = 4000
 LINK_ERRO_DURACAO_MS = 850
@@ -47,6 +47,31 @@ COR_LOGICO_0 = (75, 225, 255)
 COR_LOGICO_1 = (255, 228, 100)
 COR_LOGICO_ERRO = (210, 82, 255)
 COR_LOGICO_OK = (104, 255, 214)
+
+LIMITE_ERROS_TROCAR_PORTA = 2
+JANELA_LINK_CORRETO_MS = 2500
+JANELA_TELEPORTE_CONDUTOR_MS = 2500
+COOLDOWN_REGISTRADOR_INSTAVEL = 11000
+COOLDOWN_FALHA_REGISTRADOR = 3500
+REGISTRADOR_ROLETAGEM_MS = 3000
+REGISTRADOR_QUEDA_MS = 520
+REGISTRADOR_RETORNO_SLOW_MS = 2000
+REGISTRADOR_SLOW_INICIAL = 0.35
+DURACAO_BUFF_REGISTRADOR = 5500
+DURACAO_BUFF_D = 6000
+BONUS_DURACAO_D_COM_TELEPORTE = 0.25
+DURACAO_BUFF_T = 5500
+BONUS_T_COM_TELEPORTE = 0.20
+DURACAO_BUFF_JK = 6000
+BONUS_JK_TOGGLE = 0.25
+DURACAO_SOBRECARGA_RS = 2500
+PENALIDADE_COOLDOWN_RS = 1000
+BUFF_Q_DANO_LOGICO = 0.20
+BUFF_Q_CORRENTE_EXTRA = 1
+BUFF_Q_CADENCIA = 0.10
+BUFF_Q_LINHA_INIMIGOS = 0.20
+BUFF_Q_REDUCAO_RUIDO = 0.30
+BUFF_Q_ESCUDO_HITS = 1
 
 BUFFS_LOGICOS = {
     "OR": {"duracao": 5000, "bonus_area_corrente": 0.35, "bonus_por_stack": 0.15},
@@ -72,6 +97,35 @@ _ESTADO_LOGICO = {
     "buff_logico_duracao": 0,
     "buff_logico_stacks": 0,
     "ultimo_compilado_sucesso": False,
+    "contador_erros_porta_atual": 0,
+    "ultimo_link_correto_ms": 0,
+    "ultimo_link_correto_porta": None,
+    "ultimo_teleporte_condutor_ms": 0,
+    "registrador_tipo_atual": None,
+    "registrador_repeticoes": 0,
+    "registrador_estado_q": True,
+    "registrador_buff_ativo": None,
+    "registrador_buff_inicio": 0,
+    "registrador_buff_duracao": 0,
+    "registrador_ultimo_uso": 0,
+    "registrador_stacks": 0,
+    "registrador_porta_capturada": None,
+    "registrador_feedback": "",
+    "registrador_feedback_ms": 0,
+    "registrador_cooldown_ms": COOLDOWN_REGISTRADOR_INSTAVEL,
+    "registrador_sobrecarga_fim_ms": 0,
+    "registrador_pulso": None,
+    "registrador_animacao_ativa": False,
+    "registrador_animacao_inicio_ms": 0,
+    "registrador_animacao_fim_ms": 0,
+    "registrador_combo": [],
+    "registrador_tipo_pendente": None,
+    "registrador_links_pendentes": [],
+    "registrador_link_correto_pendente": False,
+    "registrador_teleporte_pendente": False,
+    "registrador_dano_pendente": 0.0,
+    "registrador_disparo_bloqueado_ate": 0,
+    "registrador_slow_fim_ms": 0,
 }
 
 
@@ -499,8 +553,10 @@ def desenhar_circuitos(tela, inimigos, tempo_atual, config_graficos=None):
 
 
 def _sortear_porta(evitar=None):
-    opcoes = [porta for porta in PORTAS_LOGICAS if porta != evitar]
-    return random.choice(opcoes or list(PORTAS_LOGICAS))
+    if evitar in PORTAS_LOGICAS:
+        idx = PORTAS_LOGICAS.index(evitar)
+        return PORTAS_LOGICAS[(idx + 1) % len(PORTAS_LOGICAS)]
+    return random.choice(PORTAS_LOGICAS)
 
 
 def _estado_logico():
@@ -523,16 +579,51 @@ def reiniciar_logica_condutora():
         "ultimo_resultado_ms": 0,
         "ultimo_feedback": "",
         "mortos_pendentes": [],
+        "contador_erros_porta_atual": 0,
+        "ultimo_link_correto_ms": 0,
+        "ultimo_link_correto_porta": None,
+        "ultimo_teleporte_condutor_ms": 0,
+        "registrador_tipo_atual": None,
+        "registrador_repeticoes": 0,
+        "registrador_estado_q": True,
+        "registrador_buff_ativo": None,
+        "registrador_buff_inicio": 0,
+        "registrador_buff_duracao": 0,
+        "registrador_ultimo_uso": 0,
+        "registrador_stacks": 0,
+        "registrador_porta_capturada": None,
+        "registrador_feedback": "",
+        "registrador_feedback_ms": 0,
+        "registrador_cooldown_ms": COOLDOWN_REGISTRADOR_INSTAVEL,
+        "registrador_sobrecarga_fim_ms": 0,
+        "registrador_pulso": None,
+        "registrador_animacao_ativa": False,
+        "registrador_animacao_inicio_ms": 0,
+        "registrador_animacao_fim_ms": 0,
+        "registrador_combo": [],
+        "registrador_tipo_pendente": None,
+        "registrador_links_pendentes": [],
+        "registrador_link_correto_pendente": False,
+        "registrador_teleporte_pendente": False,
+        "registrador_dano_pendente": 0.0,
+        "registrador_disparo_bloqueado_ate": 0,
+        "registrador_slow_fim_ms": 0,
     })
     _ESTADO_LOGICO["proxima_porta"] = _sortear_porta(_ESTADO_LOGICO["porta_atual"])
 
 
-def _consumir_porta():
+def _avancar_porta():
     estado = _estado_logico()
     usada = estado["porta_atual"]
     estado["porta_atual"] = estado["proxima_porta"]
     estado["proxima_porta"] = _sortear_porta(estado["porta_atual"])
+    estado["contador_erros_porta_atual"] = 0
     return usada
+
+
+def _porta_atual():
+    estado = _estado_logico()
+    return estado.get("porta_atual") or _sortear_porta(None)
 
 
 def _avaliar_porta(porta, bit_a, bit_b):
@@ -610,6 +701,98 @@ def _aplicar_dano_logico(alvo, dano, tempo_atual, efeitos_texto, cor):
     return alvo.get("vida", 1) <= 0
 
 
+def _registrar_erro_porta(tempo_atual, efeitos_texto, rect_feedback=None):
+    estado = _estado_logico()
+    erros = int(estado.get("contador_erros_porta_atual", 0)) + 1
+    estado["contador_erros_porta_atual"] = erros
+    if erros >= LIMITE_ERROS_TROCAR_PORTA:
+        _avancar_porta()
+        texto = "ERRO LOGICO 2/2 - PROXIMA PORTA"
+    else:
+        texto = f"ERRO LOGICO {erros}/{LIMITE_ERROS_TROCAR_PORTA}"
+    _registrar_feedback(texto, 0, tempo_atual)
+    _texto(efeitos_texto, texto, rect_feedback, tempo_atual, COR_LOGICO_ERRO)
+
+
+def _registrar_acerto_porta(porta, tempo_atual):
+    estado = _estado_logico()
+    estado["contador_erros_porta_atual"] = 0
+    estado["ultimo_link_correto_ms"] = int(tempo_atual)
+    estado["ultimo_link_correto_porta"] = porta
+    _avancar_porta()
+
+
+def registrar_teleporte_condutor(tempo_atual):
+    estado = _estado_logico()
+    estado["ultimo_teleporte_condutor_ms"] = int(tempo_atual)
+
+
+def teleporte_condutor_recente(tempo_atual):
+    estado = _estado_logico()
+    return int(tempo_atual) - int(estado.get("ultimo_teleporte_condutor_ms", 0)) <= JANELA_TELEPORTE_CONDUTOR_MS
+
+
+def link_correto_recente(inimigos, tempo_atual):
+    estado = _estado_logico()
+    if _links_logicos_vivos(inimigos, tempo_atual, apenas_corretos=True):
+        return True
+    return int(tempo_atual) - int(estado.get("ultimo_link_correto_ms", 0)) <= JANELA_LINK_CORRETO_MS
+
+
+def _escolher_flip_flop():
+    estado = _estado_logico()
+    anterior = estado.get("registrador_tipo_atual")
+    repeticoes = int(estado.get("registrador_repeticoes", 0))
+    opcoes = ["D", "T", "RS", "JK"]
+    if anterior in opcoes and repeticoes >= 2:
+        opcoes = [tipo for tipo in opcoes if tipo != anterior]
+    escolhido = random.choice(opcoes)
+    estado["registrador_repeticoes"] = repeticoes + 1 if escolhido == anterior else 1
+    estado["registrador_tipo_atual"] = escolhido
+    return escolhido
+
+
+def _registrador_buff_ativo(tempo_atual):
+    estado = _estado_logico()
+    buff = estado.get("registrador_buff_ativo")
+    if not buff:
+        return None
+    if int(tempo_atual) - int(estado.get("registrador_buff_inicio", 0)) >= int(estado.get("registrador_buff_duracao", 0)):
+        estado["registrador_buff_ativo"] = None
+        estado["registrador_stacks"] = 0
+        return None
+    return buff
+
+
+def _aplicar_buff_registrador(nome, estado_q, duracao, tempo_atual, stacks=1, porta=None, feedback=None):
+    estado = _estado_logico()
+    estado["registrador_estado_q"] = bool(estado_q)
+    estado["registrador_buff_ativo"] = nome
+    estado["registrador_buff_inicio"] = int(tempo_atual)
+    estado["registrador_buff_duracao"] = int(duracao)
+    estado["registrador_stacks"] = max(1, int(stacks))
+    if porta:
+        estado["registrador_porta_capturada"] = porta
+    estado["registrador_feedback"] = feedback or nome
+    estado["registrador_feedback_ms"] = int(tempo_atual)
+
+
+def _registrar_falha_registrador(texto, tempo_atual, efeitos_texto, jogador_rect):
+    estado = _estado_logico()
+    estado["registrador_feedback"] = texto
+    estado["registrador_feedback_ms"] = int(tempo_atual)
+    estado["registrador_cooldown_ms"] = COOLDOWN_FALHA_REGISTRADOR
+    _registrar_feedback(texto, 0, tempo_atual)
+    if jogador_rect is not None and efeitos_texto is not None:
+        efeitos_texto.append({
+            "texto": texto,
+            "x": jogador_rect.centerx,
+            "y": jogador_rect.top - 35,
+            "tempo_inicio": int(tempo_atual),
+            "cor": COR_LOGICO_ERRO,
+        })
+
+
 def registrar_acerto_logico(alvo, tempo_atual, dano_base=10.0, efeitos_texto=None, inimigos=None):
     if not _alvo_vivo(alvo):
         return None
@@ -643,10 +826,11 @@ def registrar_acerto_logico(alvo, tempo_atual, dano_base=10.0, efeitos_texto=Non
 
     bit_a = garantir_bit_logico(entrada_a, inimigos)
     bit_b = bit
-    porta = _consumir_porta()
+    porta = _porta_atual()
     resultado = _avaliar_porta(porta, bit_a, bit_b)
     cor = COR_LOGICO_OK if resultado else COR_LOGICO_ERRO
     mult = LINK_RESULTADO_1_MULT if resultado else LINK_RESULTADO_0_MULT
+    mult *= obter_multiplicador_dano_logico(agora)
     dano = max(1.0, float(dano_base) * mult)
 
     mortos = []
@@ -663,6 +847,9 @@ def registrar_acerto_logico(alvo, tempo_atual, dano_base=10.0, efeitos_texto=Non
     if not resultado:
         estado["ruido_fim_ms"] = agora + RUIDO_LOGICO_DURACAO_MS
         _texto(efeitos_texto, "RUIDO LOGICO", alvo.get("rect"), agora, COR_LOGICO_ERRO)
+        _registrar_erro_porta(agora, efeitos_texto, alvo.get("rect"))
+    else:
+        _registrar_acerto_porta(porta, agora)
 
     entrada_a["condutora_entrada"] = "A"
     alvo["condutora_entrada"] = "B"
@@ -689,7 +876,8 @@ def registrar_acerto_logico(alvo, tempo_atual, dano_base=10.0, efeitos_texto=Non
     estado.setdefault("links", []).append(link)
     estado["entrada_a"] = None
     estado["entrada_a_ms"] = 0
-    _registrar_feedback(f"{porta} = {resultado}", resultado, agora)
+    if resultado:
+        _registrar_feedback(f"{porta} = {resultado}", resultado, agora)
     _texto(efeitos_texto, f"{porta}={resultado}", alvo.get("rect"), agora, cor)
     return {"fase": "B", "porta": porta, "resultado": resultado, "mortos": mortos}
 
@@ -738,16 +926,33 @@ def atualizar_circuitos(inimigos, tempo_atual, dano_base, efeitos_texto=None):
             pendentes.append(morto)
     estado["mortos_pendentes"] = []
     mortos = list(pendentes)
+    for morto in _atualizar_roleta_registrador(inimigos, tempo_atual, dano_base, efeitos_texto):
+        if morto not in mortos:
+            mortos.append(morto)
     for link in _links_logicos_vivos(inimigos, tempo_atual):
         if int(link.get("resultado", 0)) != 1:
             continue
         if int(tempo_atual) - int(link.get("ultimo_tick_ms", 0)) < LINK_LOGICO_TICK_MS:
             continue
         link["ultimo_tick_ms"] = int(tempo_atual)
-        dano = float(link.get("dano_base", dano_base)) * LINK_LOGICO_TICK_MULT
+        dano = float(link.get("dano_base", dano_base)) * LINK_LOGICO_TICK_MULT * obter_multiplicador_dano_logico(tempo_atual)
         for alvo in (link.get("a"), link.get("b")):
             if _aplicar_dano_logico(alvo, dano, tempo_atual, efeitos_texto, COR_CONDUTORA_FRIA) and alvo not in mortos:
                 mortos.append(alvo)
+        saltos_extra = bonus_corrente_registrador(tempo_atual)
+        if saltos_extra > 0:
+            conectados = [alvo for alvo in (link.get("a"), link.get("b")) if _alvo_vivo(alvo)]
+            candidatos = []
+            for inimigo in inimigos or []:
+                if not _alvo_vivo(inimigo) or inimigo in conectados:
+                    continue
+                menor_dist = min((_distancia(inimigo, alvo) for alvo in conectados), default=999999.0)
+                if menor_dist <= FIO_RAIO_CONEXAO:
+                    candidatos.append((menor_dist, inimigo))
+            candidatos.sort(key=lambda item: item[0])
+            for _, alvo_extra in candidatos[:saltos_extra]:
+                if _aplicar_dano_logico(alvo_extra, dano * 0.55, tempo_atual, efeitos_texto, COR_CONDUTORA) and alvo_extra not in mortos:
+                    mortos.append(alvo_extra)
     return mortos
 
 
@@ -770,27 +975,44 @@ def _tocar_som_ruido():
 
 def obter_multiplicador_dano_and(tempo_atual):
     global _ESTADO_LOGICO
+    mult = obter_multiplicador_dano_logico(tempo_atual)
     if _ESTADO_LOGICO.get("buff_logico_ativo") == "AND" and tempo_atual - _ESTADO_LOGICO.get("buff_logico_inicio", 0) < _ESTADO_LOGICO.get("buff_logico_duracao", 0):
         stacks = _ESTADO_LOGICO.get("buff_logico_stacks", 1)
-        return 1.0 + 0.25 + (stacks - 1) * 0.10
-    return 1.0
+        mult *= 1.0 + 0.25 + (stacks - 1) * 0.10
+    return mult
 
 def obter_fator_velocidade_xor(tempo_atual):
     global _ESTADO_LOGICO
+    mult = 1.0
     if _ESTADO_LOGICO.get("buff_logico_ativo") == "XOR" and tempo_atual - _ESTADO_LOGICO.get("buff_logico_inicio", 0) < _ESTADO_LOGICO.get("buff_logico_duracao", 0):
         stacks = _ESTADO_LOGICO.get("buff_logico_stacks", 1)
-        return 1.0 + 0.20 + (stacks - 1) * 0.08
-    return 1.0
+        mult *= 1.0 + 0.20 + (stacks - 1) * 0.08
+    if _registrador_buff_ativo(tempo_atual) in ("D_XOR",):
+        mult *= 1.10
+    return mult
 
 def obter_fator_cadencia_xor(tempo_atual):
     global _ESTADO_LOGICO
+    mult = 1.0
     if _ESTADO_LOGICO.get("buff_logico_ativo") == "XOR" and tempo_atual - _ESTADO_LOGICO.get("buff_logico_inicio", 0) < _ESTADO_LOGICO.get("buff_logico_duracao", 0):
         stacks = _ESTADO_LOGICO.get("buff_logico_stacks", 1)
-        return 1.0 + 0.20 + (stacks - 1) * 0.08
-    return 1.0
+        mult *= 1.0 + 0.20 + (stacks - 1) * 0.08
+    buff = _registrador_buff_ativo(tempo_atual)
+    if buff in ("Q", "JK_Q", "T_Q"):
+        mult *= 1.0 + BUFF_Q_CADENCIA
+    elif buff == "D_XOR":
+        mult *= 1.15
+    return mult
 
 def tentar_absorver_dano_nand(tempo_atual):
     global _ESTADO_LOGICO
+    if _registrador_buff_ativo(tempo_atual) in ("Q_DEF", "JK_Q_DEF", "T_Q_DEF", "RS_RESET", "D_NAND"):
+        stacks = int(_ESTADO_LOGICO.get("registrador_stacks", 0))
+        if stacks > 0:
+            _ESTADO_LOGICO["registrador_stacks"] = stacks - 1
+            if _ESTADO_LOGICO["registrador_stacks"] <= 0:
+                _ESTADO_LOGICO["registrador_buff_ativo"] = None
+            return True
     if _ESTADO_LOGICO.get("buff_logico_ativo") == "NAND" and tempo_atual - _ESTADO_LOGICO.get("buff_logico_inicio", 0) < _ESTADO_LOGICO.get("buff_logico_duracao", 0):
         stacks = _ESTADO_LOGICO.get("buff_logico_stacks", 1)
         if stacks > 0:
@@ -803,18 +1025,62 @@ def tentar_absorver_dano_nand(tempo_atual):
 def obter_fator_lentidao_inimigo(inimigo, pos_jogador):
     global _ESTADO_LOGICO
     tempo_atual = pygame.time.get_ticks()
+    fator = 1.0
     if _ESTADO_LOGICO.get("buff_logico_ativo") == "NOR" and tempo_atual - _ESTADO_LOGICO.get("buff_logico_inicio", 0) < _ESTADO_LOGICO.get("buff_logico_duracao", 0):
         rect = inimigo.get("rect")
         if rect:
             dist = math.hypot(rect.centerx - pos_jogador[0], rect.centery - pos_jogador[1])
             if dist <= BUFFS_LOGICOS["NOR"]["raio_lentidao"]:
-                return 1.0 - BUFFS_LOGICOS["NOR"]["lentidao_inimigos"]
-    return 1.0
+                fator = min(fator, 1.0 - BUFFS_LOGICOS["NOR"]["lentidao_inimigos"])
+    buff = _registrador_buff_ativo(tempo_atual)
+    if buff in ("Q_DEF", "JK_Q_DEF", "T_Q_DEF", "RS_RESET", "D_NOR"):
+        rect = inimigo.get("rect")
+        if rect:
+            dist = math.hypot(rect.centerx - pos_jogador[0], rect.centery - pos_jogador[1])
+            if dist <= BUFFS_LOGICOS["NOR"]["raio_lentidao"]:
+                fator = min(fator, 1.0 - BUFF_Q_LINHA_INIMIGOS)
+    return fator
 
 def obter_multiplicador_cooldown():
     global _ESTADO_LOGICO
     success = _ESTADO_LOGICO.get("ultimo_compilado_sucesso", False)
     return 0.90 if success else 0.30
+
+def obter_multiplicador_dano_logico(tempo_atual):
+    buff = _registrador_buff_ativo(tempo_atual)
+    if buff in ("Q", "JK_Q", "T_Q", "RS_SET"):
+        return 1.0 + BUFF_Q_DANO_LOGICO
+    if buff == "D_AND":
+        return 1.25
+    return 1.0
+
+def bonus_corrente_registrador(tempo_atual):
+    buff = _registrador_buff_ativo(tempo_atual)
+    if buff in ("Q", "JK_Q", "T_Q", "RS_SET", "D_OR"):
+        return BUFF_Q_CORRENTE_EXTRA
+    return 0
+
+def fator_ruido_logico(manifestacao, tempo_atual):
+    if not ativa(manifestacao):
+        return 1.0
+    estado = _estado_logico()
+    if int(tempo_atual) >= int(estado.get("ruido_fim_ms", 0)):
+        return 1.0
+    fator = RUIDO_LOGICO_VELOCIDADE_MULT
+    if _registrador_buff_ativo(tempo_atual) in ("Q_DEF", "JK_Q_DEF", "T_Q_DEF", "RS_RESET"):
+        fator = 1.0 - ((1.0 - fator) * (1.0 - BUFF_Q_REDUCAO_RUIDO))
+    return fator
+
+def multiplicador_cooldown_habilidade(manifestacao):
+    return 1.1 if ativa(manifestacao) else 1.0
+
+def cooldown_registrador_atual():
+    return int(_estado_logico().get("registrador_cooldown_ms", COOLDOWN_REGISTRADOR_INSTAVEL))
+
+def ajustar_inicio_cooldown_registrador(tempo_atual, cooldown_base_ms):
+    cooldown_base_ms = max(1, int(cooldown_base_ms or COOLDOWN_REGISTRADOR_INSTAVEL))
+    cooldown_real = max(1, cooldown_registrador_atual())
+    return int(tempo_atual) - max(0, cooldown_base_ms - cooldown_real)
 
 def fechar_circuitos(inimigos, tempo_atual, dano_base, efeitos_texto=None, jogador_rect=None):
     global _ESTADO_LOGICO
@@ -917,6 +1183,249 @@ def fechar_circuitos(inimigos, tempo_atual, dano_base, efeitos_texto=None, jogad
     return mortos, len(dano_por_alvo), len(links)
 
 
+def _resolver_registrador_instavel(
+    inimigos,
+    tempo_atual,
+    dano_base,
+    efeitos_texto=None,
+    jogador_rect=None,
+    teleporte_recente=None,
+    tipo_forcado=None,
+    links_preparados=None,
+    link_correto_preparado=None,
+):
+    """Clock do Registrador Instavel da Condutora."""
+    estado = _estado_logico()
+    agora = int(tempo_atual)
+    links = list(links_preparados) if links_preparados is not None else _links_logicos_vivos(inimigos, agora, apenas_corretos=True)
+    link_correto = (
+        bool(link_correto_preparado)
+        if link_correto_preparado is not None
+        else bool(links) or agora - int(estado.get("ultimo_link_correto_ms", 0)) <= JANELA_LINK_CORRETO_MS
+    )
+    teleporte_recente = teleporte_condutor_recente(agora) if teleporte_recente is None else bool(teleporte_recente)
+    tipo = tipo_forcado or _escolher_flip_flop()
+    estado["registrador_ultimo_uso"] = agora
+    estado["registrador_cooldown_ms"] = COOLDOWN_REGISTRADOR_INSTAVEL
+    estado["ultimo_compilado_sucesso"] = bool(link_correto or teleporte_recente)
+    pontos = []
+    linhas = []
+    mortos = []
+    for link in links:
+        a = link.get("a")
+        b = link.get("b")
+        if _alvo_vivo(a):
+            pontos.append(a["rect"].center)
+        if _alvo_vivo(b):
+            pontos.append(b["rect"].center)
+        if _alvo_vivo(a) and _alvo_vivo(b):
+            linhas.append((a["rect"].center, b["rect"].center))
+
+    def feedback(texto, cor=COR_LOGICO_OK):
+        estado["registrador_feedback"] = texto
+        estado["registrador_feedback_ms"] = agora
+        _registrar_feedback(texto, 1, agora)
+        if jogador_rect is not None and efeitos_texto is not None:
+            efeitos_texto.append({
+                "texto": texto,
+                "x": jogador_rect.centerx,
+                "y": jogador_rect.top - 35,
+                "tempo_inicio": agora,
+                "cor": cor,
+            })
+
+    def aplicar_estado(nome, q, duracao, texto, stacks=1, porta=None, bonus=1.0):
+        _aplicar_buff_registrador(nome, q, int(duracao * bonus), agora, stacks=stacks, porta=porta, feedback=texto)
+        feedback(texto, COR_LOGICO_OK if q else COR_CONDUTORA_FRIA)
+
+    if tipo == "D":
+        porta = None
+        if links:
+            contagem = {}
+            for link in links:
+                porta_link = link.get("porta")
+                if porta_link:
+                    contagem[porta_link] = contagem.get(porta_link, 0) + 1
+            if contagem:
+                prioridade = {"NOR": 5, "NAND": 4, "AND": 3, "XOR": 2, "OR": 1}
+                porta = max(contagem.keys(), key=lambda p: (contagem[p], prioridade.get(p, 0)))
+        if porta is None:
+            porta = estado.get("ultimo_link_correto_porta") if link_correto else estado.get("porta_atual")
+        if porta not in BUFFS_LOGICOS:
+            _registrar_falha_registrador("SEM SINAL LOGICO", agora, efeitos_texto, jogador_rect)
+            _tocar_som_ruido()
+            return [], 0, 0
+        aplicar_estado(
+            f"D_{porta}",
+            porta not in ("NAND", "NOR"),
+            DURACAO_BUFF_D,
+            f"D CAPTUROU: {porta}",
+            stacks=BUFF_Q_ESCUDO_HITS if porta == "NAND" else 1,
+            porta=porta,
+            bonus=1.0 + (BONUS_DURACAO_D_COM_TELEPORTE if teleporte_recente else 0.0),
+        )
+    elif tipo == "T":
+        if not link_correto:
+            _registrar_falha_registrador("T: SEM TOGGLE", agora, efeitos_texto, jogador_rect)
+            return [], 0, 0
+        novo_q = not bool(estado.get("registrador_estado_q", True))
+        aplicar_estado(
+            "T_Q" if novo_q else "T_Q_DEF",
+            novo_q,
+            DURACAO_BUFF_T,
+            "T: TOGGLE -> Q" if novo_q else "T: TOGGLE -> Q'",
+            stacks=1 if novo_q else BUFF_Q_ESCUDO_HITS,
+            bonus=1.0 + (BONUS_T_COM_TELEPORTE if teleporte_recente else 0.0),
+        )
+    elif tipo == "RS":
+        if link_correto and not teleporte_recente:
+            aplicar_estado("RS_SET", True, DURACAO_BUFF_REGISTRADOR, "RS: SET")
+        elif teleporte_recente and not link_correto:
+            estado["ruido_fim_ms"] = 0
+            aplicar_estado("RS_RESET", False, DURACAO_BUFF_REGISTRADOR, "RS: RESET", stacks=BUFF_Q_ESCUDO_HITS)
+        elif link_correto and teleporte_recente:
+            estado["registrador_cooldown_ms"] = COOLDOWN_REGISTRADOR_INSTAVEL + PENALIDADE_COOLDOWN_RS
+            estado["registrador_sobrecarga_fim_ms"] = agora + DURACAO_SOBRECARGA_RS
+            estado["ruido_fim_ms"] = agora + RUIDO_LOGICO_DURACAO_MS
+            feedback("RS: SOBRECARGA", COR_LOGICO_ERRO)
+            alvos = {}
+            for link in links:
+                for alvo in (link.get("a"), link.get("b")):
+                    if _alvo_vivo(alvo):
+                        alvos[id(alvo)] = alvo
+            for alvo in alvos.values():
+                if _aplicar_dano_logico(alvo, float(dano_base) * 0.65, agora, efeitos_texto, COR_LOGICO_ERRO) and alvo not in mortos:
+                    mortos.append(alvo)
+        else:
+            _registrar_falha_registrador("SEM SINAL LOGICO", agora, efeitos_texto, jogador_rect)
+            return [], 0, 0
+    elif tipo == "JK":
+        if link_correto and not teleporte_recente:
+            aplicar_estado("JK_Q", True, DURACAO_BUFF_JK, "JK: SET")
+        elif teleporte_recente and not link_correto:
+            aplicar_estado("JK_Q_DEF", False, DURACAO_BUFF_JK, "JK: RESET", stacks=BUFF_Q_ESCUDO_HITS)
+        elif link_correto and teleporte_recente:
+            novo_q = not bool(estado.get("registrador_estado_q", True))
+            aplicar_estado(
+                "JK_Q" if novo_q else "JK_Q_DEF",
+                novo_q,
+                DURACAO_BUFF_JK,
+                "JK: TOGGLE -> Q" if novo_q else "JK: TOGGLE -> Q'",
+                stacks=1 if novo_q else BUFF_Q_ESCUDO_HITS,
+                bonus=1.0 + BONUS_JK_TOGGLE,
+            )
+        else:
+            _registrar_falha_registrador("SEM SINAL LOGICO", agora, efeitos_texto, jogador_rect)
+            return [], 0, 0
+
+    total_alvos = len(set(pontos))
+    _FECHAMENTOS.append({
+        "tempo_inicio": agora,
+        "fim_ms": agora + FECHAMENTO_DURACAO_MS,
+        "pontos": pontos,
+        "links": linhas,
+        "forte": bool(link_correto or teleporte_recente),
+        "total": total_alvos,
+    })
+    return mortos, total_alvos, len(links)
+
+
+def _combo_roleta_registrador(tipo):
+    opcoes = ["D", "T", "RS", "JK"]
+    return [random.choice(opcoes), tipo, random.choice(opcoes)]
+
+
+def fechar_circuitos(inimigos, tempo_atual, dano_base, efeitos_texto=None, jogador_rect=None, teleporte_recente=None):
+    """Inicia a roleta visual do Registrador; o efeito resolve apos 3s."""
+    estado = _estado_logico()
+    agora = int(tempo_atual)
+    if estado.get("registrador_animacao_ativa"):
+        return [], 0, 0
+
+    links = _links_logicos_vivos(inimigos, agora, apenas_corretos=True)
+    link_correto = bool(links) or agora - int(estado.get("ultimo_link_correto_ms", 0)) <= JANELA_LINK_CORRETO_MS
+    teleporte_ok = teleporte_condutor_recente(agora) if teleporte_recente is None else bool(teleporte_recente)
+    tipo = _escolher_flip_flop()
+    combo = _combo_roleta_registrador(tipo)
+
+    estado["registrador_animacao_ativa"] = True
+    estado["registrador_animacao_inicio_ms"] = agora
+    estado["registrador_animacao_fim_ms"] = agora + REGISTRADOR_ROLETAGEM_MS
+    estado["registrador_combo"] = combo
+    estado["registrador_tipo_pendente"] = tipo
+    estado["registrador_links_pendentes"] = list(links)
+    estado["registrador_link_correto_pendente"] = bool(link_correto)
+    estado["registrador_teleporte_pendente"] = bool(teleporte_ok)
+    estado["registrador_dano_pendente"] = float(dano_base)
+    estado["registrador_cooldown_ms"] = COOLDOWN_REGISTRADOR_INSTAVEL
+    estado["registrador_disparo_bloqueado_ate"] = agora + REGISTRADOR_ROLETAGEM_MS + REGISTRADOR_RETORNO_SLOW_MS
+    estado["registrador_slow_fim_ms"] = agora + REGISTRADOR_ROLETAGEM_MS + REGISTRADOR_RETORNO_SLOW_MS
+    estado["registrador_feedback"] = "REGISTRADOR GIRANDO"
+    estado["registrador_feedback_ms"] = agora
+    _registrar_feedback("REGISTRADOR: ???", 1, agora)
+    if jogador_rect is not None and efeitos_texto is not None:
+        efeitos_texto.append({
+            "texto": "REGISTRADOR INSTAVEL",
+            "x": jogador_rect.centerx,
+            "y": jogador_rect.top - 35,
+            "tempo_inicio": agora,
+            "cor": COR_CONDUTORA_FRIA,
+        })
+    return [], 0, len(links)
+
+
+def _atualizar_roleta_registrador(inimigos, tempo_atual, dano_base, efeitos_texto=None):
+    estado = _estado_logico()
+    if not estado.get("registrador_animacao_ativa"):
+        return []
+    agora = int(tempo_atual)
+    if agora < int(estado.get("registrador_animacao_fim_ms", 0)):
+        return []
+
+    estado["registrador_animacao_ativa"] = False
+    tipo = estado.get("registrador_tipo_pendente") or "D"
+    links = list(estado.get("registrador_links_pendentes") or [])
+    dano_resolucao = float(estado.get("registrador_dano_pendente") or dano_base)
+    mortos, _total_alvos, _total_links = _resolver_registrador_instavel(
+        inimigos,
+        agora,
+        dano_resolucao,
+        efeitos_texto,
+        None,
+        teleporte_recente=bool(estado.get("registrador_teleporte_pendente", False)),
+        tipo_forcado=tipo,
+        links_preparados=links,
+        link_correto_preparado=bool(estado.get("registrador_link_correto_pendente", False)),
+    )
+    estado["registrador_links_pendentes"] = []
+    estado["registrador_tipo_pendente"] = None
+    estado["registrador_feedback"] = f"REGISTRADOR: {tipo}"
+    estado["registrador_feedback_ms"] = agora
+    return mortos
+
+
+def disparo_bloqueado_registrador(manifestacao, tempo_atual):
+    if not ativa(manifestacao):
+        return False
+    estado = _estado_logico()
+    return estado.get("registrador_animacao_ativa") or int(tempo_atual) < int(estado.get("registrador_disparo_bloqueado_ate", 0))
+
+
+def fator_tempo_registrador(manifestacao, tempo_atual):
+    if not ativa(manifestacao):
+        return 1.0
+    estado = _estado_logico()
+    agora = int(tempo_atual)
+    if estado.get("registrador_animacao_ativa"):
+        return REGISTRADOR_SLOW_INICIAL
+    slow_fim = int(estado.get("registrador_slow_fim_ms", 0))
+    anim_fim = int(estado.get("registrador_animacao_fim_ms", 0))
+    if agora < slow_fim and slow_fim > anim_fim:
+        progresso = max(0.0, min(1.0, (agora - anim_fim) / float(slow_fim - anim_fim)))
+        return REGISTRADOR_SLOW_INICIAL + (1.0 - REGISTRADOR_SLOW_INICIAL) * progresso
+    return 1.0
+
+
 def _fonte(tamanho, negrito=False):
     try:
         return pygame.font.SysFont("consolas", tamanho, bold=negrito)
@@ -944,7 +1453,8 @@ def _desenhar_bit_logico(tela, alvo, tempo_atual, perfil):
     pulso = max(0.0, 1.0 - max(0, int(tempo_atual) - pulso_ms) / 420.0)
     tam = int((15 + pulso * 4) * pop)
     cx = rect.centerx
-    cy = rect.top - 12
+    barra_vida_y = rect.top - 14
+    cy = max(tam + 2, barra_vida_y - tam - 5)
     pontos = [(cx, cy - tam), (cx + tam, cy), (cx, cy + tam), (cx - tam, cy)]
     pygame.draw.polygon(tela, (4, 13, 24), pontos)
     pygame.draw.polygon(tela, cor, pontos, 2)
@@ -1031,7 +1541,7 @@ def _desenhar_hud_logico(tela, tempo_atual, perfil):
     x = max(390, w - 332)
     y = 86
     largura = 292
-    altura = 72
+    altura = 104
     surf = pygame.Surface((largura, altura), pygame.SRCALPHA)
     pygame.draw.rect(surf, (2, 8, 18, 176), (0, 0, largura, altura), border_radius=8)
     pygame.draw.rect(surf, (*COR_CONDUTORA_FRIA, 160), (0, 0, largura, altura), 1, border_radius=8)
@@ -1051,6 +1561,15 @@ def _desenhar_hud_logico(tela, tempo_atual, perfil):
     pygame.draw.rect(surf, (5, 18, 32, 190), (148, 32, 72, 26), border_radius=6)
     pygame.draw.rect(surf, (40, 126, 155), (148, 32, 72, 26), 1, border_radius=6)
     surf.blit(_fonte(18, True).render(prox, True, (138, 206, 224)), (157, 33))
+    erros = int(estado.get("contador_erros_porta_atual", 0))
+    surf.blit(fonte_peq.render(f"erros {erros}/{LIMITE_ERROS_TROCAR_PORTA}", True, (170, 220, 230)), (12, 66))
+
+    tipo = str(estado.get("registrador_tipo_atual") or "?")
+    q_txt = "Q" if estado.get("registrador_estado_q", True) else "Q'"
+    porta_cap = estado.get("registrador_porta_capturada") or "-"
+    buff_reg = _registrador_buff_ativo(tempo_atual) or "-"
+    surf.blit(fonte_peq.render(f"FF:{tipo}  Estado:{q_txt}  Porta:{porta_cap}", True, COR_CONDUTORA_CLARA), (112, 66))
+    surf.blit(fonte_peq.render(f"Buff: {buff_reg}", True, COR_CONDUTORA_FRIA), (112, 84))
 
     entrada = estado.get("entrada_a")
     if _alvo_vivo(entrada):
@@ -1070,7 +1589,67 @@ def _desenhar_hud_logico(tela, tempo_atual, perfil):
             pygame.draw.rect(surf, (*COR_LOGICO_ERRO, int(90 * resto)), (gx, gy, random.randint(4, 12), 2))
         surf.blit(fonte_peq.render("RUIDO LOGICO", True, COR_LOGICO_ERRO), (228, 38))
 
+    if estado.get("registrador_feedback") and int(tempo_atual) - int(estado.get("registrador_feedback_ms", 0)) < 1500:
+        surf.blit(fonte_peq.render(str(estado.get("registrador_feedback")), True, COR_LOGICO_OK), (12, 84))
+
     tela.blit(surf, (x, y))
+
+
+def _desenhar_roleta_registrador(tela, tempo_atual, perfil):
+    estado = _estado_logico()
+    if not estado.get("registrador_animacao_ativa"):
+        return
+    inicio = int(estado.get("registrador_animacao_inicio_ms", tempo_atual))
+    fim = int(estado.get("registrador_animacao_fim_ms", tempo_atual))
+    agora = int(tempo_atual)
+    duracao = max(1, fim - inicio)
+    progresso = max(0.0, min(1.0, (agora - inicio) / float(duracao)))
+    queda = max(0.0, min(1.0, (agora - inicio) / float(REGISTRADOR_QUEDA_MS)))
+    queda = 1.0 - (1.0 - queda) ** 3
+    largura_tela, altura_tela = tela.get_size()
+    reel_w, reel_h = 112, 118
+    gap = 18
+    total_w = reel_w * 3 + gap * 2
+    base_x = largura_tela // 2 - total_w // 2
+    alvo_y = altura_tela // 2 - reel_h // 2 - 42
+    y = int(-reel_h - 24 + (alvo_y + reel_h + 24) * queda)
+    combo = estado.get("registrador_combo") or ["D", "T", "RS"]
+    opcoes = ["D", "T", "RS", "JK"]
+    fonte_titulo = _fonte(18, True)
+    fonte_reel = _fonte(42, True)
+    fonte_peq = _fonte(14, True)
+
+    overlay = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
+    alpha = 72 if perfil == "baixo" else 104
+    overlay.fill((0, 0, 0, alpha))
+    tela.blit(overlay, (0, 0))
+
+    titulo = fonte_titulo.render("REGISTRADOR INSTAVEL", True, COR_CONDUTORA_FRIA)
+    tela.blit(titulo, (largura_tela // 2 - titulo.get_width() // 2, y - 42))
+
+    for i in range(3):
+        x = base_x + i * (reel_w + gap)
+        rect = pygame.Rect(x, y, reel_w, reel_h)
+        pygame.draw.rect(tela, (5, 12, 24), rect, border_radius=10)
+        pygame.draw.rect(tela, COR_CONDUTORA_FRIA if i == 1 else COR_CONDUTORA, rect, 2, border_radius=10)
+        pygame.draw.rect(tela, (255, 255, 255, 22), rect.inflate(-10, -10), 1, border_radius=7)
+        if progresso < 0.92:
+            idx = (agora // max(55, 120 - i * 18) + i * 2) % len(opcoes)
+            texto = opcoes[idx]
+            offset = int(math.sin(agora * 0.035 + i) * 10)
+        else:
+            texto = combo[i] if i < len(combo) else "?"
+            offset = 0
+        cor = COR_LOGICO_OK if i == 1 else COR_CONDUTORA_CLARA
+        render = fonte_reel.render(texto, True, cor)
+        tela.blit(render, render.get_rect(center=(rect.centerx, rect.centery + offset)))
+        legenda = "ESCOLHA" if i == 1 else "SINAL"
+        leg = fonte_peq.render(legenda, True, (150, 210, 225))
+        tela.blit(leg, leg.get_rect(center=(rect.centerx, rect.bottom - 16)))
+
+    barra = pygame.Rect(largura_tela // 2 - total_w // 2, y + reel_h + 24, total_w, 8)
+    pygame.draw.rect(tela, (8, 24, 38), barra, border_radius=4)
+    pygame.draw.rect(tela, COR_CONDUTORA_FRIA, (barra.x, barra.y, int(barra.w * progresso), barra.h), border_radius=4)
 
 
 def desenhar_circuitos(tela, inimigos, tempo_atual, config_graficos=None, manifestacao=None, jogador_rect=None):
@@ -1156,6 +1735,7 @@ def desenhar_circuitos(tela, inimigos, tempo_atual, config_graficos=None, manife
             _desenhar_bit_logico(tela, alvo, tempo_atual, perfil)
 
     _desenhar_hud_logico(tela, tempo_atual, perfil)
+    _desenhar_roleta_registrador(tela, tempo_atual, perfil)
 
 
 def desenhar_fio_disparo(tela, disparo, tempo_atual, offset=(0, 0), config_graficos=None):

@@ -17,8 +17,8 @@ INSANA_DELAY_MS = 1000
 INSANA_COOLDOWN_BASE_MS = 20000
 INSANA_COOLDOWN_MIN_MS = 15000
 INSANA_DEBUFF_DASH_MS = 2000
-INSANA_DANO_ECO_BASE = 0.45
-INSANA_DANO_ECO_POR_NIVEL = 0.03
+INSANA_DANO_ECO_BASE = 0.12
+INSANA_DANO_ECO_POR_NIVEL = 0.05
 INSANA_SPRITES_ECO = ("Sprites/Geo_ECO1.png", "Sprites/Geo_ECO2.png")
 
 _SPRITES_ECO_CACHE = {}
@@ -156,7 +156,7 @@ def atualizar_insana(estado, aurea, tempo_atual, disparos, vfx_disparo_player):
             nivel = int(estado.get("nivel", 0))
             disparo["eco_insana"] = True
             disparo["insana_vfx"] = True
-            disparo["dano_mult"] = min(0.62, INSANA_DANO_ECO_BASE + nivel * INSANA_DANO_ECO_POR_NIVEL)
+            disparo["dano_mult"] = INSANA_DANO_ECO_BASE + nivel * INSANA_DANO_ECO_POR_NIVEL
             disparos.append(disparo)
             eco["disparou_ms"] = tempo_atual
 

@@ -62,6 +62,8 @@ _VORTICE_SURF_CACHE = {}
 _fonte_bonus_cached = None
 _fonte_combo_cached = None
 apolo = None
+aurea = "Racional"
+manifestacao_ativa = None
 bonus_cura_sifon = 0.5
 cartas_compradas_apolo_global = []
 gerenciador_ratos = None
@@ -539,8 +541,13 @@ def executar_jogo(game_manager=None):
                 cartas_compradas = normalizar_cartas_compradas(cartas_compradas)
 
 
-        with open("saves/aurea_selecionada.json", "r") as file:
-            aurea = json.load(file)["aurea"]
+        try:
+            with open("saves/aurea_selecionada.json", "r") as file:
+                aurea = json.load(file).get("aurea", "Racional")
+        except (OSError, json.JSONDecodeError, TypeError):
+            aurea = "Racional"
+        if aurea not in {"Racional", "Impulsiva", "Devota", "Vanguarda", "Insana", "Voraz"}:
+            aurea = "Racional"
         manifestacao_ativa = Variaveis.obter_manifestacao_ativa()
 
         upgrade_aureas = carregar_upgrade_aureas("saves/aureas_upgrade.json")
@@ -1186,10 +1193,13 @@ def executar_jogo(game_manager=None):
                 import torch
                 from apolo_brain import motor_cognitivo_worker
                 self.device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
-                self.fila_estados = mp.Queue()
-                self.fila_acoes = mp.Queue()
-                self.evento_salvar = mp.Event()
-                self.worker_process = mp.Process(
+                self._mp_ctx = mp.get_context("spawn")
+                self._motor_cognitivo_worker = motor_cognitivo_worker
+                self._ultimo_restart_worker_ms = 0
+                self.fila_estados = self._mp_ctx.Queue()
+                self.fila_acoes = self._mp_ctx.Queue()
+                self.evento_salvar = self._mp_ctx.Event()
+                self.worker_process = self._mp_ctx.Process(
                     target=motor_cognitivo_worker,
                     args=(self.fila_estados, self.fila_acoes, self.evento_salvar),
                     daemon=True
@@ -1202,6 +1212,34 @@ def executar_jogo(game_manager=None):
 
             # Removido property pois a exploração agora é interna ao worker
 
+            def _iniciar_worker_cognitivo(self):
+                self.fila_estados = self._mp_ctx.Queue()
+                self.fila_acoes = self._mp_ctx.Queue()
+                self.evento_salvar = self._mp_ctx.Event()
+                self.worker_process = self._mp_ctx.Process(
+                    target=self._motor_cognitivo_worker,
+                    args=(self.fila_estados, self.fila_acoes, self.evento_salvar),
+                    daemon=True
+                )
+                self.worker_process.start()
+                self.esperando_acao = False
+
+            def garantir_worker_cognitivo(self):
+                import pygame
+                agora = pygame.time.get_ticks()
+                if hasattr(self, 'worker_process') and self.worker_process.is_alive():
+                    return True
+                if agora - getattr(self, '_ultimo_restart_worker_ms', 0) < 3000:
+                    return False
+                self._ultimo_restart_worker_ms = agora
+                try:
+                    registrar_erro("APOLO: worker cognitivo parou; reiniciando")
+                    self._iniciar_worker_cognitivo()
+                    return True
+                except Exception as e:
+                    registrar_erro("APOLO: falha ao reiniciar worker cognitivo", e)
+                    return False
+
             def carregar_memoria(self):
                 """Alias legado — ApoloAgent ja carrega no __init__."""
                 pass
@@ -1210,6 +1248,9 @@ def executar_jogo(game_manager=None):
                 import time, os
                 target = "saves/apolo_memoria_dqn.pt"
                 mtime_antes = os.path.getmtime(target) if os.path.exists(target) else 0
+                if not self.garantir_worker_cognitivo():
+                    registrar_erro("APOLO: nao foi possivel salvar; worker cognitivo inativo")
+                    return
                 self.evento_salvar.set()
                 t0 = time.time()
                 while time.time() - t0 < 10.0:
@@ -1218,6 +1259,10 @@ def executar_jogo(game_manager=None):
                         return
                     time.sleep(0.1)
                 registrar_erro("APOLO: timeout ao salvar memoria")
+
+            def solicitar_salvamento_memoria(self):
+                if self.garantir_worker_cognitivo():
+                    self.evento_salvar.set()
 
             def encerrar(self):
                 if hasattr(self, 'worker_process') and self.worker_process.is_alive():
@@ -2309,6 +2354,8 @@ def executar_jogo(game_manager=None):
                 import pygame
 
                 # Executa o raciocínio original para obter direções brutas desejadas
+                if not self.garantir_worker_cognitivo():
+                    return
                 self._pensar_raw(pos_p, boss_hitbox, projeteis_boss, cds, vida_jogador, vida_boss, esferas_energia, velocidade_atual, estado_ia)
 
                 # 1. Determinar se há perigo iminente
@@ -2358,16 +2405,35 @@ def executar_jogo(game_manager=None):
                 self.direcao_y = self.direcao_y_efetiva
 
         apolo = AgenteApolo()
+        ultimo_autosave_treino_ias = pygame.time.get_ticks()
+        intervalo_autosave_treino_ias_ms = 30000
+        treino_ias_salvo_final = False
 
         import atexit, signal
         def _salvar_tudo_ao_sair():
+            nonlocal treino_ias_salvo_final
+            if treino_ias_salvo_final:
+                return
             try:
                 apolo.salvar_memoria()
                 memoria_umbra.salvar()
                 if hasattr(apolo, 'encerrar'):
                     apolo.encerrar()
-            except Exception:
-                pass
+                treino_ias_salvo_final = True
+            except Exception as e:
+                registrar_erro("Fase 5: falha ao salvar treino das IAs", e)
+
+        def _autosave_treino_ias(agora_ms):
+            nonlocal ultimo_autosave_treino_ias
+            if agora_ms - ultimo_autosave_treino_ias < intervalo_autosave_treino_ias_ms:
+                return
+            ultimo_autosave_treino_ias = agora_ms
+            try:
+                if hasattr(apolo, 'solicitar_salvamento_memoria'):
+                    apolo.solicitar_salvamento_memoria()
+                memoria_umbra.salvar()
+            except Exception as e:
+                registrar_erro("Fase 5: falha no autosave do treino das IAs", e)
         atexit.register(_salvar_tudo_ao_sair)
         def _handler_ctrl_c(sig, frame):
             _salvar_tudo_ao_sair()
@@ -2586,6 +2652,7 @@ def executar_jogo(game_manager=None):
         running = True
         while running:
             tempo_atual = pygame.time.get_ticks()
+            _autosave_treino_ias(tempo_atual)
 
             # Registrar snapshot para o sistema de rewind
             if vida > 0:
@@ -2704,54 +2771,24 @@ def executar_jogo(game_manager=None):
             mouse_x = max(0, min(pos_mouse[0], largura_mapa - cursor_tamanho[0]))
             mouse_y = max(0, min(pos_mouse[1], altura_mapa - cursor_tamanho[1]))
             pausa_por_fuga_mouse = Variaveis.deve_pausar_por_fuga_mouse(pos_mouse, largura_mapa, altura_mapa)
+            pausa_por_fuga_mouse = False
             tempo_fim_stun = estado_atual_ia.get('fim_stun', 0) if 'estado_atual_ia' in globals() else 0
 
             for event in pygame.event.get():
                 Variaveis.atualizar_estado_mouse(event)
                 Variaveis.processar_eventos_teleporte(event, cooldown_dash)
-                if Variaveis.evento_deve_pausar_por_fuga_mouse(event):
+                if False and Variaveis.evento_deve_pausar_por_fuga_mouse(event):
                     pausa_por_fuga_mouse = True
                 if event.type == pygame.QUIT:
                     running = False
-                    apolo.salvar_memoria()
-                    memoria_umbra.salvar() 
+                    _salvar_tudo_ao_sair()
                     rodando = False
                     pygame.quit()
-                    if 'apolo' in globals() and hasattr(apolo, 'encerrar'):
-                        apolo.encerrar()
                     if game_manager:
                         from game_manager import EstadoJogo
                         game_manager.mudar_estado(EstadoJogo.SAIR)
                         raise CleanExit()
                     os._exit(0)
-                elif pausa_por_fuga_mouse or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
-                    pygame.event.set_grab(False)
-                    pygame.mouse.set_visible(True)
-                    try:
-                        salvar_atributos()
-                    except Exception as e:
-                        registrar_erro("Fase 5: erro ao salvar atributos para pausa", e)
-                    from Tela_Pause import exibir_tela_pause
-                    ret_pause = exibir_tela_pause(tela, cartas_compradas, joystick)
-                    if isinstance(ret_pause, dict):
-                        tela = ret_pause.get("tela", tela)
-                        nova_config_graficos = ret_pause.get("config_graficos")
-                        if isinstance(nova_config_graficos, dict):
-                            config_graficos.clear()
-                            config_graficos.update(nova_config_graficos)
-                        ret_pause = ret_pause.get("acao", "continuar")
-                    if ret_pause == "sair":
-                        if game_manager:
-                            from game_manager import EstadoJogo
-                            game_manager.mudar_estado(EstadoJogo.MENU_PRINCIPAL)
-                            raise CleanExit()
-                        else:
-                            running = False
-                            pygame.event.set_grab(True)
-                            pygame.mouse.set_visible(False)
-                            break
-                    pygame.event.set_grab(True)
-                    pygame.mouse.set_visible(False)
                 elif False:
                     pos_mouse = obter_pos_mouse_jogo()
                     px_centro = pos_x_personagem + largura_personagem // 2
@@ -2937,9 +2974,9 @@ def executar_jogo(game_manager=None):
                 if tempo_atual - tempo_ultimo_frame_preparo_disparo >= DISPARO_PREPARO_FRAME_MS:
                     tempo_ultimo_frame_preparo_disparo = tempo_atual
                     disparo_frame_atual += 1
-                disparo_frame_atual = min(disparo_frame_atual, len(frames_animacao['disp']) - 1)
-                frame_atual = disparo_frame_atual
-                if disparo_frame_atual >= len(frames_animacao['disp']) - 1:
+                frame_atual = min(disparo_frame_atual, len(frames_animacao['disp']) - 1)
+
+                if disparo_frame_atual >= len(frames_animacao['disp']):
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
                     Disparo_Geo.play()
@@ -3195,13 +3232,13 @@ def executar_jogo(game_manager=None):
                     )
                     recompensar_cartas(cartas_compradas_apolo_global, venceu=False)
                     limpar_salvamento()
-                    if 'apolo' in globals() and hasattr(apolo, 'encerrar'):
-                        apolo.encerrar()
+                    _salvar_tudo_ao_sair()
                     if game_manager:
                         from game_manager import EstadoJogo
                         game_manager.mudar_estado(EstadoJogo.GAME_OVER, dados={'vitoria': False})
                         raise CleanExit()
                     else:
+                        _salvar_tudo_ao_sair()
                         pygame.quit()
                         os._exit(0)
 
@@ -3237,13 +3274,13 @@ def executar_jogo(game_manager=None):
                 if vida_umbra <= 0:
                     recompensar_cartas(cartas_compradas_apolo_global, venceu=True)
                     limpar_salvamento()
-                    if 'apolo' in globals() and hasattr(apolo, 'encerrar'):
-                        apolo.encerrar()
+                    _salvar_tudo_ao_sair()
                     if game_manager:
                         from game_manager import EstadoJogo
                         game_manager.mudar_estado(EstadoJogo.GAME_OVER, dados={'vitoria': True, 'pontuacao': pontuacao})
                         raise CleanExit()
                     else:
+                        _salvar_tudo_ao_sair()
                         pygame.quit()
                         os._exit(0)
                 if 'tempo_start_boss' not in estado_atual_ia:
@@ -4298,7 +4335,15 @@ def executar_jogo(game_manager=None):
             # Desenhar sombra do personagem
             desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
 
-            frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
+            if direcao_atual == 'disp' and lacerante_manifestacao.ativa(manifestacao_ativa):
+                estagio = lacerante_manifestacao.obter_proximo_estagio()
+                idx = estagio * 2 + (frame_atual % 2)
+                if idx < len(Variaveis.frames_lacerar):
+                    frame_para_desenhar = Variaveis.frames_lacerar[idx]
+                else:
+                    frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
+            else:
+                frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
             if direcao_atual == 'disp' and math.cos(angulo_disparo_preparado) < 0:
                 frame_para_desenhar = pygame.transform.flip(frame_para_desenhar, True, False)
             desenhar_personagem_estado = desenhar_personagem_miasma if estado_atual_ia.get('miasma_ativo') else desenhar_personagem_com_dano
@@ -4824,6 +4869,7 @@ def executar_jogo(game_manager=None):
 
 
         # Encerrar o Pygame
+        _salvar_tudo_ao_sair()
         pygame.quit()
         if 'apolo' in globals() and hasattr(apolo, 'encerrar'):
             apolo.encerrar()
@@ -4831,6 +4877,10 @@ def executar_jogo(game_manager=None):
     except CleanExit:
         return
     finally:
+        try:
+            _salvar_tudo_ao_sair()
+        except Exception:
+            pass
         _sys.exit = _orig_sys_exit
         _os._exit = _orig_os_exit
         if _orig_builtins_exit:

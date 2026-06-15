@@ -432,7 +432,7 @@ def executar_jogo(game_manager=None):
                                                  pos_y_personagem + dy * velocidade_personagem))
             else:
                 angulo_inclinacao_personagem = 0
-                if botao_mouse[0]:
+                if disparo_preparando:
                     direcao_atual = 'disp'
                 else:
                     direcao_atual = 'stop'
@@ -1012,9 +1012,9 @@ def executar_jogo(game_manager=None):
                 if tempo_atual - tempo_ultimo_frame_preparo_disparo >= DISPARO_PREPARO_FRAME_MS:
                     tempo_ultimo_frame_preparo_disparo = tempo_atual
                     disparo_frame_atual += 1
-                disparo_frame_atual = min(disparo_frame_atual, len(frames_animacao['disp']) - 1)
-                frame_atual = disparo_frame_atual
-                if disparo_frame_atual >= len(frames_animacao['disp']) - 1:
+                frame_atual = min(disparo_frame_atual, len(frames_animacao['disp']) - 1)
+
+                if disparo_frame_atual >= len(frames_animacao['disp']):
                     Disparo_Geo.play()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
@@ -1331,7 +1331,15 @@ def executar_jogo(game_manager=None):
             # Desenhar sombra do personagem
             desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
 
-            frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
+            if direcao_atual == 'disp' and lacerante_manifestacao.ativa(manifestacao_ativa):
+                estagio = lacerante_manifestacao.obter_proximo_estagio()
+                idx = estagio * 2 + (frame_atual % 2)
+                if idx < len(Variaveis.frames_lacerar):
+                    frame_para_desenhar = Variaveis.frames_lacerar[idx]
+                else:
+                    frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
+            else:
+                frame_para_desenhar = frames_animacao[direcao_atual][frame_atual % len(frames_animacao[direcao_atual])]
             if direcao_atual == 'disp' and math.cos(angulo_disparo_preparado) < 0:
                 frame_para_desenhar = pygame.transform.flip(frame_para_desenhar, True, False)
             if angulo_inclinacao_personagem != 0:

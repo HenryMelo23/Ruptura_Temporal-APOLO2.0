@@ -704,7 +704,9 @@ max_inimigos3=5
 
 max_inimigos4=4
 
-distancia_minima_inimigos = 50  # Ajuste conforme necessário
+distancia_minima_inimigos = 72  # Mantem respiro visual entre spawns e mecanicas de area.
+separacao_extra_inimigos = 18
+iteracoes_separacao_inimigos = 4
 
 largura_inimigo, altura_inimigo = largura_tela*0.05, altura_tela*0.08
 
@@ -1381,6 +1383,20 @@ for direcao, paths in personagem_paths.items():
         frames.append(surf.convert_alpha())
 
     frames_animacao[direcao] = frames
+
+frames_lacerar = []
+try:
+    scale_factor = 77.0 / 438.0
+    for i in range(1, 7):
+        path = f"Sprites/Disp_Lacerar{i}.png"
+        img = pygame.image.load(path).convert_alpha()
+        w_orig, h_orig = img.get_size()
+        w_scaled = int(w_orig * scale_factor)
+        h_scaled = int(h_orig * scale_factor)
+        img_s = pygame.transform.scale(img, (w_scaled, h_scaled))
+        frames_lacerar.append(img_s)
+except Exception as e:
+    print(f"Erro ao carregar sprites de lacerar: {e}")
 
 
 
@@ -3250,9 +3266,10 @@ def resolver_colisoes_e_separacao(inimigos, pos_x_p, pos_y_p, larg_p, alt_p):
         return
 
 
-    # Separacao/colisao entre inimigos (relaxamento de restricoes em 2 iteracoes)
+    # Separacao/colisao entre inimigos. Iteracoes extras evitam pilhas quando
+    # muitos perseguem exatamente o mesmo alvo.
 
-    for _ in range(2):
+    for _ in range(iteracoes_separacao_inimigos):
 
         for i in range(len(inimigos)):
 
@@ -3274,10 +3291,6 @@ def resolver_colisoes_e_separacao(inimigos, pos_x_p, pos_y_p, larg_p, alt_p):
 
             raio_a = ((wa + ha) / 4.0) * 0.90
 
-            centro_a = (pos_xa + wa / 2.0, pos_ya + ha / 2.0)
-
-            
-
             for j in range(i + 1, len(inimigos)):
 
                 inimigo_b = inimigos[j]
@@ -3298,6 +3311,8 @@ def resolver_colisoes_e_separacao(inimigos, pos_x_p, pos_y_p, larg_p, alt_p):
 
                 raio_b = ((wb + hb) / 4.0) * 0.90
 
+                centro_a = (pos_xa + wa / 2.0, pos_ya + ha / 2.0)
+
                 centro_b = (pos_xb + wb / 2.0, pos_yb + hb / 2.0)
 
                 
@@ -3308,7 +3323,10 @@ def resolver_colisoes_e_separacao(inimigos, pos_x_p, pos_y_p, larg_p, alt_p):
 
                 dist = math.sqrt(dx**2 + dy**2)
 
-                dist_minima = raio_a + raio_b
+                dist_minima = max(
+                    raio_a + raio_b + separacao_extra_inimigos,
+                    distancia_minima_inimigos,
+                )
 
                 
 

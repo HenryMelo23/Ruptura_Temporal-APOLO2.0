@@ -109,11 +109,11 @@ AUREAS_DADOS = [
         "estilo": "insana",
         "beneficios": {
             0: "Nenhum efeito ativo.",
-            1: "4 ecos por ativacao. Tiros dos ecos causam 48% do dano. Cooldown 19s apos o ultimo eco.",
-            2: "4 ecos por ativacao. Tiros dos ecos causam 51% do dano. Cooldown 18s apos o ultimo eco.",
-            3: "4 ecos por ativacao. Tiros dos ecos causam 54% do dano. Cooldown 17s apos o ultimo eco.",
-            4: "4 ecos por ativacao. Tiros dos ecos causam 57% do dano. Cooldown 16s apos o ultimo eco.",
-            5: "4 ecos por ativacao. Tiros dos ecos causam 60% do dano. Cooldown 15s apos o ultimo eco."
+            1: "4 ecos por ativacao. Tiros dos ecos causam 17% do dano. Cooldown 19s apos o ultimo eco.",
+            2: "4 ecos por ativacao. Tiros dos ecos causam 22% do dano. Cooldown 18s apos o ultimo eco.",
+            3: "4 ecos por ativacao. Tiros dos ecos causam 27% do dano. Cooldown 17s apos o ultimo eco.",
+            4: "4 ecos por ativacao. Tiros dos ecos causam 32% do dano. Cooldown 16s apos o ultimo eco.",
+            5: "4 ecos por ativacao. Tiros dos ecos causam 37% do dano. Cooldown 15s apos o ultimo eco."
         },
         "destaques": [
             "- A cada 20s, seus tiros criam ecos parados.",

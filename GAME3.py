@@ -641,7 +641,7 @@ def atualizar_posicao_personagem(keys, joystick):
         pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem))
     else:
         angulo_inclinacao_personagem = 0
-        if botao_mouse[0]:
+        if disparo_preparando:
             direcao_atual = 'disp'
         else:
             direcao_atual = 'stop'
@@ -724,6 +724,8 @@ def atualizar_posicao_personagem(keys, joystick):
             retorno_teleporte is not None,
             player_pos_origem_teleporte,
         )
+        if condutora_manifestacao.ativa(manifestacao_ativa):
+            condutora_manifestacao.registrar_teleporte_condutor(tempo_teleporte_agora)
         primeiro_salto_retornante = (
             str(manifestacao_ativa or "").strip().lower() == "retornante"
             and retorno_teleporte is None
@@ -2714,7 +2716,7 @@ def executar_jogo(game_manager=None):
                             retomar_cronometro()
                             pygame.event.set_grab(True)  # Travar mouse de novo
                             pygame.mouse.set_visible(False)  # Esconder cursor do sistema
-                elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) * parasitica_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa):
+                elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) * parasitica_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * condutora_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa):
                     pos_mouse = obter_pos_mouse_jogo()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
@@ -2773,7 +2775,11 @@ def executar_jogo(game_manager=None):
                         }
                         ondas.append(nova_onda)
                         aplicar_coice_onda(coice_onda, angulo)
-                    tempo_ultimo_uso_habilidade = tempo_atual
+                    if condutora_manifestacao.ativa(manifestacao_ativa):
+                        cooldown_base_condutora = cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) * parasitica_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * condutora_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa)
+                        tempo_ultimo_uso_habilidade = condutora_manifestacao.ajustar_inicio_cooldown_registrador(tempo_atual, cooldown_base_condutora)
+                    else:
+                        tempo_ultimo_uso_habilidade = tempo_atual
 
             # Verificar eventos de teclado
             # --- Tela de pausa (ESC) ---
@@ -2821,7 +2827,7 @@ def executar_jogo(game_manager=None):
                 jogo_pausado = False
                 continue
 
-            if not pausa_por_fuga_mouse and botao_mouse[0] and not disparo_preparando and tempo_atual - tempo_ultimo_disparo >= ancorada_manifestacao.intervalo_disparo_ancorado(intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual), manifestacao_ativa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, tempo_atual):
+            if not pausa_por_fuga_mouse and botao_mouse[0] and not condutora_manifestacao.disparo_bloqueado_registrador(manifestacao_ativa, tempo_atual) and not disparo_preparando and tempo_atual - tempo_ultimo_disparo >= ancorada_manifestacao.intervalo_disparo_ancorado(intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual), manifestacao_ativa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, tempo_atual):
                 pos_mouse = obter_pos_mouse_jogo()
                 px_centro = pos_x_personagem + largura_personagem // 2
                 py_centro = pos_y_personagem + altura_personagem // 2
@@ -2846,6 +2852,9 @@ def executar_jogo(game_manager=None):
             ultimo_x = pos_x_personagem
             ultimo_y = pos_y_personagem
             atualizar_posicao_personagem(keys,joystick)
+            if condutora_manifestacao.disparo_bloqueado_registrador(manifestacao_ativa, tempo_atual):
+                disparo_preparando = False
+
             if disparo_preparando:
                 direcao_atual = 'disp'
                 frame_atual = disparo_frame_atual
@@ -3197,9 +3206,9 @@ def executar_jogo(game_manager=None):
                 if tempo_atual - tempo_ultimo_frame_preparo_disparo >= DISPARO_PREPARO_FRAME_MS:
                     tempo_ultimo_frame_preparo_disparo = tempo_atual
                     disparo_frame_atual += 1
-                disparo_frame_atual = min(disparo_frame_atual, len(frames_animacao['disp']) - 1)
-                frame_atual = disparo_frame_atual
-                if disparo_frame_atual >= len(frames_animacao['disp']) - 1:
+                frame_atual = min(disparo_frame_atual, len(frames_animacao['disp']) - 1)
+
+                if disparo_frame_atual >= len(frames_animacao['disp']):
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
                     largura_tiro, altura_tiro = voraz_aurea.dimensoes_disparo(estado_voraz, aurea, largura_disparo, altura_disparo)
@@ -3226,7 +3235,15 @@ def executar_jogo(game_manager=None):
             # Desenhar sombra do personagem
             desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
             frames_local = multiplayer_coop.frames_jogador_local(frames_animacao, frames_animacao2)
-            frame_para_desenhar = frames_local[direcao_atual][frame_atual % len(frames_local[direcao_atual])]
+            if direcao_atual == 'disp' and lacerante_manifestacao.ativa(manifestacao_ativa):
+                estagio = lacerante_manifestacao.obter_proximo_estagio()
+                idx = estagio * 2 + (frame_atual % 2)
+                if idx < len(Variaveis.frames_lacerar):
+                    frame_para_desenhar = Variaveis.frames_lacerar[idx]
+                else:
+                    frame_para_desenhar = frames_local[direcao_atual][frame_atual % len(frames_local[direcao_atual])]
+            else:
+                frame_para_desenhar = frames_local[direcao_atual][frame_atual % len(frames_local[direcao_atual])]
             if direcao_atual == 'disp' and math.cos(angulo_disparo_preparado) < 0:
                 frame_para_desenhar = pygame.transform.flip(frame_para_desenhar, True, False)
             desenhar_personagem_estado = desenhar_personagem_miasma if personagem_doente else desenhar_personagem_com_dano
@@ -4542,7 +4559,7 @@ def executar_jogo(game_manager=None):
             cooldowns = {
                 "disparo": max(0.0, (intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual) - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
                 "teleporte": max(0.0, (tempo_cooldown_dash - (pygame.time.get_ticks() - tempo_ultimo_dash)) / 1000.0),
-                "onda": max(0.0, (cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) * parasitica_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
+                "onda": max(0.0, (cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) * parasitica_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * condutora_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
                 "loja": 1 if pontuacao_exib >= custo_carta_atual else 0, 
             }
 
@@ -4769,6 +4786,7 @@ def executar_jogo(game_manager=None):
             pygame.display.flip()
             dt_ms = FPS.tick(config_graficos.get("fps_limite", 60))  # Limita a taxa de quadros conforme configuração
             dt = max(0.05, min(3.0, dt_ms / 16.666667))
+            dt *= condutora_manifestacao.fator_tempo_registrador(manifestacao_ativa, tempo_atual)
             Variaveis.dt = dt
 
 

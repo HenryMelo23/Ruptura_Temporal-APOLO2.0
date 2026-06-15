@@ -32,6 +32,11 @@ LACERANTE_COOLDOWN_HABILIDADE_MULT = 1.55
 _sequencia_corte_auto_attack = 0
 
 
+def obter_proximo_estagio():
+    global _sequencia_corte_auto_attack
+    return _sequencia_corte_auto_attack
+
+
 def ativa(manifestacao):
     return str(manifestacao or "").strip().lower() == "lacerante"
 
