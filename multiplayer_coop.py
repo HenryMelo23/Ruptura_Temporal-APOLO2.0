@@ -170,7 +170,7 @@ def eh_cliente():
 
 
 def frames_jogador_local(frames_host, frames_cliente):
-    return frames_cliente if eh_cliente() else frames_host
+    return frames_host
 
 
 def fase_atual():
@@ -717,6 +717,8 @@ def registrar_evento_visual_dano_inimigo(inimigo, dano, texto=None, cor=None, or
         "coop_id": str(inimigo.get("coop_id", "")),
         "x": int(rect.centerx),
         "y": int(rect.y - 18),
+        "impacto_x": int(rect.centerx),
+        "impacto_y": int(rect.centery),
         "texto": texto or f"-{dano_int}",
         "cor": list(cor or (255, 230, 120)),
         "origem": str(origem or "ataque"),
@@ -790,12 +792,32 @@ def _evento_onda_teleporte(payload, ondas_choque):
     except Exception:
         return False
     ondas_choque.append({
-        "x": x,
-        "y": y,
+        "cx": x,
+        "cy": y,
         "raio_atual": 0,
         "raio_max": 90,
         "velocidade": 7,
         "cor": _cor_payload(payload.get("cor"), (90, 230, 255)),
+    })
+    return True
+
+
+def _evento_impacto_ataque(payload, ondas_choque):
+    if ondas_choque is None:
+        return False
+    try:
+        x = int(payload.get("impacto_x", payload.get("x", 0)))
+        y = int(payload.get("impacto_y", payload.get("y", 0)))
+    except Exception:
+        return False
+    cor = _cor_payload(payload.get("cor"), (255, 230, 120))
+    ondas_choque.append({
+        "cx": x,
+        "cy": y,
+        "raio_atual": 0,
+        "raio_max": 48,
+        "velocidade": 5,
+        "cor": cor,
     })
     return True
 
@@ -823,7 +845,9 @@ def processar_eventos_visuais(fase_atual, efeitos_texto=None, ondas_choque=None,
         tipo = evento.get("tipo")
         payload = dict(evento.get("payload", {}) or {})
         if tipo == "dano_inimigo":
-            aplicados += 1 if _evento_texto(tipo, payload, efeitos_texto) else 0
+            aplicou_texto = _evento_texto(tipo, payload, efeitos_texto)
+            aplicou_impacto = _evento_impacto_ataque(payload, ondas_choque)
+            aplicados += 1 if (aplicou_texto or aplicou_impacto) else 0
         elif tipo == "pontos":
             aplicou = _evento_particulas_pontos(payload, gerar_particulas_pontos)
             if not aplicou:
@@ -1462,7 +1486,7 @@ def desenhar_jogador_remoto(tela, fase_atual, frame_atual, frames_host, frames_c
         tela.blit(sprite_morto, (x, y))
         return
 
-    frames_por_direcao = frames_cliente if modo_atual() == "host" else frames_host
+    frames_por_direcao = frames_host
     direcao = _remote.get("direcao") or "down"
     frames = frames_por_direcao.get(direcao) or frames_por_direcao.get("down")
     if not frames:

@@ -1025,11 +1025,12 @@ def executar_jogo(game_manager=None):
                     pos_y_personagem = max(0, min(altura_mapa - altura_personagem, 
                                                  pos_y_personagem + dy * (velocidade_movimento * fator_lentidao_boss) * dt))
                 
-                pos_x_personagem, pos_y_personagem = Variaveis.resolver_colisao_player_com_inimigos(
-                    pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, inimigos_comum
-                )
-                pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem))
-                pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem))
+                if not multiplayer_coop.eh_cliente():
+                    pos_x_personagem, pos_y_personagem = Variaveis.resolver_colisao_player_com_inimigos(
+                        pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, inimigos_comum
+                    )
+                    pos_x_personagem = max(0, min(largura_mapa - largura_personagem, pos_x_personagem))
+                    pos_y_personagem = max(0, min(altura_mapa - altura_personagem, pos_y_personagem))
             else:
                 angulo_inclinacao_personagem = 0
                 if botao_mouse[0]:
