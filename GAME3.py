@@ -2157,6 +2157,11 @@ movimento_pressionado = False
 fonte = None
 running = True
 tempo_atual = 0
+disparo_preparando = False
+disparo_frame_atual = 0
+tempo_ultimo_frame_preparo_disparo = 0
+angulo_disparo_preparado = 0.0
+DISPARO_PREPARO_FRAME_MS = 85
 upgrades = {}
 x = 0
 y = 0
@@ -2166,6 +2171,7 @@ def executar_jogo(game_manager=None):
     global aurea
     global tempo_parado_person, tempo_ultimo_escudo
     global direcao_atual, tempo_ultimo_disparo
+    global disparo_preparando, disparo_frame_atual, tempo_ultimo_frame_preparo_disparo, angulo_disparo_preparado, DISPARO_PREPARO_FRAME_MS
     global fe_pai_rato, fase_pai_rato, queijos_sagrados, avisos_pai_rato, projeteis_veneno_pai_rato
     global pai_rato_eventos, pai_rato_chuva_frascos, pai_rato_cauda, pai_rato_carga, pai_rato_consumindo
     global pai_rato_ritual, pai_rato_atordoado_ate, tempo_ultimo_cuspida_pai_rato, tempo_ultimo_cauda_pai_rato
@@ -3404,14 +3410,16 @@ def executar_jogo(game_manager=None):
                     vida_petro+= vida_maxima_petro
                     vida_maxima_petro= vida_petro                     
 
-                if xp_petro == "nivel_1":
+                if xp_petro == "nivel_1" or xp_petro in (0, 1):
                     petro_nivel=frames_animacao_Petro
 
-                elif xp_petro == "nivel_2":
+                elif xp_petro == "nivel_2" or xp_petro == 2:
                     petro_nivel=frames_animacao_Petro2
 
-                elif xp_petro == "nivel_3":
-                    petro_nivel=frames_animacao_Petro3                  
+                elif xp_petro == "nivel_3" or (isinstance(xp_petro, (int, float)) and xp_petro >= 3):
+                    petro_nivel=frames_animacao_Petro3
+                else:
+                    petro_nivel=frames_animacao_Petro
 
 
 

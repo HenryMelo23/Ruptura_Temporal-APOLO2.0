@@ -120,7 +120,7 @@ if not hasattr(builtins, "_saves_redirected"):
                 "Habilidade Onda": "MOUSE_3"
             },
             "config_teleporte.json": {"modo": "fixo"},
-            "config_jogabilidade.json": {"loja_forcada": True},
+            "config_jogabilidade.json": {"loja_forcada": True, "fase_inicial": 1},
             "modo_jogo.json": {"modo": "offline", "ip": None},
             "trailer_config.json": {"trailer_assistido": False},
             "tutorial_config.json": {"mostrar_tutorial": True}
@@ -177,3 +177,37 @@ if not hasattr(builtins, "_saves_redirected"):
     # Patchear também NT/POSIX path helper para maior segurança
     if hasattr(os.path, 'exists'):
         os.path.exists = patched_exists
+
+
+def obter_pasta_cofre_dimensional():
+    home = Path.home()
+    docs = home / "Documents"
+    if not docs.exists():
+        docs = home / "Documentos"
+    if not docs.exists():
+        docs = home
+    pasta = docs / "Ruptura_Temporal_Cofre_Dimensional"
+    pasta.mkdir(parents=True, exist_ok=True)
+    return pasta
+
+
+def caminho_adm_json():
+    return obter_pasta_cofre_dimensional() / "adm.json"
+
+
+def modo_desenvolvedor_ativo():
+    caminho = caminho_adm_json()
+    if not caminho.exists():
+        return False
+    try:
+        with open(str(caminho), "r", encoding="utf-8") as f:
+            dados = json.load(f)
+    except Exception as e:
+        registrar_erro("Cofre Dimensional: erro ao ler adm.json", e)
+        return False
+    if not isinstance(dados, dict):
+        return False
+    codigo = str(dados.get("codigo", dados.get("code", dados.get("cheat_code", "")))).strip().lower()
+    if codigo == "cheat":
+        return True
+    return bool(dados.get("cheat") is True or dados.get("desenvolvedor") is True or dados.get("developer") is True)

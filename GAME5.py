@@ -3273,8 +3273,24 @@ def executar_jogo(game_manager=None):
                 agora = pygame.time.get_ticks()
                 if vida_umbra <= 0:
                     recompensar_cartas(cartas_compradas_apolo_global, venceu=True)
-                    limpar_salvamento()
                     _salvar_tudo_ao_sair()
+                    from build_runtime import fase_disponivel
+                    if fase_disponivel(6):
+                        salvar_atributos()
+                        try:
+                            Musica_tema_fases.stop()
+                            Som_tema_fases.stop()
+                        except:
+                            pass
+                        if game_manager:
+                            from game_manager import EstadoJogo
+                            game_manager.mudar_estado(EstadoJogo.JOGO_FASE_6)
+                            raise CleanExit()
+                        else:
+                            import GAME6
+                            GAME6.executar_jogo()
+                            raise CleanExit()
+                    limpar_salvamento()
                     if game_manager:
                         from game_manager import EstadoJogo
                         game_manager.mudar_estado(EstadoJogo.GAME_OVER, dados={'vitoria': True, 'pontuacao': pontuacao})

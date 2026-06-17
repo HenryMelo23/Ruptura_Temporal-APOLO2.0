@@ -291,35 +291,35 @@ def carregar_atributos():
         return
     with open('saves/atributos.json', 'r') as file:
         atributos = json.load(file)
-        velocidade_personagem = atributos["velocidade_personagem"]
-        intervalo_disparo = atributos["intervalo_disparo"]
-        dano_person_hit = atributos["dano_person_hit"]
-        chance_critico = atributos["chance_critico"]
-        roubo_de_vida = atributos["roubo_de_vida"]
-        quantidade_roubo_vida = atributos["quantidade_roubo_vida"]
-        vida_petro= atributos["vida_petro"]
-        vida_maxima=atributos["vida_maxima_personagem"]
-        vida_maxima_petro=atributos["vida_maxima_petro"]
-        vida=atributos["vida_atual_personagem"]
-        xp_petro=atributos["nivel_Petro"]
-        Petro_active=atributos["existencia_petro"]
-        trembo=atributos["existencia_trembo"]
-        dano_petro=atributos["dano_petro"]
-        Resistencia=atributos["resistencia_personagem"]
-        Resistencia_petro=atributos["resistencia_petro"]
-        dano_inimigo_longe=atributos["dano_inimigo_longe"]
-        dano_inimigo_perto=atributos["dano_inimigo_perto"]
-        Poison_Active=atributos["Poison_Active"]
-        Ultimo_Estalo=atributos["Ultimo_Estalo"]
-        Executa_inimigo=atributos["Executa_inimigo"]
-        Mercenaria_Active=atributos["Mercenaria_Active"]
-        Valor_Bonus=atributos["Valor_Bonus"]
-        tempo_cooldown_dash=atributos["tempo_cooldown_dash"]
-        petro_evolucao= atributos["petro_evolucao"]
-        Dano_Veneno_Acumulado= atributos["Dano_Veneno_Acumulado"]
-        Tempo_cura= atributos["Tempo_cura"]
-        porcentagem_cura= atributos["porcentagem_cura"]
-        moedas_totais = atributos["moedas_totais"]
+        velocidade_personagem = atributos.get("velocidade_personagem", velocidade_personagem)
+        intervalo_disparo = atributos.get("intervalo_disparo", intervalo_disparo)
+        dano_person_hit = atributos.get("dano_person_hit", dano_person_hit)
+        chance_critico = atributos.get("chance_critico", chance_critico)
+        roubo_de_vida = atributos.get("roubo_de_vida", roubo_de_vida)
+        quantidade_roubo_vida = atributos.get("quantidade_roubo_vida", quantidade_roubo_vida)
+        vida_petro = atributos.get("vida_petro", vida_petro)
+        vida_maxima = atributos.get("vida_maxima_personagem", vida_maxima)
+        vida_maxima_petro = atributos.get("vida_maxima_petro", vida_maxima_petro)
+        vida = atributos.get("vida_atual_personagem", vida)
+        xp_petro = atributos.get("nivel_Petro", xp_petro)
+        Petro_active = atributos.get("existencia_petro", Petro_active)
+        trembo = atributos.get("existencia_trembo", trembo)
+        dano_petro = atributos.get("dano_petro", dano_petro)
+        Resistencia = atributos.get("resistencia_personagem", Resistencia)
+        Resistencia_petro = atributos.get("resistencia_petro", Resistencia_petro)
+        dano_inimigo_longe = atributos.get("dano_inimigo_longe", dano_inimigo_longe)
+        dano_inimigo_perto = atributos.get("dano_inimigo_perto", dano_inimigo_perto)
+        Poison_Active = atributos.get("Poison_Active", Poison_Active)
+        Ultimo_Estalo = atributos.get("Ultimo_Estalo", Ultimo_Estalo)
+        Executa_inimigo = atributos.get("Executa_inimigo", Executa_inimigo)
+        Mercenaria_Active = atributos.get("Mercenaria_Active", Mercenaria_Active)
+        Valor_Bonus = atributos.get("Valor_Bonus", Valor_Bonus)
+        tempo_cooldown_dash = atributos.get("tempo_cooldown_dash", tempo_cooldown_dash)
+        petro_evolucao = atributos.get("petro_evolucao", petro_evolucao)
+        Dano_Veneno_Acumulado = atributos.get("Dano_Veneno_Acumulado", Dano_Veneno_Acumulado)
+        Tempo_cura = atributos.get("Tempo_cura", Tempo_cura)
+        porcentagem_cura = atributos.get("porcentagem_cura", porcentagem_cura)
+        moedas_totais = atributos.get("moedas_totais", moedas_totais)
         Chance_Sorte = atributos.get("Chance_Sorte", 0.0)
         largura_disparo = atributos.get("largura_disparo", largura_disparo)
         altura_disparo = atributos.get("altura_disparo", altura_disparo)
@@ -4630,14 +4630,16 @@ def executar_jogo(game_manager=None):
                     vida_maxima_petro= vida_petro                     
 
 
-                if xp_petro == "nivel_1":
+                if xp_petro == "nivel_1" or xp_petro in (0, 1):
                     petro_nivel=frames_animacao_Petro
 
-                elif xp_petro == "nivel_2":
+                elif xp_petro == "nivel_2" or xp_petro == 2:
                     petro_nivel=frames_animacao_Petro2
 
-                elif xp_petro == "nivel_3":
-                    petro_nivel=frames_animacao_Petro3                
+                elif xp_petro == "nivel_3" or (isinstance(xp_petro, (int, float)) and xp_petro >= 3):
+                    petro_nivel=frames_animacao_Petro3
+                else:
+                    petro_nivel=frames_animacao_Petro
 
 
 

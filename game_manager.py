@@ -23,6 +23,7 @@ class EstadoJogo(Enum):
     JOGO_FASE_3 = "jogo_fase_3"
     JOGO_FASE_4 = "jogo_fase_4"
     JOGO_FASE_5 = "jogo_fase_5"
+    JOGO_FASE_6 = "jogo_fase_6"
     JOGO_PRINCIPAL = "jogo_principal"  # Alias para compatibilidade
     GAME_OVER = "game_over"
     CONFIGURACOES = "configuracoes"
@@ -50,6 +51,8 @@ class GameManager:
             dados: Dados opcionais para passar ao próximo estado
         """
         if novo_estado == EstadoJogo.JOGO_FASE_5 and not fase_disponivel(5):
+            novo_estado = EstadoJogo.MENU_PRINCIPAL
+        if novo_estado == EstadoJogo.JOGO_FASE_6 and not fase_disponivel(6):
             novo_estado = EstadoJogo.MENU_PRINCIPAL
         self.proximo_estado = novo_estado
         if novo_estado == EstadoJogo.SAIR:
@@ -115,6 +118,15 @@ class GameManager:
                 importlib.reload(sys.modules['GAME5'])
             import GAME5
             resultado = GAME5.executar_jogo(self)
+
+        elif self.estado_atual == EstadoJogo.JOGO_FASE_6:
+            import Variaveis
+            if Variaveis.snapshot_para_carregar is None:
+                Variaveis.reset_phase_state()
+            if 'GAME6' in sys.modules:
+                importlib.reload(sys.modules['GAME6'])
+            import GAME6
+            resultado = GAME6.executar_jogo(self)
                 
         elif self.estado_atual == EstadoJogo.GAME_OVER:
             from Game_Over import executar_game_over
@@ -132,6 +144,7 @@ class GameManager:
             EstadoJogo.JOGO_FASE_3,
             EstadoJogo.JOGO_FASE_4,
             EstadoJogo.JOGO_FASE_5,
+            EstadoJogo.JOGO_FASE_6,
         }
 
         # Se uma fase terminou sem escolher outra tela, nao reabre a mesma fase.

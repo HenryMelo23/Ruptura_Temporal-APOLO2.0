@@ -493,7 +493,8 @@ def executar_animacao_morte_personagem(
     cursor_imagem=None,
     mouse_pos=None,
     config_graficos=None,
-    som_morte=None
+    som_morte=None,
+    mapa=None
 ):
     """
     Bloqueia o jogo na morte do jogador:
@@ -513,8 +514,36 @@ def executar_animacao_morte_personagem(
         except:
             pass
 
+    if mapa is None:
+        try:
+            for depth in (1, 2, 3):
+                f_locals = sys._getframe(depth).f_locals
+                if "mapa" in f_locals:
+                    mapa = f_locals["mapa"]
+                    break
+        except Exception:
+            pass
+
     # Captura a tela de fundo sem o player (como ela se encontra no momento da chamada)
     screen_bg = tela.copy()
+    if mapa:
+        try:
+            pad = 20
+            rx = int(pos_x_personagem - pad)
+            ry = int(pos_y_personagem - pad)
+            rw = int(largura_personagem + pad * 2)
+            rh = int(altura_personagem + pad * 2)
+            
+            map_w, map_h = mapa.get_size()
+            rx_clamp = max(0, min(map_w, rx))
+            ry_clamp = max(0, min(map_h, ry))
+            rw_clamp = max(0, min(map_w - rx_clamp, rw))
+            rh_clamp = max(0, min(map_h - ry_clamp, rh))
+            
+            if rw_clamp > 0 and rh_clamp > 0:
+                screen_bg.blit(mapa, (rx_clamp, ry_clamp), pygame.Rect(rx_clamp, ry_clamp, rw_clamp, rh_clamp))
+        except Exception:
+            pass
 
     # Cria a tela congelada com o player estático desenhado
     screen_frozen = screen_bg.copy()

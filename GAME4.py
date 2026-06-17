@@ -853,6 +853,11 @@ dano = 0
 fonte = None
 running = True
 tempo_atual = 0
+disparo_preparando = False
+disparo_frame_atual = 0
+tempo_ultimo_frame_preparo_disparo = 0
+angulo_disparo_preparado = 0.0
+DISPARO_PREPARO_FRAME_MS = 85
 x = 0
 y = 0
 
@@ -861,6 +866,8 @@ def executar_jogo(game_manager=None):
     global aurea
     global tempo_parado_person, tempo_ultimo_escudo
     global direcao_atual, tempo_ultimo_disparo
+    global disparo_preparando, disparo_frame_atual, tempo_ultimo_frame_preparo_disparo, angulo_disparo_preparado, DISPARO_PREPARO_FRAME_MS
+    global pos_x_boss4, pos_y_boss4
     global joystick, ondas_choque, gerar_fragmentos_morte, Chance_Sorte, Dano_Veneno_Acumulado, Executa_inimigo, Mercenaria_Active, Musica_tema_fases, Petro_active, Poison_Active, Resistencia, Resistencia_petro, Som_tema_fases, Tempo_cura, Ultimo_Estalo, Valor_Bonus, altura_disparo, bonus_pontuacao, boss_envenenado, boss_vivo4, carregar_atributos_na_fase, cartas_compradas, chance_critico, cooldown_dash, current_frame_disparo_boss, current_frame_index, dano, dano_inimigo_longe, dano_inimigo_perto, dano_person_hit, dano_petro, dano_por_tick_veneno_boss, disparos, disparos_inimigos, dispositivo_ativo, efeitos_texto, eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, escudo_devota_ativo, estado_boss_atacando, fonte, frame_atual, impulsiva_ativa, imune_tempo_restante, indice_frame_vortex, inimigos_atingidos_por_onda, inimigos_comum, inimigos_eliminados, inimigos_em_chamas, intervalo_disparo, intervalo_disparo_inimigo, largura_disparo, last_frame_change, max_inimigos4, moedas_coletadas, moedas_soltadas, moedas_totais, movimento_pressionado, ondas, petro_evolucao, piscando_vida, pontuacao, pontuacao_exib, pontuacao_magia, porcentagem_cura, pos_x_personagem, pos_x_petro, pos_y_personagem, pos_y_petro, quantidade_roubo_vida, r_press, rect_boss, roubo_de_vida, running, sprite_moeda, teleportado, tempo_anterior_petro, tempo_ataque, tempo_atual, tempo_boss_entrada_fim, tempo_cooldown_dash, tempo_ultimo_dash, tempo_frame_disparo_boss, tempo_inicio_buff_impulsiva, tempo_inicio_veneno_boss, tempo_passado, tempo_texto_dano, tempo_ultima_atualizacao_direcao, tempo_ultima_regeneracao, tempo_ultimo_dano_vortex, tempo_ultimo_disparo_inimigo, tempo_ultimo_hit_inimigo, tempo_ultimo_inimigo, tempo_ultimo_uso_habilidade, texto_dano, tipo_buff_impulsiva, toque, trembo, ultima_direcao_animacao, ultimo_disparo, ultimo_tick_veneno_boss, velocidade_inimigo2, velocidade_personagem, vida, vida_boss4, vida_inimigo_maxima, vida_maxima, vida_maxima_boss4, vida_maxima_petro, vida_petro, vida_planeta, x, xp_petro, y, duracao_incendio_vanguarda, intervalo_escudo, comando_direção_petro
     class CleanExit(BaseException):
         pass
@@ -2069,14 +2076,16 @@ def executar_jogo(game_manager=None):
                     vida_maxima_petro= vida_petro                     
 
 
-                if xp_petro == "nivel_1":
+                if xp_petro == "nivel_1" or xp_petro in (0, 1):
                     petro_nivel=frames_animacao_Petro
 
-                elif xp_petro == "nivel_2":
+                elif xp_petro == "nivel_2" or xp_petro == 2:
                     petro_nivel=frames_animacao_Petro2
 
-                elif xp_petro == "nivel_3":
-                    petro_nivel=frames_animacao_Petro3              
+                elif xp_petro == "nivel_3" or (isinstance(xp_petro, (int, float)) and xp_petro >= 3):
+                    petro_nivel=frames_animacao_Petro3
+                else:
+                    petro_nivel=frames_animacao_Petro
 
 
 

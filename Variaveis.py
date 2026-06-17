@@ -3870,6 +3870,7 @@ _cached_modo_teleporte = None
 
 CONFIG_JOGABILIDADE_PADRAO = {
     "loja_forcada": True,
+    "fase_inicial": 1,
 }
 
 _cached_config_jogabilidade = None

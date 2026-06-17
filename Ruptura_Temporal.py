@@ -3003,13 +3003,17 @@ def tela_configuracoes_jogabilidade(tela, fonte):
     try:
         import Variaveis
         loja_forcada = Variaveis.loja_forcada_ativa(forcar_recarregar=True)
+        config_jogabilidade = Variaveis.obter_config_jogabilidade(forcar_recarregar=True)
     except:
         loja_forcada = True
+        config_jogabilidade = {"fase_inicial": 1}
+    dev_ativo = Caminhos.modo_desenvolvedor_ativo()
 
     config = {
         "mostrar_tutorial": mostrar_tut,
         "modo_teleporte": modo_teleporte,
-        "loja_forcada": True
+        "loja_forcada": True,
+        "fase_inicial": int(config_jogabilidade.get("fase_inicial", 1) or 1)
     }
     config["__aplicar__"] = "aplicar"
     config_salva = json.loads(json.dumps(config))
@@ -3020,6 +3024,8 @@ def tela_configuracoes_jogabilidade(tela, fonte):
         {"nome": "Aplicar Alteracoes", "chave": "__aplicar__", "valores": None, "labels": None},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
     ]
+    if dev_ativo:
+        opcoes_config.insert(2, {"nome": "Fase Inicial", "chave": "fase_inicial", "valores": [1, 2, 3, 4, 5, 6], "labels": ["Fase 1", "Fase 2", "Fase 3", "Fase 4", "Fase 5", "Fase 6"]})
 
     descricoes_valores = {
         "mostrar_tutorial": {
@@ -3029,6 +3035,14 @@ def tela_configuracoes_jogabilidade(tela, fonte):
         "modo_teleporte": {
             "fixo": "Modo Fixo: Teleporta na direcao do movimento. Rapido e instantaneo.",
             "mouse": "Modo Mouse: Segure a tecla para mirar na posicao do cursor e solte para teleportar."
+        },
+        "fase_inicial": {
+            1: "Modo dev: inicia uma nova jornada pela Fase 1.",
+            2: "Modo dev: inicia uma nova jornada pela Fase 2.",
+            3: "Modo dev: inicia uma nova jornada pela Fase 3.",
+            4: "Modo dev: inicia uma nova jornada pela Fase 4.",
+            5: "Modo dev: inicia uma nova jornada pela Fase 5.",
+            6: "Modo dev: inicia uma nova jornada pela Fase 6."
         }
     }
 
@@ -3051,7 +3065,7 @@ def tela_configuracoes_jogabilidade(tela, fonte):
             json.dump({"modo": config["modo_teleporte"]}, f)
         try:
             import Variaveis
-            Variaveis.salvar_config_jogabilidade({"loja_forcada": True})
+            Variaveis.salvar_config_jogabilidade({"loja_forcada": True, "fase_inicial": config.get("fase_inicial", 1)})
             Variaveis.obter_modo_teleporte(forcar_recarregar=True)
         except Exception:
             pass
@@ -4186,16 +4200,51 @@ def executar_menu_principal(game_manager=None):
                 with open("saves/config_cartas.json", "w") as f:
                     json.dump({"modo_cartas": modo_cartas}, f)
 
+                fase_inicial = 1
+                if Caminhos.modo_desenvolvedor_ativo():
+                    try:
+                        fase_inicial = int(Variaveis.obter_config_jogabilidade(forcar_recarregar=True).get("fase_inicial", 1) or 1)
+                    except Exception:
+                        fase_inicial = 1
+                    fase_inicial = max(1, min(6, fase_inicial))
+                    from build_runtime import fase_disponivel
+                    if not fase_disponivel(fase_inicial):
+                        fase_inicial = 1
+
                 if game_manager:
                     from game_manager import EstadoJogo
+                    estado_por_fase = {
+                        1: EstadoJogo.JOGO_PRINCIPAL,
+                        2: EstadoJogo.JOGO_FASE_2,
+                        3: EstadoJogo.JOGO_FASE_3,
+                        4: EstadoJogo.JOGO_FASE_4,
+                        5: EstadoJogo.JOGO_FASE_5,
+                        6: EstadoJogo.JOGO_FASE_6,
+                    }
                     game_manager.mudar_estado(
-                        EstadoJogo.JOGO_PRINCIPAL,
-                        dados={'modo_jogo': modo, 'ip': ip, 'fase': 1}
+                        estado_por_fase.get(fase_inicial, EstadoJogo.JOGO_PRINCIPAL),
+                        dados={'modo_jogo': modo, 'ip': ip, 'fase': fase_inicial}
                     )
                     return
                 else:
-                    import GAME
-                    GAME.executar_jogo()
+                    if fase_inicial == 6:
+                        import GAME6
+                        GAME6.executar_jogo()
+                    elif fase_inicial == 5:
+                        import GAME5
+                        GAME5.executar_jogo()
+                    elif fase_inicial == 4:
+                        import GAME4
+                        GAME4.executar_jogo()
+                    elif fase_inicial == 3:
+                        import GAME3
+                        GAME3.executar_jogo()
+                    elif fase_inicial == 2:
+                        import GAME2
+                        GAME2.executar_jogo()
+                    else:
+                        import GAME
+                        GAME.executar_jogo()
                     return
 
             elif escolha == 1:  # Catalogo
