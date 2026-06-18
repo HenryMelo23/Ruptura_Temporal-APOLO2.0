@@ -1,0 +1,22 @@
+{
+    "include": [
+        "."
+    ],
+    "exclude": [
+        "**/__pycache__",
+        ".git",
+        ".qa_tmp_home",
+        "dist",
+        "build"
+    ],
+    "extraPaths": [
+        "Fases",
+        "Manifestacoes",
+        "Aureas",
+        "Rede",
+        "Boss",
+        "Menus",
+        "Engine"
+    ],
+    "reportMissingImports": "warning"
+}
