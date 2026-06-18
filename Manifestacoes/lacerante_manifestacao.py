@@ -249,6 +249,13 @@ def multiplicador_dano_disparo(disparo):
     return 1.0
 
 
+def multiplicador_dano_boss(disparo):
+    if not isinstance(disparo, dict) or disparo.get("tipo_manifestacao") != "lacerante_corte":
+        return 1.0
+    estagio = int(disparo.get("estagio_corte", 0) or 0)
+    return 1.28 if estagio in (0, 1) else 1.55
+
+
 def aplicar_laceracao(inimigo, tempo_atual):
     if not isinstance(inimigo, dict):
         return 0

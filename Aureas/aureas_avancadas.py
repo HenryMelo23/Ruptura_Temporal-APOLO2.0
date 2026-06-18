@@ -370,6 +370,14 @@ def desenhar(tela, estado, aurea, tempo_atual, pos_x, pos_y, largura, altura, in
             cor = (170, 235, 255, int(45 + pct * 75))
             surf = pygame.Surface((raio * 2 + 4, raio * 2 + 4), pygame.SRCALPHA)
             pygame.draw.circle(surf, cor, (raio + 2, raio + 2), raio, 2)
+            for i in range(10):
+                ang = tempo_atual * 0.003 + i * (math.tau / 10.0)
+                r1 = raio * (0.30 + pct * 0.22)
+                r2 = raio * (0.82 + 0.08 * math.sin(tempo_atual * 0.006 + i))
+                p1 = (raio + 2 + math.cos(ang) * r1, raio + 2 + math.sin(ang) * r1)
+                p2 = (raio + 2 + math.cos(ang + 0.35) * r2, raio + 2 + math.sin(ang + 0.35) * r2)
+                pygame.draw.line(surf, (190, 245, 255, int(24 + pct * 55)), p1, p2, 1)
+            pygame.draw.circle(surf, (10, 25, 35, int(28 + pct * 55)), (raio + 2, raio + 2), max(7, int(raio * 0.32)))
             tela.blit(surf, (pos_x + largura // 2 - raio - 2, pos_y + altura // 2 - raio - 2), special_flags=pygame.BLEND_RGBA_ADD)
 
     if nome == "abissal":
@@ -380,8 +388,21 @@ def desenhar(tela, estado, aurea, tempo_atual, pos_x, pos_y, largura, altura, in
             raio = int(42 + pct * 78)
             surf = pygame.Surface((raio * 2 + 8, raio * 2 + 8), pygame.SRCALPHA)
             alpha = 92 if ativo else int(28 + pct * 48)
-            pygame.draw.circle(surf, (38, 32, 95, alpha), (raio + 4, raio + 4), raio, 3)
-            pygame.draw.circle(surf, (4, 0, 18, max(15, alpha // 2)), (raio + 4, raio + 4), max(6, raio // 3), 2)
+            for camada in range(4):
+                r_camada = max(8, raio - camada * max(8, raio // 6))
+                pygame.draw.circle(surf, (35, 25, 105, max(16, alpha - camada * 14)), (raio + 4, raio + 4), r_camada, 2)
+            for i in range(14):
+                ang = -tempo_atual * 0.004 + i * (math.tau / 14.0)
+                r1 = raio * 0.18
+                r2 = raio * (0.72 + 0.14 * math.sin(tempo_atual * 0.005 + i))
+                pygame.draw.line(
+                    surf,
+                    (95, 80, 220, max(18, alpha // 2)),
+                    (raio + 4 + math.cos(ang) * r1, raio + 4 + math.sin(ang) * r1),
+                    (raio + 4 + math.cos(ang + 0.55) * r2, raio + 4 + math.sin(ang + 0.55) * r2),
+                    2 if ativo else 1,
+                )
+            pygame.draw.circle(surf, (4, 0, 18, max(24, alpha // 2)), (raio + 4, raio + 4), max(8, raio // 3), 0)
             tela.blit(surf, (pos_x + largura // 2 - raio - 4, pos_y + altura // 2 - raio - 4), special_flags=pygame.BLEND_RGBA_ADD)
 
     for inimigo in inimigos:
@@ -391,16 +412,42 @@ def desenhar(tela, estado, aurea, tempo_atual, pos_x, pos_y, largura, altura, in
         if nome == "profetica" and inimigo.get("profetica_fim_ms", 0) > tempo_atual:
             simbolo = {"atacar": "!", "avancar": ">", "morrer": "X"}.get(inimigo.get("profetica_pressagio"), "?")
             try:
-                fonte = pygame.font.Font("Texto/rainyhearts.ttf", 22)
+                fonte = pygame.font.Font("Texto/rainyhearts.ttf", 28)
             except Exception:
-                fonte = pygame.font.Font(None, 24)
-            txt = fonte.render(simbolo, True, (255, 235, 110))
+                fonte = pygame.font.Font(None, 30)
+            pulso = (math.sin(tempo_atual * 0.010) + 1.0) * 0.5
+            raio = int(max(r.width, r.height) * (0.72 + pulso * 0.12))
+            surf = pygame.Surface((raio * 2 + 36, raio * 2 + 58), pygame.SRCALPHA)
+            cx = surf.get_width() // 2
+            cy = raio + 22
+            pygame.draw.circle(surf, (255, 220, 90, 68), (cx, cy), raio + 10, 2)
+            pygame.draw.circle(surf, (255, 245, 165, 128), (cx, cy), raio, 2)
+            for i in range(12):
+                ang = tempo_atual * 0.005 + i * (math.tau / 12.0)
+                p1 = (cx + math.cos(ang) * (raio * 0.55), cy + math.sin(ang) * (raio * 0.55))
+                p2 = (cx + math.cos(ang + 0.22) * (raio + 8), cy + math.sin(ang + 0.22) * (raio + 8))
+                pygame.draw.line(surf, (255, 232, 90, 72), p1, p2, 1)
+            pygame.draw.line(surf, (255, 245, 170, 120), (cx, 0), (cx, cy - raio), 2)
+            pygame.draw.line(surf, (255, 210, 70, 84), (cx - 10, 5), (cx + 10, 5), 2)
+            tela.blit(surf, (r.centerx - cx, r.centery - cy), special_flags=pygame.BLEND_RGBA_ADD)
+            txt = fonte.render(simbolo, True, (255, 250, 180))
             tela.blit(txt, (r.centerx - txt.get_width() // 2, r.y - 26))
         if nome == "sanguinaria" and inimigo.get("sanguinaria_ferida_ate", 0) > tempo_atual:
-            pygame.draw.line(tela, (255, 35, 55), (r.left, r.top - 3), (r.right, r.top - 3), 2)
+            pulso = (math.sin(tempo_atual * 0.014) + 1.0) * 0.5
+            aura = pygame.Surface((r.width + 34, r.height + 34), pygame.SRCALPHA)
+            pygame.draw.ellipse(aura, (255, 25, 55, int(60 + pulso * 50)), aura.get_rect(), 3)
+            pygame.draw.ellipse(aura, (100, 0, 22, int(34 + pulso * 32)), aura.get_rect().inflate(-12, -12), 2)
+            tela.blit(aura, (r.x - 17, r.y - 17), special_flags=pygame.BLEND_RGBA_ADD)
+            pygame.draw.line(tela, (255, 35, 55), (r.left - 4, r.top - 3), (r.right + 4, r.top - 3), 3)
             if random.random() < 0.25:
-                pygame.draw.circle(tela, (170, 0, 30), (random.randint(r.left, r.right), random.randint(r.top, r.bottom)), 2)
+                pygame.draw.circle(tela, (220, 0, 40), (random.randint(r.left, r.right), random.randint(r.top, r.bottom)), random.randint(2, 4))
         if nome == "nula" and inimigo.get("nula_nulificado_ate", 0) > tempo_atual:
-            pygame.draw.rect(tela, (170, 235, 255), r.inflate(6, 6), 1)
+            inflado = r.inflate(14, 14)
+            pygame.draw.rect(tela, (170, 235, 255), inflado, 2)
+            for i in range(6):
+                off = int(math.sin(tempo_atual * 0.015 + i) * 5)
+                pygame.draw.line(tela, (120, 230, 255), (inflado.left + i * inflado.w // 6, inflado.top + off), (inflado.left + i * inflado.w // 6 + 10, inflado.bottom - off), 1)
         if nome == "abissal" and inimigo.get("abissal_marcado_ate", 0) > tempo_atual:
-            pygame.draw.circle(tela, (80, 80, 190), r.center, max(8, r.width // 2), 1)
+            raio = max(10, int(max(r.width, r.height) * 0.62))
+            pygame.draw.circle(tela, (80, 80, 190), r.center, raio, 2)
+            pygame.draw.circle(tela, (18, 8, 40), r.center, max(5, raio // 2), 1)

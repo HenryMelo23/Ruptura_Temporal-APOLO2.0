@@ -106,7 +106,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
          "descricao": "Invoca Petro. Cada compra da +2 dano e cura 45% da vida maxima dele; evolucoes adicionam vida, resistencia e dano."},
 
         {"nome": "Defesa", "Nick": "Escudo Fásico", 
-         "descricao": "Aumenta a resistencia de Geovana em +3.5 por compra, ate o limite de 50."},
+         "descricao": "Aumenta a resistencia de Geovana em +5 por compra, ate o limite de 50."},
 
         {"nome": "Sorte", "Nick": "Anomalia Favorável", 
          "descricao": "Aumenta a Sorte em +0.3 ponto percentual por compra, melhorando rolagens de cartas e recompensas raras."},
@@ -292,10 +292,10 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
             velocidade_personagem += incremento_carta_velocidade_movimento()
             cartas_compradas["Speed Boost"] += 1
         elif nome == "Porção":
-            vida += int(vida_maxima * 0.45)
+            vida += int(vida_maxima * 0.58)
             if vida > vida_maxima:
                 vida_maxima = vida
-            vida_petro += int(vida_maxima_petro * 0.30)
+            vida_petro += int(vida_maxima_petro * 0.40)
             if vida_petro > vida_maxima_petro:
                 vida_maxima_petro = vida_petro
             cartas_compradas["Porção"] += 1
@@ -306,18 +306,18 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
             trembo = True
             cartas_compradas["Trembo"] += 1
             if cartas_compradas["Trembo"] >= 2:
-                Tempo_cura = max(500, int(Tempo_cura * 0.75))
-                porcentagem_cura += 0.005
+                Tempo_cura = max(450, int(Tempo_cura * 0.70))
+                porcentagem_cura += 0.008
             else:
-                Tempo_cura -= Tempo_cura * 0.05
-                porcentagem_cura += 0.001
+                Tempo_cura = max(450, int(Tempo_cura * 0.90))
+                porcentagem_cura += 0.003
         elif nome == "Tempestade":
             dano_person_hit += incremento_dano_carta_critico()
             chance_critico += incremento_chance_carta_critico()
             cartas_compradas["Tempestade"] += 1
         elif nome == "Cura":
             roubo_de_vida = 1.0
-            quantidade_roubo_vida += 0.001
+            quantidade_roubo_vida += 0.002
             cartas_compradas["Cura"] += 1
         elif nome == "Speed Atack":
             intervalo_disparo -= reducao_intervalo_carta_speed_attack()
@@ -329,26 +329,26 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
             cartas_compradas["Teleporte"] += 1
         elif nome == "Petro":
             Petro_active = True
-            dano_petro += 2
+            dano_petro += 4
             if 0 < petro_evolucao <= 8:
                 xp_petro = "nivel_1"
                 petro_evolucao += 4
             elif 8 < petro_evolucao <= 16:
                 xp_petro = "nivel_2"
-                vida_maxima_petro += 1000
+                vida_maxima_petro += 1300
                 petro_evolucao += 4
             elif petro_evolucao > 16:
                 xp_petro = "nivel_3"
-                vida_maxima_petro += 2000
-                Resistencia_petro += 18
-                dano_petro += 250
+                vida_maxima_petro += 2600
+                Resistencia_petro += 22
+                dano_petro += 330
             if vida_petro < vida_maxima_petro:
-                vida_petro += int(vida_maxima_petro * 0.45)
+                vida_petro += int(vida_maxima_petro * 0.55)
             if vida_petro > vida_maxima_petro:
                 vida_maxima_petro = vida_petro
             cartas_compradas["Petro"] += 1
         elif nome == "Defesa":
-            Resistencia += 3.5
+            Resistencia += 5.0
             if Resistencia > 50:
                 Resistencia = 50
             cartas_compradas["Defesa"] += 1
@@ -357,15 +357,15 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
             cartas_compradas["Sorte"] += 1
         elif nome == "Poison":
             Poison_Active = True
-            Dano_Veneno_Acumulado += 0.005
+            Dano_Veneno_Acumulado += 0.008
             cartas_compradas["Poison"] += 1
         elif nome == "Coletora":
-            Executa_inimigo += 0.005
+            Executa_inimigo += 0.007
             Ultimo_Estalo = True
             cartas_compradas["Coletora"] += 1
         elif nome == "Mercenaria":
             Mercenaria_Active = True
-            Valor_Bonus += 25
+            Valor_Bonus += 35
             cartas_compradas["Mercenaria"] += 1
 
         compras_restantes -= 1

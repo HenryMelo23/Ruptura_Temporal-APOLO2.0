@@ -26,6 +26,7 @@ import parasitica_manifestacao
 import condutora_manifestacao
 import gravitante_manifestacao
 import ancorada_manifestacao
+import boss_manifestacao_effects
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from flask import Flask, jsonify
 from flask_cors import CORS
@@ -4602,6 +4603,8 @@ def executar_jogo(game_manager=None):
                             cor_feedback = (255, 255, 255) # Branco Normal
 
                         dano_final *= multiplicador_dano_manifestacao_fase5(disparo)
+                        dano_final *= lacerante_manifestacao.multiplicador_dano_boss(disparo)
+                        dano_final = boss_manifestacao_effects.aplicar_efeito_boss(disparo, dano_final, tempo_atual, efeitos_texto, hitbox_boss5, "boss5")
 
                         # Se o escudo (parede_ativa) estiver ligado, reduzimos o dano em 25%
                         if estado_atual_ia.get('parede_ativa'):
@@ -4922,11 +4925,11 @@ def executar_jogo(game_manager=None):
 
                 tela.blit(imagem_vida, posicao_vida)
 
-                if not area_icones.colliderect(
+                if hub_vertical_inferior_ativo((pos_x_personagem, pos_y_personagem)) or not area_icones.colliderect(
                 (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
                 ):
                     # Desenhar habilidades na tela
-                    desenhar_habilidades(tela, cooldowns,dispositivo_ativo)
+                    desenhar_habilidades(tela, cooldowns, dispositivo_ativo, (pos_x_personagem, pos_y_personagem))
                 if eliminacoes_consecutivas > 0:
                     fonte_combo = _fonte_combo_cached
                     fonte_bonus = _fonte_bonus_cached

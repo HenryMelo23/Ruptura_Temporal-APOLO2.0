@@ -1442,11 +1442,17 @@ def desenhar_hud_fase(
         }
         deve_desenhar_icones = True
         if None not in (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem):
+            hub_vertical_ativo = Variaveis.hub_vertical_inferior_ativo((pos_x_personagem, pos_y_personagem))
             deve_desenhar_icones = not Variaveis.area_icones.colliderect(
                 (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-            )
+            ) or hub_vertical_ativo
         if deve_desenhar_icones:
-            Variaveis.desenhar_habilidades(tela, cooldowns, dispositivo_ativo)
+            Variaveis.desenhar_habilidades(
+                tela,
+                cooldowns,
+                dispositivo_ativo,
+                (pos_x_personagem, pos_y_personagem) if pos_x_personagem is not None and pos_y_personagem is not None else None,
+            )
         return
 
     posicao_barra_vida = (80, Variaveis.altura_mapa - (Variaveis.altura_mapa - 34))
@@ -1521,12 +1527,18 @@ def desenhar_hud_fase(
 
     deve_desenhar_icones = True
     if None not in (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem):
+        hub_vertical_ativo = Variaveis.hub_vertical_inferior_ativo((pos_x_personagem, pos_y_personagem))
         deve_desenhar_icones = not Variaveis.area_icones.colliderect(
             (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-        )
+        ) or hub_vertical_ativo
 
     if deve_desenhar_icones:
-        Variaveis.desenhar_habilidades(tela, cooldowns, dispositivo_ativo)
+        Variaveis.desenhar_habilidades(
+            tela,
+            cooldowns,
+            dispositivo_ativo,
+            (pos_x_personagem, pos_y_personagem) if pos_x_personagem is not None and pos_y_personagem is not None else None,
+        )
 
     if eliminacoes_consecutivas > 0:
         fonte_combo = get_cached_font(None, 36)

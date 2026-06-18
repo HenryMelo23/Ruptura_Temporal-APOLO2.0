@@ -14,6 +14,7 @@ import parasitica_manifestacao
 import condutora_manifestacao
 import gravitante_manifestacao
 import ancorada_manifestacao
+import boss_manifestacao_effects
 import teleporte_manifestacao
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from Tela_Cartas import tela_de_pausa as tela_de_pausa_single
@@ -4101,6 +4102,8 @@ def executar_jogo(game_manager=None):
                             dano *= condutora_manifestacao.multiplicador_dano_disparo(disparo)
                             dano *= gravitante_manifestacao.multiplicador_dano_disparo(disparo)
                             dano *= ancorada_manifestacao.multiplicador_dano_disparo(disparo)
+                            dano *= lacerante_manifestacao.multiplicador_dano_boss(disparo)
+                            dano = boss_manifestacao_effects.aplicar_efeito_boss(disparo, dano, tempo_atual, efeitos_texto, rect_boss, "boss3")
 
                             # Renderizar texto do dano
                             tempo_texto_dano = pygame.time.get_ticks()
@@ -4688,11 +4691,11 @@ def executar_jogo(game_manager=None):
                 tela.blit(texto_vida, (posicao_barra_vida[0]*2, posicao_barra_vida[1] + 5))
                 tela.blit(imagem_vida, posicao_vida)
 
-                if not area_icones.colliderect(
+                if hub_vertical_inferior_ativo((pos_x_personagem, pos_y_personagem)) or not area_icones.colliderect(
                 (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
                 ):
                     # Desenhar habilidades na tela
-                    desenhar_habilidades(tela, cooldowns,dispositivo_ativo)
+                    desenhar_habilidades(tela, cooldowns, dispositivo_ativo, (pos_x_personagem, pos_y_personagem))
                 if Mercenaria_Active:
                     fonte_combo = pygame.font.Font(None, 36)  # Tamanho maior para o combo
                     fonte_bonus = pygame.font.Font(None, 28)  # Tamanho menor para o bônus

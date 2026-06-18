@@ -15,6 +15,7 @@ import parasitica_manifestacao
 import condutora_manifestacao
 import gravitante_manifestacao
 import ancorada_manifestacao
+import boss_manifestacao_effects
 import teleporte_manifestacao
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from Tela_Cartas import tela_de_pausa as tela_de_pausa_single
@@ -625,8 +626,11 @@ def executar_jogo(game_manager=None):
         TIPO_CURATER = "curater"
         TIPO_LARAPIO = "larapio"
         CURATER_CHANCE_SPAWN_LOCAL = CURATER_CHANCE_SPAWN
-        CURATER_INTERVALO_CURA = 1000
+        CURATER_INTERVALO_CURA = 2000
         CURATER_PERCENTUAL_VIDA_PERDIDA = CURATER_CURA_PERCENTUAL_VIDA_PERDIDA
+        CURATER_MAX_ALVOS_CURA = 4
+        CURATER_MAX_ATIVOS = 2
+        CURATER_COOLDOWN_CHANCE_SPAWN_MS = 10000
         pulsos_cura_curater = []
         orientacao_base_sprite_inimigo = {
             1: "left",
@@ -702,13 +706,18 @@ def executar_jogo(game_manager=None):
             if ultimo_tick is not None and agora_ms - ultimo_tick < CURATER_INTERVALO_CURA:
                 return
             inimigo["ultimo_tick_cura_curater"] = agora_ms
-            alvos_curados = 0
+            candidatos = []
             for alvo in inimigos_comum:
                 if alvo is inimigo or alvo.get("tipo", 1) == TIPO_CURATER or alvo.get("vida", 0) <= 0:
                     continue
                 vida_maxima_alvo = alvo.get("vida_maxima", 0)
                 if vida_maxima_alvo <= 0 or alvo.get("vida", 0) >= vida_maxima_alvo:
                     continue
+                candidatos.append((alvo.get("vida", 0) / max(1, vida_maxima_alvo), alvo))
+
+            alvos_curados = 0
+            for _, alvo in sorted(candidatos, key=lambda item: item[0])[:CURATER_MAX_ALVOS_CURA]:
+                vida_maxima_alvo = alvo.get("vida_maxima", 0)
                 vida_perdida = vida_maxima_alvo - alvo["vida"]
                 cura = vida_perdida * CURATER_PERCENTUAL_VIDA_PERDIDA
                 if cura <= 0:
@@ -1355,8 +1364,6 @@ def executar_jogo(game_manager=None):
                 })
                 
             return enemy_dict
-
-
         def desenhar_sombra(tela, x, y, largura, altura, offset_y=5):
             """Desenha uma sombra elíptica embaixo de um ser com três níveis de qualidade"""
             modo_sombra = config_graficos.get("sombras_ativas", "dinamicas")
@@ -1398,7 +1405,10 @@ def executar_jogo(game_manager=None):
                 tela.blit(sombra_surface, (pos_x, pos_y))
 
 
+        tempo_ultima_chance_curater_spawn = -CURATER_COOLDOWN_CHANCE_SPAWN_MS
+
         def gerar_inimigo(limite_inimigos=None):
+            nonlocal tempo_ultima_chance_curater_spawn
             global inimigos_comum
             if multiplayer_coop.eh_cliente():
                 return
@@ -1409,8 +1419,19 @@ def executar_jogo(game_manager=None):
                 tempo_decorrido = Variaveis.obter_tempo_decorrido()
                 tipo_escolhido = 1
                 if tempo_decorrido >= ANOMALIA_CURATER_TEMPO:
-                    choices = [TIPO_CURATER, 1, 3, 5, 4]
-                    weights = [CURATER_CHANCE_SPAWN_LOCAL, 0.45, 0.16, 0.14, 0.10]
+                    curaters_ativos = sum(1 for ini in inimigos_comum if ini.get("tipo", 1) == TIPO_CURATER)
+                    agora_spawn = pygame.time.get_ticks()
+                    pode_testar_curater = (
+                        curaters_ativos < CURATER_MAX_ATIVOS
+                        and agora_spawn - tempo_ultima_chance_curater_spawn >= CURATER_COOLDOWN_CHANCE_SPAWN_MS
+                    )
+                    if pode_testar_curater:
+                        tempo_ultima_chance_curater_spawn = agora_spawn
+                        choices = [TIPO_CURATER, 1, 3, 5, 4]
+                        weights = [CURATER_CHANCE_SPAWN_LOCAL, 0.45, 0.16, 0.14, 0.10]
+                    else:
+                        choices = [1, 3, 5, 4]
+                        weights = [0.58, 0.18, 0.15, 0.09]
                     tipo_escolhido = random.choices(choices, weights=weights)[0]
                 elif tempo_decorrido >= ANOMALIA_CRISTALIZADOR_TEMPO:
                     choices = [1, 3, 5, 4]
@@ -1428,6 +1449,10 @@ def executar_jogo(game_manager=None):
                 # Regra: Limite de 1 Cristalizador por vez
                 if tipo_escolhido == 4:
                     if any(ini.get("tipo", 1) == 4 for ini in inimigos_comum):
+                        tipo_escolhido = 1
+
+                if tipo_escolhido == TIPO_CURATER:
+                    if sum(1 for ini in inimigos_comum if ini.get("tipo", 1) == TIPO_CURATER) >= CURATER_MAX_ATIVOS:
                         tipo_escolhido = 1
 
                 if tipo_escolhido == TIPO_CURATER:
@@ -4904,6 +4929,8 @@ def executar_jogo(game_manager=None):
                             dano *= condutora_manifestacao.multiplicador_dano_disparo(disparo)
                             dano *= gravitante_manifestacao.multiplicador_dano_disparo(disparo)
                             dano *= ancorada_manifestacao.multiplicador_dano_disparo(disparo)
+                            dano *= lacerante_manifestacao.multiplicador_dano_boss(disparo)
+                            dano = boss_manifestacao_effects.aplicar_efeito_boss(disparo, dano, tempo_atual, efeitos_texto, rect_boss, "boss1")
 
                             # Renderizar texto do dano
                             tempo_texto_dano = pygame.time.get_ticks()
@@ -5562,11 +5589,11 @@ def executar_jogo(game_manager=None):
                         mensagem_mostrada = False  # Define que a mensagem foi mostrada
                         tempo_mostrando_mensagem = 0  # Reinicia o contador de tempo
 
-                if not area_icones.colliderect(
+                if hub_vertical_inferior_ativo((pos_x_personagem, pos_y_personagem)) or not area_icones.colliderect(
                 (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
                 ):
                     # Desenhar habilidades na tela
-                    desenhar_habilidades(tela, cooldowns,dispositivo_ativo)
+                    desenhar_habilidades(tela, cooldowns, dispositivo_ativo, (pos_x_personagem, pos_y_personagem))
                 if Mercenaria_Active:
                     fonte_combo = pygame.font.Font(None, 36)  # Tamanho maior para o combo
                     fonte_bonus = pygame.font.Font(None, 28)  # Tamanho menor para o bônus

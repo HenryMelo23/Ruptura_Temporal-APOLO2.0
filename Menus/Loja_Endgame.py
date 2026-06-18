@@ -372,30 +372,30 @@ def aplicar_deck_endgame(deck, v):
 
     for carta in deck:
         if carta=="Speed Boost":
-            v["velocidade_personagem"]+=0.09+(IE//200)*0.002; v["dano_person_hit"]+=10+(IE//50)*1.0
+            v["velocidade_personagem"]+=0.11+(IE//200)*0.003; v["dano_person_hit"]+=14+(IE//50)*1.2
         elif carta=="Porção":
-            av=650+(IE//50)*8; v["vida_maxima"]+=av; v["vida"]+=int(v["vida_maxima"]*0.30)
-            v["vida_petro"]+=int(v["vida_maxima_petro"]*0.25)
+            av=780+(IE//50)*10; v["vida_maxima"]+=av; v["vida"]+=int(v["vida_maxima"]*0.38)
+            v["vida_petro"]+=int(v["vida_maxima_petro"]*0.34)
             if v["vida_petro"]>v["vida_maxima_petro"]: v["vida_maxima_petro"]=v["vida_petro"]
-        elif carta=="Disparo crescente": v["dano_person_hit"]+=10+(IE//50)*1.5
+        elif carta=="Disparo crescente": v["dano_person_hit"]+=14+(IE//50)*1.8
         elif carta=="Trembo":
             v["trembo"]=True
             cc = v.setdefault("cartas_compradas", {})
             cc["Trembo"] = cc.get("Trembo", 0) + 1
             if cc["Trembo"] >= 2:
-                v["Tempo_cura"] = max(500, int(v["Tempo_cura"] * 0.75))
-                v["porcentagem_cura"] += 0.010 + (IE // 400) * 0.002
+                v["Tempo_cura"] = max(450, int(v["Tempo_cura"] * 0.70))
+                v["porcentagem_cura"] += 0.014 + (IE // 400) * 0.0025
             else:
-                v["Tempo_cura"] = max(500, int(v["Tempo_cura"] * 0.85))
-                v["porcentagem_cura"] += 0.005 + (IE // 400) * 0.001
+                v["Tempo_cura"] = max(450, int(v["Tempo_cura"] * 0.82))
+                v["porcentagem_cura"] += 0.007 + (IE // 400) * 0.0015
         elif carta=="Tempestade":
-            v["dano_person_hit"]+=2.5+(IE//100)*1; v["chance_critico"]+=0.01+(IE//300)*0.002
+            v["dano_person_hit"]+=4+(IE//100)*1.2; v["chance_critico"]+=0.014+(IE//300)*0.0025
         elif carta=="Cura":
-            v["roubo_de_vida"]=1.0; v["quantidade_roubo_vida"]+=0.008+(IE//500)*0.0005
-        elif carta=="Speed Atack": v["intervalo_disparo"]=max(70,int(v["intervalo_disparo"]*0.95))
+            v["roubo_de_vida"]=1.0; v["quantidade_roubo_vida"]+=0.011+(IE//500)*0.0007
+        elif carta=="Speed Atack": v["intervalo_disparo"]=max(60,int(v["intervalo_disparo"]*0.94))
         elif carta=="Teleporte":
             r=0.95-min(0.15,(IE//1000)*0.02); v["tempo_cooldown_dash"]=max(0.4,v["tempo_cooldown_dash"]*r)
-        elif carta=="Defesa": v["Resistencia"]=min(60,v["Resistencia"]+10+(IE//200)*0.25)
+        elif carta=="Defesa": v["Resistencia"]=min(60,v["Resistencia"]+12+(IE//200)*0.35)
 
     aps=1000/max(50,v["intervalo_disparo"]); mc=1+v["chance_critico"]*2.0
     dps=min(v["dano_person_hit"]*aps*mc,1200)

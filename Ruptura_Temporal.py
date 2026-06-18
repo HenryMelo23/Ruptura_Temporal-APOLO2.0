@@ -3065,14 +3065,15 @@ def tela_configuracoes_jogabilidade(tela, fonte):
         config_jogabilidade = Variaveis.obter_config_jogabilidade(forcar_recarregar=True)
     except:
         loja_forcada = True
-        config_jogabilidade = {"fase_inicial": 1}
+        config_jogabilidade = {"fase_inicial": 1, "hub_vertical_inferior": False}
     dev_ativo = Caminhos.modo_desenvolvedor_ativo()
 
     config = {
         "mostrar_tutorial": mostrar_tut,
         "modo_teleporte": modo_teleporte,
         "loja_forcada": True,
-        "fase_inicial": int(config_jogabilidade.get("fase_inicial", 1) or 1)
+        "fase_inicial": int(config_jogabilidade.get("fase_inicial", 1) or 1),
+        "hub_vertical_inferior": bool(config_jogabilidade.get("hub_vertical_inferior", False)),
     }
     config["__aplicar__"] = "aplicar"
     config_salva = json.loads(json.dumps(config))
@@ -3080,6 +3081,7 @@ def tela_configuracoes_jogabilidade(tela, fonte):
     opcoes_config = [
         {"nome": "Tutorial", "chave": "mostrar_tutorial", "valores": [True, False], "labels": ["Ativado", "Desativado"]},
         {"nome": "Modo de Teleporte", "chave": "modo_teleporte", "valores": ["fixo", "mouse"], "labels": ["Fixo", "Mouse Target"]},
+        {"nome": "Hub Inferior", "chave": "hub_vertical_inferior", "valores": [False, True], "labels": ["Padrao", "Vertical"]},
         {"nome": "Aplicar Alteracoes", "chave": "__aplicar__", "valores": None, "labels": None},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
     ]
@@ -3094,6 +3096,10 @@ def tela_configuracoes_jogabilidade(tela, fonte):
         "modo_teleporte": {
             "fixo": "Modo Fixo: Teleporta na direcao do movimento. Rapido e instantaneo.",
             "mouse": "Modo Mouse: Segure a tecla para mirar na posicao do cursor e solte para teleportar."
+        },
+        "hub_vertical_inferior": {
+            False: "Mantem os dispositivos na barra inferior quando houver espaco.",
+            True: "Ao descer para o hub inferior, empilha os dispositivos no canto direito da tela."
         },
         "fase_inicial": {
             1: "Modo dev: inicia uma nova jornada pela Fase 1.",
@@ -3124,7 +3130,11 @@ def tela_configuracoes_jogabilidade(tela, fonte):
             json.dump({"modo": config["modo_teleporte"]}, f)
         try:
             import Variaveis
-            Variaveis.salvar_config_jogabilidade({"loja_forcada": True, "fase_inicial": config.get("fase_inicial", 1)})
+            Variaveis.salvar_config_jogabilidade({
+                "loja_forcada": True,
+                "fase_inicial": config.get("fase_inicial", 1),
+                "hub_vertical_inferior": config.get("hub_vertical_inferior", False),
+            })
             Variaveis.obter_modo_teleporte(forcar_recarregar=True)
         except Exception:
             pass

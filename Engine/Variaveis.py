@@ -2594,7 +2594,18 @@ def _desenhar_luz_loja_disponivel(tela, rect):
 
 
 
-def desenhar_habilidades(tela, cooldowns, dispositivo_ativo):
+def hub_vertical_inferior_ativo(pos_personagem=None):
+    if pos_personagem is None:
+        return False
+    try:
+        config_jogabilidade = obter_config_jogabilidade()
+        y_personagem = float(pos_personagem[1])
+        return bool(config_jogabilidade.get("hub_vertical_inferior")) and y_personagem >= altura_mapa * 0.68
+    except Exception:
+        return False
+
+
+def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None):
 
     if dispositivo_ativo == "teclado":
 
@@ -2637,12 +2648,16 @@ def desenhar_habilidades(tela, cooldowns, dispositivo_ativo):
     
 
     num_hab = len(habilidades)
+    modo_vertical = hub_vertical_inferior_ativo(pos_personagem)
 
     for i, (nome, tecla, icone_pronto, icone_recarga, cooldown) in enumerate(habilidades):
 
-        x = centro_tela - ((num_hab - 1) / 2.0 - i) * espacamento
-
-        y = altura_base
+        if modo_vertical:
+            x = max(8, largura_mapa - icone_tamanho[0] - 18)
+            y = max(92, int(altura_mapa * 0.30)) + i * (icone_tamanho[1] + 12)
+        else:
+            x = centro_tela - ((num_hab - 1) / 2.0 - i) * espacamento
+            y = altura_base
 
         
 
@@ -3871,6 +3886,7 @@ _cached_modo_teleporte = None
 CONFIG_JOGABILIDADE_PADRAO = {
     "loja_forcada": True,
     "fase_inicial": 1,
+    "hub_vertical_inferior": False,
 }
 
 _cached_config_jogabilidade = None
@@ -3927,6 +3943,14 @@ def salvar_config_jogabilidade(config):
     global _cached_config_jogabilidade
 
     dados = dict(CONFIG_JOGABILIDADE_PADRAO)
+    try:
+        if os.path.exists("saves/config_jogabilidade.json"):
+            with open("saves/config_jogabilidade.json", "r") as f:
+                salvos = json.load(f)
+            if isinstance(salvos, dict):
+                dados.update({k: salvos[k] for k in CONFIG_JOGABILIDADE_PADRAO if k in salvos})
+    except Exception:
+        dados = dict(CONFIG_JOGABILIDADE_PADRAO)
 
     if isinstance(config, dict):
 
@@ -4845,13 +4869,13 @@ def aplicar_carta_drop(nome, stats):
 
     elif nome == "Porção":
 
-        stats["vida"] += int(stats["vida_maxima"] * 0.45)
+        stats["vida"] += int(stats["vida_maxima"] * 0.58)
 
         if stats["vida"] > stats["vida_maxima"]:
 
             stats["vida_maxima"] = stats["vida"]
 
-        stats["vida_petro"] += int(stats["vida_maxima_petro"] * 0.30)
+        stats["vida_petro"] += int(stats["vida_maxima_petro"] * 0.40)
 
         if stats["vida_petro"] > stats["vida_maxima_petro"]:
 
@@ -4873,15 +4897,15 @@ def aplicar_carta_drop(nome, stats):
 
         if stats["cartas_compradas"]["Trembo"] >= 2:
 
-            stats["Tempo_cura"] = max(500, int(stats["Tempo_cura"] * 0.75))
+            stats["Tempo_cura"] = max(450, int(stats["Tempo_cura"] * 0.70))
 
-            stats["porcentagem_cura"] += 0.005
+            stats["porcentagem_cura"] += 0.008
 
         else:
 
-            stats["Tempo_cura"] -= stats["Tempo_cura"] * 0.05
+            stats["Tempo_cura"] = max(450, int(stats["Tempo_cura"] * 0.90))
 
-            stats["porcentagem_cura"] += 0.001
+            stats["porcentagem_cura"] += 0.003
 
     elif nome == "Tempestade":
 
@@ -4895,7 +4919,7 @@ def aplicar_carta_drop(nome, stats):
 
         stats["roubo_de_vida"] = 1.0
 
-        stats["quantidade_roubo_vida"] += 0.001
+        stats["quantidade_roubo_vida"] += 0.002
 
         stats["cartas_compradas"]["Cura"] += 1
 
@@ -4919,7 +4943,7 @@ def aplicar_carta_drop(nome, stats):
 
         stats["Petro_active"] = True
 
-        stats["dano_petro"] += 2
+        stats["dano_petro"] += 4
 
         pe = stats["petro_evolucao"]
 
@@ -4933,7 +4957,7 @@ def aplicar_carta_drop(nome, stats):
 
             stats["xp_petro"] = "nivel_2"
 
-            stats["vida_maxima_petro"] += 1000
+            stats["vida_maxima_petro"] += 1300
 
             stats["petro_evolucao"] += 4
 
@@ -4941,15 +4965,15 @@ def aplicar_carta_drop(nome, stats):
 
             stats["xp_petro"] = "nivel_3"
 
-            stats["vida_maxima_petro"] += 2000
+            stats["vida_maxima_petro"] += 2600
 
-            stats["Resistencia_petro"] += 18
+            stats["Resistencia_petro"] += 22
 
-            stats["dano_petro"] += 250
+            stats["dano_petro"] += 330
 
         if stats["vida_petro"] < stats["vida_maxima_petro"]:
 
-            stats["vida_petro"] += int(stats["vida_maxima_petro"] * 0.45)
+            stats["vida_petro"] += int(stats["vida_maxima_petro"] * 0.55)
 
         if stats["vida_petro"] > stats["vida_maxima_petro"]:
 
@@ -4959,7 +4983,7 @@ def aplicar_carta_drop(nome, stats):
 
     elif nome == "Defesa":
 
-        stats["Resistencia"] += 3.5
+        stats["Resistencia"] += 5.0
 
         if stats["Resistencia"] > 50:
 
@@ -4977,13 +5001,13 @@ def aplicar_carta_drop(nome, stats):
 
         stats["Poison_Active"] = True
 
-        stats["Dano_Veneno_Acumulado"] += 0.05
+        stats["Dano_Veneno_Acumulado"] += 0.008
 
         stats["cartas_compradas"]["Poison"] += 1
 
     elif nome == "Coletora":
 
-        stats["Executa_inimigo"] += 0.005
+        stats["Executa_inimigo"] += 0.007
 
         stats["Ultimo_Estalo"] = True
 
@@ -4993,7 +5017,7 @@ def aplicar_carta_drop(nome, stats):
 
         stats["Mercenaria_Active"] = True
 
-        stats["Valor_Bonus"] += 25
+        stats["Valor_Bonus"] += 35
 
         stats["cartas_compradas"]["Mercenaria"] += 1
 
