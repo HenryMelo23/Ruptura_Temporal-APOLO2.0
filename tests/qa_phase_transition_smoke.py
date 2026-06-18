@@ -8,6 +8,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+import sitecustomize  # noqa: F401
 
 
 FULL_ATTRS = {
@@ -79,6 +82,11 @@ import threading
 import time
 import traceback
 
+root = os.environ["QA_ROOT"]
+if root not in sys.path:
+    sys.path.insert(0, root)
+import sitecustomize  # noqa: F401
+
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 os.environ["SDL_AUDIODRIVER"] = "dummy"
 
@@ -144,6 +152,7 @@ def run_case(module_name, attrs, label):
         env["SDL_VIDEODRIVER"] = "dummy"
         env["SDL_AUDIODRIVER"] = "dummy"
         env["QA_PHASE_MODULE"] = module_name
+        env["QA_ROOT"] = str(ROOT)
         env["QA_ATTRS_JSON"] = json.dumps(attrs)
         env["QA_SECONDS"] = "0.65"
         result = subprocess.run(

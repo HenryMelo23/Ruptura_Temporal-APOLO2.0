@@ -1,16 +1,31 @@
+import sys
+import os
+from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+for _folder in ("Fases", "Manifestacoes", "Aureas", "Rede", "Boss", "Menus", "Engine"):
+    _path = str(_PROJECT_ROOT / _folder)
+    if _path not in sys.path:
+        sys.path.insert(0, _path)
+
 import Caminhos
 import pygame
 escudo_devota_ativo = True
 duracao_incendio_vanguarda = 5000
 intervalo_escudo = 30000
-import sys
 import random
 import math
 import time
-import os
-import sys
 import json
 import lacerante_manifestacao
+import prismatica_manifestacao
+import retornante_manifestacao
+import parasitica_manifestacao
+import condutora_manifestacao
+import gravitante_manifestacao
+import ancorada_manifestacao
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from flask import Flask, jsonify
 from flask_cors import CORS
@@ -89,6 +104,61 @@ estado_devota = criar_estado_devota(False)
 vanguarda_fogo_fim = 0
 inimigos_em_chamas = {}
 tempo_ultimo_escudo = pygame.time.get_ticks()
+
+_MANIFESTACAO_APOLO = {
+    "eletrica": {"vel": 10.0, "lead": 0.70, "dist_ideal": 330},
+    "lacerante": {"vel": 18.0, "lead": 0.34, "dist_ideal": 230},
+    "prismatica": {"vel": 24.0, "lead": 0.95, "dist_ideal": 390},
+    "retornante": {"vel": 12.0, "lead": 0.55, "dist_ideal": 310},
+    "parasitica": {"vel": 10.0, "lead": 0.62, "dist_ideal": 360},
+    "condutora": {"vel": 14.0, "lead": 0.78, "dist_ideal": 340},
+    "gravitante": {"vel": 8.0, "lead": 0.45, "dist_ideal": 300},
+    "ancorada": {"vel": 11.0, "lead": 0.38, "dist_ideal": 260},
+}
+
+
+def perfil_manifestacao_apolo(manifestacao):
+    chave = str(manifestacao or "eletrica").strip().lower()
+    return _MANIFESTACAO_APOLO.get(chave, _MANIFESTACAO_APOLO["eletrica"])
+
+
+def criar_disparo_manifestacao_fase5(vfx, centro_x, centro_y, largura, altura, angulo, velocidade, tempo_atual, impulsiva=False):
+    return ancorada_manifestacao.criar_auto_attack(
+        manifestacao_ativa, vfx, centro_x, centro_y, largura, altura,
+        angulo, velocidade, tempo_atual, impulsiva
+    )
+
+
+def multiplicador_dano_manifestacao_fase5(disparo):
+    mult = 1.0
+    mult *= lacerante_manifestacao.multiplicador_dano_disparo(disparo)
+    mult *= prismatica_manifestacao.multiplicador_dano_disparo(disparo)
+    mult *= retornante_manifestacao.multiplicador_dano_disparo(disparo)
+    mult *= parasitica_manifestacao.multiplicador_dano_disparo(disparo)
+    mult *= condutora_manifestacao.multiplicador_dano_disparo(disparo)
+    mult *= gravitante_manifestacao.multiplicador_dano_disparo(disparo)
+    mult *= ancorada_manifestacao.multiplicador_dano_disparo(disparo)
+    return mult
+
+
+def multiplicador_cooldown_manifestacao_fase5():
+    mult = 1.0
+    mult *= lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa)
+    mult *= parasitica_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa)
+    mult *= condutora_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa)
+    return mult
+
+
+def colisao_disparo_boss5(disparo, boss_rect, tempo_atual):
+    if not isinstance(disparo, dict) or boss_rect is None:
+        return False
+    if disparo.get("tipo_manifestacao") == "lacerante_corte":
+        return lacerante_manifestacao.colisao_corte(disparo, boss_rect, tempo_atual)
+    if disparo.get("tipo_manifestacao") == "prismatica_feixe":
+        return prismatica_manifestacao.colisao_feixe(disparo, boss_rect, tempo_atual)
+    if disparo.get("tipo_manifestacao") == "retornante_pulso":
+        return retornante_manifestacao.colisao_alvo(disparo, {"rect": boss_rect, "retornante_id": "umbra"})
+    return disparo.get("rect", pygame.Rect(0, 0, 0, 0)).colliderect(boss_rect)
 
 def alvos_vanguarda_fase5():
     alvos = []
@@ -768,7 +838,7 @@ def executar_jogo(game_manager=None):
                     py_centro = pos_y_personagem + altura_personagem // 2
                     angulo = calcular_angulo_disparo((px_centro, py_centro), (apolo.alvo_x, apolo.alvo_y))
                     Disparo_Geo.play()
-                    disparos.append(lacerante_manifestacao.criar_auto_attack(manifestacao_ativa, vfx_disparo_player,
+                    disparos.append(criar_disparo_manifestacao_fase5(vfx_disparo_player,
                         px_centro, py_centro, largura_disparo, altura_disparo,
                         angulo, velocidade_disparo, tempo_agora, impulsiva_ativa
                     ))
@@ -1468,8 +1538,13 @@ def executar_jogo(game_manager=None):
                 # 3. Kiting Umbra e LoS
                 origem_laser = (boss_hitbox.centerx, boss_hitbox.centery) if boss_hitbox else (largura_mapa//2, altura_mapa//2)
                 dist_boss = np.hypot(CX - origem_laser[0], CY - origem_laser[1])
-                SCORE[dist_boss < 200] -= (200 - dist_boss[dist_boss < 200]) * 2.0
-                SCORE[dist_boss > 600] -= (dist_boss[dist_boss > 600] - 600) * 0.5
+                perfil_arma = perfil_manifestacao_apolo(globals().get("manifestacao_ativa"))
+                dist_ideal = float(perfil_arma.get("dist_ideal", 330))
+                margem_curta = max(130.0, dist_ideal * 0.62)
+                margem_longa = max(520.0, dist_ideal * 1.75)
+                SCORE -= np.abs(dist_boss - dist_ideal) * 0.20
+                SCORE[dist_boss < margem_curta] -= (margem_curta - dist_boss[dist_boss < margem_curta]) * 2.0
+                SCORE[dist_boss > margem_longa] -= (dist_boss[dist_boss > margem_longa] - margem_longa) * 0.5
 
                 ang_umbra_apolo = math.atan2(py - origem_laser[1], px - origem_laser[0])
                 ang_umbra_celula = np.arctan2(CY - origem_laser[1], CX - origem_laser[0])
@@ -1895,11 +1970,13 @@ def executar_jogo(game_manager=None):
                     vx = estado_ia.get('vel_x', 0.0)
                     vy = estado_ia.get('vel_y', 0.0)
 
+                perfil_arma = perfil_manifestacao_apolo(globals().get("manifestacao_ativa"))
                 distancia = math.hypot(tx - px, ty - py)
-                tempo_bala = max(1.0, distancia / 10.0) # Velocidade da bala de Apolo = 10
+                tempo_bala = max(1.0, distancia / max(1.0, float(perfil_arma.get("vel", 10.0))))
+                lead_arma = float(perfil_arma.get("lead", 0.70))
 
-                self.alvo_x = tx + (vx * tempo_bala * 0.7) # Trava 70% na velocidade do alvo simulando predição
-                self.alvo_y = ty + (vy * tempo_bala * 0.7)
+                self.alvo_x = tx + (vx * tempo_bala * lead_arma)
+                self.alvo_y = ty + (vy * tempo_bala * lead_arma)
 
                 if cds.get("disparo", False) == False and boss_hitbox is not None: 
                     self.mouse_simulado[0] = True
@@ -2833,7 +2910,7 @@ def executar_jogo(game_manager=None):
                     tempo_ultimo_frame_preparo_disparo = tempo_atual
                     direcao_atual = 'disp'
                     frame_atual = 0
-                elif not pausa_por_fuga_mouse and Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade * lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) and tempo_atual >= tempo_fim_stun:
+                elif not pausa_por_fuga_mouse and Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade * multiplicador_cooldown_manifestacao_fase5() and tempo_atual >= tempo_fim_stun:
                     pos_mouse = obter_pos_mouse_jogo()
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
@@ -3014,7 +3091,7 @@ def executar_jogo(game_manager=None):
                     px_centro = pos_x_personagem + largura_personagem // 2
                     py_centro = pos_y_personagem + altura_personagem // 2
                     Disparo_Geo.play()
-                    disparos.append(lacerante_manifestacao.criar_auto_attack(manifestacao_ativa, vfx_disparo_player,
+                    disparos.append(criar_disparo_manifestacao_fase5(vfx_disparo_player,
                         px_centro, py_centro, largura_disparo, altura_disparo,
                         angulo_disparo_preparado, velocidade_disparo, tempo_atual, impulsiva_ativa
                     ))
@@ -4513,11 +4590,7 @@ def executar_jogo(game_manager=None):
                 atingiu_boss = False
                 interceptado = False
                 if luta_iniciada:
-                    acertou_boss_disparo = (
-                        lacerante_manifestacao.colisao_corte(disparo, hitbox_boss5, tempo_atual)
-                        if disparo.get("tipo_manifestacao") == "lacerante_corte"
-                        else disparo["rect"].colliderect(hitbox_boss5)
-                    )
+                    acertou_boss_disparo = colisao_disparo_boss5(disparo, hitbox_boss5, tempo_atual)
                     if acertou_boss_disparo:
 
                         if random.random() <= chance_critico:
@@ -4528,7 +4601,7 @@ def executar_jogo(game_manager=None):
                             dano_final = dano_person_hit * fator_dano_aureas()
                             cor_feedback = (255, 255, 255) # Branco Normal
 
-                        dano_final *= lacerante_manifestacao.multiplicador_dano_disparo(disparo)
+                        dano_final *= multiplicador_dano_manifestacao_fase5(disparo)
 
                         # Se o escudo (parede_ativa) estiver ligado, reduzimos o dano em 25%
                         if estado_atual_ia.get('parede_ativa'):
@@ -4787,7 +4860,7 @@ def executar_jogo(game_manager=None):
             cooldowns = {
                 "disparo": max(0.0, (intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual) - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
                 "teleporte": max(0.0, (cooldown_teleporte_vanguarda(tempo_cooldown_dash, aurea, alvos_vanguarda_fase5(), inimigos_em_chamas, duracao_incendio_vanguarda, tempo_atual) - (pygame.time.get_ticks() - tempo_ultimo_dash)) / 1000.0),
-                "onda": max(0.0, (cooldown_habilidade * lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
+                "onda": max(0.0, (cooldown_habilidade * multiplicador_cooldown_manifestacao_fase5() - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
                 "loja": 1 if pontuacao_exib >= custo_carta_atual else 0,
             }
 
@@ -4938,5 +5011,15 @@ def executar_jogo(game_manager=None):
             _builtins.exit = _orig_builtins_exit
 
 
+class _StandaloneGame5Manager:
+    def __init__(self):
+        self.estado = None
+        self.dados = None
+
+    def mudar_estado(self, estado, dados=None):
+        self.estado = estado
+        self.dados = dados or {}
+
+
 if __name__ == '__main__':
-    executar_jogo()
+    executar_jogo(_StandaloneGame5Manager())

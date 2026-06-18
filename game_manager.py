@@ -1,3 +1,14 @@
+# Configure paths for subfolders so that flat imports work everywhere
+import sys
+import os
+
+base_dir = os.path.dirname(os.path.abspath(__file__))
+subfolders = ["Fases", "Manifestacoes", "Aureas", "Rede", "Boss", "Menus", "Engine"]
+for folder in subfolders:
+    path = os.path.join(base_dir, folder)
+    if path not in sys.path:
+        sys.path.insert(0, path)
+
 """
 GAME MANAGER - Sistema de Gerenciamento de Estados
 Substitui subprocess por transições fluidas entre telas

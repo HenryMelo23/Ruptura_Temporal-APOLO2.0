@@ -241,7 +241,7 @@ def build(include_phase5=False, dry_run=False, vlc_dir=None):
             "--name", "GAME5_PLAYER",
             *_hidden_import_args(REQUIRED_RUNTIME_MODULES),
             *_vlc_pyinstaller_args(vlc_dir),
-            "GAME5_PLAYER.py"
+            os.path.join("Fases", "GAME5_PLAYER.py")
         ], dry_run=dry_run)
 
         # Copy GAME5_PLAYER.exe to dist/Ruptura_Temporal_APOLO2.0/.

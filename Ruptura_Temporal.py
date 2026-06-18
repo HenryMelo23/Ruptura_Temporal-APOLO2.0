@@ -1,3 +1,14 @@
+# Configure paths for subfolders so that flat imports work everywhere
+import sys
+import os
+
+base_dir = os.path.dirname(os.path.abspath(__file__))
+subfolders = ["Fases", "Manifestacoes", "Aureas", "Rede", "Boss", "Menus", "Engine"]
+for folder in subfolders:
+    path = os.path.join(base_dir, folder)
+    if path not in sys.path:
+        sys.path.insert(0, path)
+
 
 #Este projeto estÃ¡ licenciado sob a Creative Commons Attribution-NonCommercial-ShareAlike 4.0.
 #Uso comercial Ã© estritamente proibido. ModificaÃ§Ãµes e redistribuiÃ§Ãµes sÃ£o permitidas sob as mesmas condiÃ§Ãµes.
@@ -1725,9 +1736,9 @@ def tela_selecao_aurea(tela, fonte):
             "cor_tema": (0, 255, 180),       # Verde Esmeralda / Neon
             "bg_tema": (8, 32, 24),          # Fundo Deep Green
             "categoria": "SURPRESA E DESTINO INCERTO",
-            "efeito": "Escolhe uma das seis Ã¡ureas ativas ao iniciar a jornada, mudando a estratÃ©gia da partida.",
+            "efeito": "Escolhe uma das dez aureas ativas ao iniciar a jornada, mudando a estrategia da partida.",
             "atributos": [
-                "â€¢ Pode vir Racional, Impulsiva, Devota, Vanguarda, Insana ou Voraz.",
+                "Pode vir Racional, Impulsiva, Devota, Vanguarda, Insana, Voraz, Nula, Abissal, Profetica ou Sanguinaria.",
                 "â€¢ A escolha Ã© definida ao confirmar.",
                 "â€¢ Boa para partidas de adaptaÃ§Ã£o."
             ],
@@ -1767,6 +1778,54 @@ def tela_selecao_aurea(tela, fonte):
             "Custo: ficar 30s sem coletar drena 1% de vida a cada 1.5s."
         ],
         "lore": "Nesta realidade, Geovana provou o gosto das rupturas. Ela se alimenta dos inimigos para se fortalecer, mas sua fome e insaciavel: quanto mais devora, mais poder ela sente e quer."
+    })
+
+    aureas.insert(-1, {
+        "nome": "Nula",
+        "imagem": "Sprites/aurea_nula.png",
+        "ativa": True,
+        "cor_tema": (180, 235, 255),
+        "bg_tema": (8, 22, 28),
+        "categoria": "VAZIO E ANULACAO",
+        "efeito": "Acumula Vazio e transforma o proximo disparo em Nulificacao.",
+        "atributos": ["Ficar sem atacar carrega Vazio.", "Abates limpos aceleram a carga.", "Nulificacao enfraquece e pune alvos robustos."],
+        "lore": "O vazio retira do mundo a permissao de existir."
+    })
+
+    aureas.insert(-1, {
+        "nome": "Abissal",
+        "imagem": "Sprites/aurea_abissal.png",
+        "ativa": True,
+        "cor_tema": (80, 80, 190),
+        "bg_tema": (6, 8, 28),
+        "categoria": "PROFUNDIDADE E MARE NEGRA",
+        "efeito": "Acumula Profundidade sob cerco e ativa Mare Negra ao atingir o limite.",
+        "atributos": ["Muitos inimigos carregam Profundidade.", "Mare Negra puxa e pune alvos fracos.", "Custo: Geovana fica mais pesada."],
+        "lore": "Quanto mais fundo o tempo afunda, mais dificil e lembrar a superficie."
+    })
+
+    aureas.insert(-1, {
+        "nome": "Profetica",
+        "imagem": "Sprites/aurea_profetica.png",
+        "ativa": True,
+        "cor_tema": (255, 235, 110),
+        "bg_tema": (34, 28, 8),
+        "categoria": "PRESSAGIO E REACAO",
+        "efeito": "Marca inimigos com Pressagios e recompensa reacoes corretas.",
+        "atributos": ["Pressagios aparecem periodicamente.", "Acertar ou finalizar o alvo marcado recompensa.", "Falhar aplica Destino Quebrado."],
+        "lore": "O futuro e uma pergunta feita cedo demais."
+    })
+
+    aureas.insert(-1, {
+        "nome": "Sanguinaria",
+        "imagem": "Sprites/aurea_sanguinaria.png",
+        "ativa": True,
+        "cor_tema": (255, 45, 65),
+        "bg_tema": (38, 6, 10),
+        "categoria": "FERIDA ABERTA E SEDE",
+        "efeito": "Dano repetido abre Ferida; feridos alimentam Sede e ativam Carnificina.",
+        "atributos": ["Repetir dano no mesmo alvo aplica Ferida.", "Feridos recebem dano extra.", "Varias feridas preparam Carnificina Controlada."],
+        "lore": "Ela escuta o ponto exato em que a realidade rasga."
     })
 
     dados_aureas_por_id = {dado["id"]: dado for dado in AUREAS_DADOS}
@@ -1948,7 +2007,7 @@ def tela_selecao_aurea(tela, fonte):
                         tocar_selecionar()
                         nome_aurea = aureas[selecionado]["nome"]
                         if nome_aurea == "AleatÃ³ria":
-                            nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda", "Insana", "Voraz"])
+                            nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda", "Insana", "Voraz", "Nula", "Abissal", "Profetica", "Sanguinaria"])
 
                         # Salva a escolha
                         os.makedirs("saves", exist_ok=True)
@@ -1998,7 +2057,7 @@ def tela_selecao_aurea(tela, fonte):
                         tocar_selecionar()
                         nome_aurea = aureas[selecionado]["nome"]
                         if nome_aurea == "AleatÃ³ria":
-                            nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda", "Insana", "Voraz"])
+                            nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda", "Insana", "Voraz", "Nula", "Abissal", "Profetica", "Sanguinaria"])
                         os.makedirs("saves", exist_ok=True)
                         with open("saves/aurea_selecionada.json", "w") as file:
                             json.dump({"aurea": nome_aurea}, file)
@@ -2034,7 +2093,7 @@ def tela_selecao_aurea(tela, fonte):
                     tocar_selecionar()
                     nome_aurea = aurea["nome"]
                     if nome_aurea == "AleatÃ³ria":
-                        nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda", "Insana", "Voraz"])
+                        nome_aurea = random.choice(["Racional", "Impulsiva", "Devota", "Vanguarda", "Insana", "Voraz", "Nula", "Abissal", "Profetica", "Sanguinaria"])
 
                     os.makedirs("saves", exist_ok=True)
                     with open("saves/aurea_selecionada.json", "w") as file:
@@ -3481,7 +3540,7 @@ def _dados_catalogo_temporal():
             {"nome": "Aurea Vanguarda", "imagem": "Sprites/aurea_vanguarda.png", "funcionamento": "Area e queimadura. Inimigos proximos ou tocados podem incendiar e sofrer dano por segundo baseado em vida maxima. Nas fases com sistema completo, sofrer hit abre um circulo de fogo por 5s. Cada inimigo queimando aumenta o cooldown do Teleporte in 15%.", "historia": "Liderando o avanco, a pioneira incendeia o solo para que nada a siga no fluxo temporal."},
             {"nome": "Aurea Insana", "imagem": "Sprites/aurea_insana.png", "funcionamento": "Ecos temporais. A cada ciclo liberado, Geovana ganha 4 ecos parados que repetem seus disparos com 1s de atraso e dano reduzido. Se um eco finalizar inimigo, a proxima ativacao ganha +1 eco, ate 5. Depois da aura, o Teleporte sofre +2s de recarga.", "historia": "A insanidade temporal quebra a linha do presente e deixa copias atrasadas atirando no mesmo instante."},
             {"nome": "Aurea Voraz", "imagem": "Sprites/aurea_voraz.png", "funcionamento": "Fome e consumo. Abates geram coagulos de sangue temporarios que curam vida perdida e enchem a barra Fome. Fome acumulada aumenta tamanho, dano e recarga de Geovana. Se Geovana ficar 30s sem coletar coagulos, sua vida e drenada.", "historia": "Nesta realidade, Geovana provou o gosto das rupturas. Ela se alimenta dos inimigos para se fortalecer, mas sua fome e insaciavel: quanto mais devora, mais poder ela sente e quer."},
-            {"nome": "Aurea Aleatoria", "imagem": "Sprites/aurea_misteriosa.png", "funcionamento": "Seleciona uma das cinco aureas ativas ao confirmar a jornada: Racional, Impulsiva, Devota, Vanguarda ou Insana. A utilidade muda conforme a sorte, exigindo adaptar movimentacao, agressividade, defesa, controle de area ou ecos temporais.", "historia": "O destino e incerto, e o tempo se desdobra in infinitas possibilidades."},
+            {"nome": "Aurea Aleatoria", "imagem": "Sprites/aurea_misteriosa.png", "funcionamento": "Seleciona uma das dez aureas ativas ao confirmar a jornada: Racional, Impulsiva, Devota, Vanguarda, Insana, Voraz, Nula, Abissal, Profetica ou Sanguinaria. A utilidade muda conforme a sorte, exigindo adaptar movimentacao, agressividade, defesa, controle de area, ecos temporais, vazio, mare negra, pressagios ou feridas.", "historia": "O destino e incerto, e o tempo se desdobra in infinitas possibilidades."},
         ],
         "Fragmentos": [
             {"nome": "Speed Boost", "imagem": "Sprites/Deck/Speed_boost1.png", "funcionamento": "Aumenta a velocidade de movimentacao de Geovana.", "historia": "Um fragmento para quem prefere vencer a ruptura antes que ela feche o cerco."},

@@ -9,14 +9,16 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SOURCE_GAME5 = PROJECT_ROOT / "Fases" / "GAME5.py"
+OUTPUT_GAME5_PLAYER = PROJECT_ROOT / "Fases" / "GAME5_PLAYER.py"
 
 def build_player():
     os.chdir(PROJECT_ROOT)
-    if not os.path.exists("GAME5.py"):
+    if not SOURCE_GAME5.exists():
         print("Erro: GAME5.py não encontrado no diretório atual.")
         sys.exit(1)
 
-    with open("GAME5.py", "r", encoding="utf-8") as f:
+    with open(SOURCE_GAME5, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
     def find_line(search_str, start_idx=0):
@@ -54,16 +56,51 @@ import math
 import time
 import os
 import json
+from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+for _folder in ("Fases", "Manifestacoes", "Aureas", "Rede", "Boss", "Menus", "Engine"):
+    _path = str(_PROJECT_ROOT / _folder)
+    if _path not in sys.path:
+        sys.path.insert(0, _path)
+
 from Tela_Cartas import tela_de_pausa
 from Variaveis import *
 import Variaveis
 from utils import *
+from ui_helpers import (
+    desenhar_hud_fase,
+    obter_pos_mouse_jogo,
+    desenhar_efeitos_vanguarda,
+    desenhar_efeito_racional_dilatacao,
+    fator_movimento_racional,
+    ganho_passiva_racional,
+    intervalo_disparo_racional,
+    personagem_racional_imovel,
+    RACIONAL_PASSIVA_INTERVALO_MS,
+    tentar_ativar_dilatacao_racional,
+    absorver_hit_devota,
+    atualizar_ciclo_impulsiva,
+    cooldown_teleporte_vanguarda,
+    criar_estado_devota,
+    criar_estado_impulsiva,
+    fator_dano_devota,
+    fator_dano_impulsiva,
+    fator_velocidade_devota,
+    fator_velocidade_impulsiva,
+    quebrar_frenesi_impulsiva,
+    consumir_multiplicador_panico_impulsiva,
+    restaurar_escudo_devota,
+)
+from onda_recoil import criar_estado_coice_onda, aplicar_coice_onda, atualizar_coice_onda
 import habilidade_boss_player as hb
 import collections
 from audio_manager import carregar_config_audio, aplicar_volume_som
 from sistema_ratos_umbra import GerenciadorRatos
 from vfx_engine_apolo import ApoloVFXManager
+from player_projectile import PlayerProjectileVFX, estourar_disparo_eletrico
 from habilidades_personagem import desenhar_onda, criar_particulas_explosao_onda as criar_particulas_explosao
+from qa_logger import instalar_captura_global, instalar_filtro_prints
 """
     output.append(new_imports)
 
@@ -498,10 +535,10 @@ from habilidades_personagem import desenhar_onda, criar_particulas_explosao_onda
         i += 1
 
     # Escreve o arquivo final
-    with open("GAME5_PLAYER.py", "w", encoding="utf-8") as f:
+    with open(OUTPUT_GAME5_PLAYER, "w", encoding="utf-8") as f:
         f.writelines(output)
 
-    print(f"GAME5_PLAYER.py gerado com sucesso! ({len(output)} blocos)")
+    print(f"{OUTPUT_GAME5_PLAYER} gerado com sucesso! ({len(output)} blocos)")
 
 if __name__ == "__main__":
     build_player()

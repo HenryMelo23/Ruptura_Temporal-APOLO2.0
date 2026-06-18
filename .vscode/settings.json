@@ -1,4 +1,22 @@
 {
     "kiroAgent.configureMCP": "Disabled",
-    "python-envs.defaultEnvManager": "ms-python.python:system"
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/Fases",
+        "${workspaceFolder}/Manifestacoes",
+        "${workspaceFolder}/Aureas",
+        "${workspaceFolder}/Rede",
+        "${workspaceFolder}/Boss",
+        "${workspaceFolder}/Menus",
+        "${workspaceFolder}/Engine"
+    ],
+    "python.autoComplete.extraPaths": [
+        "${workspaceFolder}/Fases",
+        "${workspaceFolder}/Manifestacoes",
+        "${workspaceFolder}/Aureas",
+        "${workspaceFolder}/Rede",
+        "${workspaceFolder}/Boss",
+        "${workspaceFolder}/Menus",
+        "${workspaceFolder}/Engine"
+    ]
 }
