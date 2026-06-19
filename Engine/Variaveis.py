@@ -43,6 +43,7 @@ from balanceamento import (
     chance_carta_rara,
     chance_com_sorte,
     chance_drop_carta_por_tempo,
+    aplicar_incremento_carta_dano,
     dano_boss_mitigado,
     incremento_chance_carta_critico,
     incremento_carta_dano,
@@ -3887,6 +3888,7 @@ CONFIG_JOGABILIDADE_PADRAO = {
     "loja_forcada": True,
     "fase_inicial": 1,
     "hub_vertical_inferior": False,
+    "perfil_visualizacao": "desenvolvedor",
 }
 
 _cached_config_jogabilidade = None
@@ -4869,13 +4871,13 @@ def aplicar_carta_drop(nome, stats):
 
     elif nome == "Porção":
 
-        stats["vida"] += int(stats["vida_maxima"] * 0.58)
+        stats["vida"] += int(stats["vida_maxima"] * 0.60)
 
         if stats["vida"] > stats["vida_maxima"]:
 
             stats["vida_maxima"] = stats["vida"]
 
-        stats["vida_petro"] += int(stats["vida_maxima_petro"] * 0.40)
+        stats["vida_petro"] += int(stats["vida_maxima_petro"] * 0.42)
 
         if stats["vida_petro"] > stats["vida_maxima_petro"]:
 
@@ -4885,7 +4887,7 @@ def aplicar_carta_drop(nome, stats):
 
     elif nome == "Disparo crescente":
 
-        stats["dano_person_hit"] += incremento_carta_dano()
+        stats["dano_person_hit"] = aplicar_incremento_carta_dano(stats["dano_person_hit"], stats.get("inimigos_eliminados", 0))
 
         stats["cartas_compradas"]["Disparo crescente"] += 1
 
@@ -4919,7 +4921,7 @@ def aplicar_carta_drop(nome, stats):
 
         stats["roubo_de_vida"] = 1.0
 
-        stats["quantidade_roubo_vida"] += 0.002
+        stats["quantidade_roubo_vida"] += 0.0022
 
         stats["cartas_compradas"]["Cura"] += 1
 
@@ -4943,7 +4945,7 @@ def aplicar_carta_drop(nome, stats):
 
         stats["Petro_active"] = True
 
-        stats["dano_petro"] += 4
+        stats["dano_petro"] += 5
 
         pe = stats["petro_evolucao"]
 
@@ -4957,7 +4959,7 @@ def aplicar_carta_drop(nome, stats):
 
             stats["xp_petro"] = "nivel_2"
 
-            stats["vida_maxima_petro"] += 1300
+            stats["vida_maxima_petro"] += 1400
 
             stats["petro_evolucao"] += 4
 
@@ -4965,15 +4967,15 @@ def aplicar_carta_drop(nome, stats):
 
             stats["xp_petro"] = "nivel_3"
 
-            stats["vida_maxima_petro"] += 2600
+            stats["vida_maxima_petro"] += 2800
 
-            stats["Resistencia_petro"] += 22
+            stats["Resistencia_petro"] += 24
 
-            stats["dano_petro"] += 330
+            stats["dano_petro"] += 360
 
         if stats["vida_petro"] < stats["vida_maxima_petro"]:
 
-            stats["vida_petro"] += int(stats["vida_maxima_petro"] * 0.55)
+            stats["vida_petro"] += int(stats["vida_maxima_petro"] * 0.58)
 
         if stats["vida_petro"] > stats["vida_maxima_petro"]:
 
@@ -4983,7 +4985,7 @@ def aplicar_carta_drop(nome, stats):
 
     elif nome == "Defesa":
 
-        stats["Resistencia"] += 5.0
+        stats["Resistencia"] += 5.5
 
         if stats["Resistencia"] > 50:
 
@@ -5001,13 +5003,13 @@ def aplicar_carta_drop(nome, stats):
 
         stats["Poison_Active"] = True
 
-        stats["Dano_Veneno_Acumulado"] += 0.008
+        stats["Dano_Veneno_Acumulado"] += 0.009
 
         stats["cartas_compradas"]["Poison"] += 1
 
     elif nome == "Coletora":
 
-        stats["Executa_inimigo"] += 0.007
+        stats["Executa_inimigo"] += 0.008
 
         stats["Ultimo_Estalo"] = True
 
@@ -5017,7 +5019,7 @@ def aplicar_carta_drop(nome, stats):
 
         stats["Mercenaria_Active"] = True
 
-        stats["Valor_Bonus"] += 35
+        stats["Valor_Bonus"] += 40
 
         stats["cartas_compradas"]["Mercenaria"] += 1
 

@@ -120,7 +120,13 @@ if not hasattr(builtins, "_saves_redirected"):
                 "Habilidade Onda": "MOUSE_3"
             },
             "config_teleporte.json": {"modo": "fixo"},
-            "config_jogabilidade.json": {"loja_forcada": True, "fase_inicial": 1},
+            "config_jogabilidade.json": {
+                "loja_forcada": True,
+                "fase_inicial": 1,
+                "hub_vertical_inferior": False,
+                "perfil_visualizacao": "desenvolvedor"
+            },
+            "manifestacoes_progresso.json": {"missoes_concluidas": ["eletrica_inicial"], "desbloqueadas": ["eletrica"]},
             "modo_jogo.json": {"modo": "offline", "ip": None},
             "trailer_config.json": {"trailer_assistido": False},
             "tutorial_config.json": {"mostrar_tutorial": True}
@@ -195,7 +201,7 @@ def caminho_adm_json():
     return obter_pasta_cofre_dimensional() / "adm.json"
 
 
-def modo_desenvolvedor_ativo():
+def cheats_ativos():
     caminho = caminho_adm_json()
     if not caminho.exists():
         return False
@@ -211,3 +217,19 @@ def modo_desenvolvedor_ativo():
     if codigo == "cheat":
         return True
     return bool(dados.get("cheat") is True or dados.get("desenvolvedor") is True or dados.get("developer") is True)
+
+
+def perfil_visualizacao():
+    try:
+        with open("saves/config_jogabilidade.json", "r", encoding="utf-8") as f:
+            dados = json.load(f)
+        perfil = str(dados.get("perfil_visualizacao", "desenvolvedor")).strip().lower()
+        if perfil in ("jogador", "player"):
+            return "jogador"
+    except Exception:
+        pass
+    return "desenvolvedor"
+
+
+def modo_desenvolvedor_ativo():
+    return cheats_ativos() and perfil_visualizacao() != "jogador"

@@ -3065,7 +3065,8 @@ def tela_configuracoes_jogabilidade(tela, fonte):
         config_jogabilidade = Variaveis.obter_config_jogabilidade(forcar_recarregar=True)
     except:
         loja_forcada = True
-        config_jogabilidade = {"fase_inicial": 1, "hub_vertical_inferior": False}
+        config_jogabilidade = {"fase_inicial": 1, "hub_vertical_inferior": False, "perfil_visualizacao": "desenvolvedor"}
+    cheats_ativos = Caminhos.cheats_ativos()
     dev_ativo = Caminhos.modo_desenvolvedor_ativo()
 
     config = {
@@ -3074,6 +3075,7 @@ def tela_configuracoes_jogabilidade(tela, fonte):
         "loja_forcada": True,
         "fase_inicial": int(config_jogabilidade.get("fase_inicial", 1) or 1),
         "hub_vertical_inferior": bool(config_jogabilidade.get("hub_vertical_inferior", False)),
+        "perfil_visualizacao": str(config_jogabilidade.get("perfil_visualizacao", "desenvolvedor") or "desenvolvedor"),
     }
     config["__aplicar__"] = "aplicar"
     config_salva = json.loads(json.dumps(config))
@@ -3085,6 +3087,8 @@ def tela_configuracoes_jogabilidade(tela, fonte):
         {"nome": "Aplicar Alteracoes", "chave": "__aplicar__", "valores": None, "labels": None},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
     ]
+    if cheats_ativos:
+        opcoes_config.insert(2, {"nome": "Visualizacao", "chave": "perfil_visualizacao", "valores": ["desenvolvedor", "jogador"], "labels": ["Desenvolvedor", "Jogador"]})
     if dev_ativo:
         opcoes_config.insert(2, {"nome": "Fase Inicial", "chave": "fase_inicial", "valores": [1, 2, 3, 4, 5, 6], "labels": ["Fase 1", "Fase 2", "Fase 3", "Fase 4", "Fase 5", "Fase 6"]})
 
@@ -3100,6 +3104,10 @@ def tela_configuracoes_jogabilidade(tela, fonte):
         "hub_vertical_inferior": {
             False: "Mantem os dispositivos na barra inferior quando houver espaco.",
             True: "Ao descer para o hub inferior, empilha os dispositivos no canto direito da tela."
+        },
+        "perfil_visualizacao": {
+            "desenvolvedor": "Cheats ativos: mostra recursos de desenvolvedor e libera visualizacao completa.",
+            "jogador": "Cheats presentes, mas a interface simula um jogador novo com progresso real."
         },
         "fase_inicial": {
             1: "Modo dev: inicia uma nova jornada pela Fase 1.",
@@ -3134,6 +3142,7 @@ def tela_configuracoes_jogabilidade(tela, fonte):
                 "loja_forcada": True,
                 "fase_inicial": config.get("fase_inicial", 1),
                 "hub_vertical_inferior": config.get("hub_vertical_inferior", False),
+                "perfil_visualizacao": config.get("perfil_visualizacao", "desenvolvedor"),
             })
             Variaveis.obter_modo_teleporte(forcar_recarregar=True)
         except Exception:

@@ -19,6 +19,7 @@ import gravitante_manifestacao
 import ancorada_manifestacao
 import boss_manifestacao_effects
 import teleporte_manifestacao
+from dados_manifestacoes import registrar_conclusao_fase
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from Variaveis import *
 from habilidades_personagem import processar_habilidade_onda, atualizar_e_desenhar_correntes
@@ -2547,6 +2548,7 @@ def executar_jogo(game_manager=None):
                     ataque_horizontal_ativo = False
                     if rect_boss.colliderect(rect_personagem):
                         if toque == 0:
+                            registrar_conclusao_fase(2)
                             salvar_atributos()
                             Musica_tema_Boss2.stop()
                             pausar_cronometro()

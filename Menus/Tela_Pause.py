@@ -15,72 +15,72 @@ def _obter_pos_mouse_pause():
 atributos_todas_cartas = {
     "Speed Boost": {
         "Nick": "Vento Celeste",
-        "descricao": "Aumenta a velocidade de movimento em +0.065 por compra. O ganho e fixo e nao depende de abates.",
+        "descricao": "Aumenta a velocidade de movimento em +0.09 por compra. O ganho e fixo e nao depende de abates.",
         "imagem_path": "Sprites/Deck/Speed_boost1.png"
     },
     "Porção": {
         "Nick": "Elixir Vital",
-        "descricao": "Cura 45% da vida maxima de Geovana e 30% da vida maxima de Petro. Se passar do limite, o excesso aumenta a vida maxima.",
+        "descricao": "Cura 60% da vida maxima de Geovana e 42% da vida maxima de Petro. Se passar do limite, o excesso aumenta a vida maxima.",
         "imagem_path": "Sprites/Deck/carta_por1.png"
     },
     "Disparo crescente": {
         "Nick": "Impacto Escalante",
-        "descricao": "Aumenta o dano do auto attack em +10 por compra. E uma melhoria direta, fixa e sempre ativa.",
+        "descricao": "Aumenta o dano atual do auto attack em porcentagem, escalando junto com a evolucao da run.",
         "imagem_path": "Sprites/Deck/carta_odio1.png"
     },
     "Tempestade": {
         "Nick": "Tempestade Crescente",
-        "descricao": "Aumenta o auto attack em +5 e a chance critica em +2 pontos percentuais. Criticos causam 3x o dano do tiro.",
+        "descricao": "Aumenta o auto attack em +9 e a chance critica em +2.7 pontos percentuais. Criticos causam 3x o dano do tiro.",
         "imagem_path": "Sprites/Deck/Carta_tempestade_crescente1.png"
     },
     "Cura": {
         "Nick": "Mordida Sombria",
-        "descricao": "Ativa Roubo de Vida. Cada compra cura +0.1% da vida perdida de Geovana quando um projetil acerta.",
+        "descricao": "Ativa Roubo de Vida. Cada compra cura +0.22% da vida perdida de Geovana quando um projetil acerta.",
         "imagem_path": "Sprites/Deck/Carta_roubo_vida1.png"
     },
     "Trembo": {
         "Nick": "Reversao Temporal",
-        "descricao": "Ao sofrer dano fatal, revive Geovana com vida cheia. A 1a compra melhora a regeneracao em +0.1%; compras extras dao +0.5% e aceleram a cura.",
+        "descricao": "Ao sofrer dano fatal, revive Geovana com vida cheia. A 1a compra melhora a regeneracao em +0.3%; compras extras dao +0.8% e aceleram a cura.",
         "imagem_path": "Sprites/Deck/carta_trem1.png"
     },
     "Speed Atack": {
         "Nick": "Fluidez Letal",
-        "descricao": "Reduz o intervalo entre tiros em 34 ms por compra, ate o minimo de 70 ms.",
+        "descricao": "Reduz o intervalo entre tiros em 46 ms por compra, ate o minimo de 60 ms.",
         "imagem_path": "Sprites/Deck/carta_onda.png"
     },
     "Teleporte": {
         "Nick": "Salto Espacial",
-        "descricao": "Reduz a recarga do Teleporte em 300 ms por compra, ate o minimo de 500 ms.",
+        "descricao": "Reduz a recarga do Teleporte em 400 ms por compra, ate o minimo de 500 ms.",
         "imagem_path": "Sprites/Deck/carta_teleporte1.png"
     },
     "Petro": {
         "Nick": "Sentinela Leal",
-        "descricao": "Invoca Petro. Cada compra da +2 dano e cura 45% da vida maxima dele; evolucoes adicionam vida, resistencia e dano.",
+        "descricao": "Invoca Petro. Cada compra da +5 dano e cura 58% da vida maxima dele; evolucoes adicionam vida, resistencia e dano.",
         "imagem_path": "Sprites/Deck/carta_petro1.png"
     },
     "Defesa": {
         "Nick": "Escudo Fasico",
-        "descricao": "Aumenta a resistencia de Geovana em +3.5 por compra, ate o limite de 50.",
+        "descricao": "Aumenta a resistencia de Geovana em +5.5 por compra, ate o limite de 50.",
         "imagem_path": "Sprites/Deck/carta_defesa1.png"
     },
     "Sorte": {
         "Nick": "Anomalia Favoravel",
-        "descricao": "Aumenta a Sorte em +0.3 ponto percentual por compra, melhorando rolagens de cartas e recompensas raras.",
+        "descricao": "Aumenta a Sorte em +0.35 ponto percentual por compra, melhorando rolagens de cartas e recompensas raras.",
         "imagem_path": "Sprites/Deck/carta_sorte1.png"
     },
     "Poison": {
         "Nick": "Toxina Temporal",
-        "descricao": "Ataques podem aplicar veneno. Cada compra aumenta o dano do veneno em +0.5% da vida maxima do alvo por tick.",
+        "descricao": "Ataques podem aplicar veneno. Cada compra aumenta o dano do veneno em +0.9% da vida maxima do alvo por tick.",
         "imagem_path": "Sprites/Deck/carta_poison1.png"
     },
     "Coletora": {
         "Nick": "Foice do Tempo",
-        "descricao": "Ativa execucao. Cada compra aumenta o limite de execucao dos comuns em +0.5 ponto percentual; chefes usam 20% desse valor, com teto de 1.5%.",
+        "descricao": "Ativa execucao. Cada compra aumenta o limite de execucao dos comuns em +0.8 ponto percentual; chefes usam parte desse valor, com teto.",
         "imagem_path": "Sprites/Deck/carta_estalo1.png"
     },
     "Mercenaria": {
         "Nick": "Contrato de Guerra",
-        "descricao": "Ativa combo de pontos. A cada sequencia de 5 abates, Geovana recebe bonus; cada compra aumenta esse bonus em +25.",
+        "descricao": "Ativa combo de pontos. A cada sequencia de 5 abates, Geovana recebe bonus; cada compra aumenta esse bonus em +40.",
         "imagem_path": "Sprites/Deck/carta_mercenaria1.png"
     }
 }

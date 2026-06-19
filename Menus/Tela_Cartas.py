@@ -79,46 +79,46 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
     
     atributos_cartas = [
         {"nome": "Speed Boost", "Nick": "Vento Celeste", 
-         "descricao": "Aumenta a velocidade de movimento em +0.065 por compra. O ganho e fixo e nao depende de abates."},
+         "descricao": "Aumenta a velocidade de movimento em +0.09 por compra. O ganho e fixo e nao depende de abates."},
         
         {"nome": "Porção", "Nick": "Elixir Vital", 
-         "descricao": "Cura 45% da vida maxima de Geovana e 30% da vida maxima de Petro. Se passar do limite, o excesso aumenta a vida maxima."},
+         "descricao": "Cura 60% da vida maxima de Geovana e 42% da vida maxima de Petro. Se passar do limite, o excesso aumenta a vida maxima."},
         
         {"nome": "Disparo crescente", "Nick": "Impacto Escalante", 
-         "descricao": "Aumenta o dano do auto attack em +10 por compra. E uma melhoria direta, fixa e sempre ativa."},
+         "descricao": "Aumenta o dano atual do auto attack em porcentagem, escalando junto com a evolucao da run."},
         
         {"nome": "Tempestade", "Nick": "Tempestade Crescente", 
-         "descricao": "Aumenta o auto attack em +5 e a chance critica em +2 pontos percentuais. Criticos causam 3x o dano do tiro."},
+         "descricao": "Aumenta o auto attack em +9 e a chance critica em +2.7 pontos percentuais. Criticos causam 3x o dano do tiro."},
 
         {"nome": "Cura", "Nick": "Mordida Sombria", 
-         "descricao": "Ativa Roubo de Vida. Cada compra cura +0.1% da vida perdida de Geovana quando um projetil acerta."},
+         "descricao": "Ativa Roubo de Vida. Cada compra cura +0.22% da vida perdida de Geovana quando um projetil acerta."},
 
         {"nome": "Trembo", "Nick": "Reversão Temporal", 
          "descricao": "Ao sofrer dano fatal, revive Geovana com vida cheia. A 1a compra melhora a regeneracao em +0.1%; compras extras dao +0.5% e aceleram a cura."},
 
         {"nome": "Speed Atack", "Nick": "Fluidez Letal", 
-         "descricao": "Reduz o intervalo entre tiros em 34 ms por compra, ate o minimo de 70 ms."},
+         "descricao": "Reduz o intervalo entre tiros em 46 ms por compra, ate o minimo de 60 ms."},
         
         {"nome": "Teleporte", "Nick": "Salto Espacial", 
-         "descricao": "Reduz a recarga do Teleporte em 300 ms por compra, ate o minimo de 500 ms."},
+         "descricao": "Reduz a recarga do Teleporte em 400 ms por compra, ate o minimo de 500 ms."},
 
         {"nome": "Petro", "Nick": "Sentinela Leal", 
-         "descricao": "Invoca Petro. Cada compra da +2 dano e cura 45% da vida maxima dele; evolucoes adicionam vida, resistencia e dano."},
+         "descricao": "Invoca Petro. Cada compra da +5 dano e cura 58% da vida maxima dele; evolucoes adicionam vida, resistencia e dano."},
 
         {"nome": "Defesa", "Nick": "Escudo Fásico", 
-         "descricao": "Aumenta a resistencia de Geovana em +5 por compra, ate o limite de 50."},
+         "descricao": "Aumenta a resistencia de Geovana em +5.5 por compra, ate o limite de 50."},
 
         {"nome": "Sorte", "Nick": "Anomalia Favorável", 
-         "descricao": "Aumenta a Sorte em +0.3 ponto percentual por compra, melhorando rolagens de cartas e recompensas raras."},
+         "descricao": "Aumenta a Sorte em +0.35 ponto percentual por compra, melhorando rolagens de cartas e recompensas raras."},
          
         {"nome": "Poison", "Nick": "Toxina Temporal", 
-         "descricao": "Ataques podem aplicar veneno. Cada compra aumenta o dano do veneno em +0.5% da vida maxima do alvo por tick."},
+         "descricao": "Ataques podem aplicar veneno. Cada compra aumenta o dano do veneno em +0.9% da vida maxima do alvo por tick."},
          
         {"nome": "Coletora", "Nick": "Foice do Tempo", 
-         "descricao": "Ativa execucao. Cada compra aumenta o limite de execucao dos comuns em +0.5 ponto percentual; chefes usam 20% desse valor, com teto de 1.5%."},
+         "descricao": "Ativa execucao. Cada compra aumenta o limite de execucao dos comuns em +0.8 ponto percentual; chefes usam parte desse valor, com teto."},
 
         {"nome": "Mercenaria", "Nick": "Contrato de Guerra",
-         "descricao": "Ativa combo de pontos. A cada sequencia de 5 abates, Geovana recebe bonus; cada compra aumenta esse bonus em +25."}
+         "descricao": "Ativa combo de pontos. A cada sequencia de 5 abates, Geovana recebe bonus; cada compra aumenta esse bonus em +40."}
     ]
 
     cartas_disponiveis = [
@@ -292,15 +292,15 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
             velocidade_personagem += incremento_carta_velocidade_movimento()
             cartas_compradas["Speed Boost"] += 1
         elif nome == "Porção":
-            vida += int(vida_maxima * 0.58)
+            vida += int(vida_maxima * 0.60)
             if vida > vida_maxima:
                 vida_maxima = vida
-            vida_petro += int(vida_maxima_petro * 0.40)
+            vida_petro += int(vida_maxima_petro * 0.42)
             if vida_petro > vida_maxima_petro:
                 vida_maxima_petro = vida_petro
             cartas_compradas["Porção"] += 1
         elif nome == "Disparo crescente":
-            dano_person_hit += incremento_carta_dano()
+            dano_person_hit = aplicar_incremento_carta_dano(dano_person_hit, inimigos_eliminados)
             cartas_compradas["Disparo crescente"] += 1
         elif nome == "Trembo":
             trembo = True
@@ -317,7 +317,7 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
             cartas_compradas["Tempestade"] += 1
         elif nome == "Cura":
             roubo_de_vida = 1.0
-            quantidade_roubo_vida += 0.002
+            quantidade_roubo_vida += 0.0022
             cartas_compradas["Cura"] += 1
         elif nome == "Speed Atack":
             intervalo_disparo -= reducao_intervalo_carta_speed_attack()
@@ -329,26 +329,26 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
             cartas_compradas["Teleporte"] += 1
         elif nome == "Petro":
             Petro_active = True
-            dano_petro += 4
+            dano_petro += 5
             if 0 < petro_evolucao <= 8:
                 xp_petro = "nivel_1"
                 petro_evolucao += 4
             elif 8 < petro_evolucao <= 16:
                 xp_petro = "nivel_2"
-                vida_maxima_petro += 1300
+                vida_maxima_petro += 1400
                 petro_evolucao += 4
             elif petro_evolucao > 16:
                 xp_petro = "nivel_3"
-                vida_maxima_petro += 2600
-                Resistencia_petro += 22
-                dano_petro += 330
+                vida_maxima_petro += 2800
+                Resistencia_petro += 24
+                dano_petro += 360
             if vida_petro < vida_maxima_petro:
-                vida_petro += int(vida_maxima_petro * 0.55)
+                vida_petro += int(vida_maxima_petro * 0.58)
             if vida_petro > vida_maxima_petro:
                 vida_maxima_petro = vida_petro
             cartas_compradas["Petro"] += 1
         elif nome == "Defesa":
-            Resistencia += 5.0
+            Resistencia += 5.5
             if Resistencia > 50:
                 Resistencia = 50
             cartas_compradas["Defesa"] += 1
@@ -357,15 +357,15 @@ def tela_de_pausa(velocidade_personagem, intervalo_disparo, vida, largura_dispar
             cartas_compradas["Sorte"] += 1
         elif nome == "Poison":
             Poison_Active = True
-            Dano_Veneno_Acumulado += 0.008
+            Dano_Veneno_Acumulado += 0.009
             cartas_compradas["Poison"] += 1
         elif nome == "Coletora":
-            Executa_inimigo += 0.007
+            Executa_inimigo += 0.008
             Ultimo_Estalo = True
             cartas_compradas["Coletora"] += 1
         elif nome == "Mercenaria":
             Mercenaria_Active = True
-            Valor_Bonus += 35
+            Valor_Bonus += 40
             cartas_compradas["Mercenaria"] += 1
 
         compras_restantes -= 1

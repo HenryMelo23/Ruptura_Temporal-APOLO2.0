@@ -19,6 +19,7 @@ import gravitante_manifestacao
 import ancorada_manifestacao
 import boss_manifestacao_effects
 import teleporte_manifestacao
+from dados_manifestacoes import registrar_conclusao_fase
 from build_runtime import fase_disponivel
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from Variaveis import *
@@ -2290,6 +2291,7 @@ def executar_jogo(game_manager=None):
                             except:
                                 pass
                             pausar_cronometro()
+                            registrar_conclusao_fase(4)
                             if not fase_disponivel(5):
                                 if game_manager:
                                     from game_manager import EstadoJogo

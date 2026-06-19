@@ -13,13 +13,13 @@ MARGEM     = 18
 
 CARTAS_DATA = [
     {"nome":"Speed Boost",       "nick":"Vento Celeste",        "cor":(80,200,255),
-     "descricao":"+Velocidade e +Dano por carta.",
+     "descricao":"+Velocidade e leve dano por carta.",
      "sprites":("Sprites/Deck/Speed_boost1.png","Sprites/Deck/Speed_boost2.png")},
     {"nome":"Porção",            "nick":"Elixir Vital",         "cor":(80,255,130),
      "descricao":"Vida máx +1130, restaura 30% vida e 25% Petro.",
      "sprites":("Sprites/Deck/carta_por1.png","Sprites/Deck/carta_por2.png")},
     {"nome":"Disparo crescente", "nick":"Impacto Escalante",    "cor":(255,110,80),
-     "descricao":"+100 de dano por carta.",
+     "descricao":"Aumenta o dano atual em porcentagem e escala com a run.",
      "sprites":("Sprites/Deck/carta_odio1.png","Sprites/Deck/carta_odio2.png")},
     {"nome":"Trembo",            "nick":"Reversão Temporal",    "cor":(200,100,255),
      "descricao":"Segunda vida! Regen mais rápida. Máx 2 cópias.",
@@ -377,7 +377,7 @@ def aplicar_deck_endgame(deck, v):
             av=780+(IE//50)*10; v["vida_maxima"]+=av; v["vida"]+=int(v["vida_maxima"]*0.38)
             v["vida_petro"]+=int(v["vida_maxima_petro"]*0.34)
             if v["vida_petro"]>v["vida_maxima_petro"]: v["vida_maxima_petro"]=v["vida_petro"]
-        elif carta=="Disparo crescente": v["dano_person_hit"]+=14+(IE//50)*1.8
+        elif carta=="Disparo crescente": v["dano_person_hit"]=aplicar_incremento_carta_dano(v["dano_person_hit"], IE)
         elif carta=="Trembo":
             v["trembo"]=True
             cc = v.setdefault("cartas_compradas", {})

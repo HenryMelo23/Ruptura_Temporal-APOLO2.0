@@ -287,7 +287,7 @@ def _desenhar_painel_rolavel(tela, rect, dados, desbloqueada, fontes, fade, scro
     if not desbloqueada:
         _desenhar_texto_wrap(
             conteudo,
-            "Eco ainda nao dominado. A Ruptura emite resposta, mas Geovana ainda nao estabilizou essa forma de combate.",
+            dados.get("missao_desbloqueio") or "Eco ainda nao dominado. A Ruptura emite resposta, mas Geovana ainda nao estabilizou essa forma de combate.",
             pygame.Rect(x, cy, rect.w - 48, 220),
             fontes["texto"],
             (170, 180, 195),
@@ -1203,7 +1203,7 @@ def tela_manifestacoes(tela, fonte_base):
         resumo_rect = pygame.Rect(max(80, largura // 2 - 430), int(altura * 0.68), min(860, largura - 160), 86)
         pygame.draw.rect(tela, (5, 8, 17, 205), resumo_rect, border_radius=8)
         pygame.draw.rect(tela, cor, resumo_rect, 1, border_radius=8)
-        frase = dados_sel.get("funcao") if desbloqueada else "Forma futura ainda nao estabilizada."
+        frase = dados_sel.get("funcao") if desbloqueada else dados_sel.get("missao_desbloqueio", "Forma futura ainda nao estabilizada.")
         _desenhar_texto_wrap(tela, frase, pygame.Rect(resumo_rect.x + 22, resumo_rect.y + 16, resumo_rect.w - 44, 48), fontes["texto"], (205, 228, 238), 1)
 
         btn_w = 178

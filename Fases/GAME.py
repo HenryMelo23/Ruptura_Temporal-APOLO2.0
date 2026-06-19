@@ -17,6 +17,7 @@ import gravitante_manifestacao
 import ancorada_manifestacao
 import boss_manifestacao_effects
 import teleporte_manifestacao
+from dados_manifestacoes import registrar_conclusao_fase
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from Tela_Cartas import tela_de_pausa as tela_de_pausa_single
 from Tela_Cartas_Coop import tela_de_pausa as tela_de_pausa_coop
@@ -4833,6 +4834,7 @@ def executar_jogo(game_manager=None):
                             frag.coletado = True
                             frag.kill()
                             Musica_tema_Boss1.stop()
+                            registrar_conclusao_fase(1)
                             salvar_atributos()
                             pausar_cronometro()
                             tela_transicao_dimensional(tela, 2)

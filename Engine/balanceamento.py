@@ -9,7 +9,7 @@ CARTAS_RARAS = {"Trembo", "Petro", "Poison", "Coletora", "Mercenaria"}
 CHANCE_RARA_BASE = 0.0
 CHANCE_RARA_MAXIMA = 0.08
 SORTE_BASE = 0.0
-SORTE_INCREMENTO_CARTA = 0.003
+SORTE_INCREMENTO_CARTA = 0.0035
 SORTE_PESO_RARIDADE = 0.45
 SORTE_BONUS_RARIDADE_POR_CARTA = 0.0006
 
@@ -66,20 +66,23 @@ DANO_INIMIGO_INICIO_MULTIPLICADOR = 0.55
 DANO_INIMIGO_ALIVIO_ATE_SEG = 8 * 60
 DANO_INIMIGO_NORMALIZA_ATE_SEG = 12 * 60
 
-CARTA_DANO_BASE = 14
+CARTA_DANO_PERCENTUAL = 0.18
+CARTA_DANO_PERCENTUAL_ESCALA_MAX = 0.04
+CARTA_DANO_PERCENTUAL_POR_250_ABATES = 0.002
+CARTA_DANO_BASE = CARTA_DANO_PERCENTUAL
 CARTA_DANO_POR_50_ABATES = 0
 CARTA_DANO_ESCALA_TARDIA_INICIO = 0
 CARTA_DANO_ESCALA_TARDIA_EXTRA = 0
-CARTA_VELOCIDADE_BASE = 0.085
+CARTA_VELOCIDADE_BASE = 0.090
 CARTA_VELOCIDADE_POR_50_ABATES = 0.0
-CARTA_SPEED_ATTACK_BASE_MS = 44
+CARTA_SPEED_ATTACK_BASE_MS = 46
 CARTA_SPEED_ATTACK_POR_100_ABATES_MS = 0
 CARTA_SPEED_ATTACK_INTERVALO_MIN_MS = 60
-CARTA_CRITICO_DANO_BASE = 8
+CARTA_CRITICO_DANO_BASE = 9
 CARTA_CRITICO_DANO_POR_ESCALA = 0
-CARTA_CRITICO_CHANCE_BASE = 0.025
+CARTA_CRITICO_CHANCE_BASE = 0.027
 CARTA_CRITICO_CHANCE_POR_ESCALA = 0.0
-CARTA_TELEPORTE_REDUCAO_MS = 380
+CARTA_TELEPORTE_REDUCAO_MS = 400
 CARTA_TELEPORTE_INTERVALO_MIN_MS = 500
 
 ANOMALIA_ESPREITADOR_SEG = 2 * 60
@@ -190,8 +193,21 @@ def incremento_sorte_carta():
     return SORTE_INCREMENTO_CARTA
 
 
+def percentual_carta_dano(inimigos_eliminados=0):
+    bonus_abates = (max(0, int(inimigos_eliminados or 0)) // 250) * CARTA_DANO_PERCENTUAL_POR_250_ABATES
+    return CARTA_DANO_PERCENTUAL + min(CARTA_DANO_PERCENTUAL_ESCALA_MAX, bonus_abates)
+
+
+def aplicar_incremento_carta_dano(dano_atual, inimigos_eliminados=0):
+    try:
+        dano_base = float(dano_atual)
+    except (TypeError, ValueError):
+        dano_base = 0.0
+    return max(1.0, dano_base * (1.0 + percentual_carta_dano(inimigos_eliminados)))
+
+
 def incremento_carta_dano(inimigos_eliminados=0):
-    return CARTA_DANO_BASE
+    return percentual_carta_dano(inimigos_eliminados)
 
 
 def incremento_carta_velocidade_movimento(inimigos_eliminados=0):
@@ -223,7 +239,7 @@ def reducao_cooldown_carta_teleporte(tempo_cooldown_dash):
 
 
 def vida_inicial_boss(boss_id, vida_base):
-    return int(float(vida_base) * BOSS_VIDA_MULTIPLICADOR.get(int(boss_id), 3.0))
+    return int(float(vida_base) * BOSS_VIDA_MULTIPLICADOR.get(int(boss_id), 1.8))
 
 
 def ganho_progressao_boss(valor):

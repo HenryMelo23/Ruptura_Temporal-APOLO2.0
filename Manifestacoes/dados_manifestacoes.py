@@ -7,6 +7,130 @@ import Caminhos  # Instala o redirecionamento do Cofre Dimensional para saves/*.
 
 MANIFESTACAO_PADRAO = "eletrica"
 CAMINHO_MANIFESTACAO_SELECIONADA = "saves/manifestacao_selecionada.json"
+CAMINHO_PROGRESSO_MANIFESTACOES = "saves/manifestacoes_progresso.json"
+
+MANIFESTACOES_JOGAVEIS = {
+    "eletrica",
+    "lacerante",
+    "prismatica",
+    "retornante",
+    "parasitica",
+    "condutora",
+    "gravitante",
+    "ancorada",
+}
+
+MISSOES_DESBLOQUEIO = {
+    "eletrica": {
+        "id": "eletrica_inicial",
+        "fase": 0,
+        "texto": "Disponivel desde o inicio.",
+    },
+    "lacerante": {
+        "id": "fase1_fragmento_boss",
+        "fase": 1,
+        "texto": "Fase 1: derrote o Caranguejo do Nulo e colete o Fragmento Temporal.",
+    },
+    "prismatica": {
+        "id": "fase2_fragmento_boss",
+        "fase": 2,
+        "texto": "Fase 2: estabilize a vitoria contra o chefe e atravesse para a proxima dimensao.",
+    },
+    "retornante": {
+        "id": "fase3_fragmento_boss",
+        "fase": 3,
+        "texto": "Fase 3: vença o Pai-Rato e atravesse a fenda dimensional.",
+    },
+    "parasitica": {
+        "id": "fase4_fragmento_boss",
+        "fase": 4,
+        "texto": "Fase 4: conclua a dimensao nevada e alcance a quinta fase.",
+    },
+    "condutora": {
+        "id": "fase5_vitoria_umbra",
+        "fase": 5,
+        "texto": "Fase 5: vença Umbra ou atravesse a transicao para a fase 6.",
+    },
+    "gravitante": {
+        "id": "fase6_vitoria_espinhos",
+        "fase": 6,
+        "texto": "Fase 6: conclua a arena de sarcas e energia gravitacional.",
+    },
+    "ancorada": {
+        "id": "fase6_ciclo_concluido",
+        "fase": 6,
+        "texto": "Fase 6: estabilize o ciclo final da arena e firme uma ancora dimensional.",
+    },
+}
+
+MISSOES_POR_FASE = {}
+for _chave, _missao in MISSOES_DESBLOQUEIO.items():
+    MISSOES_POR_FASE.setdefault(int(_missao.get("fase", 0)), []).append(_chave)
+
+
+def _progresso_padrao():
+    return {"missoes_concluidas": ["eletrica_inicial"], "desbloqueadas": ["eletrica"]}
+
+
+def carregar_progresso_manifestacoes():
+    progresso = _progresso_padrao()
+    try:
+        with open(CAMINHO_PROGRESSO_MANIFESTACOES, "r", encoding="utf-8") as arquivo:
+            dados = json.load(arquivo)
+        if isinstance(dados, dict):
+            missoes = dados.get("missoes_concluidas", [])
+            desbloqueadas = dados.get("desbloqueadas", [])
+            if isinstance(missoes, list):
+                progresso["missoes_concluidas"] = sorted(set(str(m) for m in missoes) | {"eletrica_inicial"})
+            if isinstance(desbloqueadas, list):
+                progresso["desbloqueadas"] = sorted((set(str(m) for m in desbloqueadas) & MANIFESTACOES_JOGAVEIS) | {"eletrica"})
+    except Exception:
+        pass
+    return progresso
+
+
+def salvar_progresso_manifestacoes(progresso):
+    progresso = progresso if isinstance(progresso, dict) else _progresso_padrao()
+    progresso["missoes_concluidas"] = sorted(set(progresso.get("missoes_concluidas", [])) | {"eletrica_inicial"})
+    progresso["desbloqueadas"] = sorted((set(progresso.get("desbloqueadas", [])) & MANIFESTACOES_JOGAVEIS) | {"eletrica"})
+    os.makedirs("saves", exist_ok=True)
+    with open(CAMINHO_PROGRESSO_MANIFESTACOES, "w", encoding="utf-8") as arquivo:
+        json.dump(progresso, arquivo, ensure_ascii=False, indent=4)
+    return progresso
+
+
+def registrar_conclusao_fase(fase, detalhes=None):
+    try:
+        fase = int(fase)
+    except Exception:
+        return []
+    progresso = carregar_progresso_manifestacoes()
+    novas = []
+    for chave in MISSOES_POR_FASE.get(fase, []):
+        missao = MISSOES_DESBLOQUEIO.get(chave, {})
+        missao_id = missao.get("id")
+        if missao_id and missao_id not in progresso["missoes_concluidas"]:
+            progresso["missoes_concluidas"].append(missao_id)
+        if chave not in progresso["desbloqueadas"]:
+            progresso["desbloqueadas"].append(chave)
+            novas.append(chave)
+    salvar_progresso_manifestacoes(progresso)
+    return novas
+
+
+def manifestacao_desbloqueada(chave, progresso=None, considerar_dev=True):
+    if chave == MANIFESTACAO_PADRAO:
+        return True
+    if chave not in MANIFESTACOES_JOGAVEIS:
+        return False
+    if considerar_dev and Caminhos.modo_desenvolvedor_ativo():
+        return True
+    progresso = progresso or carregar_progresso_manifestacoes()
+    return chave in set(progresso.get("desbloqueadas", []))
+
+
+def missao_manifestacao(chave):
+    return MISSOES_DESBLOQUEIO.get(chave, {"texto": "Eco ainda nao estabilizado."}).get("texto", "Eco ainda nao estabilizado.")
 
 
 MANIFESTACOES_DADOS = {
@@ -58,7 +182,7 @@ MANIFESTACOES_DADOS = {
         ),
         "risco": "Menor alcance, exige posicionamento e perde valor contra boss parado ou recuo constante.",
         "frase": "Geovana aprendeu que nem toda energia precisa viajar. Algumas apenas abrem caminho à força.",
-        "desbloqueada": True,
+        "desbloqueada": False,
         "ativa": True,
         "cor": (255, 54, 72),
         "cor_secundaria": (255, 150, 170),
@@ -86,7 +210,7 @@ MANIFESTACOES_DADOS = {
         "traco": "Excelente contra chefes previsíveis, paredes úteis e jogadores que calculam ângulos.",
         "risco": "Dano direto menor; depende de mira, posicionamento e preparação do campo.",
         "frase": "Geovana descobriu que a Ruptura também obedece à luz quando o ângulo está certo.",
-        "desbloqueada": True,
+        "desbloqueada": False,
         "ativa": True,
         "cor": (70, 245, 255),
         "cor_secundaria": (255, 115, 185),
@@ -112,7 +236,7 @@ MANIFESTACOES_DADOS = {
         "traco": "Excelente para kiting e posicionamento: o jogador quer colocar inimigos entre Geovana e o pulso voltando.",
         "risco": "Se Geovana fica parada ou mal posicionada, metade do dano da manifestação se perde.",
         "frase": "Geovana não mira onde o inimigo está. Ela caminha para onde a volta vai cortar.",
-        "desbloqueada": True,
+        "desbloqueada": False,
         "ativa": True,
         "cor": (145, 95, 255),
         "cor_secundaria": (255, 95, 175),
@@ -138,7 +262,7 @@ MANIFESTACOES_DADOS = {
         "traco": "Ideal para infectar alvos certos, controlar hordas e esperar o melhor momento de colher.",
         "risco": "Dano imediato baixo; perde valor contra inimigos que morrem antes da semente crescer.",
         "frase": "Geovana não destrói o inimigo de fora. Ela deixa a Ruptura crescer por dentro.",
-        "desbloqueada": True,
+        "desbloqueada": False,
         "ativa": True,
         "cor": (105, 255, 130),
         "cor_secundaria": (215, 255, 95),
@@ -164,7 +288,7 @@ MANIFESTACOES_DADOS = {
         "traco": "Ideal para ler o campo, escolher pares de bits e guardar links corretos para uma descarga em cadeia.",
         "risco": "Ruim contra alvo unico; exige leitura rapida dos bits e punira erros com lentidao leve, nao com stun.",
         "frase": "Geovana nao persegue um inimigo. Ela transforma a horda em entradas de um circuito logico.",
-        "desbloqueada": True,
+        "desbloqueada": False,
         "ativa": True,
         "cor": (255, 210, 80),
         "cor_secundaria": (80, 235, 255),
@@ -191,7 +315,7 @@ MANIFESTACOES_DADOS = {
         "traco": "Boa quando a tela esta caotica, oferecendo protecao temporaria e dano automatico retardado.",
         "risco": "Menos explosiva no inicio; depende de tempo de orbita, cartas de dano e alvos bem escolhidos.",
         "frase": "Geovana nao puxa o mundo. Ela prende a Ruptura ao corpo do inimigo ate tudo colapsar.",
-        "desbloqueada": True,
+        "desbloqueada": False,
         "ativa": True,
         "cor": (118, 190, 255),
         "cor_secundaria": (218, 245, 255),
@@ -218,7 +342,7 @@ MANIFESTACOES_DADOS = {
         "traco": "Ideal para escolher um territorio e defender aquele ponto em vez de fugir sem parar.",
         "risco": "Ruim contra chefes que forcam movimento, areas de dano e lutas em que ficar parado e perigoso.",
         "frase": "Geovana finca a Ruptura no chao e decide: daqui eu nao cedo.",
-        "desbloqueada": True,
+        "desbloqueada": False,
         "ativa": True,
         "cor": (75, 225, 255),
         "cor_secundaria": (255, 205, 80),
@@ -370,11 +494,20 @@ ORDEM_MANIFESTACOES = [
 
 
 def obter_manifestacoes():
-    return [(chave, MANIFESTACOES_DADOS[chave]) for chave in ORDEM_MANIFESTACOES]
+    progresso = carregar_progresso_manifestacoes()
+    manifestacoes = []
+    for chave in ORDEM_MANIFESTACOES:
+        dados = dict(MANIFESTACOES_DADOS[chave])
+        desbloqueada = manifestacao_desbloqueada(chave, progresso)
+        dados["desbloqueada"] = desbloqueada
+        dados["ativa"] = desbloqueada
+        dados["missao_desbloqueio"] = missao_manifestacao(chave)
+        manifestacoes.append((chave, dados))
+    return manifestacoes
 
 
 def salvar_manifestacao_ativa(chave):
-    if chave not in MANIFESTACOES_DADOS:
+    if chave not in MANIFESTACOES_DADOS or not manifestacao_desbloqueada(chave):
         chave = MANIFESTACAO_PADRAO
 
     os.makedirs("saves", exist_ok=True)
@@ -393,9 +526,14 @@ def obter_manifestacao_ativa():
 
     if chave not in MANIFESTACOES_DADOS:
         chave = MANIFESTACAO_PADRAO
+    if not manifestacao_desbloqueada(chave):
+        chave = MANIFESTACAO_PADRAO
     return chave
 
 
 def obter_dados_manifestacao_ativa():
     chave = obter_manifestacao_ativa()
-    return chave, MANIFESTACOES_DADOS[chave]
+    dados = dict(MANIFESTACOES_DADOS[chave])
+    dados["desbloqueada"] = manifestacao_desbloqueada(chave)
+    dados["missao_desbloqueio"] = missao_manifestacao(chave)
+    return chave, dados

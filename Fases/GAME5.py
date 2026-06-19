@@ -27,6 +27,7 @@ import condutora_manifestacao
 import gravitante_manifestacao
 import ancorada_manifestacao
 import boss_manifestacao_effects
+from dados_manifestacoes import registrar_conclusao_fase
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from flask import Flask, jsonify
 from flask_cors import CORS
@@ -2673,7 +2674,7 @@ def executar_jogo(game_manager=None):
                     vida_petro += int(vida_maxima_petro * 0.25)
                     if vida_petro > vida_maxima_petro: vida_maxima_petro = vida_petro
                 elif carta == "Disparo crescente":
-                    dano_person_hit += 10 + (inimigos_eliminados // 50) * 1.5
+                    dano_person_hit = aplicar_incremento_carta_dano(dano_person_hit, inimigos_eliminados)
                 elif carta == "Trembo":
                     trembo = True
                     Tempo_cura = max(500, int(Tempo_cura * 0.85)) # Em 10 cartas, o tick cai para próximo de 0.5s
@@ -3387,6 +3388,7 @@ def executar_jogo(game_manager=None):
                 if vida_umbra <= 0:
                     recompensar_cartas(cartas_compradas_apolo_global, venceu=True)
                     _salvar_tudo_ao_sair()
+                    registrar_conclusao_fase(5)
                     from build_runtime import fase_disponivel
                     if fase_disponivel(6):
                         salvar_atributos()
