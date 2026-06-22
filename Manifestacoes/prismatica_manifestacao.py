@@ -297,7 +297,18 @@ def desenhar_feixe(tela, disparo, tempo_atual, offset=(0, 0)):
 
     largura = 2 if disparo.get("prismatica_fragmento") else 3
     lado = (-dy, dx)
-    surf = pygame.Surface(tela.get_size(), pygame.SRCALPHA)
+    # Antes cada feixe alocava uma superficie alpha do tamanho da tela.
+    # Esta superficie local preserva o efeito sem o custo por projetil.
+    margem = 18
+    origem_x = min(cauda[0], ponta[0]) - margem
+    origem_y = min(cauda[1], ponta[1]) - margem
+    largura_surf = max(1, abs(ponta[0] - cauda[0]) + margem * 2)
+    altura_surf = max(1, abs(ponta[1] - cauda[1]) + margem * 2)
+    surf = pygame.Surface((largura_surf, altura_surf), pygame.SRCALPHA)
+
+    def local(ponto):
+        return int(ponto[0] - origem_x), int(ponto[1] - origem_y)
+
     for desloc, cor, alpha in (
         (-5, COR_PRISMA_QUENTE, 80),
         (5, COR_PRISMA_DOURADA, 78),
@@ -307,14 +318,14 @@ def desenhar_feixe(tela, disparo, tempo_atual, offset=(0, 0)):
         pygame.draw.line(
             surf,
             (*cor, alpha),
-            (int(cauda[0] + lado[0] * desloc), int(cauda[1] + lado[1] * desloc)),
-            (int(ponta[0] + lado[0] * desloc * 0.25), int(ponta[1] + lado[1] * desloc * 0.25)),
+            local((cauda[0] + lado[0] * desloc, cauda[1] + lado[1] * desloc)),
+            local((ponta[0] + lado[0] * desloc * 0.25, ponta[1] + lado[1] * desloc * 0.25)),
             1,
         )
-    pygame.draw.line(surf, (35, 110, 180, 135), cauda, ponta, largura + 6)
-    pygame.draw.line(surf, (*COR_PRISMA, 230), cauda, ponta, largura + 1)
-    pygame.draw.line(surf, (*COR_PRISMA_CLARA, 255), (int(cx - dx * 10), int(cy - dy * 10)), ponta, 1)
-    tela.blit(surf, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+    pygame.draw.line(surf, (35, 110, 180, 135), local(cauda), local(ponta), largura + 6)
+    pygame.draw.line(surf, (*COR_PRISMA, 230), local(cauda), local(ponta), largura + 1)
+    pygame.draw.line(surf, (*COR_PRISMA_CLARA, 255), local((cx - dx * 10, cy - dy * 10)), local(ponta), 1)
+    tela.blit(surf, (origem_x, origem_y), special_flags=pygame.BLEND_RGBA_ADD)
     if disparo.get("prismatica_ricocheteou"):
         pygame.draw.line(
             tela,

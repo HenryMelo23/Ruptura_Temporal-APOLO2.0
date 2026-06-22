@@ -52,7 +52,7 @@ from player_projectile import PlayerProjectileVFX, estourar_disparo_eletrico
 from onda_recoil import criar_estado_coice_onda, aplicar_coice_onda, atualizar_coice_onda
 from audio_manager import carregar_config_audio, aplicar_volume_som
 from Tela_Upgrade_Aureas import tela_upgrade_aureas
-from Boss1_Ataques import gerenciador_ataques_boss1
+from Boss1_Ataques import gerenciador_ataques_boss1, desenhar_onda_transicao_premium
 from boss_ui import desenhar_barra_vida_boss, registrar_dano_boss
 import insana_aurea
 import voraz_aurea
@@ -3672,8 +3672,9 @@ def executar_jogo(game_manager=None):
                                 inimigos_comum.remove(morto_eclosao)
                                 inimigos_eliminados += 1
                     elif retornante_manifestacao.ativa(manifestacao_ativa):
-                        total_chamado = retornante_manifestacao.chamado_reverso(disparos, tempo_atual)
-                        ondas.append(retornante_manifestacao.criar_chamado(px_centro, py_centro, tempo_atual, total_chamado))
+                        resultado_memoria = retornante_manifestacao.ativar_memoria_instavel(disparos, tempo_atual, pos_mouse)
+                        memoria_x, memoria_y = resultado_memoria.get("centro") or (px_centro, py_centro)
+                        ondas.append(retornante_manifestacao.criar_chamado(memoria_x, memoria_y, tempo_atual, int(resultado_memoria["ativado"])))
                     elif prismatica_manifestacao.ativa(manifestacao_ativa):
                         ondas.append(prismatica_manifestacao.criar_prisma(
                             pos_mouse[0], pos_mouse[1], tempo_atual,
@@ -3972,7 +3973,7 @@ def executar_jogo(game_manager=None):
                     if not disparo.get("expirado"):
                         novos_disparos.append(disparo)
                 elif disparo.get("tipo_manifestacao") == "retornante_pulso":
-                    if retornante_manifestacao.atualizar_disparo(disparo, centro_retorno_x, centro_retorno_y, dt, tempo_atual):
+                    if retornante_manifestacao.atualizar_disparo(disparo, centro_retorno_x, centro_retorno_y, dt, tempo_atual, inimigos_comum, largura_mapa, altura_mapa):
                         novos_disparos.append(disparo)
                 elif disparo.get("tipo_manifestacao") == "prismatica_feixe":
                     if prismatica_manifestacao.atualizar_ricochete(disparo, largura_mapa, altura_mapa, tempo_atual):
@@ -3983,6 +3984,7 @@ def executar_jogo(game_manager=None):
             disparos = novos_disparos
 
             # Renderizar os disparos
+            vfx_disparo_player.preparar_frame(len(disparos), config_graficos)
             for disparo in disparos:
                 vfx_disparo_player.desenhar_disparo(tela, disparo, tempo_atual, config_graficos)
             vfx_disparo_player.atualizar_e_desenhar_particulas(tela, dt, config_graficos)
@@ -4692,14 +4694,7 @@ def executar_jogo(game_manager=None):
                 for wave in boss_transicao_ondas:
                     wave["raio"] += wave["velocidade"] * (dt_ms / 1000.0)
                     
-                    cor_borda = (150, 0, 255)
-                    cor_centro = (0, 255, 255)
-                    if wave["tipo"] == "completa":
-                        pygame.draw.circle(tela, cor_borda, (int(wave["x"]), int(wave["y"])), int(wave["raio"]), wave["largura_linha"] + 4)
-                        pygame.draw.circle(tela, cor_centro, (int(wave["x"]), int(wave["y"])), int(wave["raio"]), wave["largura_linha"] - 4)
-                    else:
-                        desenhar_onda_arco(tela, wave["x"], wave["y"], wave["raio"], wave["angulo_abertura_centro"], wave["tamanho_abertura"], cor_borda, wave["largura_linha"] + 4)
-                        desenhar_onda_arco(tela, wave["x"], wave["y"], wave["raio"], wave["angulo_abertura_centro"], wave["tamanho_abertura"], cor_centro, wave["largura_linha"] - 4)
+                    desenhar_onda_transicao_premium(tela, wave, tempo_atual)
                     
                     # Colisão
                     dist = math.sqrt((pos_x_personagem + largura_personagem // 2 - wave["x"]) ** 2 + (pos_y_personagem + altura_personagem // 2 - wave["y"]) ** 2)

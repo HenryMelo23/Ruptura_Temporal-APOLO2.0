@@ -1048,6 +1048,7 @@ def executar_jogo(game_manager=None):
             disparos = novos_disparos
 
             # Renderizar os disparos
+            vfx_disparo_player.preparar_frame(len(disparos), config_graficos)
             for disparo in disparos:
                 vfx_disparo_player.desenhar_disparo(tela, disparo, tempo_atual, config_graficos)
             vfx_disparo_player.atualizar_e_desenhar_particulas(tela, 1.0, config_graficos)

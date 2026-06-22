@@ -21,6 +21,9 @@ _stage = {
     "top_h": 0,
     "bottom_h": 0,
     "orig_flip": None,
+    "frame_surface": None,
+    "logical_dst_rect": None,
+    "window_scale": 1.0,
 }
 
 _MIN_LARGURA_HUD_FULLSCREEN = 150
@@ -249,9 +252,63 @@ def ativar_palco_fullscreen(largura_jogo, altura_jogo):
         "aura_atualizado_ms": 0,
         "top_h": dst_rect.top,
         "bottom_h": screen_h - dst_rect.bottom,
+        "frame_surface": None,
+        "logical_dst_rect": None,
+        "window_scale": escala,
     })
     pygame.display.flip = _flip_palco
     return _stage["game_surface"]
+
+
+def _obter_area_util_desktop():
+    """Retorna a area disponivel sem a barra de tarefas, quando possivel."""
+    tamanhos = pygame.display.get_desktop_sizes()
+    largura, altura = tamanhos[0] if tamanhos else (1366, 768)
+
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            class _RectTrabalho(ctypes.Structure):
+                _fields_ = [
+                    ("left", ctypes.c_long),
+                    ("top", ctypes.c_long),
+                    ("right", ctypes.c_long),
+                    ("bottom", ctypes.c_long),
+                ]
+
+            rect = _RectTrabalho()
+            if ctypes.windll.user32.SystemParametersInfoW(48, 0, ctypes.byref(rect), 0):
+                largura = max(1, rect.right - rect.left)
+                altura = max(1, rect.bottom - rect.top)
+        except Exception:
+            pass
+
+    return int(largura), int(altura)
+
+
+def _calcular_layout_janela(largura_jogo, altura_jogo, area_util=None):
+    """Escala uniformemente jogo e molduras para caber no monitor."""
+    largura_jogo = int(largura_jogo)
+    altura_jogo = int(altura_jogo)
+    largura_logica = largura_jogo
+    altura_logica = altura_jogo + _ALTURA_HUD_SUPERIOR + _ALTURA_HUD_INFERIOR
+    area_w, area_h = area_util or _obter_area_util_desktop()
+
+    # Reserva para bordas e barra de titulo da janela. Em telas grandes a
+    # escala permanece 1:1; em telas menores todo o quadro encolhe junto.
+    limite_w = max(1, area_w - 32)
+    limite_h = max(1, area_h - 48)
+    escala = min(1.0, limite_w / largura_logica, limite_h / altura_logica)
+
+    display_w = max(1, int(round(largura_logica * escala)))
+    display_h = max(1, int(round(altura_logica * escala)))
+    top_h = max(1, int(round(_ALTURA_HUD_SUPERIOR * escala)))
+    game_h = max(1, int(round(altura_jogo * escala)))
+    # Absorve arredondamentos na faixa inferior sem alterar a proporcao do mapa.
+    bottom_h = max(1, display_h - top_h - game_h)
+    dst_rect = pygame.Rect(0, top_h, display_w, game_h)
+    return (display_w, display_h), dst_rect, escala, bottom_h
 
 
 def ativar_palco_janela(largura_jogo, altura_jogo):
@@ -260,9 +317,13 @@ def ativar_palco_janela(largura_jogo, altura_jogo):
 
     largura_jogo = int(largura_jogo)
     altura_jogo = int(altura_jogo)
-    display = pygame.display.set_mode((largura_jogo, altura_jogo + _ALTURA_HUD_SUPERIOR + _ALTURA_HUD_INFERIOR))
+    tamanho_display, dst_rect, escala, bottom_h = _calcular_layout_janela(largura_jogo, altura_jogo)
+    display = pygame.display.set_mode(tamanho_display)
     pygame.mouse.set_visible(False)
-    dst_rect = pygame.Rect(0, _ALTURA_HUD_SUPERIOR, largura_jogo, altura_jogo)
+    frame_surface = pygame.Surface(
+        (largura_jogo, altura_jogo + _ALTURA_HUD_SUPERIOR + _ALTURA_HUD_INFERIOR)
+    ).convert()
+    logical_dst_rect = pygame.Rect(0, _ALTURA_HUD_SUPERIOR, largura_jogo, altura_jogo)
     _stage.update({
         "active": True,
         "display": display,
@@ -274,7 +335,10 @@ def ativar_palco_janela(largura_jogo, altura_jogo):
         "aura_widget": None,
         "aura_atualizado_ms": 0,
         "top_h": _ALTURA_HUD_SUPERIOR,
-        "bottom_h": _ALTURA_HUD_INFERIOR,
+        "bottom_h": bottom_h,
+        "frame_surface": frame_surface,
+        "logical_dst_rect": logical_dst_rect,
+        "window_scale": escala,
     })
     pygame.display.flip = _flip_palco
     return _stage["game_surface"]
@@ -294,6 +358,9 @@ def desativar_palco():
         "aura_atualizado_ms": 0,
         "top_h": 0,
         "bottom_h": 0,
+        "frame_surface": None,
+        "logical_dst_rect": None,
+        "window_scale": 1.0,
     })
 
 def _texto_contorno(surface, fonte, texto, cor, pos):
@@ -1216,6 +1283,28 @@ def _flip_palco():
     if not _stage["active"]:
         return _stage["orig_flip"]()
     display = _stage["display"]
+    frame = _stage.get("frame_surface")
+    logical_rect = _stage.get("logical_dst_rect")
+    if frame is not None and logical_rect is not None:
+        # No modo janela o quadro inteiro e composto na resolucao logica e so
+        # depois reduzido. Isso impede que o Windows corte uma janela maior que
+        # o monitor e preserva a proporcao de todos os elementos do menu/HUD.
+        physical_rect = _stage["dst_rect"]
+        _stage["dst_rect"] = logical_rect
+        try:
+            _desenhar_fundo_palco(frame)
+            frame.blit(_stage["game_surface"], logical_rect.topleft)
+            _desenhar_hud_molduras(frame)
+        finally:
+            _stage["dst_rect"] = physical_rect
+
+        display.fill((0, 0, 0))
+        if frame.get_size() == display.get_size():
+            display.blit(frame, (0, 0))
+        else:
+            display.blit(pygame.transform.smoothscale(frame, display.get_size()), (0, 0))
+        return _stage["orig_flip"]()
+
     _desenhar_fundo_palco(display)
     _desenhar_moldura(display, pygame.Rect(0, 0, _stage["dst_rect"].x, display.get_height()), "esquerda")
     _desenhar_moldura(display, pygame.Rect(_stage["dst_rect"].right, 0, display.get_width() - _stage["dst_rect"].right, display.get_height()), "direita")

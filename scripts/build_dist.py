@@ -13,6 +13,7 @@ DIST_NAME = "Ruptura_Temporal_APOLO2.0"
 DIST_EXE_NAME = "Ruptura_Temporal.exe"
 LIGHT_RUNTIME_HOOK = "scripts/runtime_hooks/player_lite_phase4.py"
 VLC_RUNTIME_HOOK = "scripts/runtime_hooks/vlc_path.py"
+SOURCE_MODULE_DIRS = ["Fases", "Manifestacoes", "Aureas", "Rede", "Boss", "Menus", "Engine"]
 
 REQUIRED_RUNTIME_MODULES = [
     "ancorada_manifestacao",
@@ -57,12 +58,26 @@ def _hidden_import_args(modules):
     return args
 
 
+def _source_path_args():
+    args = []
+    for directory in SOURCE_MODULE_DIRS:
+        source_path = PROJECT_ROOT / directory
+        if source_path.is_dir():
+            args.extend(["--paths", str(source_path)])
+    return args
+
+
 def _verify_required_runtime_modules(modules):
     missing = []
+    search_roots = [PROJECT_ROOT] + [PROJECT_ROOT / directory for directory in SOURCE_MODULE_DIRS]
     for module in modules:
-        module_path = PROJECT_ROOT / f"{module.replace('.', os.sep)}.py"
-        package_path = PROJECT_ROOT / module.replace(".", os.sep) / "__init__.py"
-        if not module_path.exists() and not package_path.exists():
+        relative_module = module.replace(".", os.sep)
+        found = any(
+            (root / f"{relative_module}.py").is_file()
+            or (root / relative_module / "__init__.py").is_file()
+            for root in search_roots
+        )
+        if not found:
             missing.append(module)
     if missing:
         joined = ", ".join(missing)
@@ -203,6 +218,7 @@ def build(include_phase5=False, dry_run=False, vlc_dir=None):
         "--runtime-hook", VLC_RUNTIME_HOOK,
         "--distpath", "dist",
         "--name", DIST_NAME,
+        *_source_path_args(),
         *_hidden_import_args(REQUIRED_RUNTIME_MODULES),
         *_vlc_pyinstaller_args(vlc_dir),
         "Ruptura_Temporal.py"
@@ -239,6 +255,7 @@ def build(include_phase5=False, dry_run=False, vlc_dir=None):
             "--runtime-hook", VLC_RUNTIME_HOOK,
             "--distpath", "dist/temp",
             "--name", "GAME5_PLAYER",
+            *_source_path_args(),
             *_hidden_import_args(REQUIRED_RUNTIME_MODULES),
             *_vlc_pyinstaller_args(vlc_dir),
             os.path.join("Fases", "GAME5_PLAYER.py")

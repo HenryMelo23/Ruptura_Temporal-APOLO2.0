@@ -2919,6 +2919,10 @@ def executar_jogo(game_manager=None):
                     angulo = calcular_angulo_disparo((px_centro, py_centro), pos_mouse)
                     if lacerante_manifestacao.ativa(manifestacao_ativa):
                         ondas.append(lacerante_manifestacao.criar_fenda(px_centro, py_centro, angulo, tempo_atual, dano_person_hit))
+                    elif retornante_manifestacao.ativa(manifestacao_ativa):
+                        resultado_memoria = retornante_manifestacao.ativar_memoria_instavel(disparos, tempo_atual, pos_mouse)
+                        memoria_x, memoria_y = resultado_memoria.get("centro") or (px_centro, py_centro)
+                        ondas.append(retornante_manifestacao.criar_chamado(memoria_x, memoria_y, tempo_atual, int(resultado_memoria["ativado"])))
                     else:
                         nova_onda = {
                             "rect": pygame.Rect(px_centro - largura_onda // 2, py_centro - altura_onda // 2, largura_onda, altura_onda),
@@ -3141,6 +3145,11 @@ def executar_jogo(game_manager=None):
 
             novas_ondas = []
             for onda in ondas:
+                if onda.get("tipo_manifestacao") == "memoria_instavel_ativacao":
+                    retornante_manifestacao.desenhar_chamado(tela, onda, tempo_atual, config_graficos)
+                    if tempo_atual < int(onda.get("fim_ms", 0)):
+                        novas_ondas.append(onda)
+                    continue
                 if onda.get("tipo_manifestacao") == "fenda_lacerante":
                     lacerante_manifestacao.desenhar_fenda(tela, onda, tempo_atual)
                     boss_info_fenda = {
@@ -4588,13 +4597,30 @@ def executar_jogo(game_manager=None):
 
             for disparo in disparos:
                 # 1. Movimentação do Projétil do Jogador
-                vfx_disparo_player.atualizar_disparo(disparo, velocidade_disparo, dt)
+                if disparo.get("tipo_manifestacao") == "retornante_pulso":
+                    alvos_memoria = ([{"rect": hitbox_boss5, "retornante_id": "umbra", "vida": vida_umbra}] if luta_iniciada and vida_umbra > 0 else [])
+                    if not retornante_manifestacao.atualizar_disparo(
+                        disparo,
+                        pos_x_personagem + largura_personagem // 2,
+                        pos_y_personagem + altura_personagem // 2,
+                        dt, tempo_atual, alvos_memoria, largura_mapa, altura_mapa,
+                    ):
+                        continue
+                else:
+                    vfx_disparo_player.atualizar_disparo(disparo, velocidade_disparo, dt)
 
                 atingiu_boss = False
                 interceptado = False
                 if luta_iniciada:
                     acertou_boss_disparo = colisao_disparo_boss5(disparo, hitbox_boss5, tempo_atual)
                     if acertou_boss_disparo:
+
+                        acerto_retornante = retornante_manifestacao.registrar_acerto(
+                            disparo,
+                            {"rect": hitbox_boss5, "retornante_id": "umbra"},
+                            tempo_atual,
+                            (pos_x_personagem + largura_personagem // 2, pos_y_personagem + altura_personagem // 2),
+                        )
 
                         if random.random() <= chance_critico:
                             dano_final = dano_person_hit * 2 * fator_dano_aureas()
@@ -4605,6 +4631,9 @@ def executar_jogo(game_manager=None):
                             cor_feedback = (255, 255, 255) # Branco Normal
 
                         dano_final *= multiplicador_dano_manifestacao_fase5(disparo)
+                        if acerto_retornante["critico"]:
+                            dano_final *= retornante_manifestacao.PULSO_CRITICO_COSTAS_MULT
+                            cor_feedback = retornante_manifestacao.COR_RETORNO_CLARA
                         dano_final *= lacerante_manifestacao.multiplicador_dano_boss(disparo)
                         dano_final = boss_manifestacao_effects.aplicar_efeito_boss(disparo, dano_final, tempo_atual, efeitos_texto, hitbox_boss5, "boss5")
 
@@ -4745,7 +4774,7 @@ def executar_jogo(game_manager=None):
                                 "tempo_inicio": agora,
                                 "cor": cor_feedback
                             })
-                            atingiu_boss = True
+                            atingiu_boss = not acerto_retornante["manter_disparo"]
                             apolo.bonus_dopamina += 150.0  # Massiva recompensa por prever a movimentação de Umbra!
                             estado_atual_ia['tomou_tiro_no_dash'] = True
 
@@ -4786,6 +4815,7 @@ def executar_jogo(game_manager=None):
                 estado_atual_ia['bonus_tiros'] = bonus - 1
 
             # Renderizar os disparos (NOVO MOTOR PROCEDURAL)
+            vfx_disparo_player.preparar_frame(len(disparos), config_graficos)
             for disparo in disparos:
                 vfx_disparo_player.desenhar_disparo(tela, disparo, agora, config_graficos)
             vfx_disparo_player.atualizar_e_desenhar_particulas(tela, dt, config_graficos)

@@ -2,6 +2,430 @@ import pygame
 import math
 import random
 
+
+def _alpha(valor):
+    return max(0, min(255, int(valor)))
+
+
+def _particulas_com_glow(tela, particulas, raio_base=2):
+    """Renderiza particulas em halo, cor e nucleo luminoso."""
+    if not particulas:
+        return
+    overlay = pygame.Surface(tela.get_size(), pygame.SRCALPHA)
+    for p in particulas:
+        x, y = int(p.get("x", 0)), int(p.get("y", 0))
+        cor = tuple(p.get("cor", (255, 255, 255)))[:3]
+        a = _alpha(p.get("alpha", 255))
+        raio = max(1, int(p.get("raio", raio_base)))
+        pygame.draw.circle(overlay, (*cor, a // 5), (x, y), raio * 4)
+        pygame.draw.circle(overlay, (*cor, a // 2), (x, y), raio * 2)
+        pygame.draw.circle(overlay, (245, 255, 255, a), (x, y), raio)
+    tela.blit(overlay, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+
+def _anel_segmentado(surface, centro, raio, cor, alpha, rotacao=0.0, segmentos=12, largura=2, ocupacao=0.62):
+    if raio <= 1:
+        return
+    rect = pygame.Rect(int(centro[0] - raio), int(centro[1] - raio), int(raio * 2), int(raio * 2))
+    passo = math.tau / max(1, segmentos)
+    for i in range(segmentos):
+        inicio = rotacao + i * passo
+        pygame.draw.arc(surface, (*cor[:3], _alpha(alpha)), rect, inicio, inicio + passo * ocupacao, largura)
+
+
+def _circulo_glow(surface, centro, raio, cor, alpha=180, largura=0, camadas=4):
+    raio = max(1, int(raio))
+    for i in range(camadas, 0, -1):
+        extra = i * 4
+        a = _alpha(alpha / (i * 2.2))
+        pygame.draw.circle(surface, (*cor[:3], a), centro, raio + extra, max(1, largura + i) if largura else 0)
+    pygame.draw.circle(surface, (*cor[:3], _alpha(alpha)), centro, raio, largura)
+
+
+def _raio_organico(surface, inicio, fim, cor, alpha, largura=2, fase=0.0, passos=9):
+    dx, dy = fim[0] - inicio[0], fim[1] - inicio[1]
+    dist = max(1.0, math.hypot(dx, dy))
+    nx, ny = -dy / dist, dx / dist
+    pontos = []
+    for i in range(passos + 1):
+        t = i / passos
+        ondula = math.sin(t * math.pi * 5 + fase) * (5.0 + math.sin(t * math.pi) * 6.0)
+        pontos.append((int(inicio[0] + dx * t + nx * ondula), int(inicio[1] + dy * t + ny * ondula)))
+    pygame.draw.lines(surface, (*cor[:3], _alpha(alpha // 4)), False, pontos, largura + 5)
+    pygame.draw.lines(surface, (*cor[:3], _alpha(alpha)), False, pontos, largura)
+
+
+def _seta_fluxo(surface, pos, angulo, tamanho, cor, alpha):
+    ux, uy = math.cos(angulo), math.sin(angulo)
+    nx, ny = -uy, ux
+    ponta = (pos[0] + ux * tamanho, pos[1] + uy * tamanho)
+    cauda = (pos[0] - ux * tamanho * 0.6, pos[1] - uy * tamanho * 0.6)
+    esq = (pos[0] + nx * tamanho * 0.45, pos[1] + ny * tamanho * 0.45)
+    dire = (pos[0] - nx * tamanho * 0.45, pos[1] - ny * tamanho * 0.45)
+    pygame.draw.polygon(surface, (*cor[:3], _alpha(alpha)), [ponta, esq, cauda, dire])
+
+
+def _desenhar_bolha_premium(atk, tela, agora):
+    _particulas_com_glow(tela, atk.particulas, 2)
+    x = int(atk.target_pos[0] + atk.shake_offset[0])
+    y = int(atk.target_pos[1] + atk.shake_offset[1])
+    r = max(4, int(atk.raio_atual))
+    t = agora * 0.001
+    ov = pygame.Surface(tela.get_size(), pygame.SRCALPHA)
+    pulso = (math.sin(t * 7.0) + 1.0) * 0.5
+
+    if atk.estado == "telegraph":
+        _circulo_glow(ov, (x, y), r, (70, 245, 255), 75 + pulso * 55, 0, 5)
+        pygame.draw.circle(ov, (34, 6, 70, 115), (x, y), max(2, r - 4))
+        pygame.draw.circle(ov, (105, 35, 190, 62), (x, y), max(2, int(r * 0.68)))
+        _anel_segmentado(ov, (x, y), r + 12, (80, 255, 230), 220, t * 1.8, 14, 2)
+        _anel_segmentado(ov, (x, y), max(8, r - 8), (255, 65, 190), 180, -t * 2.5, 9, 2, 0.42)
+        for i in range(8):
+            ang = t * 1.4 + i * math.tau / 8
+            p1 = (x + math.cos(ang) * (r + 3), y + math.sin(ang) * (r + 3))
+            p2 = (x + math.cos(ang + 0.18) * max(4, r * 0.35), y + math.sin(ang + 0.18) * max(4, r * 0.35))
+            pygame.draw.line(ov, (135, 255, 240, 115), p1, p2, 1)
+        _circulo_glow(ov, (x, y), int(5 + pulso * 4), (255, 245, 255), 245, 0, 3)
+        _raio_organico(ov, (int(atk.boss_pos[0]), int(atk.boss_pos[1])), (x, y), (150, 70, 255), 135, 1, t * 5)
+    elif atk.estado == "impacto":
+        flash = 0.65 + 0.35 * math.sin(t * 55.0) ** 2
+        _circulo_glow(ov, (x, y), r, (255, 20, 120), 195 * flash, 0, 6)
+        pygame.draw.circle(ov, (75, 0, 125, 190), (x, y), r)
+        _anel_segmentado(ov, (x, y), r, (255, 255, 255), 250, -t * 7, 18, 4, 0.52)
+        _anel_segmentado(ov, (x, y), int(r * 0.62), (40, 255, 235), 225, t * 9, 11, 3, 0.35)
+        for i in range(18):
+            ang = i * math.tau / 18 + t * 0.4
+            ini = (x + math.cos(ang) * r * 0.35, y + math.sin(ang) * r * 0.35)
+            fim = (x + math.cos(ang) * r * 1.18, y + math.sin(ang) * r * 1.18)
+            pygame.draw.line(ov, (255, 80 + i * 5 % 150, 225, 165), ini, fim, 2 if i % 3 == 0 else 1)
+        _circulo_glow(ov, (x, y), max(5, int(r * 0.18)), (255, 255, 255), 255, 0, 5)
+    elif atk.estado == "finalizacao":
+        progresso = max(0.0, min(1.0, (atk.tempo_decorrido - atk.duracao * 0.9) / (atk.duracao * 0.1)))
+        rf = int(atk.max_raio + progresso * 150)
+        a = 255 * (1.0 - progresso)
+        _circulo_glow(ov, (x, y), rf, (160, 55, 255), a, 3, 4)
+        _anel_segmentado(ov, (x, y), int(rf * 0.78), (0, 245, 255), a * 0.7, t * 3, 16, 2)
+    tela.blit(ov, (0, 0))
+
+
+def _desenhar_diluvio_premium(atk, tela, agora):
+    _particulas_com_glow(tela, atk.particulas, 1)
+    t = agora * 0.001
+    ov = pygame.Surface(tela.get_size(), pygame.SRCALPHA)
+    for indice, g in enumerate(atk.gotas):
+        st = g["estado_gota"]
+        if st in ("aguardando", "terminado"):
+            continue
+        x, y = int(g["target_pos"][0]), int(g["target_pos"][1])
+        r = max(2, int(g["raio_sombra"]))
+        fase = t * 3.0 + indice * 0.73
+        if st in ("no_ar", "caindo", "impacto"):
+            urgente = st == "caindo"
+            cor = (255, 55, 130) if urgente else (45, 210, 255)
+            _circulo_glow(ov, (x, y), r, cor, 185 if urgente else 105, 0, 3)
+            pygame.draw.ellipse(ov, (8, 18, 55, 155), (x - r, y - max(3, r // 2), r * 2, max(6, r)))
+            _anel_segmentado(ov, (x, y), r + 9, cor, 235, fase, 10, 2, 0.46)
+            for j in range(4):
+                ang = fase + j * math.pi / 2
+                _seta_fluxo(ov, (x + math.cos(ang) * (r + 20), y + math.sin(ang) * (r + 20)), ang + math.pi, 7, cor, 210)
+            if st == "no_ar":
+                restante = max(0.0, 1.0 - (agora - g["tempo_gota"]) / 2200.0)
+                largura = int(10 + restante * 18)
+                beam = pygame.Rect(x - largura // 2, 0, largura, max(1, y))
+                pygame.draw.rect(ov, (30, 170, 255, 20), beam)
+                pygame.draw.line(ov, (180, 250, 255, 100), (x, 0), (x, y), 2)
+                _anel_segmentado(ov, (x, y), r + int(restante * 58), (255, 75, 150), 230, -fase * 1.7, 12, 2)
+        if st == "caindo":
+            gy = int(g["y_gota"])
+            for largura, alpha in ((18, 28), (10, 65), (4, 180)):
+                pygame.draw.line(ov, (30, 210, 255, alpha), (x, gy - 90), (x, gy + 4), largura)
+            pygame.draw.polygon(ov, (45, 175, 255, 245), [(x, gy - 25), (x - 11, gy + 2), (x, gy + 11), (x + 11, gy + 2)])
+            _circulo_glow(ov, (x, gy + 1), 7, (235, 255, 255), 255, 0, 3)
+        elif st == "subindo":
+            gy = int(g["y_gota"])
+            _raio_organico(ov, (int(atk.boss_pos[0]), int(atk.boss_pos[1])), (int(atk.boss_pos[0]), gy), (20, 190, 255), 145, 2, fase)
+        elif st == "poca":
+            restante = max(0.0, 1.0 - (agora - g["tempo_poca_inicio"]) / max(1, g["duracao_poca"]))
+            rr = max(2, r)
+            pygame.draw.ellipse(ov, (30, 20, 100, int(125 * restante)), (x - rr, y - rr // 2, rr * 2, rr))
+            for j in range(3):
+                wobble = math.sin(fase * (1.0 + j * 0.12)) * 3
+                rect = pygame.Rect(x - rr + j * 5, y - rr // 2 + j * 3, max(4, rr * 2 - j * 10), max(3, rr - j * 6))
+                pygame.draw.ellipse(ov, (30 + j * 35, 170 + j * 20, 255, int((150 - j * 28) * restante)), rect, 2)
+                pygame.draw.arc(ov, (220, 255, 255, int(190 * restante)), rect.move(int(wobble), 0), 3.4, 5.8, 2)
+    tela.blit(ov, (0, 0))
+
+
+def _segmentos_fora_zona(atk):
+    if atk.direcao in ("esquerda", "direita"):
+        return [(0, atk.safe_pos), (atk.safe_pos + atk.safe_span, atk.altura_mapa)]
+    return [(0, atk.safe_pos), (atk.safe_pos + atk.safe_span, atk.largura_mapa)]
+
+
+def _desenhar_mare_premium(atk, tela, agora):
+    _particulas_com_glow(tela, atk.particulas, 2)
+    t = agora * 0.001
+    ov = pygame.Surface(tela.get_size(), pygame.SRCALPHA)
+    horizontal = atk.direcao in ("esquerda", "direita")
+    sinal = 1 if atk.direcao in ("esquerda", "cima") else -1
+    angulo_fluxo = 0 if atk.direcao == "esquerda" else math.pi if atk.direcao == "direita" else math.pi / 2 if atk.direcao == "cima" else -math.pi / 2
+
+    if atk.estado == "telegraph":
+        progresso = max(0.0, min(1.0, atk.tempo_decorrido / atk.aviso_duracao))
+        faixa = int(28 + progresso * 44)
+        if horizontal:
+            x = 0 if atk.direcao == "esquerda" else atk.largura_mapa - faixa
+            pygame.draw.rect(ov, (20, 120, 210, 45 + int(progresso * 55)), (x, 0, faixa, atk.altura_mapa))
+            safe = pygame.Rect(max(0, x - 8), atk.safe_pos, faixa + 16, atk.safe_span)
+        else:
+            y = 0 if atk.direcao == "cima" else atk.altura_mapa - faixa
+            pygame.draw.rect(ov, (20, 120, 210, 45 + int(progresso * 55)), (0, y, atk.largura_mapa, faixa))
+            safe = pygame.Rect(atk.safe_pos, max(0, y - 8), atk.safe_span, faixa + 16)
+        pygame.draw.rect(ov, (20, 255, 205, 42), safe)
+        pygame.draw.rect(ov, (150, 255, 230, 235), safe, 3)
+        # Flechas sucessivas fazem a direcao e o ritmo da mare serem lidos de relance.
+        limite = atk.altura_mapa if horizontal else atk.largura_mapa
+        for pos in range(42, limite, 72):
+            if atk.safe_pos <= pos <= atk.safe_pos + atk.safe_span:
+                continue
+            px = faixa * 0.5 if atk.direcao == "esquerda" else atk.largura_mapa - faixa * 0.5 if atk.direcao == "direita" else pos
+            py = pos if horizontal else faixa * 0.5 if atk.direcao == "cima" else atk.altura_mapa - faixa * 0.5
+            _seta_fluxo(ov, (px, py), angulo_fluxo, 11 + progresso * 5, (120, 235, 255), 100 + progresso * 140)
+    elif atk.estado == "impacto":
+        frente = float(atk.pos_travel)
+        esp = atk.espessura_onda
+        for inicio, fim in _segmentos_fora_zona(atk):
+            if fim <= inicio:
+                continue
+            # Corpo profundo com faixas de corrente, em vez de um bloco azul plano.
+            if horizontal:
+                pygame.draw.rect(ov, (5, 55, 125, 145), (frente - esp / 2, inicio, esp, fim - inicio))
+            else:
+                pygame.draw.rect(ov, (5, 55, 125, 145), (inicio, frente - esp / 2, fim - inicio, esp))
+            for camada in range(5):
+                desloc = (camada - 2) * 11
+                pontos = []
+                for q in range(int(inicio), int(fim) + 1, 10):
+                    ond = math.sin(q * 0.055 + t * (7 + camada)) * (7 + camada * 1.5)
+                    if horizontal:
+                        pontos.append((int(frente + sinal * (esp * 0.42 + desloc + ond)), q))
+                    else:
+                        pontos.append((q, int(frente + sinal * (esp * 0.42 + desloc + ond))))
+                if len(pontos) > 1:
+                    cor = (205, 255, 255, 230 - camada * 28) if camada < 2 else (20, 185, 255, 145)
+                    pygame.draw.lines(ov, cor, False, pontos, 4 if camada == 0 else 2)
+            for q in range(int(inicio) + 18, int(fim), 46):
+                px, py = (frente + sinal * esp * 0.45, q) if horizontal else (q, frente + sinal * esp * 0.45)
+                _circulo_glow(ov, (int(px), int(py)), 3 + int((q // 46) % 3), (220, 255, 255), 190, 0, 2)
+        # Portao seguro recebe moldura viva para nunca se perder no espetaculo.
+        if horizontal:
+            safe = pygame.Rect(int(frente - esp * 0.58), atk.safe_pos, int(esp * 1.16), atk.safe_span)
+        else:
+            safe = pygame.Rect(atk.safe_pos, int(frente - esp * 0.58), atk.safe_span, int(esp * 1.16))
+        pygame.draw.rect(ov, (30, 255, 205, 75), safe)
+        pygame.draw.rect(ov, (175, 255, 235, 230), safe, 3)
+    tela.blit(ov, (0, 0))
+
+
+def _desenhar_areia_premium(atk, tela, agora):
+    t = agora * 0.001
+    ov = pygame.Surface(tela.get_size(), pygame.SRCALPHA)
+    for idx, rdm in enumerate(atk.redemoinhos):
+        x, y = int(rdm["center"][0]), int(rdm["center"][1])
+        fase = t * 2.8 + idx * 1.7
+        if atk.estado == "telegraph":
+            progresso = max(0.0, min(1.0, atk.tempo_decorrido / 1200.0))
+            _circulo_glow(ov, (x, y), atk.raio, (255, 164, 35), 80 + progresso * 70, 2, 4)
+            _anel_segmentado(ov, (x, y), atk.raio, (255, 205, 90), 220, fase, 18, 3, 0.38)
+            _anel_segmentado(ov, (x, y), max(8, int(atk.raio * (1.0 - progresso))), (255, 255, 230), 245, -fase * 2, 12, 2)
+            for j in range(10):
+                ang = fase + j * math.tau / 10
+                _seta_fluxo(ov, (x + math.cos(ang) * atk.raio * 0.72, y + math.sin(ang) * atk.raio * 0.72), ang + math.pi * 0.72, 8, (255, 188, 70), 170)
+        else:
+            pygame.draw.circle(ov, (20, 10, 2, 190), (x, y), atk.raio)
+            # Bracos espirais com cores e espessuras diferentes criam profundidade.
+            for braco in range(7):
+                pontos = []
+                for passo in range(34):
+                    frac = passo / 33.0
+                    rr = atk.raio * (1.0 - frac * 0.88)
+                    ang = fase + braco * math.tau / 7 + frac * math.tau * 1.65
+                    pontos.append((int(x + math.cos(ang) * rr), int(y + math.sin(ang) * rr * 0.72)))
+                pygame.draw.lines(ov, (120, 55, 12, 85), False, pontos, 9)
+                pygame.draw.lines(ov, (245, 178, 65, 185), False, pontos, 3)
+                pygame.draw.lines(ov, (255, 236, 160, 150), False, pontos, 1)
+            _circulo_glow(ov, (x, y), 24, (255, 75, 10), 220, 0, 5)
+            pygame.draw.circle(ov, (2, 1, 4, 250), (x, y), 17)
+            _anel_segmentado(ov, (x, y), atk.raio - 5, (255, 190, 80), 150, -fase * 0.7, 24, 2, 0.28)
+            for p in atk.particulas:
+                px = int(x + math.cos(p["ang"] + rdm["angulo_rotacao"]) * p["r"])
+                py = int(y + math.sin(p["ang"] + rdm["angulo_rotacao"]) * p["r"] * 0.72)
+                _circulo_glow(ov, (px, py), 1, (255, 220, 145), 155, 0, 2)
+    tela.blit(ov, (0, 0))
+
+
+def _garra_poligono(centro, lado, abertura, escala=1.0):
+    x, y = centro
+    s = lado
+    d = abertura
+    return [
+        (x + s * d, y - 48 * escala),
+        (x + s * (d + 34 * escala), y - 31 * escala),
+        (x + s * (d + 50 * escala), y - 4 * escala),
+        (x + s * (d + 25 * escala), y + 2 * escala),
+        (x + s * (d + 43 * escala), y + 35 * escala),
+        (x + s * d, y + 49 * escala),
+        (x + s * max(3, d - 14 * escala), y + 13 * escala),
+        (x + s * max(2, d - 8 * escala), y - 14 * escala),
+    ]
+
+
+def _desenhar_pinca_premium(atk, tela, agora):
+    _particulas_com_glow(tela, atk.particulas, 2)
+    t = agora * 0.001
+    x, y = int(atk.target_pos[0]), int(atk.target_pos[1])
+    d = max(0.0, atk.clamp_dist)
+    ov = pygame.Surface(tela.get_size(), pygame.SRCALPHA)
+    pulso = (math.sin(t * 10.0) + 1.0) * 0.5
+    cor = (255, 255, 255) if atk.estado == "impacto" else (190, 45, 255)
+    _circulo_glow(ov, (x, y), max(8, int(d)), (70, 255, 235), 75 + pulso * 65, 2, 3)
+    _anel_segmentado(ov, (x, y), max(22, int(d + 17)), (255, 65, 200), 220, t * 3.2, 8, 3, 0.34)
+    pygame.draw.line(ov, (255, 80, 210, 105), (x - 62, y), (x + 62, y), 1)
+    pygame.draw.line(ov, (70, 255, 235, 105), (x, y - 62), (x, y + 62), 1)
+    for lado in (-1, 1):
+        pontos = _garra_poligono((x, y), lado, d, 1.0)
+        pygame.draw.polygon(ov, (*cor, 55), pontos)
+        pygame.draw.lines(ov, (*cor, 245), True, pontos, 4 if atk.estado == "impacto" else 3)
+        brilho = [(int(px - lado * 3), int(py)) for px, py in pontos[:5]]
+        pygame.draw.lines(ov, (255, 185, 255, 170), False, brilho, 1)
+        origem = (int(atk.boss_pos[0]), int(atk.boss_pos[1]))
+        destino = (int(x + lado * (d + 38)), y)
+        _raio_organico(ov, origem, destino, (170, 35, 255), 115, 1, t * 8 + lado)
+    if atk.estado == "impacto":
+        _circulo_glow(ov, (x, y), 13, (255, 255, 255), 255, 0, 5)
+        for i in range(12):
+            ang = i * math.tau / 12 + t
+            pygame.draw.line(ov, (255, 55, 195, 190), (x, y), (x + math.cos(ang) * 70, y + math.sin(ang) * 70), 2)
+    tela.blit(ov, (0, 0))
+
+
+def _desenhar_investida_premium(atk, tela, agora):
+    _particulas_com_glow(tela, atk.particulas, 2)
+    t = agora * 0.001
+    bx, by = float(atk.boss_pos[0]), float(atk.boss_pos[1])
+    tx, ty = float(atk.target_pos[0]), float(atk.target_pos[1])
+    ov = pygame.Surface(tela.get_size(), pygame.SRCALPHA)
+    if atk.estado == "telegraph":
+        dx, dy = tx - bx, ty - by
+        dist = max(1.0, math.hypot(dx, dy))
+        nx, ny = -dy / dist, dx / dist
+        progresso = max(0.0, min(1.0, atk.tempo_decorrido / 2000.0))
+        largura = 18 + progresso * 24
+        corredor = [(bx + nx * largura, by + ny * largura), (tx + nx * largura, ty + ny * largura), (tx - nx * largura, ty - ny * largura), (bx - nx * largura, by - ny * largura)]
+        pygame.draw.polygon(ov, (255, 30, 80, 28 + int(progresso * 32)), corredor)
+        pygame.draw.lines(ov, (255, 70, 110, 130), False, corredor[:2], 2)
+        pygame.draw.line(ov, (255, 45, 90, 65), (bx, by), (tx, ty), 12)
+        pygame.draw.line(ov, (255, 90, 140, 150), (bx, by), (tx, ty), 4)
+        pygame.draw.line(ov, (255, 255, 255, 235), (bx, by), (tx, ty), 1)
+        for i in range(1, 8):
+            frac = (i / 8.0 + t * 0.75) % 1.0
+            px, py = bx + dx * frac, by + dy * frac
+            _seta_fluxo(ov, (px, py), math.atan2(dy, dx), 8 + progresso * 4, (255, 120, 165), 180)
+        raio = int(28 + (1.0 - progresso) * 42)
+        _anel_segmentado(ov, (int(tx), int(ty)), raio, (255, 40, 100), 245, -t * 5, 12, 3, 0.42)
+        _anel_segmentado(ov, (int(tx), int(ty)), max(10, raio - 13), (255, 255, 255), 190, t * 7, 8, 2)
+    elif atk.estado == "impacto":
+        ang = math.atan2(atk.charge_dir[1], atk.charge_dir[0])
+        # Casulos atrasados sugerem velocidade sem duplicar o sprite do chefe.
+        for i in range(1, 6):
+            dist = i * 23
+            px = int(bx - atk.charge_dir[0] * dist)
+            py = int(by - atk.charge_dir[1] * dist)
+            rr = max(5, 23 - i * 3)
+            _circulo_glow(ov, (px, py), rr, (40, 180, 255), 115 - i * 14, 2, 3)
+        for i in range(-4, 5):
+            lateral = i * 13
+            px = bx - atk.charge_dir[0] * 74 + math.cos(ang + math.pi / 2) * lateral
+            py = by - atk.charge_dir[1] * 74 + math.sin(ang + math.pi / 2) * lateral
+            fim = (px - atk.charge_dir[0] * (65 + abs(i) * 7), py - atk.charge_dir[1] * (65 + abs(i) * 7))
+            pygame.draw.line(ov, (100, 225, 255, 120), (px, py), fim, 2 if i % 2 == 0 else 1)
+        _circulo_glow(ov, (int(bx), int(by)), 30, (255, 90, 170), 165, 3, 4)
+    tela.blit(ov, (0, 0))
+
+
+def _desenhar_ataque_premium(atk, tela):
+    agora = pygame.time.get_ticks()
+    nome = atk.__class__.__name__
+    if nome == "BolhaPressaoTemporal":
+        _desenhar_bolha_premium(atk, tela, agora)
+    elif nome == "DiluvioSuspenso":
+        _desenhar_diluvio_premium(atk, tela, agora)
+    elif nome == "MareFraturada":
+        _desenhar_mare_premium(atk, tela, agora)
+    elif nome == "AreiaViva":
+        _desenhar_areia_premium(atk, tela, agora)
+    elif nome == "PincaRuptura":
+        _desenhar_pinca_premium(atk, tela, agora)
+    elif nome == "InvestidaTemporal":
+        _desenhar_investida_premium(atk, tela, agora)
+    else:
+        atk.draw(tela)
+
+
+def desenhar_onda_transicao_premium(tela, wave, tempo_atual):
+    """Onda de mudanca de estagio com fissuras, profundidade e saida legivel."""
+    x, y = int(wave["x"]), int(wave["y"])
+    raio = max(1, int(wave["raio"]))
+    largura = max(2, int(wave["largura_linha"]))
+    t = tempo_atual * 0.001
+    ov = pygame.Surface(tela.get_size(), pygame.SRCALPHA)
+    rect = pygame.Rect(x - raio, y - raio, raio * 2, raio * 2)
+    completa = wave.get("tipo") == "completa"
+
+    if completa:
+        _circulo_glow(ov, (x, y), raio, (155, 35, 255), 175, largura + 2, 4)
+        pygame.draw.circle(ov, (20, 245, 255, 235), (x, y), raio, max(2, largura // 3))
+        _anel_segmentado(ov, (x, y), raio + largura + 5, (255, 90, 220), 180, t * 2.6, 28, 2, 0.34)
+    else:
+        centro_gap = float(wave["angulo_abertura_centro"])
+        tamanho_gap = float(wave["tamanho_abertura"])
+        inicio = centro_gap + tamanho_gap / 2
+        fim = centro_gap - tamanho_gap / 2 + math.tau
+        for extra, cor, alpha, lw in (
+            (8, (145, 25, 255), 65, largura + 10),
+            (3, (210, 45, 255), 165, largura + 4),
+            (0, (30, 245, 255), 235, max(2, largura // 3)),
+        ):
+            rr = raio + extra
+            pygame.draw.arc(ov, (*cor, alpha), (x - rr, y - rr, rr * 2, rr * 2), inicio, fim, lw)
+
+        # As duas mandibulas de luz enquadram a abertura segura.
+        for borda, sentido in ((centro_gap - tamanho_gap / 2, 1), (centro_gap + tamanho_gap / 2, -1)):
+            p1 = (x + math.cos(borda) * (raio - 18), y + math.sin(borda) * (raio - 18))
+            p2 = (x + math.cos(borda) * (raio + 25), y + math.sin(borda) * (raio + 25))
+            pygame.draw.line(ov, (180, 255, 235, 235), p1, p2, 4)
+            _seta_fluxo(ov, p2, centro_gap + math.pi * sentido * 0.08, 10, (90, 255, 215), 220)
+
+    # Fragmentos viajam na crista e eliminam a sensacao de circulo geometrico cru.
+    for i in range(24):
+        ang = i * math.tau / 24 + t * (0.55 if i % 2 else -0.35)
+        if not completa:
+            delta = (ang - float(wave["angulo_abertura_centro"]) + math.pi) % math.tau - math.pi
+            if abs(delta) < float(wave["tamanho_abertura"]) / 2:
+                continue
+        rr = raio + math.sin(t * 6 + i) * 5
+        px, py = x + math.cos(ang) * rr, y + math.sin(ang) * rr
+        tang = ang + math.pi / 2
+        pontos = [
+            (px + math.cos(tang) * 7, py + math.sin(tang) * 7),
+            (px + math.cos(ang) * 4, py + math.sin(ang) * 4),
+            (px - math.cos(tang) * 7, py - math.sin(tang) * 7),
+            (px - math.cos(ang) * 3, py - math.sin(ang) * 3),
+        ]
+        pygame.draw.polygon(ov, (195, 105, 255, 145), pontos)
+        pygame.draw.line(ov, (210, 255, 255, 205), pontos[0], pontos[2], 1)
+    tela.blit(ov, (0, 0))
+
 class AtaqueBoss1:
     """
     Classe base para todos os ataques do Boss 1.
@@ -1185,7 +1609,7 @@ class GerenciadorAtaquesBoss1:
 
     def draw(self, tela):
         for atk in self.ataques_ativos:
-            atk.draw(tela)
+            _desenhar_ataque_premium(atk, tela)
 
 
 # Instância global para facilitar integração no loop de GAME.py

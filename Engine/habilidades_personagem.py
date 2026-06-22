@@ -280,7 +280,7 @@ def processar_habilidade_onda(ondas, correntes_eletricas, inimigos_comum, boss_i
     inimigos_mortos_neste_frame = []
     
     for onda in ondas:
-        if onda.get("tipo_manifestacao") == "chamado_reverso":
+        if onda.get("tipo_manifestacao") in ("chamado_reverso", "memoria_instavel_ativacao"):
             retornante_manifestacao.desenhar_chamado(tela, onda, tempo_atual, config_graficos)
             if tempo_atual < int(onda.get("fim_ms", 0)):
                 novas_ondas.append(onda)

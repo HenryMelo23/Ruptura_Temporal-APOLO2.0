@@ -228,10 +228,11 @@ MANIFESTACOES_DADOS = {
             "Pulso Retornante: na ida causa dano baixo e atravessa inimigos. "
             "Na volta causa dano alto, aplica bônus de retorno e pode critar quando atravessa o alvo pelas costas."
         ),
-        "habilidade": "Chamado Reverso",
+        "habilidade": "Memória Instável",
         "descricao_habilidade": (
-            "Marca todos os projéteis retornantes ativos e força o retorno imediato. "
-            "Projéteis chamados voltam com dano aumentado."
+            "Torna instável o pulso mais próximo do cursor por 4 segundos. Ele ricocheteia entre inimigos "
+            "e limites da arena com dano reduzido e depois retorna fortalecido. Sem pulso ativo, o próximo "
+            "disparo recebe a instabilidade."
         ),
         "traco": "Excelente para kiting e posicionamento: o jogador quer colocar inimigos entre Geovana e o pulso voltando.",
         "risco": "Se Geovana fica parada ou mal posicionada, metade do dano da manifestação se perde.",

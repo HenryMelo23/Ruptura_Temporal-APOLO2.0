@@ -3196,6 +3196,7 @@ def executar_jogo(game_manager=None):
                 estado_atual_ia['bonus_tiros'] = bonus - 1
 
             # Renderizar os disparos (NOVO MOTOR PROCEDURAL)
+            vfx_disparo_player.preparar_frame(len(disparos), config_graficos)
             for disparo in disparos:
                 vfx_disparo_player.desenhar_disparo(tela, disparo, agora, config_graficos)
             vfx_disparo_player.atualizar_e_desenhar_particulas(tela, dt, config_graficos)

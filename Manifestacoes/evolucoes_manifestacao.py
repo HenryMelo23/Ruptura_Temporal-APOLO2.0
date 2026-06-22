@@ -141,7 +141,7 @@ TEXTOS_EXCLUSIVOS = {
         "O quinto impacto devolve o espaco com forca e arremessa a horda para longe.",
         "O terceiro retorno chama inimigos de uma area enorme para cruzarem o caminho do pulso.",
         "Dois encontros com o mesmo alvo repetem aquele instante e o congelam.",
-        "Chamado Reverso deixa um horizonte largo que atrasa perseguidores enquanto os pulsos voltam.",
+        "Cada ricochete da Memoria Instavel deixa um eco temporal que atrasa perseguidores.",
         "Os dois pontos do Teleporte criam recuos extensos, preparando corredores para o retorno.",
     ),
     "parasitica": (
@@ -408,6 +408,13 @@ def ao_acertar(disparo, alvo, inimigos, estado, agora_ms):
     perfil = item.get("perfil")
     estado["contador_impactos"] += 1
     centro = alvo["rect"].center
+    if item["id"] == "retornante_8" and disparo.get("retornante_fase") == "instavel":
+        estado["campos"].append({
+            "centro": centro,
+            "inicio": agora_ms,
+            "fim": agora_ms + 950,
+            "raio": 92,
+        })
     if mecanica == "elo":
         quantidade_alvos, duracao_lento = perfil or (2, 1400)
         proximos = sorted(
@@ -443,7 +450,7 @@ def ao_acertar(disparo, alvo, inimigos, estado, agora_ms):
 
 def ao_usar_habilidade(estado, centro, agora_ms):
     item = evolucao_ativa(estado)
-    if item and item.get("familia", item["mecanica"]) == "campo":
+    if item and item.get("familia", item["mecanica"]) == "campo" and item["id"] != "retornante_8":
         duracao, raio = item.get("perfil") or (2300, 185)
         estado["campos"].append({"centro": tuple(centro), "inicio": agora_ms, "fim": agora_ms + int(duracao), "raio": int(raio)})
 

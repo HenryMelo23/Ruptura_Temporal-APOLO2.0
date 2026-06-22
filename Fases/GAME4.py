@@ -1500,8 +1500,9 @@ def executar_jogo(game_manager=None):
                                     inimigos_comum.remove(morto_eclosao)
                                     inimigos_eliminados += 1
                         elif retornante_manifestacao.ativa(manifestacao_ativa):
-                            total_chamado = retornante_manifestacao.chamado_reverso(disparos, tempo_atual)
-                            ondas.append(retornante_manifestacao.criar_chamado(px_centro, py_centro, tempo_atual, total_chamado))
+                            resultado_memoria = retornante_manifestacao.ativar_memoria_instavel(disparos, tempo_atual, pos_mouse)
+                            memoria_x, memoria_y = resultado_memoria.get("centro") or (px_centro, py_centro)
+                            ondas.append(retornante_manifestacao.criar_chamado(memoria_x, memoria_y, tempo_atual, int(resultado_memoria["ativado"])))
                         elif prismatica_manifestacao.ativa(manifestacao_ativa):
                             ondas.append(prismatica_manifestacao.criar_prisma(
                                 pos_mouse[0], pos_mouse[1], tempo_atual,
@@ -2252,7 +2253,7 @@ def executar_jogo(game_manager=None):
                     if not disparo.get("expirado"):
                         novos_disparos.append(disparo)
                 elif disparo.get("tipo_manifestacao") == "retornante_pulso":
-                    if retornante_manifestacao.atualizar_disparo(disparo, centro_retorno_x, centro_retorno_y, dt, tempo_atual):
+                    if retornante_manifestacao.atualizar_disparo(disparo, centro_retorno_x, centro_retorno_y, dt, tempo_atual, inimigos_comum, largura_mapa, altura_mapa):
                         novos_disparos.append(disparo)
                 elif disparo.get("tipo_manifestacao") == "prismatica_feixe":
                     if prismatica_manifestacao.atualizar_ricochete(disparo, largura_mapa, altura_mapa, tempo_atual):
@@ -2263,6 +2264,7 @@ def executar_jogo(game_manager=None):
             disparos = novos_disparos
 
             # Renderizar os disparos
+            vfx_disparo_player.preparar_frame(len(disparos), config_graficos)
             for disparo in disparos:
                 vfx_disparo_player.desenhar_disparo(tela, disparo, tempo_atual, config_graficos)
             vfx_disparo_player.atualizar_e_desenhar_particulas(tela, dt, config_graficos)

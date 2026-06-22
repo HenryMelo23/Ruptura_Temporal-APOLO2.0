@@ -92,6 +92,8 @@ class PlayerProjectileVFX:
     def __init__(self):
         self.particulas = []
         self._proximo_id = 1
+        self._config_frame = None
+        self._quantidade_frame = 0
         self._cores = [
             (0, 120, 255),
             (0, 185, 255),
@@ -99,6 +101,32 @@ class PlayerProjectileVFX:
             (115, 190, 255),
             (190, 245, 255),
         ]
+
+    def preparar_frame(self, quantidade_disparos, config_graficos=None):
+        """Ajusta somente a densidade visual quando muitos projeteis coexistem."""
+        self._quantidade_frame = max(0, int(quantidade_disparos))
+        config = dict(config_graficos or {})
+        perfil_original = _perfil_grafico(config)
+
+        # Todos os disparos continuam visiveis. Apenas raios, rastros e
+        # particulas decorativas usam um perfil mais leve sob carga elevada.
+        if self._quantidade_frame >= 60:
+            perfil_efetivo = "baixo"
+        elif self._quantidade_frame >= 25 and perfil_original == "alto":
+            perfil_efetivo = "medio"
+        else:
+            perfil_efetivo = perfil_original
+
+        if perfil_efetivo == "medio":
+            config["nivel_detalhes"] = "medio"
+            config["qualidade_grafica"] = "media"
+        elif perfil_efetivo == "baixo":
+            config["nivel_detalhes"] = "baixo"
+            config["qualidade_grafica"] = "baixa"
+        self._config_frame = config
+
+    def _config_efetiva(self, config_graficos):
+        return self._config_frame if self._config_frame is not None else config_graficos
 
     def criar_disparo(self, centro_x, centro_y, largura, altura, angulo, velocidade, agora_ms, impulsiva=False):
         raio = max(3, min(18, int(min(largura, altura) * 0.34)))
@@ -147,6 +175,7 @@ class PlayerProjectileVFX:
             del trail[:-8]
 
     def desenhar_disparo(self, tela, disparo, agora_ms, config_graficos=None, offset=(0, 0)):
+        config_graficos = self._config_efetiva(config_graficos)
         if disparo.get("tipo_manifestacao") == "lacerante_corte":
             try:
                 import lacerante_manifestacao
@@ -289,6 +318,7 @@ class PlayerProjectileVFX:
             self.particulas = self.particulas[-limite:]
 
     def atualizar_e_desenhar_particulas(self, tela, dt, config_graficos=None, offset=(0, 0)):
+        config_graficos = self._config_efetiva(config_graficos)
         if not (config_graficos or {}).get("particulas_ativas", True):
             self.particulas.clear()
             return
