@@ -19,6 +19,7 @@ import gravitante_manifestacao
 import ancorada_manifestacao
 import boss_manifestacao_effects
 import teleporte_manifestacao
+from estado_jogador_fases import carregar_estado_jogador, salvar_estado_jogador
 from dados_manifestacoes import registrar_conclusao_fase
 from build_runtime import fase_disponivel
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
@@ -286,6 +287,8 @@ def limpar_salvamento():
         os.remove('saves/atributos.json')
 
 def salvar_atributos():
+    salvar_estado_jogador(globals())
+    return
     atributos = {
         "velocidade_personagem": velocidade_personagem,
         "intervalo_disparo": intervalo_disparo,
@@ -327,6 +330,9 @@ def salvar_atributos():
         json.dump(atributos, file)
 
 def carregar_atributos():
+    carregar_estado_jogador(globals())
+    globals()["cartas_compradas"] = normalizar_cartas_compradas(globals()["cartas_compradas"])
+    return
     global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, moedas_totais, Chance_Sorte, cartas_compradas, largura_disparo, altura_disparo
     if not os.path.exists('saves/atributos.json'):
         cartas_compradas = normalizar_cartas_compradas(cartas_compradas)
@@ -3023,8 +3029,8 @@ def executar_jogo(game_manager=None):
                 tela.blit(texto_vida, (posicao_barra_vida[0]*2, posicao_barra_vida[1] + 5))
                 tela.blit(imagem_vida, posicao_vida)
 
-                if hub_vertical_inferior_ativo((pos_x_personagem, pos_y_personagem)) or not area_icones.colliderect(
-                (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+                if deve_desenhar_habilidades(
+                    (pos_x_personagem, pos_y_personagem), (largura_personagem, altura_personagem)
                 ):
                     # Desenhar habilidades na tela
                     desenhar_habilidades(tela, cooldowns, dispositivo_ativo, (pos_x_personagem, pos_y_personagem))

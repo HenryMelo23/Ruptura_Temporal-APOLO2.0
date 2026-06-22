@@ -8,6 +8,7 @@ import condutora_manifestacao
 import lacerante_manifestacao
 import parasitica_manifestacao
 import prismatica_manifestacao
+from deslocamento_inimigo import agendar_deslocamento
 
 
 RETORNANTE_JANELA_MS = 4000
@@ -271,9 +272,15 @@ def _teleporte_eletrico(destino, inimigos, boss_info, dano_base, efeitos_texto, 
         if dist > raio:
             continue
         nx, ny = _normalizar(rect.centerx - x, rect.centery - y)
-        rect.x += int(nx * 7)
-        rect.y += int(ny * 7)
-        inimigo["stun_fim"] = max(int(inimigo.get("stun_fim", 0)), tempo_atual + 200)
+        agendar_deslocamento(
+            inimigo,
+            rect.x + nx * 7,
+            rect.y + ny * 7,
+            agora_ms=tempo_atual,
+            duracao_ms=220,
+            pausa_ms=800,
+            curvatura=0.12,
+        )
         _aplicar_dano(inimigo, dano, tempo_atual, efeitos_texto, c1)
         _EFEITOS.append({"tipo": "raio_curto", "a": (x, y), "b": rect.center, "cor": c2, "criada_ms": tempo_atual, "fim_ms": tempo_atual + 160})
     if boss_info and boss_info.get("vivo") and boss_info.get("rect"):
@@ -401,7 +408,17 @@ def _teleporte_gravitante(destino, inimigos, dano_base, tempo_atual):
         tangencial = random.choice((-1, 1))
         tx, ty = -ry * tangencial, rx * tangencial
         forca = 9.0 * (1.0 - min(0.7, dist / max(1, raio) * 0.55))
-        afetados.append({"alvo": inimigo, "vx": tx * forca + rx * 1.8, "vy": ty * forca + ry * 1.8, "ultimo_colisao": {}})
+        vx, vy = tx * forca + rx * 1.8, ty * forca + ry * 1.8
+        agendar_deslocamento(
+            inimigo,
+            rect.x + vx * 6.0,
+            rect.y + vy * 6.0,
+            agora_ms=tempo_atual,
+            duracao_ms=620,
+            pausa_ms=800,
+            curvatura=0.46,
+        )
+        afetados.append({"alvo": inimigo, "ultimo_colisao": {}})
     _IMPULSOS_GRAVITANTES.append({
         "x": x,
         "y": y,
@@ -537,8 +554,6 @@ def _atualizar_impulsos_gravitantes(inimigos, tempo_atual, dano_base, efeitos_te
             rect = alvo.get("rect") if isinstance(alvo, dict) else None
             if rect is None or alvo.get("vida", 1) <= 0:
                 continue
-            rect.x += int(item.get("vx", 0.0))
-            rect.y += int(item.get("vy", 0.0))
             if largura_mapa is not None:
                 if rect.left < 0 or rect.right > int(largura_mapa):
                     _aplicar_dano(alvo, impulso["dano_colisao"] * 0.42, tempo_atual, efeitos_texto, impulso["cor2"])
@@ -547,8 +562,6 @@ def _atualizar_impulsos_gravitantes(inimigos, tempo_atual, dano_base, efeitos_te
                 if rect.top < 0 or rect.bottom > int(altura_mapa):
                     _aplicar_dano(alvo, impulso["dano_colisao"] * 0.42, tempo_atual, efeitos_texto, impulso["cor2"])
                 rect.y = max(0, min(int(altura_mapa) - rect.h, rect.y))
-            item["vx"] *= 0.84
-            item["vy"] *= 0.84
             for outro in list(inimigos or []):
                 if outro is alvo or not isinstance(outro, dict) or outro.get("vida", 1) <= 0:
                     continue

@@ -118,6 +118,14 @@ def _clamp(valor, minimo, maximo):
     return max(minimo, min(maximo, valor))
 
 
+def limitar_dano_larapio(dano_calculado, vida_atual, vida_maxima, teto_percentual=0.18):
+    """Limita o golpe do ladrao e garante que ele nunca seja a fonte do abate."""
+    dano = max(0, int(dano_calculado or 0))
+    teto = max(1, int(max(1, vida_maxima) * teto_percentual))
+    limite_nao_letal = max(0, int(vida_atual) - 1)
+    return min(dano, teto, limite_nao_letal)
+
+
 def bonus_sorte(chance_sorte):
     return max(0.0, float(chance_sorte or 0.0) - SORTE_BASE)
 

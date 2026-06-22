@@ -4927,8 +4927,8 @@ def executar_jogo(game_manager=None):
 
                 tela.blit(imagem_vida, posicao_vida)
 
-                if hub_vertical_inferior_ativo((pos_x_personagem, pos_y_personagem)) or not area_icones.colliderect(
-                (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+                if deve_desenhar_habilidades(
+                    (pos_x_personagem, pos_y_personagem), (largura_personagem, altura_personagem)
                 ):
                     # Desenhar habilidades na tela
                     desenhar_habilidades(tela, cooldowns, dispositivo_ativo, (pos_x_personagem, pos_y_personagem))

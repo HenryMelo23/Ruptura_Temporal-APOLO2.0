@@ -17,6 +17,8 @@ import gravitante_manifestacao
 import ancorada_manifestacao
 import boss_manifestacao_effects
 import teleporte_manifestacao
+import evolucoes_manifestacao
+from estado_jogador_fases import carregar_estado_jogador, salvar_estado_jogador
 from dados_manifestacoes import registrar_conclusao_fase
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
 from Tela_Cartas import tela_de_pausa as tela_de_pausa_single
@@ -56,6 +58,7 @@ import insana_aurea
 import voraz_aurea
 import aureas_avancadas
 import multiplayer_coop
+from balanceamento import limitar_dano_larapio
 
 instalar_captura_global()
 instalar_filtro_prints()
@@ -102,6 +105,7 @@ LARAPIO_TEMPO_FUGA = 6500
 LARAPIO_INTERVALO_ANIMACAO_FUGA = 80
 LARAPIO_INTERVALO_ANIMACAO = 120
 LARAPIO_COOLDOWN_SPAWN_MS = 90000
+LARAPIO_FATOR_RIQUEZA_MAX = 2.5
 custo_carta_atual = 100
 
 # Forward declarations (atribuídos no loop principal)
@@ -247,6 +251,8 @@ def limpar_salvamento():
         os.remove('saves/atributos.json')
 
 def salvar_atributos():
+    salvar_estado_jogador(globals())
+    return
     atributos = {
         "velocidade_personagem": velocidade_personagem,
         "intervalo_disparo": intervalo_disparo,
@@ -288,6 +294,9 @@ def salvar_atributos():
         json.dump(atributos, file)
 
 def carregar_atributos():
+    carregar_estado_jogador(globals())
+    globals()["cartas_compradas"] = normalizar_cartas_compradas(globals()["cartas_compradas"])
+    return
     global velocidade_personagem, intervalo_disparo, dano_person_hit, chance_critico, roubo_de_vida, quantidade_roubo_vida,vida_maxima,vida_maxima_petro,vida,xp_petro,Petro_active,trembo,dano_petro,Resistencia,Resistencia_petro,dano_inimigo_longe,dano_inimigo_perto,direcao_atual,Poison_Active,Ultimo_Estalo,Executa_inimigo,Valor_Bonus,Mercenaria_Active,tempo_cooldown_dash,vida_petro,petro_evolucao,Dano_Veneno_Acumulado, Tempo_cura,porcentagem_cura, moedas_totais, Chance_Sorte, cartas_compradas, largura_disparo, altura_disparo
     if not os.path.exists('saves/atributos.json'):
         cartas_compradas = normalizar_cartas_compradas(cartas_compradas)
@@ -531,6 +540,7 @@ def executar_jogo(game_manager=None):
         with open("saves/aurea_selecionada.json", "r") as file:
             aurea = json.load(file)["aurea"]
         manifestacao_ativa = obter_manifestacao_ativa()
+        estado_evolucao_manifestacao = evolucoes_manifestacao.criar_estado(manifestacao_ativa)
 
         with open("saves/tutorial_config.json", "r") as f:
             mostrar_tutorial = json.load(f).get("mostrar_tutorial", True)
@@ -1124,12 +1134,21 @@ def executar_jogo(game_manager=None):
                 if novo_fim_racional is not None:
                     racional_dilatacao_fim = novo_fim_racional
                 destino_teleporte = (pos_x_personagem + largura_personagem // 2, pos_y_personagem + altura_personagem // 2)
+                alvo_teleporte_info = {
+                    "vivo": bool(miniboss_condutor) or (boss_vivo1 and not boss_morte_processada),
+                    "rect": (
+                        miniboss_condutor["rect"] if miniboss_condutor
+                        else (pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura) if boss_vivo1 and not boss_morte_processada else None)
+                    ),
+                    "hit_flag": False,
+                    "alvo": "arauto" if miniboss_condutor else "boss",
+                }
                 efeito_teleporte = teleporte_manifestacao.aplicar_efeito_teleporte_manifestacao(
                     manifestacao_ativa,
                     origem_teleporte,
                     destino_teleporte,
                     inimigos_comum,
-                    None,
+                    alvo_teleporte_info,
                     dano_person_hit * fator_dano_aureas(tempo_atual),
                     efeitos_texto,
                     tempo_atual,
@@ -1138,6 +1157,19 @@ def executar_jogo(game_manager=None):
                     ondas,
                     retorno_teleporte is not None,
                     player_pos_origem_teleporte,
+                )
+                if alvo_teleporte_info.get("hit_flag"):
+                    dano_teleporte_alvo = alvo_teleporte_info.get("dano_manifestacao", dano_person_hit * 0.10)
+                    if alvo_teleporte_info.get("alvo") == "arauto" and miniboss_condutor:
+                        aplicar_dano_ao_condutor(dano_teleporte_alvo, (205, 155, 255))
+                    elif boss_vivo1 and not boss_morte_processada:
+                        vida_boss -= dano_boss_mitigado(
+                            dano_teleporte_alvo, 1, inimigos_eliminados, tempo_atual,
+                            cartas_compradas.get("Coletora", 0)
+                        )
+                evolucoes_manifestacao.ao_teleportar(
+                    estado_evolucao_manifestacao, origem_teleporte, destino_teleporte,
+                    inimigos_comum, tempo_teleporte_agora
                 )
                 if condutora_manifestacao.ativa(manifestacao_ativa):
                     condutora_manifestacao.registrar_teleporte_condutor(tempo_teleporte_agora)
@@ -1557,10 +1589,9 @@ def executar_jogo(game_manager=None):
         alerta_larapio_mostrado = False
         miniboss_condutor = None
         miniboss_condutor_spawnado = False
-        recompensa_condutor_pendente = False
-        pulsos_condutor = []
+        fragmentos_ruptura = []
         ecos_rompidos_condutor = []
-        prisoes_condutor = []
+        raios_olhar_condutor = []
 
         # Função para verificar a colisão entre o personagem e os projéteis inimigos
         def verificar_colisao_personagem(projeteis):
@@ -1868,7 +1899,10 @@ def executar_jogo(game_manager=None):
                 return
 
             bonus = bonus_larapio(inimigo)
-            fator_riqueza = 1.0 + (pontuacao_exib / max(100.0, float(custo_carta_atual)))
+            fator_riqueza = min(
+                LARAPIO_FATOR_RIQUEZA_MAX,
+                1.0 + (pontuacao_exib / max(100.0, float(custo_carta_atual))),
+            )
             dano_base = int(((vida_maxima * 0.04) + dano_inimigo_perto) * 0.8 * (1 + bonus["dano"]) * fator_riqueza)
             dano_base = dano_inimigo_inicio_ajustado(max(1, dano_base))
 
@@ -1881,14 +1915,15 @@ def executar_jogo(game_manager=None):
             if pontuacao_exib < 150:
                 global tempo_stun_jogador_fim
                 tempo_stun_jogador_fim = tempo_atual + 2000
-                dano_especial = int(vida_maxima * 0.10)
+                dano_especial = limitar_dano_larapio(int(vida_maxima * 0.10), vida, vida_maxima)
                 vida -= dano_especial
+                imune_tempo_restante = max(imune_tempo_restante, 500)
                 tempo_ultimo_hit_inimigo = tempo_atual
                 piscando_vida = True
                 Dano_person.play()
                 
                 efeitos_texto.append({
-                    "texto": "ATURDIDO! -10% HP",
+                    "texto": f"ATURDIDO! -{dano_especial} HP",
                     "x": pos_x_personagem - 18,
                     "y": pos_y_personagem - 34,
                     "tempo_inicio": tempo_atual,
@@ -1901,8 +1936,10 @@ def executar_jogo(game_manager=None):
                 return
 
             dano_final = max(0, dano_base - int(Resistencia))
+            dano_final = limitar_dano_larapio(dano_final, vida, vida_maxima)
             if dano_final > 0:
                 vida -= dano_final
+                imune_tempo_restante = max(imune_tempo_restante, 500)
                 if aurea == "Impulsiva":
                     eliminacoes_consecutivas_impulsiva = 0
                 eliminacoes_consecutivas = 0
@@ -2292,6 +2329,8 @@ def executar_jogo(game_manager=None):
             Som_tema_fases.set_volume(max(0.04, volume_ambiente_condutor * 0.55))
             miniboss_condutor = {
                 "ativo": True,
+                "is_boss": True,
+                "eh_miniboss": True,
                 "rect": rect,
                 "pos_x": float(rect.x),
                 "pos_y": float(rect.y),
@@ -2299,24 +2338,23 @@ def executar_jogo(game_manager=None):
                 "vida_maxima": vida_base,
                 "entrada_inicio": tempo_atual,
                 "entrada_fim": tempo_atual + MINIBOSS_CONDUTOR_ENTRADA_MS,
-                "ultimo_pulso": tempo_atual - 2200,
                 "ultimo_disparo": tempo_atual,
-                "ultimo_espelho": tempo_atual - 2500,
-                "espelho_fim": 0,
-                "disparos_eco_pendentes": [],
-                "ultimo_prisao": tempo_atual,
-                "ultimo_vinculo": tempo_atual,
-                "renovacoes_ecos": 0,
+                "proximo_olhar": tempo_atual + 4200,
+                "olhar_inicio": 0,
+                "olhar_alvo": None,
+                "olhar_travou": False,
+                "fase2_anunciada": False,
                 "frame_atual": 0,
                 "ultimo_frame": tempo_atual,
-                "direcao_x": -1,
+                "direcao_x": 1,
+                "sentido_orbita": random.choice((-1, 1)),
                 "volume_musica": volume_musica_condutor,
                 "volume_ambiente": volume_ambiente_condutor,
                 "volume_restaurado": False,
             }
             miniboss_condutor_spawnado = True
             efeitos_texto.append({
-                "texto": "A RUPTURA CHAMOU ALGO DE VOLTA...",
+                "texto": "ARAUTO: CONDUTOR DE ECOS",
                 "x": largura_mapa // 2 - 210,
                 "y": int(altura_mapa * 0.18),
                 "tempo_inicio": tempo_atual,
@@ -2330,34 +2368,37 @@ def executar_jogo(game_manager=None):
                 "velocidade": 10.0,
                 "cor": (120, 80, 255),
             })
-            vincular_ecos_condutor(MINIBOSS_CONDUTOR_ECOS_INICIAIS, forcar_spawn=True)
+            vincular_ecos_condutor(MINIBOSS_CONDUTOR_ECOS_INICIAIS)
 
-        def vincular_ecos_condutor(quantidade, forcar_spawn=False):
+        def vincular_ecos_condutor(quantidade):
             if not miniboss_condutor:
                 return
-            candidatos = [
-                inimigo for inimigo in inimigos_comum
-                if not inimigo.get("eco_vinculado")
-                and not inimigo.get("invisivel", False)
-                and inimigo.get("tipo") != TIPO_LARAPIO
-                and inimigo.get("vida", 0) > 0
-            ]
-            candidatos.sort(key=lambda ini: math.hypot(ini["rect"].centerx - miniboss_condutor["rect"].centerx, ini["rect"].centery - miniboss_condutor["rect"].centery))
-            while forcar_spawn and len(candidatos) < quantidade and len(inimigos_comum) < max_inimigos + 4:
-                ang = random.uniform(0, math.tau)
-                raio = random.randint(120, 210)
+
+            # A ruptura limpa a arena: o confronto sempre começa com somente dois comuns.
+            for inimigo in list(inimigos_comum):
+                if inimigo.get("tipo") == TIPO_LARAPIO and (
+                    inimigo.get("dinheiro_roubado", 0) > 0 or inimigo.get("cartas_roubadas_larapio")
+                ):
+                    processar_morte_inimigo(inimigo)
+                else:
+                    gerar_fragmentos_morte(inimigo, 1)
+                inimigos_comum.remove(inimigo)
+
+            candidatos = []
+            for indice in range(quantidade):
+                ang = (math.tau / max(1, quantidade)) * indice + random.uniform(-0.25, 0.25)
+                raio = 175
                 sx = int(min(max(0, miniboss_condutor["rect"].centerx + math.cos(ang) * raio), largura_mapa - largura_inimigo))
                 sy = int(min(max(0, miniboss_condutor["rect"].centery + math.sin(ang) * raio), altura_mapa - altura_inimigo))
-                novo = criar_inimigo(sx, sy, tipo=1)
-                inimigos_comum.append(novo)
-                candidatos.append(novo)
-            for inimigo in candidatos[:quantidade]:
+                inimigo = criar_inimigo(sx, sy, tipo=1)
                 inimigo["eco_vinculado"] = True
                 inimigo["eco_vinculado_inicio"] = tempo_atual
                 inimigo["vida_maxima"] = max(inimigo.get("vida_maxima", vida_inimigo_maxima), vida_inimigo_maxima * 1.25)
-                inimigo["vida"] = max(inimigo.get("vida", 1), inimigo["vida_maxima"] * 0.75)
+                inimigo["vida"] = inimigo["vida_maxima"]
+                inimigos_comum.append(inimigo)
+                candidatos.append(inimigo)
                 efeitos_texto.append({
-                    "texto": "ECO",
+                    "texto": "ECO VINCULADO",
                     "x": inimigo["rect"].x,
                     "y": inimigo["rect"].y - 30,
                     "tempo_inicio": tempo_atual,
@@ -2367,43 +2408,146 @@ def executar_jogo(game_manager=None):
         def tentar_spawn_condutor(tempo_decorrido_run):
             if miniboss_condutor_spawnado or mostrar_tutorial or r_press or boss_vivo1 or boss_morte_processada:
                 return
-            if tempo_decorrido_run < MINIBOSS_CONDUTOR_TEMPO_SEG and inimigos_eliminados < MINIBOSS_CONDUTOR_KILLS:
+            if tempo_decorrido_run < MINIBOSS_CONDUTOR_TEMPO_SEG:
                 return
             criar_condutor_de_ecos()
 
-        def disparar_condutor(origem_rect, atraso_ms=0, eco=False):
-            if atraso_ms > 0:
-                miniboss_condutor["disparos_eco_pendentes"].append({"quando": tempo_atual + atraso_ms, "eco": eco})
-                return
+        def posicao_olho_condutor():
+            rect = miniboss_condutor["rect"]
+            proporcao_x = 0.68 if miniboss_condutor.get("direcao_x", 1) >= 0 else 0.32
+            return (int(rect.x + rect.width * proporcao_x), int(rect.y + rect.height * 0.45))
+
+        def disparar_condutor():
             cx = pos_x_personagem + largura_personagem // 2
             cy = pos_y_personagem + altura_personagem // 2
-            dx = cx - origem_rect.centerx
-            dy = cy - origem_rect.centery
+            olho_x, olho_y = posicao_olho_condutor()
+            dx = cx - olho_x
+            dy = cy - olho_y
             dist = max(1.0, math.hypot(dx, dy))
-            vel = 4.4 if not eco else 3.9
+            vel = 4.6
             disparos_inimigos.append({
-                "rect": pygame.Rect(origem_rect.centerx - 6, origem_rect.centery - 6, 13, 13),
+                "rect": pygame.Rect(olho_x - 8, olho_y - 8, 17, 17),
                 "vx": (dx / dist) * vel,
                 "vy": (dy / dist) * vel,
-                "dano": int((vida_maxima * 0.045) + dano_inimigo_longe),
-                "cor": (120, 210, 255) if not eco else (160, 110, 255),
+                "dano": int((vida_maxima * 0.052) + dano_inimigo_longe),
+                "cor": (160, 105, 255),
+                "origem": "arauto",
             })
 
-        def criar_prisao_condutor():
-            quantidade = 3 if miniboss_condutor["vida"] <= miniboss_condutor["vida_maxima"] * 0.5 else 2
-            px = pos_x_personagem + largura_personagem // 2
-            py = pos_y_personagem + altura_personagem // 2
-            for i in range(quantidade):
-                ang = random.uniform(0, math.tau) + i * (math.pi / max(1, quantidade))
-                comprimento = random.randint(360, 520)
-                ax = max(20, min(largura_mapa - 20, px - math.cos(ang) * comprimento / 2))
-                ay = max(20, min(altura_mapa - 20, py - math.sin(ang) * comprimento / 2))
-                bx = max(20, min(largura_mapa - 20, px + math.cos(ang) * comprimento / 2))
-                by = max(20, min(altura_mapa - 20, py + math.sin(ang) * comprimento / 2))
-                prisoes_condutor.append({"a": (ax, ay), "b": (bx, by), "inicio": tempo_atual, "atingiu": False})
+        def mover_condutor(fase2):
+            rect = miniboss_condutor["rect"]
+            px = pos_x_personagem + largura_personagem / 2
+            py = pos_y_personagem + altura_personagem / 2
+            cx, cy = rect.center
+            dx, dy = px - cx, py - cy
+            distancia = max(1.0, math.hypot(dx, dy))
+            nx, ny = dx / distancia, dy / distancia
+            sentido = miniboss_condutor.get("sentido_orbita", 1)
+
+            radial = 0.0
+            if distancia < MINIBOSS_CONDUTOR_DISTANCIA_MIN:
+                radial = -0.85
+            elif distancia > MINIBOSS_CONDUTOR_DISTANCIA_MAX:
+                radial = 0.65
+            tangente_x, tangente_y = -ny * sentido, nx * sentido
+            dir_x = tangente_x + nx * radial
+            dir_y = tangente_y + ny * radial
+            norma = max(1.0, math.hypot(dir_x, dir_y))
+            velocidade = MINIBOSS_CONDUTOR_VELOCIDADE * (1.25 if fase2 else 1.0)
+            velocidade *= fator_mundo_racional(aurea, racional_dilatacao_fim, tempo_atual)
+            passo_x = (dir_x / norma) * velocidade * dt
+            passo_y = (dir_y / norma) * velocidade * dt
+
+            margem = 18
+            novo_x = max(margem, min(largura_mapa - rect.width - margem, rect.x + passo_x))
+            novo_y = max(margem, min(altura_mapa - rect.height - margem, rect.y + passo_y))
+            if abs(novo_x - rect.x) < 0.05 and abs(passo_x) > 0.2:
+                miniboss_condutor["sentido_orbita"] = -sentido
+            miniboss_condutor["pos_x"] = float(novo_x)
+            miniboss_condutor["pos_y"] = float(novo_y)
+            rect.x = int(novo_x)
+            rect.y = int(novo_y)
+            if abs(passo_x) > 0.05:
+                miniboss_condutor["direcao_x"] = 1 if passo_x > 0 else -1
+
+        def iniciar_olhar_condutor():
+            miniboss_condutor["olhar_inicio"] = tempo_atual
+            miniboss_condutor["olhar_alvo"] = (
+                pos_x_personagem + largura_personagem // 2,
+                pos_y_personagem + altura_personagem // 2,
+            )
+            miniboss_condutor["olhar_travou"] = False
+            efeitos_texto.append({
+                "texto": "OLHAR DA RUPTURA — USE UM ECO COMO COBERTURA!",
+                "x": largura_mapa // 2 - 250,
+                "y": int(altura_mapa * 0.16),
+                "tempo_inicio": tempo_atual,
+                "cor": (235, 150, 255),
+            })
+
+        def resolver_olhar_condutor(fase2):
+            nonlocal tempo_ultimo_hit_inimigo, piscando_vida
+            global vida, imune_tempo_restante
+            origem = posicao_olho_condutor()
+            alvo = miniboss_condutor.get("olhar_alvo") or origem
+            dx, dy = alvo[0] - origem[0], alvo[1] - origem[1]
+            distancia = max(1.0, math.hypot(dx, dy))
+            alcance = math.hypot(largura_mapa, altura_mapa) * 1.25
+            fim = (origem[0] + dx / distancia * alcance, origem[1] + dy / distancia * alcance)
+
+            bloqueadores = []
+            for inimigo in inimigos_comum:
+                if inimigo.get("eco_vinculado") and inimigo["rect"].clipline(origem, fim):
+                    eco_dx = inimigo["rect"].centerx - origem[0]
+                    eco_dy = inimigo["rect"].centery - origem[1]
+                    projecao_eco = eco_dx * (dx / distancia) + eco_dy * (dy / distancia)
+                    if 0 < projecao_eco <= distancia:
+                        bloqueadores.append((projecao_eco, inimigo))
+
+            bloqueado = False
+            if bloqueadores:
+                _, eco = min(bloqueadores, key=lambda item: item[0])
+                bloqueado = True
+                fim = eco["rect"].center
+                efeitos_texto.append({
+                    "texto": "ECO SACRIFICADO — OLHAR BLOQUEADO!",
+                    "x": eco["rect"].x - 70,
+                    "y": eco["rect"].y - 42,
+                    "tempo_inicio": tempo_atual,
+                    "cor": (150, 235, 255),
+                })
+                processar_morte_inimigo(eco)
+                if eco in inimigos_comum:
+                    inimigos_comum.remove(eco)
+            else:
+                jogador_cx = pos_x_personagem + largura_personagem // 2
+                jogador_cy = pos_y_personagem + altura_personagem // 2
+                acertou = distancia_ponto_segmento(jogador_cx, jogador_cy, origem[0], origem[1], fim[0], fim[1]) <= 42
+                if acertou and imune_tempo_restante <= 0 and not absorver_dano_devota_atual():
+                    percentual = 0.18 if fase2 else 0.14
+                    dano = max(1, int(vida_maxima * percentual + dano_inimigo_longe * 0.35 - Resistencia))
+                    vida = max(0, vida - dano)
+                    imune_tempo_restante = 700
+                    tempo_ultimo_hit_inimigo = tempo_atual
+                    piscando_vida = True
+                    Dano_person.play()
+                    efeitos_texto.append({
+                        "texto": f"OLHAR DA RUPTURA -{dano}",
+                        "x": pos_x_personagem - 30,
+                        "y": pos_y_personagem - 38,
+                        "tempo_inicio": tempo_atual,
+                        "cor": (255, 80, 190),
+                    })
+
+            raios_olhar_condutor.append({
+                "inicio": tempo_atual,
+                "origem": origem,
+                "fim": fim,
+                "bloqueado": bloqueado,
+            })
 
         def finalizar_condutor():
-            nonlocal miniboss_condutor, recompensa_condutor_pendente
+            nonlocal miniboss_condutor
             if not miniboss_condutor:
                 return
             cx, cy = miniboss_condutor["rect"].center
@@ -2421,17 +2565,20 @@ def executar_jogo(game_manager=None):
                 "cor": (165, 90, 255),
             })
             efeitos_texto.append({
-                "texto": "CONDUTOR DE ECOS DESFEITO",
+                "texto": "ARAUTO: CONDUTOR DE ECOS DESFEITO",
                 "x": cx - 130,
                 "y": cy - 70,
                 "tempo_inicio": tempo_atual,
                 "cor": (190, 235, 255),
             })
-            if Variaveis.obter_modo_cartas() == "drops":
-                Variaveis.tentar_soltar_carta((cx - 40, cy), tempo_atual, Chance_Sorte + 1.0, inimigos_eliminados)
-                Variaveis.tentar_soltar_carta((cx + 40, cy), tempo_atual + 1, Chance_Sorte + 1.0, inimigos_eliminados)
-            else:
-                recompensa_condutor_pendente = True
+            fragmentos_ruptura.append(evolucoes_manifestacao.criar_fragmento(cx, cy, tempo_atual))
+            efeitos_texto.append({
+                "texto": "UM FRAGMENTO DA RUPTURA PERMANECE...",
+                "x": cx - 150,
+                "y": cy + 54,
+                "tempo_inicio": tempo_atual,
+                "cor": (220, 150, 255),
+            })
             miniboss_condutor = None
 
         def aplicar_dano_ao_condutor(dano_bruto, cor_dano):
@@ -2462,11 +2609,6 @@ def executar_jogo(game_manager=None):
             if tempo_atual - miniboss_condutor.get("ultimo_frame", 0) >= 180:
                 miniboss_condutor["frame_atual"] = (miniboss_condutor.get("frame_atual", 0) + 1) % len(frames_condutor)
                 miniboss_condutor["ultimo_frame"] = tempo_atual
-            for inimigo in inimigos_comum:
-                if inimigo.get("condutor_boost_fim") and tempo_atual >= inimigo.get("condutor_boost_fim", 0):
-                    inimigo["condutor_boost_fim"] = 0
-                    if "velocidade_base_condutor" in inimigo:
-                        inimigo["velocidade"] = inimigo.pop("velocidade_base_condutor")
             if tempo_atual < miniboss_condutor["entrada_fim"]:
                 return
             if not miniboss_condutor.get("volume_restaurado", False):
@@ -2475,48 +2617,58 @@ def executar_jogo(game_manager=None):
                 miniboss_condutor["volume_restaurado"] = True
 
             fase2 = miniboss_condutor["vida"] <= miniboss_condutor["vida_maxima"] * 0.5
-            vivos = contar_ecos_vivos_condutor()
-            if vivos == 0 and not fase2 and miniboss_condutor["renovacoes_ecos"] < MINIBOSS_CONDUTOR_RENOVACOES_ECOS:
-                if tempo_atual - miniboss_condutor["ultimo_vinculo"] >= MINIBOSS_CONDUTOR_RENOVAR_ECOS_COOLDOWN:
-                    miniboss_condutor["ultimo_vinculo"] = tempo_atual
-                    miniboss_condutor["renovacoes_ecos"] += 1
-                    vincular_ecos_condutor(2, forcar_spawn=True)
+            if fase2 and not miniboss_condutor.get("fase2_anunciada"):
+                miniboss_condutor["fase2_anunciada"] = True
+                miniboss_condutor["sentido_orbita"] *= -1
+                miniboss_condutor["proximo_olhar"] = min(miniboss_condutor.get("proximo_olhar", tempo_atual + 1500), tempo_atual + 1500)
+                efeitos_texto.append({
+                    "texto": "O OLHO DA RUPTURA DESPERTOU!",
+                    "x": largura_mapa // 2 - 180,
+                    "y": int(altura_mapa * 0.20),
+                    "tempo_inicio": tempo_atual,
+                    "cor": (255, 85, 210),
+                })
+                ondas_choque.append({
+                    "cx": rect.centerx,
+                    "cy": rect.centery,
+                    "raio_atual": 18.0,
+                    "raio_max": 360.0,
+                    "velocidade": 12.0,
+                    "cor": (220, 70, 255),
+                })
+            inicio_olhar = miniboss_condutor.get("olhar_inicio", 0)
+            if not inicio_olhar:
+                mover_condutor(fase2)
+            if inicio_olhar:
+                carga = 1050 if fase2 else MINIBOSS_CONDUTOR_OLHAR_CARGA_MS
+                idade = tempo_atual - inicio_olhar
+                if idade < carga * 0.58:
+                    miniboss_condutor["olhar_alvo"] = (
+                        pos_x_personagem + largura_personagem // 2,
+                        pos_y_personagem + altura_personagem // 2,
+                    )
+                elif not miniboss_condutor.get("olhar_travou"):
+                    miniboss_condutor["olhar_travou"] = True
+                    efeitos_texto.append({
+                        "texto": "ALVO TRAVADO!",
+                        "x": pos_x_personagem - 28,
+                        "y": pos_y_personagem - 46,
+                        "tempo_inicio": tempo_atual,
+                        "cor": (255, 100, 210),
+                    })
+                if idade >= carga:
+                    resolver_olhar_condutor(fase2)
+                    miniboss_condutor["olhar_inicio"] = 0
+                    miniboss_condutor["olhar_alvo"] = None
+                    cooldown_olhar = 6200 if fase2 else MINIBOSS_CONDUTOR_OLHAR_COOLDOWN
+                    miniboss_condutor["proximo_olhar"] = tempo_atual + cooldown_olhar
+            elif tempo_atual >= miniboss_condutor.get("proximo_olhar", tempo_atual + 1):
+                iniciar_olhar_condutor()
 
-            if tempo_atual - miniboss_condutor["ultimo_pulso"] >= MINIBOSS_CONDUTOR_PULSO_COOLDOWN:
-                miniboss_condutor["ultimo_pulso"] = tempo_atual
-                pulsos_condutor.append({"x": rect.centerx, "y": rect.centery, "inicio": tempo_atual})
-                for inimigo in inimigos_comum:
-                    dist = math.hypot(inimigo["rect"].centerx - rect.centerx, inimigo["rect"].centery - rect.centery)
-                    if dist <= 420:
-                        inimigo.setdefault("velocidade_base_condutor", inimigo.get("velocidade", Velocidade_Inimigos_1))
-                        boost = 1.45 if inimigo.get("eco_vinculado") else 1.20
-                        inimigo["velocidade"] = inimigo["velocidade_base_condutor"] * boost
-                        inimigo["condutor_boost_fim"] = tempo_atual + 1000
-
-            if tempo_atual - miniboss_condutor["ultimo_disparo"] >= max(850, MINIBOSS_CONDUTOR_DISPARO_COOLDOWN - (350 if fase2 else 0)):
+            intervalo_disparo_arauto = 1750 if fase2 else MINIBOSS_CONDUTOR_DISPARO_COOLDOWN
+            if not miniboss_condutor.get("olhar_inicio") and tempo_atual - miniboss_condutor["ultimo_disparo"] >= intervalo_disparo_arauto:
                 miniboss_condutor["ultimo_disparo"] = tempo_atual
-                disparar_condutor(rect)
-                if tempo_atual < miniboss_condutor.get("espelho_fim", 0):
-                    eco_rect = rect.copy()
-                    eco_rect.x -= 45 * miniboss_condutor.get("direcao_x", 1)
-                    eco_rect.y += 22
-                    disparar_condutor(eco_rect, atraso_ms=500, eco=True)
-
-            for pendente in list(miniboss_condutor["disparos_eco_pendentes"]):
-                if tempo_atual >= pendente["quando"]:
-                    eco_rect = rect.copy()
-                    eco_rect.x -= 45 * miniboss_condutor.get("direcao_x", 1)
-                    eco_rect.y += 22
-                    disparar_condutor(eco_rect, eco=pendente.get("eco", True))
-                    miniboss_condutor["disparos_eco_pendentes"].remove(pendente)
-
-            if tempo_atual - miniboss_condutor["ultimo_espelho"] >= MINIBOSS_CONDUTOR_ESPELHO_COOLDOWN:
-                miniboss_condutor["ultimo_espelho"] = tempo_atual
-                miniboss_condutor["espelho_fim"] = tempo_atual + (3600 if fase2 else 2500)
-
-            if tempo_atual - miniboss_condutor["ultimo_prisao"] >= MINIBOSS_CONDUTOR_PRISAO_COOLDOWN:
-                miniboss_condutor["ultimo_prisao"] = tempo_atual
-                criar_prisao_condutor()
+                disparar_condutor()
 
         def desenhar_condutor(tela):
             if not miniboss_condutor:
@@ -2529,33 +2681,41 @@ def executar_jogo(game_manager=None):
                     pygame.draw.circle(tela, (145, 95, 255), inimigo["rect"].center, 18, 2)
                     pygame.draw.circle(tela, (160, 230, 255), (inimigo["rect"].centerx, inimigo["rect"].bottom), 12, 2)
             frame = frames_condutor[miniboss_condutor.get("frame_atual", 0) % len(frames_condutor)]
+            if miniboss_condutor.get("direcao_x", 1) < 0:
+                frame = pygame.transform.flip(frame, True, False)
             desenhar_sombra(tela, rect.x, rect.y, rect.width, rect.height)
-            if tempo_atual < miniboss_condutor.get("espelho_fim", 0):
-                eco = frame.copy()
-                eco.set_alpha(85)
-                tela.blit(eco, (rect.x - 45 * miniboss_condutor.get("direcao_x", 1), rect.y + 22))
             aura_raio = int(rect.width * 0.70 + 8 * math.sin(tempo_atual * 0.006))
             pygame.draw.circle(tela, (110, 70, 220), rect.center, aura_raio, 2)
             pygame.draw.circle(tela, (90, 210, 255), rect.center, max(18, aura_raio - 24), 1)
+
+            alvo_olhar = miniboss_condutor.get("olhar_alvo")
+            if miniboss_condutor.get("olhar_inicio") and alvo_olhar:
+                travou = miniboss_condutor.get("olhar_travou", False)
+                pulso = 5 + int(abs(math.sin(tempo_atual * 0.018)) * 4)
+                cor_mira = (255, 70, 200) if travou else (185, 120, 255)
+                origem_olhar = posicao_olho_condutor()
+                pygame.draw.line(tela, cor_mira, origem_olhar, alvo_olhar, pulso)
+                pygame.draw.circle(tela, cor_mira, (int(alvo_olhar[0]), int(alvo_olhar[1])), 24, 2)
+                pygame.draw.circle(tela, (255, 225, 255), (int(alvo_olhar[0]), int(alvo_olhar[1])), 7, 1)
             tela.blit(frame, rect)
             reducao = vivos * MINIBOSS_CONDUTOR_REDUCAO_POR_ECO
-            desenhar_barra_de_vida(tela, rect.x, rect.y - 14, rect.width, 7, miniboss_condutor["vida"], miniboss_condutor["vida_maxima"], False, None)
-            if reducao > 0:
-                fonte_mini = pygame.font.Font(None, 24)
-                texto_mini = fonte_mini.render(f"ECOS: -{int(reducao * 100)}% DANO", True, (160, 225, 255))
-                tela.blit(texto_mini, (rect.x, rect.y - 36))
+            barra_w = min(430, int(largura_mapa * 0.42))
+            barra_x = int((largura_mapa - barra_w) / 2)
+            barra_y = 54
+            painel_barra = pygame.Surface((barra_w + 24, 58), pygame.SRCALPHA)
+            pygame.draw.rect(painel_barra, (10, 5, 24, 210), painel_barra.get_rect(), border_radius=9)
+            pygame.draw.rect(painel_barra, (155, 80, 235, 180), painel_barra.get_rect(), 1, border_radius=9)
+            tela.blit(painel_barra, (barra_x - 12, barra_y - 28))
+            fonte_nome = pygame.font.Font(None, 23)
+            fase_texto = "FASE II" if miniboss_condutor["vida"] <= miniboss_condutor["vida_maxima"] * 0.5 else "FASE I"
+            titulo = fonte_nome.render(f"ARAUTO — CONDUTOR DE ECOS  |  {fase_texto}", True, (235, 220, 255))
+            tela.blit(titulo, titulo.get_rect(center=(largura_mapa // 2, barra_y - 13)))
+            desenhar_barra_de_vida(tela, barra_x, barra_y, barra_w, 13, miniboss_condutor["vida"], miniboss_condutor["vida_maxima"], False, None)
+            fonte_eco = pygame.font.Font(None, 20)
+            texto_eco = fonte_eco.render(f"ECOS: {vivos}/2  |  PROTECAO: {int(reducao * 100)}%", True, (150, 225, 255))
+            tela.blit(texto_eco, texto_eco.get_rect(center=(largura_mapa // 2, barra_y + 26)))
 
         def atualizar_e_desenhar_vfx_condutor(tela):
-            nonlocal tempo_ultimo_hit_inimigo, piscando_vida
-            global vida, imune_tempo_restante
-            for pulso in list(pulsos_condutor):
-                idade = tempo_atual - pulso["inicio"]
-                if idade > 650:
-                    pulsos_condutor.remove(pulso)
-                    continue
-                raio = int(30 + idade * 0.75)
-                pygame.draw.circle(tela, (130, 80, 255), (pulso["x"], pulso["y"]), raio, 3)
-                pygame.draw.circle(tela, (95, 220, 255), (pulso["x"], pulso["y"]), max(8, raio - 18), 1)
             for rompido in list(ecos_rompidos_condutor):
                 idade = tempo_atual - rompido["inicio"]
                 if idade > 480:
@@ -2564,29 +2724,20 @@ def executar_jogo(game_manager=None):
                 raio = int(8 + idade * 0.16)
                 pygame.draw.circle(tela, (170, 230, 255), (rompido["x"], rompido["y"]), raio, 2)
                 pygame.draw.circle(tela, (180, 90, 255), (rompido["x"], rompido["y"]), max(4, raio - 8), 1)
-            player_cx = pos_x_personagem + largura_personagem // 2
-            player_cy = pos_y_personagem + altura_personagem // 2
-            for prisao in list(prisoes_condutor):
-                idade = tempo_atual - prisao["inicio"]
-                ax, ay = prisao["a"]
-                bx, by = prisao["b"]
-                if idade < 800:
-                    pygame.draw.line(tela, (125, 210, 255), (ax, ay), (bx, by), 2)
-                elif idade < 1120:
-                    pygame.draw.line(tela, (210, 90, 255), (ax, ay), (bx, by), 7)
-                    pygame.draw.line(tela, (245, 245, 255), (ax, ay), (bx, by), 2)
-                    if not prisao["atingiu"] and distancia_ponto_segmento(player_cx, player_cy, ax, ay, bx, by) <= 34:
-                        prisao["atingiu"] = True
-                        dano_prisao_condutor = int((vida_maxima * 0.07) + dano_inimigo_longe)
-                        if absorver_dano_devota_atual():
-                            pass
-                        elif imune_tempo_restante <= 0 and Resistencia < dano_prisao_condutor:
-                            vida = max(0, vida - int(dano_prisao_condutor - Resistencia))
-                            tempo_ultimo_hit_inimigo = tempo_atual
-                            piscando_vida = True
-                            Dano_person.play()
-                else:
-                    prisoes_condutor.remove(prisao)
+
+            for raio_olhar in list(raios_olhar_condutor):
+                idade = tempo_atual - raio_olhar["inicio"]
+                if idade > 360:
+                    raios_olhar_condutor.remove(raio_olhar)
+                    continue
+                progresso = idade / 360.0
+                alpha = max(40, int(255 * (1.0 - progresso)))
+                largura_raio = max(3, int(24 * (1.0 - progresso)))
+                cor = (120, 225, 255, alpha) if raio_olhar.get("bloqueado") else (255, 65, 205, alpha)
+                camada = pygame.Surface((largura_mapa, altura_mapa), pygame.SRCALPHA)
+                pygame.draw.line(camada, cor, raio_olhar["origem"], raio_olhar["fim"], largura_raio)
+                pygame.draw.line(camada, (255, 245, 255, alpha), raio_olhar["origem"], raio_olhar["fim"], max(1, largura_raio // 4))
+                tela.blit(camada, (0, 0))
 
 
 
@@ -3319,7 +3470,8 @@ def executar_jogo(game_manager=None):
 
             if carregar_atributos_na_fase:
                 try:
-                    carregar_atributos()
+                    if not Variaveis.ignorar_atributos_transicao:
+                        carregar_atributos()
                     if Variaveis.snapshot_para_carregar is not None:
                         snap = Variaveis.snapshot_para_carregar
                         pos_x_personagem = snap.get("pos_x", pos_x_personagem)
@@ -3345,8 +3497,10 @@ def executar_jogo(game_manager=None):
                         if snap.get("r_press"):
                             r_press = True
                         Variaveis.snapshot_para_carregar = None
+                    Variaveis.ignorar_atributos_transicao = False
                 except Exception as e:
                     registrar_erro("Fase 1: erro ao carregar atributos; usando padrao", e)
+                    Variaveis.ignorar_atributos_transicao = False
                 carregar_atributos_na_fase = False
             fator_lentidao_boss = 1.0
             if tempo_atual < tempo_slow_onda_fim:
@@ -3429,44 +3583,31 @@ def executar_jogo(game_manager=None):
                                 retomar_cronometro()
                                 pygame.event.set_grab(True)  # Travar mouse de novo
                                 pygame.mouse.set_visible(False)  # Esconder cursor do sistema
-                    elif event.key == pygame.K_p:
-                        # Forçar o spawn de um larápio para teste
-                        borda = random.choice(["esquerda", "direita", "superior", "inferior"])
-                        if borda == "esquerda":
-                            novo = criar_inimigo(0, random.randint(0, int(altura_mapa) - int(altura_inimigo)), tipo=TIPO_LARAPIO)
-                        elif borda == "direita":
-                            novo = criar_inimigo(int(largura_mapa) - int(largura_inimigo), random.randint(0, int(altura_mapa) - int(altura_inimigo)), tipo=TIPO_LARAPIO)
-                        elif borda == "superior":
-                            novo = criar_inimigo(random.randint(0, int(largura_mapa) - int(largura_inimigo)), 0, tipo=TIPO_LARAPIO)
+                    elif event.key == pygame.K_p and Caminhos.modo_desenvolvedor_ativo():
+                        if multiplayer_coop.modo_multiplayer():
+                            aviso_teste = "ARAUTO INDISPONIVEL NO MULTIPLAYER"
+                            cor_teste = (255, 120, 90)
+                        elif miniboss_condutor:
+                            aviso_teste = "ARAUTO JA ESTA NA ARENA"
+                            cor_teste = (160, 220, 255)
+                        elif miniboss_condutor_spawnado:
+                            aviso_teste = "ARAUTO JA FOI ENFRENTADO NESTA FASE"
+                            cor_teste = (180, 180, 195)
+                        elif r_press or boss_vivo1:
+                            aviso_teste = "FINALIZE O CHEFE ANTES DE CHAMAR O ARAUTO"
+                            cor_teste = (255, 170, 80)
                         else:
-                            novo = criar_inimigo(random.randint(0, int(largura_mapa) - int(largura_inimigo)), int(altura_mapa) - int(altura_inimigo), tipo=TIPO_LARAPIO)
-                        
-                        tempo_decorrido_run = Variaveis.obter_tempo_decorrido()
-                        tempo_segurando, chance_spawn, cobica = calcular_cobica_larapio(tempo_decorrido_run)
-                        limiar_pontos = float(custo_carta_atual) * 3.0
-                        if pontuacao_exib >= limiar_pontos:
-                            fator_que = pontuacao_exib / max(1.0, limiar_pontos)
-                            pct_roubo = min(0.75, 0.25 + 0.15 * (fator_que - 1.0))
-                        else:
-                            pct_roubo = 0.25
+                            criar_condutor_de_ecos()
+                            aviso_teste = "TESTE DEV: ARAUTO INVOCADO"
+                            cor_teste = (170, 225, 255)
+                            print("[TESTE DEV / P] ARAUTO: CONDUTOR DE ECOS INVOCADO")
 
-                        print(f"==================================================")
-                        print(f"[TESTE SPAWN MANUAL P] LARAPIO SPAWNADO VIA TECLADO!")
-                        print(f"  - Pontuacao Exibida: {pontuacao_exib} | Custo Carta: {custo_carta_atual}")
-                        print(f"  - Cobica Calculada: {cobica:.2f} | Chance de Spawn: {chance_spawn * 100:.1f}%")
-                        print(f"  - Porcentagem de Roubo Projetada: {pct_roubo * 100:.1f}%")
-                        print(f"==================================================")
-
-                        novo["cobica_spawn"] = cobica
-                        novo["chance_spawn"] = chance_spawn
-                        novo["tempo_segurando_pontos"] = 0
-                        inimigos_comum.append(novo)
                         efeitos_texto.append({
-                            "texto": "LARAPIO CHEGANDO!",
-                            "x": novo["rect"].x,
-                            "y": novo["rect"].y - 20,
+                            "texto": aviso_teste,
+                            "x": largura_mapa // 2 - 190,
+                            "y": int(altura_mapa * 0.24),
                             "tempo_inicio": pygame.time.get_ticks(),
-                            "cor": (255, 230, 90),
+                            "cor": cor_teste,
                         })
                 elif botao_mouse[0] and not condutora_manifestacao.disparo_bloqueado_registrador(manifestacao_ativa, tempo_atual) and not disparo_preparando and tempo_atual - tempo_ultimo_disparo >= ancorada_manifestacao.intervalo_disparo_ancorado(intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual), manifestacao_ativa, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, tempo_atual) and tempo_atual >= tempo_stun_jogador_fim:  # Botão esquerdo do mouse
                     pos_mouse = obter_pos_mouse_jogo()
@@ -3497,9 +3638,17 @@ def executar_jogo(game_manager=None):
                         ))
                     elif condutora_manifestacao.ativa(manifestacao_ativa):
                         jogador_rect_temp = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+                        alvos_circuito = inimigos_comum + ([miniboss_condutor] if miniboss_condutor else [])
+                        vida_arauto_antes = miniboss_condutor["vida"] if miniboss_condutor else None
                         mortos_circuito, total_alvos, total_links = condutora_manifestacao.fechar_circuitos(
-                            inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto, jogador_rect_temp
+                            alvos_circuito, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto, jogador_rect_temp
                         )
+                        if miniboss_condutor and vida_arauto_antes is not None:
+                            dano_circuito_arauto = max(0.0, vida_arauto_antes - miniboss_condutor["vida"])
+                            miniboss_condutor["vida"] = vida_arauto_antes
+                            mortos_circuito = [m for m in mortos_circuito if m is not miniboss_condutor]
+                            if dano_circuito_arauto > 0:
+                                aplicar_dano_ao_condutor(dano_circuito_arauto, (255, 220, 90))
                         ondas.append(condutora_manifestacao.criar_fechamento(px_centro, py_centro, tempo_atual, total_alvos, total_links))
                         for morto_circuito in mortos_circuito:
                             if morto_circuito in inimigos_comum:
@@ -3507,7 +3656,15 @@ def executar_jogo(game_manager=None):
                                 inimigos_comum.remove(morto_circuito)
                                 inimigos_eliminados += 1
                     elif parasitica_manifestacao.ativa(manifestacao_ativa):
-                        mortos_eclosao, total_eclosao = parasitica_manifestacao.eclodir_todas(inimigos_comum, tempo_atual, efeitos_texto)
+                        alvos_eclosao = inimigos_comum + ([miniboss_condutor] if miniboss_condutor else [])
+                        vida_arauto_antes = miniboss_condutor["vida"] if miniboss_condutor else None
+                        mortos_eclosao, total_eclosao = parasitica_manifestacao.eclodir_todas(alvos_eclosao, tempo_atual, efeitos_texto)
+                        if miniboss_condutor and vida_arauto_antes is not None:
+                            dano_eclosao_arauto = max(0.0, vida_arauto_antes - miniboss_condutor["vida"])
+                            miniboss_condutor["vida"] = vida_arauto_antes
+                            mortos_eclosao = [m for m in mortos_eclosao if m is not miniboss_condutor]
+                            if dano_eclosao_arauto > 0:
+                                aplicar_dano_ao_condutor(dano_eclosao_arauto, (125, 255, 145))
                         ondas.append(parasitica_manifestacao.criar_eclosao(px_centro, py_centro, tempo_atual, total_eclosao))
                         for morto_eclosao in mortos_eclosao:
                             if morto_eclosao in inimigos_comum:
@@ -3540,6 +3697,9 @@ def executar_jogo(game_manager=None):
                         tempo_ultimo_uso_habilidade = condutora_manifestacao.ajustar_inicio_cooldown_registrador(tempo_atual, cooldown_base_condutora)
                     else:
                         tempo_ultimo_uso_habilidade = tempo_atual
+                    evolucoes_manifestacao.ao_usar_habilidade(
+                        estado_evolucao_manifestacao, (px_centro, py_centro), tempo_atual
+                    )
 
             # Verificar eventos de teclado
             # --- Tela de pausa (ESC) ---
@@ -3630,8 +3790,8 @@ def executar_jogo(game_manager=None):
                 pass  # Nenhum inimigo comum durante o tutorial
             else:
                 tempo_decorrido_run = Variaveis.obter_tempo_decorrido()
-                # Condutor ainda nao tem assets/constantes completos nesta fase.
-                # Mantido desligado para evitar crash de runtime.
+                if not multiplayer_coop.modo_multiplayer():
+                    tentar_spawn_condutor(tempo_decorrido_run)
                 limite_inimigos_run = max_inimigos + bonus_limite_inimigos_sem_boss(
                     tempo_decorrido_run,
                     r_press or boss_vivo1,
@@ -3646,14 +3806,15 @@ def executar_jogo(game_manager=None):
                     inimigos_eliminados,
                     limite_inimigos_run,
                 )
-                condutor_em_entrada = bool(miniboss_condutor and tempo_atual < miniboss_condutor.get("entrada_fim", 0))
-                if tempo_atual - tempo_ultimo_inimigo >= pressao_spawn["intervalo_ms"] and pressao_spawn["lote"] > 0 and not boss_vivo1 and not condutor_em_entrada:
+                condutor_ativo = bool(miniboss_condutor)
+                if tempo_atual - tempo_ultimo_inimigo >= pressao_spawn["intervalo_ms"] and pressao_spawn["lote"] > 0 and not boss_vivo1 and not condutor_ativo:
                     for _ in range(pressao_spawn["lote"]):
                         gerar_inimigo(pressao_spawn["limite"])
                     tempo_ultimo_inimigo = tempo_atual  # Atualizar o tempo do último inimigo adicionado
                 # O Larapio atual roda fora de inimigos_comum em Variaveis.
                 # Mantemos o spawner antigo desligado para nao quebrar o limite de inimigos.
-                tentar_spawn_larapio(tempo_decorrido_run, limite_inimigos_run)
+                if not condutor_ativo:
+                    tentar_spawn_larapio(tempo_decorrido_run, limite_inimigos_run)
             nivel_racional = upgrades.get("Racional", 0)
             #LUGAR AONDE COLOCAMOS AS AUREAS
             if aurea == "Racional":
@@ -3740,7 +3901,10 @@ def executar_jogo(game_manager=None):
                     disparo_novo = aureas_avancadas.marcar_disparo(
                         estado_aureas_avancadas, aurea, disparo_novo, tempo_atual, efeitos_texto
                     )
-                    disparos.append(voraz_aurea.marcar_disparo_voraz(estado_voraz, aurea, disparo_novo))
+                    disparo_novo = voraz_aurea.marcar_disparo_voraz(estado_voraz, aurea, disparo_novo)
+                    disparos.extend(evolucoes_manifestacao.aplicar_ao_disparo(
+                        disparo_novo, estado_evolucao_manifestacao
+                    ))
                     insana_aurea.registrar_tiro_insana(
                         estado_insana, aurea, tempo_atual,
                         pos_x_personagem, pos_y_personagem, px_centro, py_centro,
@@ -3798,6 +3962,7 @@ def executar_jogo(game_manager=None):
             # Desenhar os disparos normais
             novos_disparos = []
             for disparo in disparos:
+                evolucoes_manifestacao.atualizar_disparo(disparo, inimigos_comum)
                 vfx_disparo_player.atualizar_disparo(disparo, velocidade_disparo, dt)
                 centro_retorno_x = pos_x_personagem + largura_personagem // 2
                 centro_retorno_y = pos_y_personagem + altura_personagem // 2
@@ -3824,40 +3989,66 @@ def executar_jogo(game_manager=None):
 
 
 
+            alvo_principal_eh_boss = boss_vivo1 and not boss_morte_processada
+            alvo_principal_eh_arauto = bool(miniboss_condutor) and not alvo_principal_eh_boss
             boss_info = {
-                "vivo": boss_vivo1 and not boss_morte_processada,
-                "rect": pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura) if (boss_vivo1 and not boss_morte_processada) else None,
+                "vivo": alvo_principal_eh_boss or alvo_principal_eh_arauto,
+                "rect": (
+                    pygame.Rect(pos_x_chefe, pos_y_chefe, chefe_largura, chefe_altura)
+                    if alvo_principal_eh_boss
+                    else (miniboss_condutor["rect"] if alvo_principal_eh_arauto else None)
+                ),
+                "alvo": "arauto" if alvo_principal_eh_arauto else "boss",
                 "atingido_por_onda": boss_atingido_por_onda,
                 "hit_flag": False
             }
-            inimigos_mortos_neste_frame = processar_habilidade_onda(
-                ondas, correntes_eletricas, inimigos_comum, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda, disparos, config_graficos
+            alvos_onda = (
+                inimigos_comum + [miniboss_condutor]
+                if alvo_principal_eh_arauto and gravitante_manifestacao.ativa(manifestacao_ativa)
+                else inimigos_comum
             )
-            if boss_info.get("hit_flag") and not boss_morte_processada:
+            vida_arauto_antes_onda = miniboss_condutor["vida"] if alvo_principal_eh_arauto else None
+            inimigos_mortos_neste_frame = processar_habilidade_onda(
+                ondas, correntes_eletricas, alvos_onda, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda, disparos, config_graficos
+            )
+            if miniboss_condutor and vida_arauto_antes_onda is not None:
+                dano_direto_onda_arauto = max(0.0, vida_arauto_antes_onda - miniboss_condutor["vida"])
+                miniboss_condutor["vida"] = vida_arauto_antes_onda
+                inimigos_mortos_neste_frame = [m for m in inimigos_mortos_neste_frame if m is not miniboss_condutor]
+                if dano_direto_onda_arauto > 0:
+                    aplicar_dano_ao_condutor(dano_direto_onda_arauto, (155, 215, 255))
+            if boss_info.get("hit_flag") and alvo_principal_eh_arauto:
+                dano_onda = boss_info.get("dano_manifestacao", dano_person_hit * fator_dano_aureas(tempo_atual) * 5)
+                aplicar_dano_ao_condutor(dano_onda, (180, 255, 255))
+                boss_info["hit_flag"] = False
+            elif boss_info.get("hit_flag") and not boss_morte_processada:
                 dano_onda = boss_info.get("dano_manifestacao", dano_person_hit * fator_dano_aureas(tempo_atual) * 5)
                 dano_onda_real = dano_boss_mitigado(dano_onda, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                 vida_boss -= dano_onda_real
                 registrar_dano_boss(efeitos_texto, dano_onda_real, pos_x_chefe + chefe_largura // 2, pos_y_chefe - 22, tempo_atual, (180, 255, 255))
                 boss_atingido_por_onda = boss_info["atingido_por_onda"]
+                boss_info["hit_flag"] = False
 
             # Atualizar e desenhar correntes elétricas
             inimigos_mortos_correntes = atualizar_e_desenhar_correntes(tela, correntes_eletricas, inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual))
-            inimigos_mortos_laceracao = lacerante_manifestacao.atualizar_laceracoes(inimigos_comum, tempo_atual, efeitos_texto)
+            alvos_passivas = inimigos_comum + ([miniboss_condutor] if miniboss_condutor else [])
+            vida_arauto_antes_passivas = miniboss_condutor["vida"] if miniboss_condutor else None
+            inimigos_mortos_laceracao = lacerante_manifestacao.atualizar_laceracoes(alvos_passivas, tempo_atual, efeitos_texto)
             jogador_rect_parasitica = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
             inimigos_mortos_parasitica = parasitica_manifestacao.atualizar_sementes(
-                inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto, jogador_rect_parasitica
+                alvos_passivas, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto, jogador_rect_parasitica
             )
-            parasitica_manifestacao.desenhar_sementes(tela, inimigos_comum, tempo_atual, config_graficos)
+            parasitica_manifestacao.desenhar_sementes(tela, alvos_passivas, tempo_atual, config_graficos)
             inimigos_mortos_condutora = condutora_manifestacao.atualizar_circuitos(
-                inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
+                alvos_passivas, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
             )
-            condutora_manifestacao.desenhar_circuitos(tela, inimigos_comum, tempo_atual, config_graficos, manifestacao_ativa, jogador_rect_parasitica)
+            condutora_manifestacao.desenhar_circuitos(tela, alvos_passivas, tempo_atual, config_graficos, manifestacao_ativa, jogador_rect_parasitica)
             inimigos_mortos_gravitante = gravitante_manifestacao.atualizar_orbes(
-                inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
+                alvos_passivas, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
             )
-            gravitante_manifestacao.desenhar_orbes(tela, inimigos_comum, tempo_atual, config_graficos)
+            gravitante_manifestacao.desenhar_orbes(tela, alvos_passivas, tempo_atual, config_graficos)
             inimigos_mortos_ancorada = ancorada_manifestacao.atualizar_territorio(
-                inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), jogador_rect_parasitica, efeitos_texto
+                alvos_passivas, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), jogador_rect_parasitica, efeitos_texto
             )
             ancorada_manifestacao.aplicar_lentidao_projeteis(disparos_inimigos, tempo_atual)
             ancorada_manifestacao.desenhar_territorios(tela, tempo_atual, config_graficos, jogador_rect_parasitica)
@@ -3866,6 +4057,19 @@ def executar_jogo(game_manager=None):
                 dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto, largura_mapa, altura_mapa,
                 jogador_rect_parasitica
             )
+            if boss_info.get("hit_flag") and boss_info.get("alvo") == "arauto" and miniboss_condutor:
+                aplicar_dano_ao_condutor(
+                    boss_info.get("dano_manifestacao", dano_person_hit * 0.10),
+                    (205, 155, 255),
+                )
+                boss_info["hit_flag"] = False
+            elif boss_info.get("hit_flag") and boss_info.get("alvo") == "boss" and not boss_morte_processada:
+                dano_teleporte_tardio = dano_boss_mitigado(
+                    boss_info.get("dano_manifestacao", dano_person_hit * 0.10),
+                    1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0),
+                )
+                vida_boss -= dano_teleporte_tardio
+                boss_info["hit_flag"] = False
             teleporte_manifestacao.desenhar_efeitos_teleporte_manifestacao(tela, tempo_atual, config_graficos)
             
             inimigos_mortos = inimigos_mortos_neste_frame + inimigos_mortos_correntes + inimigos_mortos_laceracao + inimigos_mortos_parasitica + inimigos_mortos_condutora + inimigos_mortos_gravitante + inimigos_mortos_ancorada + inimigos_mortos_teleporte
@@ -3931,6 +4135,11 @@ def executar_jogo(game_manager=None):
             # --- ATUALIZAR COMPORTAMENTOS DAS VARIANTES ---
             if not multiplayer_coop.eh_cliente():
                 for inimigo in inimigos_comum[:]:
+                    if (
+                        inimigo.get("ruptura_deslocamento")
+                        or tempo_atual < int(inimigo.get("ruptura_raiz_fim", 0))
+                    ):
+                        continue
                     tipo = inimigo.get("tipo", 1)
                     if tipo == 3: # Espreitador
                         atualizar_espreitador(inimigo)
@@ -3944,7 +4153,7 @@ def executar_jogo(game_manager=None):
                     
             # --- CHEQUE DE FUSÃO DO AGLOMERADOR (A cada 1 segundo) ---
             tempo_decorrido = Variaveis.obter_tempo_decorrido()
-            if tempo_atual - tempo_ultimo_cheque_fusao >= 1000 and not r_press and not multiplayer_coop.eh_cliente():
+            if tempo_atual - tempo_ultimo_cheque_fusao >= 1000 and not r_press and not miniboss_condutor and not multiplayer_coop.eh_cliente():
                 delta_fusao = tempo_atual - tempo_ultimo_cheque_fusao if tempo_ultimo_cheque_fusao else 1000
                 tempo_ultimo_cheque_fusao = tempo_atual
                 standard_enemies = [ini for ini in inimigos_comum if ini.get("tipo", 1) == 1]
@@ -4074,6 +4283,62 @@ def executar_jogo(game_manager=None):
                 pygame.draw.circle(tela, (160, 255, 176), (ax, ay), raio, 2)
 
             lacerante_manifestacao.atualizar_e_desenhar_sangue_lacerante(tela, inimigos_comum, config_graficos)
+            evolucoes_manifestacao.atualizar_e_desenhar(
+                tela, estado_evolucao_manifestacao, inimigos_comum, tempo_atual
+            )
+            if miniboss_condutor and vida_arauto_antes_passivas is not None:
+                dano_passivas_arauto = max(0.0, vida_arauto_antes_passivas - miniboss_condutor["vida"])
+                miniboss_condutor["vida"] = vida_arauto_antes_passivas
+                listas_mortos_passivas = (
+                    inimigos_mortos_laceracao, inimigos_mortos_parasitica,
+                    inimigos_mortos_condutora, inimigos_mortos_gravitante,
+                    inimigos_mortos_ancorada, inimigos_mortos_teleporte,
+                )
+                for lista_mortos in listas_mortos_passivas:
+                    if miniboss_condutor in lista_mortos:
+                        lista_mortos.remove(miniboss_condutor)
+                if dano_passivas_arauto > 0:
+                    aplicar_dano_ao_condutor(dano_passivas_arauto, (210, 150, 255))
+            jogador_fragmento_rect = pygame.Rect(
+                pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem
+            )
+            for fragmento in list(fragmentos_ruptura):
+                evolucoes_manifestacao.desenhar_fragmento(tela, fragmento, tempo_atual)
+                if evolucoes_manifestacao.fragmento_colidiu(fragmento, jogador_fragmento_rect):
+                    fragmentos_ruptura.remove(fragmento)
+                    pausar_cronometro()
+                    pygame.event.clear()
+                    escolha = evolucoes_manifestacao.abrir_menu(
+                        tela, manifestacao_ativa, estado_evolucao_manifestacao, relogio
+                    )
+                    retomar_cronometro()
+                    pygame.event.clear()
+                    # O impulso comeca somente depois que o menu fecha; assim a
+                    # trajetoria nao acontece escondida atras da tela de escolha.
+                    afetados = evolucoes_manifestacao.repelir_inimigos(
+                        inimigos_comum, (fragmento["x"], fragmento["y"])
+                    )
+                    ondas_choque.append({
+                        "cx": fragmento["x"], "cy": fragmento["y"],
+                        "raio_atual": 16.0, "raio_max": 360.0,
+                        "velocidade": 18.0, "cor": (195, 105, 255),
+                    })
+                    if escolha:
+                        efeitos_texto.append({
+                            "texto": escolha["nome"].upper(),
+                            "x": pos_x_personagem - 20,
+                            "y": pos_y_personagem - 54,
+                            "tempo_inicio": pygame.time.get_ticks(),
+                            "cor": (225, 175, 255),
+                        })
+                    if afetados:
+                        efeitos_texto.append({
+                            "texto": f"RUPTURA REPELIU {afetados}",
+                            "x": pos_x_personagem - 30,
+                            "y": pos_y_personagem - 30,
+                            "tempo_inicio": pygame.time.get_ticks(),
+                            "cor": (185, 225, 255),
+                        })
             atualizar_e_desenhar_vfx_condutor(tela)
             desenhar_condutor(tela)
 
@@ -5100,7 +5365,27 @@ def executar_jogo(game_manager=None):
                 for disparo in disparos[:]:
                     if not miniboss_condutor:
                         break
-                    if disparo["rect"].colliderect(miniboss_condutor["rect"]):
+                    colisao_condutor = (
+                        lacerante_manifestacao.colisao_corte(disparo, miniboss_condutor["rect"], tempo_atual)
+                        if disparo.get("tipo_manifestacao") == "lacerante_corte"
+                        else (
+                            prismatica_manifestacao.colisao_feixe(disparo, miniboss_condutor["rect"], tempo_atual)
+                            if disparo.get("tipo_manifestacao") == "prismatica_feixe"
+                            else (
+                                retornante_manifestacao.colisao_alvo(disparo, miniboss_condutor)
+                                if disparo.get("tipo_manifestacao") == "retornante_pulso"
+                                else disparo["rect"].colliderect(miniboss_condutor["rect"])
+                            )
+                        )
+                    )
+                    if colisao_condutor:
+                        acerto_prismatico_condutor = prismatica_manifestacao.registrar_acerto(
+                            disparo, miniboss_condutor, tempo_atual
+                        )
+                        acerto_retornante_condutor = retornante_manifestacao.registrar_acerto(
+                            disparo, miniboss_condutor, tempo_atual,
+                            (pos_x_personagem + largura_personagem // 2, pos_y_personagem + altura_personagem // 2),
+                        )
                         if random.random() <= chance_critico:
                             dano_condutor = dano_person_hit * fator_dano_aureas(tempo_atual) * 3
                             cor_condutor = (255, 255, 0)
@@ -5117,7 +5402,30 @@ def executar_jogo(game_manager=None):
                         dano_condutor *= gravitante_manifestacao.multiplicador_dano_disparo(disparo)
                         dano_condutor *= ancorada_manifestacao.multiplicador_dano_disparo(disparo)
                         aplicar_dano_ao_condutor(dano_condutor, cor_condutor)
-                        if disparo in disparos:
+                        if miniboss_condutor and disparo.get("tipo_manifestacao") == "lacerante_corte":
+                            lacerante_manifestacao.aplicar_laceracao(miniboss_condutor, tempo_atual)
+                        if miniboss_condutor and disparo.get("tipo_manifestacao") == "parasitica_semente":
+                            parasitica_manifestacao.implantar_semente(
+                                miniboss_condutor, tempo_atual,
+                                dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto
+                            )
+                        if miniboss_condutor and disparo.get("tipo_manifestacao") == "condutora_fio":
+                            condutora_manifestacao.registrar_acerto_logico(
+                                miniboss_condutor, tempo_atual,
+                                dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto,
+                                inimigos=inimigos_comum + [miniboss_condutor]
+                            )
+                        if miniboss_condutor and disparo.get("tipo_manifestacao") == "gravitante_orbe":
+                            gravitante_manifestacao.ancorar_orbe(
+                                miniboss_condutor, disparo, tempo_atual,
+                                dano_person_hit * fator_dano_aureas(tempo_atual), efeitos_texto,
+                                inimigos=inimigos_comum + [miniboss_condutor]
+                            )
+                        manter_disparo_condutor = (
+                            acerto_prismatico_condutor.get("manter_disparo", False)
+                            or acerto_retornante_condutor.get("manter_disparo", False)
+                        )
+                        if disparo in disparos and not manter_disparo_condutor:
                             estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
             for inimigo in inimigos_comum:
                 inimigo_rect = inimigo["rect"]
@@ -5133,7 +5441,9 @@ def executar_jogo(game_manager=None):
                         retornante_manifestacao.colisao_alvo(disparo, inimigo)
                         if disparo.get("tipo_manifestacao") == "retornante_pulso"
                         else (
-                            disparo["rect"].colliderect(inimigo["rect"])
+                            lacerante_manifestacao.colisao_corte(disparo, inimigo["rect"], tempo_atual)
+                            if disparo.get("tipo_manifestacao") == "lacerante_corte"
+                            else disparo["rect"].colliderect(inimigo["rect"])
                             if inimigo.get("tipo") == TIPO_LARAPIO
                             else verificar_colisao_disparo_inimigo(disparo, (inimigo["rect"].x, inimigo["rect"].y), largura_disparo, altura_disparo, largura_inimigo, altura_inimigo, inimigos_eliminados)
                         )
@@ -5199,6 +5509,10 @@ def executar_jogo(game_manager=None):
                         # Rastreie o tempo de exibição do texto
                         tempo_texto_dano = pygame.time.get_ticks()
                         inimigo["vida"] -= dano_final
+                        manter_evolucao = evolucoes_manifestacao.ao_acertar(
+                            disparo, inimigo, inimigos_comum,
+                            estado_evolucao_manifestacao, tempo_atual
+                        )
                         multiplayer_coop.enviar_dano_inimigo(inimigo, dano_final, origem="disparo")
                         if inimigo.get("tipo") == TIPO_LARAPIO:
                             registrar_hit_larapio(inimigo)
@@ -5217,7 +5531,7 @@ def executar_jogo(game_manager=None):
                             )
                         if disparo.get("tipo_manifestacao") == "lacerante_corte":
                             lacerante_manifestacao.aplicar_laceracao(inimigo, tempo_atual)
-                        if not (acerto_prismatico["manter_disparo"] or acerto_retornante["manter_disparo"]):
+                        if not (acerto_prismatico["manter_disparo"] or acerto_retornante["manter_disparo"] or manter_evolucao):
                             estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)  # Remover o disparo após colisão
                         # Adicionar uma chance de 50% de aumentar a vida em 20 pontos
 
@@ -5386,46 +5700,6 @@ def executar_jogo(game_manager=None):
 
             total_cartas_compradas = sum(cartas_compradas.values())
             custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
-            if recompensa_condutor_pendente and Variaveis.obter_modo_cartas() != "drops":
-                recompensa_condutor_pendente = False
-                apertou_q = True
-                pausar_cronometro()
-                ret = tela_de_pausa(velocidade_personagem, intervalo_disparo,vida,largura_disparo, altura_disparo,trembo,dano_person_hit,chance_critico,roubo_de_vida,
-                                    quantidade_roubo_vida,tempo_cooldown_dash,vida_maxima,Petro_active,Resistencia,vida_petro,vida_maxima_petro,dano_petro,xp_petro,petro_evolucao,Resistencia_petro,
-                                    Chance_Sorte,Poison_Active,Dano_Veneno_Acumulado,Executa_inimigo,Ultimo_Estalo,mostrar_info,Mercenaria_Active,Valor_Bonus,dispositivo_ativo,Tempo_cura,porcentagem_cura,cartas_compradas,pontuacao_exib, max_cartas_compraveis=2, inimigos_eliminados=inimigos_eliminados)
-                velocidade_personagem = ret[0]
-                intervalo_disparo = ret[1]
-                vida = ret[2]
-                largura_disparo =ret[3]
-                altura_disparo =ret[4]
-                trembo= ret[5]
-                dano_person_hit= ret[6]
-                chance_critico= ret[7]
-                roubo_de_vida= ret[8]
-                quantidade_roubo_vida= ret[9]
-                tempo_cooldown_dash= ret[10]
-                vida_maxima= ret[11]
-                Petro_active= ret[12]
-                Resistencia=  ret[13]
-                vida_petro= ret[14]
-                vida_maxima_petro= ret[15]
-                dano_petro= ret[16]
-                xp_petro= ret[17]
-                petro_evolucao= ret[18]
-                Resistencia_petro= ret[19]
-                Chance_Sorte= ret[20]
-                Poison_Active= ret[21]
-                Dano_Veneno_Acumulado= ret[22]
-                Executa_inimigo= ret[23]
-                Ultimo_Estalo= ret[24]
-                Mercenaria_Active= ret[25]
-                Valor_Bonus= ret[26]
-                dispositivo_ativo=ret[27]
-                Tempo_cura=ret[28]
-                porcentagem_cura=ret[29]
-                cartas_compradas= ret[30]
-                pontuacao_exib= ret[31]
-                retomar_cronometro()
             # Verifica se a pontuação atingiu o custo e se o jogador pressionou o botão da loja
             modo_loja_normal = Variaveis.obter_modo_cartas() != "drops"
             abrir_loja_manual = modo_loja_normal and (Variaveis.verificar_input("Comprar na loja") or (joystick and joystick.get_button(3)))
@@ -5591,8 +5865,8 @@ def executar_jogo(game_manager=None):
                         mensagem_mostrada = False  # Define que a mensagem foi mostrada
                         tempo_mostrando_mensagem = 0  # Reinicia o contador de tempo
 
-                if hub_vertical_inferior_ativo((pos_x_personagem, pos_y_personagem)) or not area_icones.colliderect(
-                (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+                if deve_desenhar_habilidades(
+                    (pos_x_personagem, pos_y_personagem), (largura_personagem, altura_personagem)
                 ):
                     # Desenhar habilidades na tela
                     desenhar_habilidades(tela, cooldowns, dispositivo_ativo, (pos_x_personagem, pos_y_personagem))

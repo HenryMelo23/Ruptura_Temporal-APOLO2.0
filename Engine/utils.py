@@ -195,7 +195,7 @@ def configurar_tela(largura, altura):
     import pygame
     import json
     import os
-    from ui_helpers import ativar_palco_fullscreen, desativar_palco
+    from ui_helpers import ativar_palco_fullscreen, ativar_palco_janela
 
     tela_cheia = False
     try:
@@ -210,8 +210,7 @@ def configurar_tela(largura, altura):
         pygame.mouse.set_visible(False)
         return tela
 
-    desativar_palco()
-    tela = pygame.display.set_mode((largura, altura))
+    tela = ativar_palco_janela(largura, altura)
     pygame.mouse.set_visible(False)
     return tela
 

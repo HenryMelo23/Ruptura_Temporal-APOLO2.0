@@ -25,6 +25,8 @@ SANGUINARIA_JANELA_HIT_MS = 4300
 SANGUINARIA_FERIDA_MS = 7800
 SANGUINARIA_EXPLOSAO_BASE = 4
 
+_FONTES_HUD = {}
+
 
 def _normalizar(aurea):
     return str(aurea or "").strip().lower()
@@ -62,6 +64,202 @@ def _efeito(efeitos_texto, texto, x, y, tempo_atual, cor):
         "tempo_inicio": int(tempo_atual),
         "cor": cor,
     })
+
+
+def _fonte_hud(tamanho):
+    tamanho = int(tamanho)
+    if tamanho not in _FONTES_HUD:
+        try:
+            _FONTES_HUD[tamanho] = pygame.font.Font("Texto/rainyhearts.ttf", tamanho)
+        except Exception:
+            _FONTES_HUD[tamanho] = pygame.font.Font(None, tamanho)
+    return _FONTES_HUD[tamanho]
+
+
+def _texto_hud(surf, texto, pos, cor, tamanho=17, centro=False):
+    imagem = _fonte_hud(tamanho).render(str(texto), True, cor)
+    rect = imagem.get_rect()
+    if centro:
+        rect.center = (int(pos[0]), int(pos[1]))
+    else:
+        rect.topleft = (int(pos[0]), int(pos[1]))
+    surf.blit(imagem, rect)
+
+
+def _painel_aurea(tamanho, cor, alpha=205):
+    surf = pygame.Surface(tamanho, pygame.SRCALPHA)
+    rect = surf.get_rect()
+    pygame.draw.rect(surf, (5, 6, 14, alpha), rect, border_radius=10)
+    pygame.draw.rect(surf, (*cor, 88), rect.inflate(-2, -2), 1, border_radius=9)
+    pygame.draw.line(surf, (255, 255, 255, 26), (14, 7), (rect.width - 14, 7), 1)
+    return surf
+
+
+def _hud_nula(estado, tempo_atual):
+    nula = estado["nula"]
+    pct = max(0.0, min(1.0, float(nula.get("carga", 0.0)) / NULA_CARGA_MAX))
+    armada = bool(nula.get("armada")) or pct >= 1.0
+    cor = (190, 240, 255)
+    surf = _painel_aurea((202, 44), cor, alpha=178)
+    pulso = (math.sin(tempo_atual * 0.012) + 1.0) * 0.5
+
+    # O nucleo vazio contrai conforme a carga cresce: a barra e uma fissura,
+    # nao um retangulo preenchido.
+    centro = (24, 22)
+    pygame.draw.circle(surf, (2, 8, 14, 235), centro, 14)
+    pygame.draw.circle(surf, (*cor, int(95 + pulso * 80)), centro, int(12 + pulso * 2), 2)
+    pygame.draw.circle(surf, (245, 254, 255, 230), centro, int(2 + pct * 5))
+    for i in range(6):
+        ang = tempo_atual * 0.003 + i * math.tau / 6
+        r1 = 8 + pct * 5
+        r2 = 14 + pulso * 3
+        pygame.draw.line(
+            surf, (*cor, 125),
+            (centro[0] + math.cos(ang) * r1, centro[1] + math.sin(ang) * r1),
+            (centro[0] + math.cos(ang + 0.22) * r2, centro[1] + math.sin(ang + 0.22) * r2), 1,
+        )
+
+    inicio_x = 48
+    segmentos = 9
+    ativos = int(round(pct * segmentos))
+    for i in range(segmentos):
+        x = inicio_x + i * 15
+        tremor = int(math.sin(tempo_atual * 0.009 + i * 1.7) * (2 if i >= ativos else 1))
+        pontos = [(x, 25 + tremor), (x + 5, 20 - tremor), (x + 10, 25 + tremor), (x + 6, 31 - tremor)]
+        if i < ativos:
+            cor_segmento = (220, 250, 255, 225)
+            pygame.draw.polygon(surf, cor_segmento, pontos)
+            pygame.draw.circle(surf, (255, 255, 255, 120), (x + 5, 25), 2)
+        else:
+            pygame.draw.polygon(surf, (75, 105, 120, 72), pontos, 1)
+
+    _texto_hud(surf, "NULO PRONTO" if armada else "VAZIO", (48, 4), cor, 13)
+    _texto_hud(surf, "PRONTO" if armada else f"{int(pct * 100)}%", (181, 36), (235, 250, 255), 12, centro=True)
+    return surf
+
+
+def _hud_abissal(estado, tempo_atual):
+    ab = estado["abissal"]
+    ativo = tempo_atual < int(ab.get("marea_fim_ms", 0))
+    pct = max(0.0, min(1.0, float(ab.get("profundidade", 0.0)) / ABISSAL_PROFUNDIDADE_MAX))
+    visual_pct = 1.0 if ativo else pct
+    cor = (105, 92, 230)
+    surf = _painel_aurea((202, 44), cor, alpha=184)
+    pulso = (math.sin(tempo_atual * 0.009) + 1.0) * 0.5
+
+    # Medidor vertical: quanto mais fundo, mais camadas ficam submersas.
+    cx, cy = 24, 22
+    for camada in range(3):
+        raio = 15 - camada * 4
+        pygame.draw.circle(surf, (55, 42, 145, 80 + camada * 18), (cx, cy), raio, 2)
+    pygame.draw.circle(surf, (2, 1, 14, 245), (cx, cy), int(5 + visual_pct * 5))
+    pygame.draw.circle(surf, (145, 125, 255, int(110 + pulso * 90)), (cx, cy), int(2 + pulso * 2))
+
+    inicio_x = 48
+    colunas = 11
+    for i in range(colunas):
+        onda = math.sin(tempo_atual * (0.014 if ativo else 0.006) + i * 0.72)
+        altura = int(4 + visual_pct * 13 + onda * (3 if ativo else 1))
+        topo = 32 - altura
+        cor_coluna = (75 + int(visual_pct * 30), 62 + int(visual_pct * 40), 185 + int(visual_pct * 55), 220)
+        pygame.draw.rect(surf, cor_coluna, (inicio_x + i * 13, topo, 7, altura), border_radius=3)
+        pygame.draw.circle(surf, (155, 145, 255, 100), (inicio_x + i * 13 + 3, topo), 3)
+
+    if ativo:
+        restante = max(0, int(ab.get("marea_fim_ms", 0)) - int(tempo_atual))
+        titulo = "MARE NEGRA"
+        estado_txt = f"{restante / 1000.0:.1f}s"
+    else:
+        titulo = "PROFUNDIDADE"
+        estado_txt = f"{int(pct * 100)}%"
+    _texto_hud(surf, titulo, (48, 4), (170, 160, 255) if ativo else (130, 120, 245), 13)
+    _texto_hud(surf, estado_txt, (181, 36), (225, 220, 255), 12, centro=True)
+    return surf
+
+
+def _hud_profetica(estado, tempo_atual):
+    prof = estado["profetica"]
+    nivel = int(estado["niveis"].get("Profetica", 0))
+    marcado = bool(prof.get("alvo_id")) and tempo_atual <= int(prof.get("fim_ms", 0))
+    quebrado = tempo_atual < int(prof.get("destino_quebrado_fim_ms", 0))
+    intervalo = max(6200, PROFETICA_INTERVALO_BASE_MS - nivel * 850)
+    if marcado:
+        restante = max(0, int(prof.get("fim_ms", 0)) - int(tempo_atual))
+        pct = max(0.0, min(1.0, restante / float(PROFETICA_DURACAO_MS)))
+    else:
+        restante = max(0, int(prof.get("proximo_pressagio_ms", 0)) - int(tempo_atual))
+        pct = max(0.0, min(1.0, 1.0 - restante / float(intervalo)))
+
+    cor = (255, 225, 100)
+    surf = _painel_aurea((216, 46), cor, alpha=182)
+    pulso = (math.sin(tempo_atual * 0.013) + 1.0) * 0.5
+    cx, cy = 25, 23
+    olho = pygame.Rect(cx - 17, cy - 8, 34, 16)
+    pygame.draw.ellipse(surf, (64, 45, 12, 220), olho)
+    pygame.draw.ellipse(surf, (*cor, 235), olho, 2)
+    pygame.draw.circle(surf, (255, 252, 210, 245), (cx, cy), int(3 + pct * 3))
+    pygame.draw.circle(surf, (180, 95, 20, 255), (cx, cy), int(1 + pulso * 2))
+    for i in range(5):
+        ang = -math.pi * 0.82 + i * math.pi * 0.41
+        pygame.draw.line(
+            surf, (255, 240, 150, 150),
+            (cx + math.cos(ang) * 19, cy + math.sin(ang) * 12),
+            (cx + math.cos(ang) * (23 + pulso * 2), cy + math.sin(ang) * (15 + pulso * 2)), 1,
+        )
+
+    # A progressao e uma constelacao: cada estrela acende um passo do destino.
+    inicio_x = 51
+    estrelas = 7
+    acesas = int(round(pct * estrelas))
+    pontos = []
+    for i in range(estrelas):
+        x = inicio_x + i * 22
+        y = 28 + int(math.sin(i * 1.45) * 5)
+        pontos.append((x, y))
+    for i in range(len(pontos) - 1):
+        pygame.draw.line(surf, (125, 98, 35, 115), pontos[i], pontos[i + 1], 1)
+    for i, (x, y) in enumerate(pontos):
+        raio = 3 + (1 if i < acesas and math.sin(tempo_atual * 0.016 + i) > 0 else 0)
+        if i < acesas:
+            pygame.draw.line(surf, (255, 240, 145, 205), (x - raio - 2, y), (x + raio + 2, y), 1)
+            pygame.draw.line(surf, (255, 240, 145, 205), (x, y - raio - 2), (x, y + raio + 2), 1)
+            pygame.draw.circle(surf, (255, 250, 205, 245), (x, y), raio)
+        else:
+            pygame.draw.circle(surf, (105, 82, 35, 125), (x, y), 3, 1)
+
+    if quebrado:
+        titulo = "DESTINO QUEBRADO"
+    elif marcado:
+        titulo = f"PRESSAGIO: {str(prof.get('tipo') or '').upper()}"
+    else:
+        titulo = "ORACULO OBSERVA"
+    _texto_hud(surf, titulo, (51, 4), (195, 135, 255) if quebrado else cor, 13)
+    _texto_hud(surf, f"ECO {int(prof.get('sequencia', 0))}", (190, 38), (255, 245, 190), 12, centro=True)
+    return surf
+
+
+def _desenhar_hud_aurea(tela, estado, nome, tempo_atual):
+    try:
+        from ui_helpers import palco_ativo, registrar_widget_aurea
+        usando_palco = palco_ativo()
+    except Exception:
+        usando_palco = False
+
+    if nome not in {"nula", "abissal", "profetica"}:
+        if usando_palco:
+            registrar_widget_aurea(None)
+        return
+    if nome == "nula":
+        widget = _hud_nula(estado, tempo_atual)
+    elif nome == "abissal":
+        widget = _hud_abissal(estado, tempo_atual)
+    else:
+        widget = _hud_profetica(estado, tempo_atual)
+    if usando_palco and registrar_widget_aurea(widget):
+        return
+    # Fallback para superficies isoladas usadas em previews e telas antigas.
+    x = max(8, min(270, tela.get_width() - widget.get_width() - 110))
+    tela.blit(widget, (x, 10))
 
 
 def criar_estado(upgrades=None, aurea=None, agora_ms=0):
@@ -357,9 +555,12 @@ def atualizar(estado, aurea, tempo_atual, pos_x, pos_y, largura, altura, inimigo
 def desenhar(tela, estado, aurea, tempo_atual, pos_x, pos_y, largura, altura, inimigos=None, config_graficos=None):
     if not estado or tela is None:
         return
-    if config_graficos is not None and not config_graficos.get("efeitos_visuais", True):
-        return
     nome = _normalizar(aurea)
+    if config_graficos is not None and not config_graficos.get("interface", True):
+        return
+    if config_graficos is not None and not config_graficos.get("efeitos_visuais", True):
+        _desenhar_hud_aurea(tela, estado, nome, tempo_atual)
+        return
     inimigos = inimigos or []
 
     if nome == "nula":
@@ -451,3 +652,5 @@ def desenhar(tela, estado, aurea, tempo_atual, pos_x, pos_y, largura, altura, in
             raio = max(10, int(max(r.width, r.height) * 0.62))
             pygame.draw.circle(tela, (80, 80, 190), r.center, raio, 2)
             pygame.draw.circle(tela, (18, 8, 40), r.center, max(5, raio // 2), 1)
+
+    _desenhar_hud_aurea(tela, estado, nome, tempo_atual)

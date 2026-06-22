@@ -280,7 +280,8 @@ def dano_extra_movimento(inimigo, tempo_atual):
         return 0
 
     stacks = max(1, min(LACERACAO_MAX_STACKS, int(estado.get("stacks", 1))))
-    intervalo_tick = 520 if estado.get("aberto") else 680
+    eh_miniboss = bool(inimigo.get("eh_miniboss", False))
+    intervalo_tick = (900 if estado.get("aberto") else 1050) if eh_miniboss else (650 if estado.get("aberto") else 780)
     if tempo_atual - int(estado.get("ultimo_tick_movimento", 0)) < intervalo_tick:
         return 0
 
@@ -297,9 +298,11 @@ def dano_extra_movimento(inimigo, tempo_atual):
 
     estado["ultimo_tick_movimento"] = int(tempo_atual)
     vida_base = inimigo.get("vida_maxima", inimigo.get("vida", 50))
-    percentual = 0.012 * stacks
+    percentual = 0.006 * stacks
     if estado.get("aberto"):
-        percentual = 0.05
+        percentual = 0.025
+    if eh_miniboss:
+        percentual = 0.006 if estado.get("aberto") else 0.0015 * stacks
     dano = max(1, int(vida_base * percentual))
     inimigo["vida"] -= dano
     return dano

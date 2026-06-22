@@ -706,13 +706,16 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
     try:
         import Variaveis
         loja_forcada = Variaveis.loja_forcada_ativa(forcar_recarregar=True)
+        config_jogabilidade = Variaveis.obter_config_jogabilidade(forcar_recarregar=True)
     except:
         loja_forcada = True
+        config_jogabilidade = {"modo_hud_habilidades": "inferior"}
 
     config = {
         "mostrar_tutorial": mostrar_tut,
         "modo_teleporte": modo_teleporte,
-        "loja_forcada": True
+        "loja_forcada": True,
+        "modo_hud_habilidades": str(config_jogabilidade.get("modo_hud_habilidades", "inferior")),
     }
     
     config_salva = json.loads(json.dumps(config))
@@ -720,6 +723,7 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
     opcoes_config = [
         {"nome": "Tutorial", "chave": "mostrar_tutorial", "valores": [True, False], "labels": ["Ativado", "Desativado"]},
         {"nome": "Modo de Teleporte", "chave": "modo_teleporte", "valores": ["fixo", "mouse"], "labels": ["Fixo", "Mouse Target"]},
+        {"nome": "HUD de Habilidades", "chave": "modo_hud_habilidades", "valores": ["inferior", "vertical", "dinamico"], "labels": ["Inferior", "Vertical", "Dinamico"]},
         {"nome": "Aplicar Alteracoes", "chave": "aplicar", "valores": None, "labels": None},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
     ]
@@ -732,6 +736,11 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
         "modo_teleporte": {
             "fixo": "Modo Fixo: Teleporta na direcao do movimento. Rapido e instantaneo.",
             "mouse": "Modo Mouse: Segure a tecla para mirar na posicao do cursor e solte para teleportar."
+        },
+        "modo_hud_habilidades": {
+            "inferior": "Fixo na parte inferior; desaparece quando a personagem chega sobre ele.",
+            "vertical": "Fixo na lateral direita; desaparece quando a personagem chega sobre ele.",
+            "dinamico": "Fica embaixo e muda para a lateral enquanto a personagem estiver na parte baixa."
         }
     }
     
@@ -753,7 +762,11 @@ def abrir_configuracoes_jogabilidade(tela, fontes, fundo_pausa=None):
             json.dump({"modo": config["modo_teleporte"]}, f)
         try:
             import Variaveis
-            Variaveis.salvar_config_jogabilidade({"loja_forcada": True})
+            Variaveis.salvar_config_jogabilidade({
+                "loja_forcada": True,
+                "modo_hud_habilidades": config.get("modo_hud_habilidades", "inferior"),
+                "hub_vertical_inferior": config.get("modo_hud_habilidades") == "dinamico",
+            })
             Variaveis.obter_modo_teleporte(forcar_recarregar=True)
         except:
             pass

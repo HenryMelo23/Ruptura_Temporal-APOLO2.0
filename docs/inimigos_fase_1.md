@@ -67,12 +67,23 @@ A tabela abaixo apresenta uma visão geral comparativa dos atributos base e mult
 * **Descrição da Lore:** Entidade nascida da cobiça e da retenção de energia temporal (pontos). Move-se com agilidade felina.
 * **Mecânicas e Comportamento:**
   * **Gatilho de Spawn (Cobiça):** Spawna de bordas aleatórias do mapa se o jogador acumular muitos pontos sem gastá-los na loja, baseado em uma probabilidade calculada dinamicamente.
-  * **Estado de Caça:** Segue o jogador e tenta se aproximar. Ao entrar em alcance de ataque, inicia um período de preparação (estático por 350ms).
-  * **O Roubo:** Se acertar o jogador com sucesso no final da preparação, ele **rouba 25% dos pontos atuais** do jogador e entra instantaneamente no estado **"fugindo"**.
-  * **Fuga Inteligente:** Ao fugir, ele corre na direção oposta ao jogador com velocidade ampliada (**1.55x**), priorizando áreas livres e evitando cantos ou bordas do mapa através de um algoritmo de pontuação vetorial. Ele tenta fugir por 5 segundos antes de reavaliar o estado.
-  * **Escalonamento de Saque:** A cada roubo realizado com sucesso, as estatísticas do Larápio aumentam permanentemente: sua velocidade aumenta em até **+65%**, seu dano em até **+40%** e sua resistência a danos em até **+25%**.
-  * **Agressividade Permanente:** Se o jogador tiver 0 pontos, se o Larápio for atacado repetidamente, ou se ele atingir o limite de **3 roubos bem-sucedidos**, ele abandona a fuga e torna-se permanentemente agressivo, atacando o jogador com velocidade ampliada de perseguição (+8%).
+  * **Estado de Caça:** Segue o jogador e tenta se aproximar. Ao entrar em alcance de ataque, inicia um período de preparação de **1 segundo**.
+  * **O Roubo:** Se acertar o jogador ao final da preparação, rouba de **15% a 50%** dos pontos atuais, conforme a riqueza acumulada, e entra no estado **"fugindo"**.
+  * **Fuga Inteligente:** Ao fugir, corre na direção oposta ao jogador com velocidade ampliada (**1.55x**), priorizando áreas livres e evitando cantos ou bordas. Após 10 segundos, volta a caçar.
+  * **Escalonamento de Saque:** A cada roubo realizado com sucesso, as estatísticas do Larápio aumentam permanentemente: sua velocidade aumenta em até **+65%**, seu dano em até **+40%** e sua resistência a danos em até **+25%**. O multiplicador de riqueza e o dano por golpe possuem teto; ataques do Larápio não são letais e deixam no mínimo 1 de vida.
+  * **Sem Pontos:** Se o jogador tiver menos de 150 pontos, o ataque atordoa por 2 segundos e causa até 10% da vida máxima, ainda respeitando a proteção não letal.
   * **Recuperação de Pontos:** Ao ser derrotado, o Larápio dropa todos os pontos roubados de volta no chão para que o jogador possa recuperá-los.
+
+### Miniboss — Arauto: Condutor de Ecos
+* **Gatilho:** Surge uma única vez aos **8 minutos**, fora do tutorial e sem dividir a arena com o chefe principal.
+* **Arena Controlada:** Ao entrar, remove a onda atual, gera exatamente **2 inimigos comuns** e interrompe novos spawns até o confronto terminar.
+* **Ecos Vinculados:** Cada um dos dois comuns reduz em 20% o dano recebido pelo Arauto. Eles não são repostos.
+* **Movimento:** Orbita o jogador, afasta-se quando encurralado e tenta manter distância para atacar.
+* **Olhar da Ruptura:** Carrega um raio com mira visível, acompanha o jogador por parte da carga e então trava a direção. Um Eco colocado entre o jogador e o Arauto absorve o raio e é sacrificado.
+* **Escolha Tática:** Eliminar os Ecos cedo remove até 40% de proteção; preservá-los oferece duas coberturas contra o Olhar.
+* **Segunda Fase:** Abaixo de 50% da vida, move-se e dispara mais rápido, trava o Olhar em menos tempo e repete a habilidade com maior frequência.
+* **Fragmento da Ruptura:** Ao morrer, deixa um fragmento pulsante no chão. Coletá-lo repele e desacelera os inimigos próximos antes de suspender o combate.
+* **Evolução da Manifestação:** O fragmento apresenta 3 escolhas aleatórias dentre as 9 evoluções exclusivas da Manifestação equipada. A escolha dura pela partida e altera disparo, impacto, habilidade ou Teleporte; não concede apenas dano ou crítico.
 
 ---
 

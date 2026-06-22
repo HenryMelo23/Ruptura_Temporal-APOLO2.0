@@ -123,6 +123,7 @@ if not hasattr(builtins, "_saves_redirected"):
             "config_jogabilidade.json": {
                 "loja_forcada": True,
                 "fase_inicial": 1,
+                "modo_hud_habilidades": "inferior",
                 "hub_vertical_inferior": False,
                 "perfil_visualizacao": "desenvolvedor"
             },

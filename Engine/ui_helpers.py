@@ -15,10 +15,17 @@ _stage = {
     "game_size": (0, 0),
     "dst_rect": pygame.Rect(0, 0, 0, 0),
     "hud": None,
+    "hud_atualizado_ms": 0,
+    "aura_widget": None,
+    "aura_atualizado_ms": 0,
+    "top_h": 0,
+    "bottom_h": 0,
     "orig_flip": None,
 }
 
 _MIN_LARGURA_HUD_FULLSCREEN = 150
+_ALTURA_HUD_SUPERIOR = 76
+_ALTURA_HUD_INFERIOR = 92
 
 def get_cached_font(caminho, tamanho):
     key = (caminho, tamanho)
@@ -34,6 +41,22 @@ def palco_ativo():
 
 def obter_superficie_palco():
     return _stage["game_surface"] if _stage["active"] else pygame.display.get_surface()
+
+
+def registrar_widget_aurea(widget):
+    """Move o medidor da aura para a faixa externa no proximo flip."""
+    if not _stage["active"]:
+        return False
+    _stage["aura_widget"] = widget.copy() if widget is not None else None
+    _stage["aura_atualizado_ms"] = pygame.time.get_ticks()
+    return True
+
+
+def limpar_hud_palco():
+    _stage["hud"] = None
+    _stage["hud_atualizado_ms"] = 0
+    _stage["aura_widget"] = None
+    _stage["aura_atualizado_ms"] = 0
 
 def obter_pos_mouse_jogo():
     return converter_pos_mouse_jogo(pygame.mouse.get_pos())
@@ -196,7 +219,10 @@ def ativar_palco_fullscreen(largura_jogo, altura_jogo):
     display = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
     pygame.mouse.set_visible(False)
     screen_w, screen_h = display.get_size()
-    escala = min(screen_w / largura_jogo, screen_h / altura_jogo)
+    top_h = max(72, min(82, int(screen_h * 0.072)))
+    bottom_h = max(80, min(98, int(screen_h * 0.088)))
+    altura_disponivel = max(1, screen_h - top_h - bottom_h)
+    escala = min(screen_w / largura_jogo, altura_disponivel / altura_jogo)
 
     if screen_w >= largura_jogo + (_MIN_LARGURA_HUD_FULLSCREEN * 2):
         largura_maxima_jogo = screen_w - (_MIN_LARGURA_HUD_FULLSCREEN * 2)
@@ -204,7 +230,12 @@ def ativar_palco_fullscreen(largura_jogo, altura_jogo):
 
     dst_w = max(1, int(largura_jogo * escala))
     dst_h = max(1, int(altura_jogo * escala))
-    dst_rect = pygame.Rect((screen_w - dst_w) // 2, (screen_h - dst_h) // 2, dst_w, dst_h)
+    dst_rect = pygame.Rect(
+        (screen_w - dst_w) // 2,
+        top_h + (altura_disponivel - dst_h) // 2,
+        dst_w,
+        dst_h,
+    )
 
     _stage.update({
         "active": True,
@@ -213,6 +244,37 @@ def ativar_palco_fullscreen(largura_jogo, altura_jogo):
         "game_size": (largura_jogo, altura_jogo),
         "dst_rect": dst_rect,
         "hud": None,
+        "hud_atualizado_ms": 0,
+        "aura_widget": None,
+        "aura_atualizado_ms": 0,
+        "top_h": dst_rect.top,
+        "bottom_h": screen_h - dst_rect.bottom,
+    })
+    pygame.display.flip = _flip_palco
+    return _stage["game_surface"]
+
+
+def ativar_palco_janela(largura_jogo, altura_jogo):
+    if _stage["orig_flip"] is None:
+        _stage["orig_flip"] = pygame.display.flip
+
+    largura_jogo = int(largura_jogo)
+    altura_jogo = int(altura_jogo)
+    display = pygame.display.set_mode((largura_jogo, altura_jogo + _ALTURA_HUD_SUPERIOR + _ALTURA_HUD_INFERIOR))
+    pygame.mouse.set_visible(False)
+    dst_rect = pygame.Rect(0, _ALTURA_HUD_SUPERIOR, largura_jogo, altura_jogo)
+    _stage.update({
+        "active": True,
+        "display": display,
+        "game_surface": pygame.Surface((largura_jogo, altura_jogo)).convert(),
+        "game_size": (largura_jogo, altura_jogo),
+        "dst_rect": dst_rect,
+        "hud": None,
+        "hud_atualizado_ms": 0,
+        "aura_widget": None,
+        "aura_atualizado_ms": 0,
+        "top_h": _ALTURA_HUD_SUPERIOR,
+        "bottom_h": _ALTURA_HUD_INFERIOR,
     })
     pygame.display.flip = _flip_palco
     return _stage["game_surface"]
@@ -227,6 +289,11 @@ def desativar_palco():
         "game_size": (0, 0),
         "dst_rect": pygame.Rect(0, 0, 0, 0),
         "hud": None,
+        "hud_atualizado_ms": 0,
+        "aura_widget": None,
+        "aura_atualizado_ms": 0,
+        "top_h": 0,
+        "bottom_h": 0,
     })
 
 def _texto_contorno(surface, fonte, texto, cor, pos):
@@ -948,17 +1015,146 @@ def desenhar_efeito_racional_dilatacao(
 
     surface.blit(overlay, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
 
+def _desenhar_vida_ruptura(display, hud, top, config_graficos=None, x=10):
+    import Variaveis
+
+    agora = pygame.time.get_ticks()
+    vida = max(0.0, float(hud.get("vida", 0)))
+    vida_maxima = max(1.0, float(hud.get("vida_maxima", 1)))
+    pct = max(0.0, min(1.0, vida / vida_maxima))
+    cor = (0, 150, 255) if hud.get("aurea") == "Devota" and hud.get("escudo_devota_ativo") else Variaveis.calcular_cor_barra_de_vida(pct * 100)
+    pulso = (math.sin(agora * (0.018 if pct <= 0.3 else 0.008)) + 1.0) * 0.5
+
+    painel = pygame.Rect(int(x), max(4, (top.height - 62) // 2), 272, 62)
+    camada = pygame.Surface(painel.size, pygame.SRCALPHA)
+    pygame.draw.rect(camada, (4, 5, 13, 212), camada.get_rect(), border_radius=8)
+    pygame.draw.rect(camada, (*cor, 92), camada.get_rect().inflate(-2, -2), 1, border_radius=7)
+
+    # Nucleo vital rachado: desenhado em codigo, sem depender do antigo sprite HEALTH.
+    cx, cy = 30, 30
+    brilho = int(45 + pulso * (95 if pct <= 0.3 else 45))
+    pygame.draw.circle(camada, (*cor, brilho), (cx, cy), int(21 + pulso * 2), 2)
+    cor_coracao = (*cor, 235)
+    coracao = [(cx, cy + 18), (cx - 18, cy - 2), (cx - 17, cy - 11), (cx - 9, cy - 16), (cx, cy - 8), (cx + 9, cy - 16), (cx + 17, cy - 11), (cx + 18, cy - 2)]
+    pygame.draw.polygon(camada, cor_coracao, coracao)
+    pygame.draw.lines(camada, (5, 6, 13, 245), False, [(cx + 2, cy - 9), (cx - 4, cy), (cx + 4, cy + 5), (cx - 2, cy + 17)], 3)
+    pygame.draw.line(camada, (255, 255, 255, 105), (cx - 11, cy - 8), (cx - 4, cy - 4), 2)
+
+    fonte_label = get_cached_font(None, 15)
+    fonte_valor = get_cached_font(None, 17)
+    _texto_contorno(camada, fonte_label, "NUCLEO VITAL", tuple(cor), (58, 5))
+
+    barra = pygame.Rect(58, 25, 202, 17)
+    pygame.draw.rect(camada, (18, 15, 29, 245), barra, border_radius=4)
+    preenchido = max(0, int(barra.w * pct))
+    if preenchido > 0:
+        pontos = [(barra.x, barra.y), (barra.x + preenchido, barra.y)]
+        ponta = min(7, preenchido)
+        pontos += [(barra.x + preenchido - ponta, barra.bottom), (barra.x, barra.bottom)]
+        pygame.draw.polygon(camada, (*cor, 245), pontos)
+        pygame.draw.line(camada, (255, 255, 255, 105), (barra.x + 3, barra.y + 3), (barra.x + max(3, preenchido - 4), barra.y + 3), 1)
+    pygame.draw.rect(camada, (*cor, 150), barra, 1, border_radius=4)
+
+    # Fissuras fixas tornam a leitura segmentada sem parecer uma barra generica.
+    for i in range(1, 8):
+        fx = barra.x + int(barra.w * i / 8)
+        desvio = -2 if i % 2 else 2
+        pygame.draw.line(camada, (4, 5, 13, 150), (fx + desvio, barra.y + 2), (fx - desvio, barra.bottom - 2), 1)
+
+    _desenhar_efeitos_barra_vida(camada, barra, vida, vida_maxima, cor, "vida_ruptura", config_graficos)
+    _texto_contorno(camada, fonte_valor, f"{int(vida)}/{int(vida_maxima)}", (245, 250, 255), (58, 44))
+    if pct <= 0.3 and pulso > 0.55:
+        pygame.draw.rect(camada, (255, 40, 65, int(35 + pulso * 45)), camada.get_rect().inflate(-3, -3), 2, border_radius=7)
+    display.blit(camada, painel.topleft)
+
+
 def _desenhar_hud_molduras(display):
     import Variaveis
     hud = _stage["hud"]
-    if not hud:
+    agora_hud = pygame.time.get_ticks()
+    if not hud or agora_hud - int(_stage.get("hud_atualizado_ms", 0)) > 1500:
         return
+    if agora_hud - int(_stage.get("aura_atualizado_ms", 0)) > 1500:
+        _stage["aura_widget"] = None
     rect = _stage["dst_rect"]
     screen_w, screen_h = display.get_size()
+    top = pygame.Rect(0, 0, screen_w, max(0, rect.top))
+    bottom = pygame.Rect(0, rect.bottom, screen_w, max(0, screen_h - rect.bottom))
     left = pygame.Rect(0, 0, rect.x, screen_h)
     right = pygame.Rect(rect.right, 0, screen_w - rect.right, screen_h)
     _desenhar_moldura(display, left, "esquerda")
     _desenhar_moldura(display, right, "direita")
+
+    # As faixas sao parte da janela, mas ficam fora das coordenadas do mapa.
+    if top.height > 0:
+        pygame.draw.line(display, (0, 255, 220), (0, top.bottom - 2), (screen_w, top.bottom - 2), 2)
+        pygame.draw.line(display, (180, 245, 255), (0, top.bottom - 4), (screen_w, top.bottom - 4), 1)
+    if bottom.height > 0:
+        pygame.draw.line(display, (0, 255, 220), (0, bottom.top + 1), (screen_w, bottom.top + 1), 2)
+        pygame.draw.line(display, (180, 245, 255), (0, bottom.top + 3), (screen_w, bottom.top + 3), 1)
+
+    if top.height >= 50:
+        font_label = get_cached_font(None, max(14, min(18, top.height // 4)))
+        font_valor_topo = get_cached_font(None, max(18, min(24, top.height // 3)))
+        largura_painel_vida = 272
+        if left.width >= largura_painel_vida + 16:
+            vida_x = left.x + (left.width - largura_painel_vida) // 2
+        else:
+            vida_x = 10
+        _desenhar_vida_ruptura(display, hud, top, hud.get("config_graficos"), vida_x)
+
+        # Pontos/moedas e progresso da proxima compra.
+        pontos_x = max(rect.left + 24, vida_x + largura_painel_vida + 28)
+        modo_drops = False
+        try:
+            modo_drops = Variaveis.obter_modo_cartas() == "drops"
+        except Exception:
+            pass
+        rotulo_pontos = "MOEDAS" if modo_drops else "PONTOS"
+        valor_pontos = f"{int(hud['pontuacao_exib'])}" if modo_drops else f"{int(hud['pontuacao_exib'])}/{int(max(1, hud['custo_carta_atual']))}"
+        _texto_contorno(display, font_label, rotulo_pontos, (255, 220, 90), (pontos_x, 11))
+        if not modo_drops:
+            _desenhar_barra_sidebar(display, pontos_x, 32, 150, 14, hud["pontuacao_exib"], max(1, hud["custo_carta_atual"]), (255, 210, 0))
+        _texto_contorno(display, font_valor_topo, valor_pontos, (255, 255, 255), (pontos_x, 50))
+
+        # Medidor exclusivo da aura. Quando nao existe, mostra apenas seu nome.
+        aura_widget = _stage.get("aura_widget")
+        if aura_widget is not None:
+            aura_centro = rect.centerx
+            aura_x = max(pontos_x + 178, aura_centro - aura_widget.get_width() // 2)
+            aura_x = min(aura_x, screen_w - aura_widget.get_width() - 120)
+            aura_y = max(4, (top.height - aura_widget.get_height()) // 2)
+            display.blit(aura_widget, (aura_x, aura_y))
+        elif hud.get("aurea"):
+            aura_nome = str(hud["aurea"]).upper()
+            aura_label_img = font_label.render("AURA", True, (155, 145, 255))
+            aura_nome_img = font_valor_topo.render(aura_nome, True, (255, 230, 125))
+            aura_centro = rect.centerx
+            _texto_contorno(display, font_label, "AURA", (155, 145, 255), (aura_centro - aura_label_img.get_width() // 2, 10))
+            _texto_contorno(display, font_valor_topo, aura_nome, (255, 230, 125), (aura_centro - aura_nome_img.get_width() // 2, 31))
+
+        # Cronometro isolado no canto superior direito.
+        try:
+            tempo_txt = Variaveis.atualizar_cronometro()
+        except Exception:
+            tempo_txt = "00:00"
+        tempo_label_img = font_label.render("TEMPO", True, (0, 255, 204))
+        tempo_img = font_valor_topo.render(tempo_txt, True, (255, 255, 255))
+        tempo_centro = right.centerx if right.width >= 110 else screen_w - max(48, tempo_img.get_width() // 2 + 18)
+        _texto_contorno(display, font_label, "TEMPO", (0, 255, 204), (tempo_centro - tempo_label_img.get_width() // 2, 10))
+        _texto_contorno(display, font_valor_topo, tempo_txt, (255, 255, 255), (tempo_centro - tempo_img.get_width() // 2, 34))
+
+    if bottom.height >= 64:
+        Variaveis.desenhar_habilidades(
+            display,
+            hud["cooldowns"],
+            hud["dispositivo_ativo"],
+            area_externa=bottom,
+        )
+
+    # O HUD agora pertence exclusivamente as faixas horizontalmente. As
+    # laterais do fullscreen sao apenas letterbox decorativo, sem duplicatas.
+    return
 
     painel_min = min(left.width, right.width)
     fonte_ajustada = painel_min < 170
@@ -1035,6 +1231,7 @@ def _misturar_cores(cor_a, cor_b, peso):
 def tela_transicao_dimensional(tela, fase_destino, duracao_ms=1900):
     if tela is None:
         return
+    limpar_hud_palco()
 
     paletas = {
         1: ((145, 54, 255), (222, 122, 255), "FASE 1"),
@@ -1440,19 +1637,7 @@ def desenhar_hud_fase(
             "escudo_devota_ativo": escudo_devota_ativo,
             "config_graficos": config_graficos_hud,
         }
-        deve_desenhar_icones = True
-        if None not in (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem):
-            hub_vertical_ativo = Variaveis.hub_vertical_inferior_ativo((pos_x_personagem, pos_y_personagem))
-            deve_desenhar_icones = not Variaveis.area_icones.colliderect(
-                (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-            ) or hub_vertical_ativo
-        if deve_desenhar_icones:
-            Variaveis.desenhar_habilidades(
-                tela,
-                cooldowns,
-                dispositivo_ativo,
-                (pos_x_personagem, pos_y_personagem) if pos_x_personagem is not None and pos_y_personagem is not None else None,
-            )
+        _stage["hud_atualizado_ms"] = pygame.time.get_ticks()
         return
 
     posicao_barra_vida = (80, Variaveis.altura_mapa - (Variaveis.altura_mapa - 34))
@@ -1527,10 +1712,10 @@ def desenhar_hud_fase(
 
     deve_desenhar_icones = True
     if None not in (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem):
-        hub_vertical_ativo = Variaveis.hub_vertical_inferior_ativo((pos_x_personagem, pos_y_personagem))
-        deve_desenhar_icones = not Variaveis.area_icones.colliderect(
-            (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-        ) or hub_vertical_ativo
+        deve_desenhar_icones = Variaveis.deve_desenhar_habilidades(
+            (pos_x_personagem, pos_y_personagem),
+            (largura_personagem, altura_personagem),
+        )
 
     if deve_desenhar_icones:
         Variaveis.desenhar_habilidades(

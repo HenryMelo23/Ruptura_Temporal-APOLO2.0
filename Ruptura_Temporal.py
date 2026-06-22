@@ -2494,6 +2494,13 @@ def _desenhar_caixa_descricao(tela, fonte_texto, texto, y_pos, largura=720):
         tela.blit(surf, surf.get_rect(center=(rect_desc.centerx, y_texto + idx * 22)))
 
 
+def _desenhar_painel_translucido(tela, rect, cor=(11, 8, 27, 224), borda=(0, 255, 220, 85), raio=12):
+    painel = pygame.Surface(rect.size, pygame.SRCALPHA)
+    pygame.draw.rect(painel, cor, painel.get_rect(), border_radius=raio)
+    pygame.draw.rect(painel, borda, painel.get_rect(), width=1, border_radius=raio)
+    tela.blit(painel, rect.topleft)
+
+
 def tela_configuracoes_graficas(tela, fonte):
     """Tela de configuracoes graficas."""
     global ultima_troca, exibindo_fundo1, indice_fundo
@@ -2588,9 +2595,19 @@ def tela_configuracoes_graficas(tela, fonte):
     selecionado = 0
     modo_interacao = "teclado"
     clock = pygame.time.Clock()
-    fonte_titulo_tela = pygame.font.Font(caminho_fonte_titulo, 48)
-    fonte_opcao_tela = pygame.font.Font(caminho_fonte_letra1, 24)
-    fonte_valor_tela = pygame.font.Font(caminho_fonte_letras, 20)
+    tamanho_titulo_grafico = 42
+    while tamanho_titulo_grafico > 28:
+        fonte_titulo_tela = pygame.font.Font(caminho_fonte_titulo, tamanho_titulo_grafico)
+        fonte_fallback_grafico = pygame.font.Font(caminho_fonte_letra1, tamanho_titulo_grafico)
+        teste_titulo = render_glitch_text_with_fallback(
+            "CONFIGURACOES GRAFICAS", fonte_titulo_tela,
+            fonte_fallback_grafico, (0, 255, 204)
+        )
+        if teste_titulo.get_width() <= largura_tela - 120:
+            break
+        tamanho_titulo_grafico -= 2
+    fonte_opcao_tela = pygame.font.Font(caminho_fonte_letra1, 20)
+    fonte_valor_tela = pygame.font.Font(caminho_fonte_letras, 17)
     popup_aplicar = PopUpAplicar(largura_tela, altura_tela)
 
     def aplicar_config():
@@ -2634,19 +2651,23 @@ def tela_configuracoes_graficas(tela, fonte):
 
         # Camada preta semi-transparente para contraste
         overlay = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 185))
+        overlay.fill((0, 0, 0, 198))
         tela.blit(overlay, (0, 0))
 
-        texto_titulo = render_glitch_text_with_fallback("CONFIGURACOES GRAFICAS", fonte_titulo_tela, fonte_fallback_config, (0, 255, 204))
-        retangulo_titulo = texto_titulo.get_rect(center=(largura_tela // 2, altura_tela // 8))
+        texto_titulo = render_glitch_text_with_fallback("CONFIGURACOES GRAFICAS", fonte_titulo_tela, fonte_fallback_grafico, (0, 255, 204))
+        retangulo_titulo = texto_titulo.get_rect(center=(largura_tela // 2, 74))
+        rect_cabecalho = pygame.Rect(60, 30, largura_tela - 120, 90)
+        _desenhar_painel_translucido(
+            tela, rect_cabecalho, (9, 6, 24, 210), (255, 25, 145, 75), 14
+        )
 
         # Sombra
-        texto_titulo_sombra = render_glitch_text_with_fallback("CONFIGURACOES GRAFICAS", fonte_titulo_tela, fonte_fallback_config, (15, 5, 25))
+        texto_titulo_sombra = render_glitch_text_with_fallback("CONFIGURACOES GRAFICAS", fonte_titulo_tela, fonte_fallback_grafico, (15, 5, 25))
         tela.blit(texto_titulo_sombra, (retangulo_titulo.left + 4, retangulo_titulo.top + 4))
 
         # Contorno
         for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-            texto_titulo_contorno = render_glitch_text_with_fallback("CONFIGURACOES GRAFICAS", fonte_titulo_tela, fonte_fallback_config, contorno_rosa)
+            texto_titulo_contorno = render_glitch_text_with_fallback("CONFIGURACOES GRAFICAS", fonte_titulo_tela, fonte_fallback_grafico, contorno_rosa)
             tela.blit(texto_titulo_contorno, (retangulo_titulo.left + dx, retangulo_titulo.top + dy))
 
         tela.blit(texto_titulo, retangulo_titulo)
@@ -2700,12 +2721,22 @@ def tela_configuracoes_graficas(tela, fonte):
                         return
 
         # Desenhar opÃ§Ãµes
-        y_inicial = altura_tela // 4
-        espacamento = 46
+        largura_painel = min(780, largura_tela - 100)
+        painel_esquerda = (largura_tela - largura_painel) // 2
+        painel_topo = 138
+        painel_base = altura_tela - 210
+        y_inicial = painel_topo + 14
+        if len(opcoes_config) > 1:
+            espacamento = min(42, max(34, (painel_base - y_inicial - 40) // (len(opcoes_config) - 1)))
+        else:
+            espacamento = 42
+        rect_lista = pygame.Rect(painel_esquerda, painel_topo, largura_painel, painel_base - painel_topo)
+        _desenhar_painel_translucido(tela, rect_lista)
 
         for i, opcao in enumerate(opcoes_config):
             y_pos = y_inicial + i * espacamento
-            rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 42)
+            rect_bg = pygame.Rect(painel_esquerda + 16, y_pos - 3, largura_painel - 32, 36)
+            rect_valor = pygame.Rect(rect_bg.right - 282, y_pos, 250, 30)
 
             # DetecÃ§Ã£o de hover e cliques do mouse
             if modo_interacao == "mouse" and rect_bg.collidepoint(mx, my):
@@ -2725,8 +2756,8 @@ def tela_configuracoes_graficas(tela, fonte):
                         indice_atual = valores.index(valor_atual)
 
                         # Verificar se o clique foi na seta esquerda ou direita
-                        rect_seta_esq = pygame.Rect(largura_tela // 2 + 15, y_pos + 4, 25, 34)
-                        rect_seta_dir = pygame.Rect(largura_tela // 2 + 225, y_pos + 4, 25, 34)
+                        rect_seta_esq = pygame.Rect(rect_valor.left, rect_valor.top, 38, rect_valor.height)
+                        rect_seta_dir = pygame.Rect(rect_valor.right - 38, rect_valor.top, 38, rect_valor.height)
 
                         if rect_seta_esq.collidepoint(mx, my):
                             novo_indice = (indice_atual - 1) % len(valores)
@@ -2749,7 +2780,7 @@ def tela_configuracoes_graficas(tela, fonte):
             texto_nome = fonte_opcao_tela.render(opcao["nome"], True, cor_nome)
             tela.blit(texto_nome, (largura_tela // 4, y_pos))
 
-            # Valor atual (se nÃ£o for "Voltar")
+            # Valor atual (se nao for "Voltar")
             if opcao["chave"] and opcao["chave"] != "__aplicar__":
                 valor_atual = config[opcao["chave"]]
                 indice_valor = opcao["valores"].index(valor_atual)
@@ -2761,10 +2792,17 @@ def tela_configuracoes_graficas(tela, fonte):
 
                 # Setas de navegaÃ§Ã£o se selecionado
                 if i == selecionado:
-                    seta_esq = fonte_valor_tela.render("<", True, (255, 255, 255))
-                    seta_dir = fonte_valor_tela.render(">", True, (255, 255, 255))
-                    tela.blit(seta_esq, (largura_tela // 2 + 20, y_pos + 4))
-                    tela.blit(seta_dir, (largura_tela // 2 + 230, y_pos + 4))
+                    cy_seta = y_pos + 14
+                    pygame.draw.polygon(tela, (235, 245, 255), [
+                        (largura_tela // 2 + 25, cy_seta - 6),
+                        (largura_tela // 2 + 17, cy_seta),
+                        (largura_tela // 2 + 25, cy_seta + 6),
+                    ])
+                    pygame.draw.polygon(tela, (235, 245, 255), [
+                        (largura_tela // 2 + 230, cy_seta - 6),
+                        (largura_tela // 2 + 238, cy_seta),
+                        (largura_tela // 2 + 230, cy_seta + 6),
+                    ])
 
         opt_sel = opcoes_config[selecionado]
         if opt_sel["chave"] is None:
@@ -3065,7 +3103,7 @@ def tela_configuracoes_jogabilidade(tela, fonte):
         config_jogabilidade = Variaveis.obter_config_jogabilidade(forcar_recarregar=True)
     except:
         loja_forcada = True
-        config_jogabilidade = {"fase_inicial": 1, "hub_vertical_inferior": False, "perfil_visualizacao": "desenvolvedor"}
+        config_jogabilidade = {"fase_inicial": 1, "modo_hud_habilidades": "inferior", "perfil_visualizacao": "desenvolvedor"}
     cheats_ativos = Caminhos.cheats_ativos()
     dev_ativo = Caminhos.modo_desenvolvedor_ativo()
 
@@ -3074,7 +3112,7 @@ def tela_configuracoes_jogabilidade(tela, fonte):
         "modo_teleporte": modo_teleporte,
         "loja_forcada": True,
         "fase_inicial": int(config_jogabilidade.get("fase_inicial", 1) or 1),
-        "hub_vertical_inferior": bool(config_jogabilidade.get("hub_vertical_inferior", False)),
+        "modo_hud_habilidades": str(config_jogabilidade.get("modo_hud_habilidades", "inferior")),
         "perfil_visualizacao": str(config_jogabilidade.get("perfil_visualizacao", "desenvolvedor") or "desenvolvedor"),
     }
     config["__aplicar__"] = "aplicar"
@@ -3083,7 +3121,7 @@ def tela_configuracoes_jogabilidade(tela, fonte):
     opcoes_config = [
         {"nome": "Tutorial", "chave": "mostrar_tutorial", "valores": [True, False], "labels": ["Ativado", "Desativado"]},
         {"nome": "Modo de Teleporte", "chave": "modo_teleporte", "valores": ["fixo", "mouse"], "labels": ["Fixo", "Mouse Target"]},
-        {"nome": "Hub Inferior", "chave": "hub_vertical_inferior", "valores": [False, True], "labels": ["Padrao", "Vertical"]},
+        {"nome": "HUD de Habilidades", "chave": "modo_hud_habilidades", "valores": ["inferior", "vertical", "dinamico"], "labels": ["Inferior", "Vertical", "Dinamico"]},
         {"nome": "Aplicar Alteracoes", "chave": "__aplicar__", "valores": None, "labels": None},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
     ]
@@ -3101,9 +3139,10 @@ def tela_configuracoes_jogabilidade(tela, fonte):
             "fixo": "Modo Fixo: Teleporta na direcao do movimento. Rapido e instantaneo.",
             "mouse": "Modo Mouse: Segure a tecla para mirar na posicao do cursor e solte para teleportar."
         },
-        "hub_vertical_inferior": {
-            False: "Mantem os dispositivos na barra inferior quando houver espaco.",
-            True: "Ao descer para o hub inferior, empilha os dispositivos no canto direito da tela."
+        "modo_hud_habilidades": {
+            "inferior": "Fixo na parte inferior; desaparece quando a personagem chega sobre ele.",
+            "vertical": "Fixo na lateral direita; desaparece quando a personagem chega sobre ele.",
+            "dinamico": "Fica embaixo e, ao descer, muda para a lateral; volta para baixo quando a personagem sobe."
         },
         "perfil_visualizacao": {
             "desenvolvedor": "Cheats ativos: mostra recursos de desenvolvedor e libera visualizacao completa.",
@@ -3123,9 +3162,19 @@ def tela_configuracoes_jogabilidade(tela, fonte):
     selecionado = 0
     modo_interacao = "teclado"
     clock = pygame.time.Clock()
-    fonte_titulo_tela = pygame.font.Font(caminho_fonte_titulo, 48)
-    fonte_opcao_tela = pygame.font.Font(caminho_fonte_letra1, 24)
-    fonte_valor_tela = pygame.font.Font(caminho_fonte_letras, 20)
+    tamanho_titulo = 40
+    while tamanho_titulo > 26:
+        fonte_titulo_tela = pygame.font.Font(caminho_fonte_titulo, tamanho_titulo)
+        fonte_fallback_titulo_tela = pygame.font.Font(caminho_fonte_letra1, tamanho_titulo)
+        teste_titulo = render_glitch_text_with_fallback(
+            "CONFIGURACOES DE JOGABILIDADE", fonte_titulo_tela,
+            fonte_fallback_titulo_tela, (0, 255, 204)
+        )
+        if teste_titulo.get_width() <= largura_tela - 120:
+            break
+        tamanho_titulo -= 2
+    fonte_opcao_tela = pygame.font.Font(caminho_fonte_letra1, 22)
+    fonte_valor_tela = pygame.font.Font(caminho_fonte_letras, 18)
     popup_aplicar = PopUpAplicar(largura_tela, altura_tela)
 
     def aplicar_config():
@@ -3141,7 +3190,8 @@ def tela_configuracoes_jogabilidade(tela, fonte):
             Variaveis.salvar_config_jogabilidade({
                 "loja_forcada": True,
                 "fase_inicial": config.get("fase_inicial", 1),
-                "hub_vertical_inferior": config.get("hub_vertical_inferior", False),
+                "modo_hud_habilidades": config.get("modo_hud_habilidades", "inferior"),
+                "hub_vertical_inferior": config.get("modo_hud_habilidades") == "dinamico",
                 "perfil_visualizacao": config.get("perfil_visualizacao", "desenvolvedor"),
             })
             Variaveis.obter_modo_teleporte(forcar_recarregar=True)
@@ -3180,19 +3230,23 @@ def tela_configuracoes_jogabilidade(tela, fonte):
 
         # Overlay
         overlay = pygame.Surface((largura_tela, altura_tela), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 185))
+        overlay.fill((0, 0, 0, 198))
         tela.blit(overlay, (0, 0))
 
-        texto_titulo = render_glitch_text_with_fallback("CONFIGURACOES DE JOGABILIDADE", fonte_titulo_tela, fonte_fallback_config, (0, 255, 204))
-        retangulo_titulo = texto_titulo.get_rect(center=(largura_tela // 2, altura_tela // 8))
+        texto_titulo = render_glitch_text_with_fallback("CONFIGURACOES DE JOGABILIDADE", fonte_titulo_tela, fonte_fallback_titulo_tela, (0, 255, 204))
+        retangulo_titulo = texto_titulo.get_rect(center=(largura_tela // 2, 78))
+        rect_cabecalho = pygame.Rect(60, 32, largura_tela - 120, 94)
+        _desenhar_painel_translucido(
+            tela, rect_cabecalho, (9, 6, 24, 210), (255, 25, 145, 75), 14
+        )
 
         # Sombra
-        texto_titulo_sombra = render_glitch_text_with_fallback("CONFIGURACOES DE JOGABILIDADE", fonte_titulo_tela, fonte_fallback_config, (15, 5, 25))
+        texto_titulo_sombra = render_glitch_text_with_fallback("CONFIGURACOES DE JOGABILIDADE", fonte_titulo_tela, fonte_fallback_titulo_tela, (15, 5, 25))
         tela.blit(texto_titulo_sombra, (retangulo_titulo.left + 4, retangulo_titulo.top + 4))
 
         # Contorno
         for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-            texto_titulo_contorno = render_glitch_text_with_fallback("CONFIGURACOES DE JOGABILIDADE", fonte_titulo_tela, fonte_fallback_config, contorno_rosa)
+            texto_titulo_contorno = render_glitch_text_with_fallback("CONFIGURACOES DE JOGABILIDADE", fonte_titulo_tela, fonte_fallback_titulo_tela, contorno_rosa)
             tela.blit(texto_titulo_contorno, (retangulo_titulo.left + dx, retangulo_titulo.top + dy))
 
         tela.blit(texto_titulo, retangulo_titulo)
@@ -3246,12 +3300,21 @@ def tela_configuracoes_jogabilidade(tela, fonte):
                         return
 
         # Desenhar opÃ§Ãµes
-        y_inicial = altura_tela // 3 + 20
-        espacamento = 70
+        largura_painel = min(780, largura_tela - 100)
+        painel_esquerda = (largura_tela - largura_painel) // 2
+        painel_topo = 158
+        y_desc = altura_tela - 142
+        painel_base = y_desc - 18
+        altura_util = painel_base - painel_topo - 38
+        espacamento = min(58, max(46, altura_util // max(1, len(opcoes_config))))
+        y_inicial = painel_topo + 24
+        rect_lista = pygame.Rect(painel_esquerda, painel_topo, largura_painel, painel_base - painel_topo)
+        _desenhar_painel_translucido(tela, rect_lista)
 
         for i, opcao in enumerate(opcoes_config):
             y_pos = y_inicial + i * espacamento
-            rect_bg = pygame.Rect(largura_tela // 4 - 20, y_pos - 8, largura_tela // 2 + 40, 48)
+            rect_bg = pygame.Rect(painel_esquerda + 16, y_pos - 5, largura_painel - 32, 42)
+            rect_valor = pygame.Rect(rect_bg.right - 282, y_pos - 1, 250, 34)
 
             # DetecÃ§Ã£o de hover e cliques do mouse
             if modo_interacao == "mouse" and rect_bg.collidepoint(mx, my):
@@ -3271,8 +3334,8 @@ def tela_configuracoes_jogabilidade(tela, fonte):
                         indice_atual = valores.index(valor_atual)
 
                         # Verificar se o clique foi na seta esquerda ou direita
-                        rect_seta_esq = pygame.Rect(largura_tela // 2 + 15, y_pos + 4, 25, 34)
-                        rect_seta_dir = pygame.Rect(largura_tela // 2 + 225, y_pos + 4, 25, 34)
+                        rect_seta_esq = pygame.Rect(rect_valor.left, rect_valor.top, 38, rect_valor.height)
+                        rect_seta_dir = pygame.Rect(rect_valor.right - 38, rect_valor.top, 38, rect_valor.height)
 
                         if rect_seta_esq.collidepoint(mx, my):
                             novo_indice = (indice_atual - 1) % len(valores)
@@ -3307,10 +3370,17 @@ def tela_configuracoes_jogabilidade(tela, fonte):
                 tela.blit(texto_valor, (largura_tela // 2 + 50, y_pos + 4))
 
                 if i == selecionado:
-                    seta_esq = fonte_valor_tela.render("<", True, (255, 255, 255))
-                    seta_dir = fonte_valor_tela.render(">", True, (255, 255, 255))
-                    tela.blit(seta_esq, (largura_tela // 2 + 20, y_pos + 4))
-                    tela.blit(seta_dir, (largura_tela // 2 + 230, y_pos + 4))
+                    cy_seta = y_pos + 15
+                    pygame.draw.polygon(tela, (235, 245, 255), [
+                        (largura_tela // 2 + 25, cy_seta - 7),
+                        (largura_tela // 2 + 16, cy_seta),
+                        (largura_tela // 2 + 25, cy_seta + 7),
+                    ])
+                    pygame.draw.polygon(tela, (235, 245, 255), [
+                        (largura_tela // 2 + 230, cy_seta - 7),
+                        (largura_tela // 2 + 239, cy_seta),
+                        (largura_tela // 2 + 230, cy_seta + 7),
+                    ])
 
         opt_sel = opcoes_config[selecionado]
         if opt_sel["chave"] is None:

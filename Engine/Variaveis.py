@@ -11,6 +11,8 @@ import math
 import os
 import json
 
+from deslocamento_inimigo import atualizar_deslocamento
+
 def carregar_config_graficos():
     try:
         with open("saves/config_graficos.json", "r") as f:
@@ -2595,18 +2597,59 @@ def _desenhar_luz_loja_disponivel(tela, rect):
 
 
 
-def hub_vertical_inferior_ativo(pos_personagem=None):
-    if pos_personagem is None:
-        return False
+MODOS_HUD_HABILIDADES = ("inferior", "vertical", "dinamico")
+
+
+def obter_modo_hud_habilidades():
+    """Retorna o layout do HUD e migra, em memoria, a antiga opcao booleana."""
     try:
         config_jogabilidade = obter_config_jogabilidade()
-        y_personagem = float(pos_personagem[1])
-        return bool(config_jogabilidade.get("hub_vertical_inferior")) and y_personagem >= altura_mapa * 0.68
+        modo = str(config_jogabilidade.get("modo_hud_habilidades", "")).lower()
+        if modo in MODOS_HUD_HABILIDADES:
+            return modo
+        return "dinamico" if config_jogabilidade.get("hub_vertical_inferior") else "inferior"
     except Exception:
+        return "inferior"
+
+
+def hub_vertical_inferior_ativo(pos_personagem=None):
+    modo = obter_modo_hud_habilidades()
+    if modo == "vertical":
+        return True
+    if modo != "dinamico" or pos_personagem is None:
+        return False
+    try:
+        return float(pos_personagem[1]) >= altura_mapa * 0.68
+    except (TypeError, ValueError, IndexError):
         return False
 
 
-def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None):
+def area_hud_habilidades_vertical():
+    x = max(8, largura_mapa - icone_tamanho[0] - 18)
+    y = max(92, int(altura_mapa * 0.30))
+    altura = 4 * icone_tamanho[1] + 3 * 12
+    return pygame.Rect(x, y, icone_tamanho[0], altura)
+
+
+def deve_desenhar_habilidades(pos_personagem=None, tamanho_personagem=None):
+    if pos_personagem is None or tamanho_personagem is None:
+        return True
+    try:
+        rect_personagem = pygame.Rect(
+            pos_personagem[0], pos_personagem[1], tamanho_personagem[0], tamanho_personagem[1]
+        )
+    except (TypeError, ValueError, IndexError):
+        return True
+
+    modo = obter_modo_hud_habilidades()
+    if modo == "dinamico":
+        return True
+    if modo == "vertical":
+        return not area_hud_habilidades_vertical().colliderect(rect_personagem)
+    return not area_icones.colliderect(rect_personagem)
+
+
+def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None, area_externa=None):
 
     if dispositivo_ativo == "teclado":
 
@@ -2649,15 +2692,28 @@ def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None
     
 
     num_hab = len(habilidades)
-    modo_vertical = hub_vertical_inferior_ativo(pos_personagem)
+    modo_faixa = area_externa is not None
+    modo_vertical = False if modo_faixa else hub_vertical_inferior_ativo(pos_personagem)
+    if modo_faixa:
+        area_externa = pygame.Rect(area_externa)
+        tamanho_icone_local = min(68, max(42, area_externa.height - 22))
+        espacamento_local = tamanho_icone_local + 18
+        centro_local = area_externa.centerx
+    else:
+        tamanho_icone_local = icone_tamanho[0]
+        espacamento_local = espacamento
+        centro_local = centro_tela
 
     for i, (nome, tecla, icone_pronto, icone_recarga, cooldown) in enumerate(habilidades):
 
-        if modo_vertical:
+        if modo_faixa:
+            x = centro_local - ((num_hab - 1) / 2.0 - i) * espacamento_local - tamanho_icone_local / 2
+            y = area_externa.y + area_externa.height - tamanho_icone_local - 6
+        elif modo_vertical:
             x = max(8, largura_mapa - icone_tamanho[0] - 18)
             y = max(92, int(altura_mapa * 0.30)) + i * (icone_tamanho[1] + 12)
         else:
-            x = centro_tela - ((num_hab - 1) / 2.0 - i) * espacamento
+            x = centro_local - ((num_hab - 1) / 2.0 - i) * espacamento_local
             y = altura_base
 
         
@@ -2692,6 +2748,8 @@ def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None
 
         # Desenhar o ícone
 
+        if modo_faixa:
+            icone = pygame.transform.smoothscale(icone, (tamanho_icone_local, tamanho_icone_local))
         tela.blit(icone, (x, y))
 
         
@@ -2702,9 +2760,10 @@ def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None
 
             # Desenhar overlay translúcido para indicar recarga
 
-            overlay = pygame.Surface(icone_tamanho, pygame.SRCALPHA)
+            tamanho_overlay = (tamanho_icone_local, tamanho_icone_local) if modo_faixa else icone_tamanho
+            overlay = pygame.Surface(tamanho_overlay, pygame.SRCALPHA)
 
-            pygame.draw.rect(overlay, (0, 0, 0, 160), (0, 0, icone_tamanho[0], icone_tamanho[1]), border_radius=15)
+            pygame.draw.rect(overlay, (0, 0, 0, 160), overlay.get_rect(), border_radius=12 if modo_faixa else 15)
 
             tela.blit(overlay, (x, y))
 
@@ -2712,7 +2771,7 @@ def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None
 
             # Desenhar texto com contorno e sombra de forma premium
 
-            fonte_cd = pygame.font.Font("Fonts/Outfit-Bold.ttf" if os.path.exists("Fonts/Outfit-Bold.ttf") else None, 26)
+            fonte_cd = pygame.font.Font("Fonts/Outfit-Bold.ttf" if os.path.exists("Fonts/Outfit-Bold.ttf") else None, 20 if modo_faixa else 26)
 
             texto_cd = f"{cooldown:.1f}s"
 
@@ -2728,9 +2787,9 @@ def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None
 
             
 
-            tx = x + (icone_tamanho[0] - texto_surf.get_width()) // 2
+            tx = x + (tamanho_icone_local - texto_surf.get_width()) // 2
 
-            ty = y + (icone_tamanho[1] - texto_surf.get_height()) // 2
+            ty = y + (tamanho_icone_local - texto_surf.get_height()) // 2
 
             
 
@@ -2760,9 +2819,17 @@ def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None
 
         # Desenhar a tecla acima do ícone com contorno
 
-        fonte = pygame.font.Font(None, 20)
+        fonte = pygame.font.Font(None, 18 if modo_faixa else 20)
 
-        render_texto_com_contorno(fonte, tecla.upper(), cor_texto, cor_contorno, x + icone_tamanho[0] // 10, y - 10, tela)
+        if modo_faixa:
+            texto_tecla = fonte.render(tecla.upper(), True, cor_texto)
+            render_texto_com_contorno(
+                fonte, tecla.upper(), cor_texto, cor_contorno,
+                x + (tamanho_icone_local - texto_tecla.get_width()) // 2,
+                area_externa.y + 3, tela, deslocamento=1,
+            )
+        else:
+            render_texto_com_contorno(fonte, tecla.upper(), cor_texto, cor_contorno, x + icone_tamanho[0] // 10, y - 10, tela)
 
 
 
@@ -3101,7 +3168,14 @@ def _prender_inimigos_apos_entrada(inimigos):
 
 def atualizar_movimento_inimigos(inimigos, pos_x_p, pos_y_p, direcao_j, vel_p, tempo_p, movendo_agora, larg_p=60, alt_p=90, fator_tempo=1.0, alvo_prioritario=None):
 
+    agora_movimento = pygame.time.get_ticks()
     for inimigo in inimigos:
+        # Empurroes e puxoes percorrem uma trajetoria propria. Enquanto ela esta
+        # ativa (incluindo a pausa de chegada), a perseguicao normal nao disputa
+        # a posicao do inimigo.
+        if atualizar_deslocamento(inimigo, agora_movimento):
+            continue
+
         _prender_inimigo_apos_entrada(inimigo)
 
         # Se o inimigo estiver stunado pela onda cinética, nao se move
@@ -3162,6 +3236,11 @@ def atualizar_movimento_inimigos(inimigos, pos_x_p, pos_y_p, direcao_j, vel_p, t
             # 1. Movimentacao suave com sub-pixel precision
 
             vel_atual = inimigo.get("velocidade", Velocidade_Inimigos_1)
+            agora_movimento = pygame.time.get_ticks()
+            if agora_movimento < int(inimigo.get("ruptura_raiz_fim", 0)):
+                vel_atual = 0.0
+            elif agora_movimento < int(inimigo.get("ruptura_lento_fim", 0)):
+                vel_atual *= 0.55
             import condutora_manifestacao
             vel_atual *= condutora_manifestacao.obter_fator_lentidao_inimigo(inimigo, (pos_x_p, pos_y_p))
 
@@ -3887,6 +3966,7 @@ _cached_modo_teleporte = None
 CONFIG_JOGABILIDADE_PADRAO = {
     "loja_forcada": True,
     "fase_inicial": 1,
+    "modo_hud_habilidades": "inferior",
     "hub_vertical_inferior": False,
     "perfil_visualizacao": "desenvolvedor",
 }
@@ -3930,6 +4010,9 @@ def obter_config_jogabilidade(forcar_recarregar=False):
                 if isinstance(dados, dict):
 
                     config.update({k: dados[k] for k in CONFIG_JOGABILIDADE_PADRAO if k in dados})
+
+                    if "modo_hud_habilidades" not in dados and dados.get("hub_vertical_inferior"):
+                        config["modo_hud_habilidades"] = "dinamico"
 
         except:
 
@@ -5150,6 +5233,10 @@ historico_rewind = []
 
 snapshot_para_carregar = None
 
+# A fase 1 usa atributos.json como ponte entre fases, mas uma partida nova
+# precisa nascer dos valores padrao definidos em reset_game_session().
+ignorar_atributos_transicao = False
+
 ultimo_registro_tempo = 0
 
 tentativas_rewind = 0
@@ -5426,10 +5513,16 @@ def reset_game_session():
     global esferas_energia_umbra, ondas, correntes_eletricas, eliminacoes_consecutivas, bonus_pontuacao
 
     global pos_x_personagem, pos_y_personagem, trauma_umbra_acumulado
+    global ignorar_atributos_transicao
 
 
 
     import time
+
+    # Impede somente a primeira leitura da ponte entre fases. Nao apagamos o
+    # arquivo: ele ainda e necessario para transicoes e continua disponivel
+    # para o rewind, que nao passa por este reset.
+    ignorar_atributos_transicao = True
 
     
 
@@ -5646,6 +5739,9 @@ def reset_phase_state():
     global r_press, iniciar_boss, boss_vivo1, boss_morte_processada, Boss_vivo3, player_hemorragia_ativa, player_em_chamas
 
     global esferas_energia_umbra, ondas, correntes_eletricas, moedas_soltadas, pos_x_personagem, pos_y_personagem
+    global cooldown_dash, tempo_ultimo_dash, tempo_ultimo_uso_habilidade, tempo_ultimo_disparo
+    global tempo_ultima_regeneracao, tempo_ultimo_hit_inimigo, imune_tempo_restante, teleportado
+    global movimento_pressionado, personagem_imovel, em_ataque_especial
 
     
 
@@ -5670,6 +5766,22 @@ def reset_phase_state():
     correntes_eletricas = []
 
     moedas_soltadas = []
+
+    # Estados efemeros do jogador nao atravessam a ruptura. As fases importam
+    # estes valores logo depois deste reset, evitando timestamps antigos e
+    # cooldowns indefinidos no primeiro frame da arena seguinte.
+    agora = pygame.time.get_ticks()
+    cooldown_dash = False
+    tempo_ultimo_dash = agora - max(0, int(tempo_cooldown_dash))
+    tempo_ultimo_uso_habilidade = agora - max(0, int(cooldown_habilidade))
+    tempo_ultimo_disparo = agora - max(1, int(intervalo_disparo))
+    tempo_ultima_regeneracao = agora
+    tempo_ultimo_hit_inimigo = 0
+    imune_tempo_restante = 0
+    teleportado = False
+    movimento_pressionado = False
+    personagem_imovel = False
+    em_ataque_especial = False
 
     
 
@@ -6023,19 +6135,22 @@ def desenhar_overlay_vida_critica(tela, vida_atual, vida_maxima_atual, tempo_atu
 
 # --- CONSTANTES MINIBOSS CONDUTOR DE ECOS ---
 MINIBOSS_CONDUTOR_ENTRADA_MS = 2500
-MINIBOSS_CONDUTOR_ECOS_INICIAIS = 3
-MINIBOSS_CONDUTOR_TEMPO_SEG = 300
-MINIBOSS_CONDUTOR_KILLS = 150
+MINIBOSS_CONDUTOR_ECOS_INICIAIS = 2
+MINIBOSS_CONDUTOR_TEMPO_SEG = 8 * 60
 MINIBOSS_CONDUTOR_REDUCAO_POR_ECO = 0.20
-MINIBOSS_CONDUTOR_RENOVACOES_ECOS = 3
-MINIBOSS_CONDUTOR_RENOVAR_ECOS_COOLDOWN = 12000
-MINIBOSS_CONDUTOR_PULSO_COOLDOWN = 4500
-MINIBOSS_CONDUTOR_DISPARO_COOLDOWN = 2000
-MINIBOSS_CONDUTOR_ESPELHO_COOLDOWN = 15000
-MINIBOSS_CONDUTOR_PRISAO_COOLDOWN = 10000
+MINIBOSS_CONDUTOR_DISPARO_COOLDOWN = 2300
+MINIBOSS_CONDUTOR_OLHAR_COOLDOWN = 8500
+MINIBOSS_CONDUTOR_OLHAR_CARGA_MS = 1350
+MINIBOSS_CONDUTOR_VELOCIDADE = 1.45
+MINIBOSS_CONDUTOR_DISTANCIA_MIN = 230
+MINIBOSS_CONDUTOR_DISTANCIA_MAX = 390
 
 try:
-    frames_condutor = [pygame.transform.scale(pygame.image.load("Sprites/condutor.png").convert_alpha(), (int(largura_inimigo * 1.5), int(altura_inimigo * 1.5)))]
-except:
-    frames_condutor = frames_inimigo
+    tamanho_arauto = (int(largura_inimigo * 1.5), int(altura_inimigo * 1.5))
+    frames_condutor = carregar_frames_especie_inimigo("arauto", tamanho_arauto)
+except (pygame.error, FileNotFoundError):
+    frames_condutor = [
+        pygame.transform.scale(frame, (int(largura_inimigo * 1.5), int(altura_inimigo * 1.5)))
+        for frame in frames_inimigo
+    ]
 
