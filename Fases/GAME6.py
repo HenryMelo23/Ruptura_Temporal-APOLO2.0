@@ -19,6 +19,7 @@ import gravitante_manifestacao
 import ancorada_manifestacao
 import boss_manifestacao_effects
 import teleporte_manifestacao
+import ultimate_manifestacao
 from dados_manifestacoes import registrar_conclusao_fase
 from build_runtime import fase_disponivel
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
@@ -609,6 +610,10 @@ def atualizar_posicao_personagem(keys, joystick):
     # Se o personagem estiver imóvel, não atualize a posição
     if personagem_imovel:
         return
+    if ultimate_manifestacao.jogador_bloqueado(pygame.time.get_ticks()):
+        movimento_pressionado = False
+        direcao_atual = 'stop'
+        return
 
     direcao_atual = 'stop'
     dx, dy = 0, 0
@@ -952,6 +957,8 @@ def desenhar_area_sarcas(tela, area, tempo_atual):
 def desenhar_sombra(tela, x, y, largura, altura, offset_y=5):
     """Desenha uma sombra elíptica embaixo de um ser com três níveis de qualidade"""
     modo_sombra = config_graficos.get("sombras_ativas", "dinamicas")
+    Variaveis.desenhar_sombra_cacheada(tela, x, y, largura, altura, modo_sombra, offset_y)
+    return
     
     if modo_sombra == "desativadas":
         return
@@ -1494,11 +1501,12 @@ def executar_jogo(game_manager=None):
             joystick = None
 
         running = True
+        custo_carta_atual = custo_base_carta + (sum(cartas_compradas.values()) * custo_por_carta)
         while running:
             tempo_atual = pygame.time.get_ticks()
 
             # Registrar snapshot para o sistema de rewind
-            if vida > 0:
+            if vida > 0 and Variaveis.deve_registrar_snapshot(tempo_atual):
                 snapshot_attrs = {
                     "velocidade_personagem": velocidade_personagem,
                     "intervalo_disparo": intervalo_disparo,
@@ -1671,6 +1679,22 @@ def executar_jogo(game_manager=None):
                             retomar_cronometro()
                             pygame.event.set_grab(True)  # Travar mouse de novo
                             pygame.mouse.set_visible(False)  # Esconder cursor do sistema
+                elif ultimate_manifestacao.acionamento_por_evento(event, joystick) and ultimate_manifestacao.disponivel(tempo_atual):
+                        pos_mouse = obter_pos_mouse_jogo()
+                        px_centro = pos_x_personagem + largura_personagem // 2
+                        py_centro = pos_y_personagem + altura_personagem // 2
+                        ondas.append(ultimate_manifestacao.criar_ultimate(
+                            manifestacao_ativa, px_centro, py_centro, pos_mouse, tempo_atual,
+                            dano_person_hit * fator_dano_aureas(tempo_atual), largura_mapa, altura_mapa, intervalo_disparo
+                        ))
+                        ultimate_manifestacao.registrar_uso(tempo_atual)
+                        efeitos_texto.append({
+                            "texto": ultimate_manifestacao.nome_ultimate(manifestacao_ativa).upper(),
+                            "x": px_centro - 80,
+                            "y": py_centro - 72,
+                            "tempo_inicio": tempo_atual,
+                            "cor": (255, 240, 120),
+                        })
                 elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) * parasitica_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * condutora_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa):
                         pos_mouse = obter_pos_mouse_jogo()
                         px_centro = pos_x_personagem + largura_personagem // 2
@@ -1833,13 +1857,17 @@ def executar_jogo(game_manager=None):
 
             # --- PARTÍCULAS DE VENENO PINGANDO ---
             Variaveis.atualizar_e_desenhar_particulas_veneno(tela, inimigos_comum, config_graficos)
+            grade_disparos_colisao = Variaveis.construir_grade_disparos(disparos) if len(disparos) >= 12 else None
             for inimigo in inimigos_comum:
                 inimigo_rect = inimigo["rect"]
                 inimigo_image = inimigo["image"]
 
                 inimigo_atingido = False
 
-                for disparo in disparos:
+                disparos_candidatos = Variaveis.consultar_disparos_proximos(grade_disparos_colisao, inimigo_rect) or disparos
+                for disparo in disparos_candidatos:
+                    if disparo.get("_removido_colisao"):
+                        continue
 
                     if (
                         retornante_manifestacao.colisao_alvo(disparo, inimigo)
@@ -2179,32 +2207,33 @@ def executar_jogo(game_manager=None):
 
             # Desenha a personagem
             # Desenhar sombra do personagem
-            desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-            if not personagem_imovel:
-                frames_local = multiplayer_coop.frames_jogador_local(frames_animacao, frames_animacao2)
-                if direcao_atual == 'disp' and lacerante_manifestacao.ativa(manifestacao_ativa):
-                    estagio = lacerante_manifestacao.obter_proximo_estagio()
-                    idx = estagio * 2 + (frame_atual % 2)
-                    if idx < len(Variaveis.frames_lacerar):
-                        frame_para_desenhar = Variaveis.frames_lacerar[idx]
+            if not ultimate_manifestacao.jogador_oculto(tempo_atual):
+                desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+                if not personagem_imovel:
+                    frames_local = multiplayer_coop.frames_jogador_local(frames_animacao, frames_animacao2)
+                    if direcao_atual == 'disp' and lacerante_manifestacao.ativa(manifestacao_ativa):
+                        estagio = lacerante_manifestacao.obter_proximo_estagio()
+                        idx = estagio * 2 + (frame_atual % 2)
+                        if idx < len(Variaveis.frames_lacerar):
+                            frame_para_desenhar = Variaveis.frames_lacerar[idx]
+                        else:
+                            frame_para_desenhar = frames_local[direcao_atual][frame_atual % len(frames_local[direcao_atual])]
                     else:
                         frame_para_desenhar = frames_local[direcao_atual][frame_atual % len(frames_local[direcao_atual])]
+                    if direcao_atual == 'disp' and math.cos(angulo_disparo_preparado) < 0:
+                        frame_para_desenhar = pygame.transform.flip(frame_para_desenhar, True, False)
+                    if angulo_inclinacao_personagem != 0:
+                        # Rotaciona o frame pelo centro para manter o eixo
+                        frame_rotacionado = pygame.transform.rotate(frame_para_desenhar, angulo_inclinacao_personagem)
+                        novo_rect = frame_rotacionado.get_rect(center=(pos_x_personagem + largura_personagem//2, pos_y_personagem + altura_personagem//2))
+                        desenhar_personagem_com_dano(tela, frame_rotacionado, novo_rect.x, novo_rect.y, tempo_atual, tempo_ultimo_hit_inimigo)
+                    else:
+                        w_f, h_f = frame_para_desenhar.get_size()
+                        bx = pos_x_personagem + (largura_personagem - w_f) // 2
+                        by = pos_y_personagem + (altura_personagem - h_f)
+                        desenhar_personagem_com_dano(tela, frame_para_desenhar, bx, by, tempo_atual, tempo_ultimo_hit_inimigo)
                 else:
-                    frame_para_desenhar = frames_local[direcao_atual][frame_atual % len(frames_local[direcao_atual])]
-                if direcao_atual == 'disp' and math.cos(angulo_disparo_preparado) < 0:
-                    frame_para_desenhar = pygame.transform.flip(frame_para_desenhar, True, False)
-                if angulo_inclinacao_personagem != 0:
-                    # Rotaciona o frame pelo centro para manter o eixo
-                    frame_rotacionado = pygame.transform.rotate(frame_para_desenhar, angulo_inclinacao_personagem)
-                    novo_rect = frame_rotacionado.get_rect(center=(pos_x_personagem + largura_personagem//2, pos_y_personagem + altura_personagem//2))
-                    desenhar_personagem_com_dano(tela, frame_rotacionado, novo_rect.x, novo_rect.y, tempo_atual, tempo_ultimo_hit_inimigo)
-                else:
-                    w_f, h_f = frame_para_desenhar.get_size()
-                    bx = pos_x_personagem + (largura_personagem - w_f) // 2
-                    by = pos_y_personagem + (altura_personagem - h_f)
-                    desenhar_personagem_com_dano(tela, frame_para_desenhar, bx, by, tempo_atual, tempo_ultimo_hit_inimigo)
-            else:
-                desenhar_personagem_com_dano(tela, imagem_personagem_congelada, pos_x_personagem, pos_y_personagem, tempo_atual, tempo_ultimo_hit_inimigo)
+                    desenhar_personagem_com_dano(tela, imagem_personagem_congelada, pos_x_personagem, pos_y_personagem, tempo_atual, tempo_ultimo_hit_inimigo)
 
             insana_aurea.desenhar_insana(
                 tela, estado_insana, aurea, tempo_atual,
@@ -2488,7 +2517,8 @@ def executar_jogo(game_manager=None):
                 "hit_flag": False
             }
             inimigos_mortos_neste_frame = processar_habilidade_onda(
-                ondas, correntes_eletricas, inimigos_comum, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda, disparos, config_graficos
+                ondas, correntes_eletricas, inimigos_comum, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda, disparos, config_graficos,
+                player_center=(pos_x_personagem + largura_personagem // 2, pos_y_personagem + altura_personagem // 2)
             )
             if boss_info.get("hit_flag"):
                 dano_onda_boss = boss_info.get("dano_manifestacao", dano_person_hit * fator_dano_aureas(tempo_atual) * 3)
@@ -2517,7 +2547,7 @@ def executar_jogo(game_manager=None):
                         sys.exit()
 
             # Atualizar e desenhar correntes elétricas
-            inimigos_mortos_correntes = atualizar_e_desenhar_correntes(tela, correntes_eletricas, inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual))
+            inimigos_mortos_correntes = atualizar_e_desenhar_correntes(tela, correntes_eletricas, inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), config_graficos)
             inimigos_mortos_laceracao = lacerante_manifestacao.atualizar_laceracoes(inimigos_comum, tempo_atual, efeitos_texto)
             jogador_rect_parasitica = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
             inimigos_mortos_parasitica = parasitica_manifestacao.atualizar_sementes(
@@ -3364,20 +3394,12 @@ def executar_jogo(game_manager=None):
 
             total_cartas_compradas = sum(cartas_compradas.values())
             custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
-            # Verifica se a pontuação atingiu o custo e se o jogador pressionou o botão da loja
+            # A chave coletada é o novo gatilho da loja: sem botão, sem chamado manual.
             modo_loja_normal = Variaveis.obter_modo_cartas() != "drops"
-            abrir_loja_manual = modo_loja_normal and (Variaveis.verificar_input("Comprar na loja") or (joystick and joystick.get_button(3)))
-            if abrir_loja_manual and multiplayer_coop.modo_multiplayer():
-                if pontuacao_exib >= custo_carta_atual:
-                    multiplayer_coop.solicitar_acao("loja", 4)
-                abrir_loja_manual = False
-            if multiplayer_coop.acao_confirmada("loja", 4):
-                abrir_loja_manual = True
+            abrir_loja_manual = modo_loja_normal and Variaveis.tem_chave_loja() and pontuacao_exib >= custo_carta_atual
             if abrir_loja_manual:
                 Variaveis.cancelar_aviso_loja_forcada()
-            if modo_loja_normal:
-                Variaveis.tentar_ativar_larapio_normal(pontuacao_exib, custo_carta_atual, tempo_atual, efeitos_texto)
-            if (pontuacao_exib >= custo_carta_atual) and abrir_loja_manual:
+                Variaveis.consumir_chave_loja()
                 # Calcula quantas cartas o jogador pode comprar com o custo progressivo
                 max_cartas = 0
                 total_custo = 0
@@ -3446,7 +3468,7 @@ def executar_jogo(game_manager=None):
                 "disparo": max(0.0, (intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual) - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
                 "teleporte": max(0.0, (cooldown_teleporte_vanguarda(tempo_cooldown_dash, aurea, inimigos_comum, inimigos_em_chamas, duracao_incendio_vanguarda, tempo_atual) - (pygame.time.get_ticks() - tempo_ultimo_dash)) / 1000.0),
                 "onda": max(0.0, (cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) * parasitica_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * condutora_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
-                "loja": 1 if pontuacao_exib >= custo_carta_atual else 0, 
+                "ultimate": ultimate_manifestacao.restante_ms(tempo_atual) / 1000.0,
             }
 
             if False: # Desativado pois o HUD agora é widescreen desenhado nas bordas
@@ -3606,6 +3628,8 @@ def executar_jogo(game_manager=None):
                 tela.blit(moeda["image"], moeda["rect"])
 
             # --- SISTEMA DE CARTAS DROP ---
+            vida = Variaveis.aplicar_regen_passivo_base(vida, vida_maxima, tempo_atual, "fase6")
+            Variaveis.atualizar_e_coletar_chaves_loja(tela, tempo_atual, personagem_rect, efeitos_texto)
             if Variaveis.obter_modo_cartas() == "drops":
                 Variaveis.tentar_ativar_larapio_hard(pontuacao_exib, custo_carta_atual, tempo_atual, efeitos_texto)
                 Variaveis.atualizar_e_desenhar_cartas_no_chao(tela, tempo_atual)
@@ -3667,7 +3691,8 @@ def executar_jogo(game_manager=None):
                 pontuacao_magia, cooldowns, dispositivo_ativo,
                 eliminacoes_consecutivas, bonus_pontuacao, aurea,
                 escudo_devota_ativo, pos_x_personagem, pos_y_personagem,
-                largura_personagem, altura_personagem
+                largura_personagem, altura_personagem,
+                fps_atual=FPS.get_fps()
             )
             voraz_aurea.desenhar_voraz(tela, estado_voraz, aurea, tempo_atual, largura_tela, config_graficos, player_pos=(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
 
@@ -3689,7 +3714,7 @@ def executar_jogo(game_manager=None):
             )
             multiplayer_coop.desenhar_diagnostico(tela, fonte)
             pygame.display.flip()
-            dt_ms = FPS.tick(config_graficos.get("fps_limite", 60))  # Limita a taxa de quadros conforme configuração
+            dt_ms = FPS.tick(Variaveis.obter_limite_fps(config_graficos))  # Limita a taxa de quadros conforme configuração
             dt = max(0.05, min(3.0, dt_ms / 16.666667))
             dt *= condutora_manifestacao.fator_tempo_registrador(manifestacao_ativa, tempo_atual)
             Variaveis.dt = dt

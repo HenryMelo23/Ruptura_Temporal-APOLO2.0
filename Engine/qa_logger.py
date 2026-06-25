@@ -107,6 +107,7 @@ def instalar_filtro_prints():
     _prints_filtrados = True
 
     def print_filtrado(*args, **kwargs):
+        _print_original(*args, **kwargs)
         texto = " ".join(str(arg) for arg in args)
         if any(termo in texto.lower() for termo in _TERMOS_ERRO):
             registrar_erro(f"print filtrado: {texto}")

@@ -18,6 +18,7 @@ import ancorada_manifestacao
 import boss_manifestacao_effects
 import teleporte_manifestacao
 import evolucoes_manifestacao
+import ultimate_manifestacao
 from estado_jogador_fases import carregar_estado_jogador, salvar_estado_jogador
 from dados_manifestacoes import registrar_conclusao_fase
 from qa_logger import instalar_captura_global, instalar_filtro_prints, registrar_erro
@@ -104,8 +105,10 @@ LARAPIO_TEMPO_PREPARO_ATAQUE = 1000
 LARAPIO_TEMPO_FUGA = 6500
 LARAPIO_INTERVALO_ANIMACAO_FUGA = 80
 LARAPIO_INTERVALO_ANIMACAO = 120
-LARAPIO_COOLDOWN_SPAWN_MS = 90000
+LARAPIO_COOLDOWN_SPAWN_MS = 120000
 LARAPIO_FATOR_RIQUEZA_MAX = 2.5
+LARAPIO_ARREMESSO_MIN_MS = 6500
+LARAPIO_ARREMESSO_MAX_MS = 8000
 custo_carta_atual = 100
 
 # Forward declarations (atribuídos no loop principal)
@@ -666,7 +669,18 @@ def executar_jogo(game_manager=None):
             orientacao_base = orientacao_base_sprite_inimigo.get(tipo, "left")
             direcao_alvo = direcao_horizontal_inimigo(inimigo)
             if direcao_alvo != orientacao_base:
-                return pygame.transform.flip(sprite, True, False)
+                cache = getattr(orientar_sprite_inimigo, "_cache", None)
+                if cache is None:
+                    cache = {}
+                    orientar_sprite_inimigo._cache = cache
+                chave = id(sprite)
+                sprite_flipado = cache.get(chave)
+                if sprite_flipado is None:
+                    if len(cache) > 128:
+                        cache.clear()
+                    sprite_flipado = pygame.transform.flip(sprite, True, False)
+                    cache[chave] = sprite_flipado
+                return sprite_flipado
             return sprite
 
         def perfil_espreitador():
@@ -797,6 +811,9 @@ def executar_jogo(game_manager=None):
             if inimigo.get("tipo") == TIPO_LARAPIO:
                 tempo_ultimo_spawn_larapio = pygame.time.get_ticks()
                 pontos_devolvidos = soltar_pontos_larapio(posicao_inimigo, inimigo.get("dinheiro_roubado", 0))
+                pontos_devolvidos += soltar_pontos_larapio(posicao_inimigo, int(custo_carta_atual * 2.0), multiplicador=1.0)
+                if inimigo.get("possui_chave_loja"):
+                    Variaveis.soltar_chave_do_larapio(posicao_inimigo, tempo_atual)
                 if pontos_devolvidos > 0:
                     efeitos_texto.append({
                         "texto": f"{pontos_devolvidos} PONTOS RECUPERAVEIS",
@@ -963,6 +980,10 @@ def executar_jogo(game_manager=None):
             nonlocal vida_inimigo_maxima, fator_lentidao_boss
 
             tempo_atual = pygame.time.get_ticks()
+            if ultimate_manifestacao.jogador_bloqueado(tempo_atual):
+                movimento_pressionado = False
+                direcao_atual = 'stop'
+                return 'stop'
             if tempo_atual < tempo_stun_jogador_fim:
                 # Jogador atordoado (stun) - não aceita comandos, mas sofre knockback
                 if knockback_x != 0 or knockback_y != 0:
@@ -1382,7 +1403,8 @@ def executar_jogo(game_manager=None):
                     "inicio_fuga": 0,
                     "tempo_fuga": LARAPIO_TEMPO_FUGA,
                     "ultimo_ataque": 0,
-                    "cooldown_ataque": 1200,
+                    "cooldown_ataque": 2600,
+                    "pausa_arremesso_stun_ms": None,
                     "inicio_preparo_ataque": 0,
                     "frame_atual": 0,
                     "ultimo_frame": agora_larapio,
@@ -1400,6 +1422,8 @@ def executar_jogo(game_manager=None):
         def desenhar_sombra(tela, x, y, largura, altura, offset_y=5):
             """Desenha uma sombra elíptica embaixo de um ser com três níveis de qualidade"""
             modo_sombra = config_graficos.get("sombras_ativas", "dinamicas")
+            Variaveis.desenhar_sombra_cacheada(tela, x, y, largura, altura, modo_sombra, offset_y)
+            return
 
             if modo_sombra == "desativadas":
                 return
@@ -1627,8 +1651,8 @@ def executar_jogo(game_manager=None):
                     "image": sprite_redimensionada
                 })
 
-        def soltar_pontos_larapio(posicao, quantidade_roubada):
-            pontos_devolvidos = int(quantidade_roubada * 0.90)
+        def soltar_pontos_larapio(posicao, quantidade_roubada, multiplicador=1.25):
+            pontos_devolvidos = int(quantidade_roubada * multiplicador)
             if quantidade_roubada > 0:
                 pontos_devolvidos = max(1, pontos_devolvidos)
             if pontos_devolvidos <= 0:
@@ -1886,7 +1910,7 @@ def executar_jogo(game_manager=None):
 
         def executar_ataque_larapio(inimigo):
             nonlocal tempo_ultimo_hit_inimigo, piscando_vida
-            global vida, pontuacao, pontuacao_exib, pontuacao_magia, imune_tempo_restante
+            global vida, pontuacao, pontuacao_exib, pontuacao_magia, imune_tempo_restante, tempo_stun_jogador_fim
             global eliminacoes_consecutivas, eliminacoes_consecutivas_impulsiva, bonus_pontuacao
             tempo_atual = pygame.time.get_ticks()
 
@@ -1898,90 +1922,33 @@ def executar_jogo(game_manager=None):
                 inimigo["estado"] = "cacando"
                 return
 
-            bonus = bonus_larapio(inimigo)
-            fator_riqueza = min(
-                LARAPIO_FATOR_RIQUEZA_MAX,
-                1.0 + (pontuacao_exib / max(100.0, float(custo_carta_atual))),
-            )
-            dano_base = int(((vida_maxima * 0.04) + dano_inimigo_perto) * 0.8 * (1 + bonus["dano"]) * fator_riqueza)
-            dano_base = dano_inimigo_inicio_ajustado(max(1, dano_base))
-
             if absorver_dano_devota_atual():
                 inimigo["estado"] = "cacando"
                 return
 
-            inimigo["ir_direto_roubar"] = False
-
-            if pontuacao_exib < 150:
-                global tempo_stun_jogador_fim
-                tempo_stun_jogador_fim = tempo_atual + 2000
-                dano_especial = limitar_dano_larapio(int(vida_maxima * 0.10), vida, vida_maxima)
-                vida -= dano_especial
-                imune_tempo_restante = max(imune_tempo_restante, 500)
-                tempo_ultimo_hit_inimigo = tempo_atual
-                piscando_vida = True
-                Dano_person.play()
-                
-                efeitos_texto.append({
-                    "texto": f"ATURDIDO! -{dano_especial} HP",
-                    "x": pos_x_personagem - 18,
-                    "y": pos_y_personagem - 34,
-                    "tempo_inicio": tempo_atual,
-                    "cor": (255, 60, 60),
-                })
-                
-                inimigo["ultimo_ataque"] = tempo_atual
-                inimigo["estado"] = "fugindo"
-                inimigo["inicio_fuga"] = tempo_atual
-                return
-
-            dano_final = max(0, dano_base - int(Resistencia))
-            dano_final = limitar_dano_larapio(dano_final, vida, vida_maxima)
-            if dano_final > 0:
-                vida -= dano_final
-                imune_tempo_restante = max(imune_tempo_restante, 500)
-                if aurea == "Impulsiva":
-                    eliminacoes_consecutivas_impulsiva = 0
-                eliminacoes_consecutivas = 0
-                bonus_pontuacao = 0
-                tempo_ultimo_hit_inimigo = tempo_atual
-                piscando_vida = True
-                Dano_person.play()
-
-            limiar_pontos = float(custo_carta_atual) * 3.0
-            if pontuacao_exib >= limiar_pontos:
-                fator_riqueza = pontuacao_exib / max(1.0, limiar_pontos)
-                porcentagem_roubo = min(0.50, 0.15 + 0.10 * (fator_riqueza - 1.0))
+            # Sem saque, o Larapio apenas importuna: investida curta, dano
+            # controlado e chance de atordoar. Ele nao remove mais pontos aqui.
+            dano_incomodo = limitar_dano_larapio(
+                dano_inimigo_inicio_ajustado(max(1, int(vida_maxima * 0.06) + int(dano_inimigo_perto * 0.35))),
+                vida, vida_maxima,
+            )
+            vida -= dano_incomodo
+            imune_tempo_restante = max(imune_tempo_restante, 500)
+            tempo_ultimo_hit_inimigo = tempo_atual
+            piscando_vida = True
+            if random.random() < 0.45:
+                tempo_stun_jogador_fim = max(tempo_stun_jogador_fim, tempo_atual + 2000)
+                texto_incomodo = f"INVESTIDA! -{dano_incomodo} | STUN"
             else:
-                porcentagem_roubo = 0.15
-
-            quantia_roubada = int(pontuacao_exib * porcentagem_roubo)
-            quantia_roubada = max(1, quantia_roubada)
-            quantia_roubada = min(quantia_roubada, pontuacao_exib)
-            pontuacao_exib = max(0, pontuacao_exib - quantia_roubada)
-            pontuacao = max(0, pontuacao - quantia_roubada)
-            pontuacao_magia = max(0, pontuacao_magia - quantia_roubada)
-            inimigo["dinheiro_roubado"] += quantia_roubada
-            inimigo["poder_saque"] += quantia_roubada
-            inimigo["roubos_realizados"] += 1
-            inimigo["ultimo_roubo"] = tempo_atual
-            inimigo["roubou_pontos"] = True
+                texto_incomodo = f"INVESTIDA! -{dano_incomodo}"
             efeitos_texto.append({
-                "texto": f"-{quantia_roubada} PONTOS",
+                "texto": texto_incomodo,
                 "x": pos_x_personagem - 18,
                 "y": pos_y_personagem - 34,
                 "tempo_inicio": tempo_atual,
-                "cor": (255, 210, 55),
+                "cor": (255, 105, 70),
             })
-            efeitos_texto.append({
-                "texto": f"+{quantia_roubada}",
-                "x": inimigo["rect"].x,
-                "y": inimigo["rect"].y - 28,
-                "tempo_inicio": tempo_atual,
-                "cor": (255, 235, 110),
-            })
-            gerar_brilhos_roubo_larapio(centro_jogador, centro_larapio)
-
+            inimigo["ultimo_ataque"] = tempo_atual
             inimigo["estado"] = "fugindo"
             inimigo["inicio_fuga"] = tempo_atual
 
@@ -1994,9 +1961,14 @@ def executar_jogo(game_manager=None):
                 return
 
             modo_dificil = (Variaveis.obter_modo_cartas() == "drops")
+            Variaveis.larapio_tentar_roubar_chave(inimigo, tempo_atual)
 
             # Lógica do Portal de Fuga
-            coletou = (inimigo.get("dinheiro_roubado", 0) > 0 or len(inimigo.setdefault("cartas_roubadas_larapio", [])) > 0)
+            coletou = (
+                inimigo.get("dinheiro_roubado", 0) > 0
+                or len(inimigo.setdefault("cartas_roubadas_larapio", [])) > 0
+                or inimigo.get("possui_chave_loja", False)
+            )
             menos_70_vida = (inimigo["vida"] < inimigo["vida_maxima"] * 0.7)
             
             if coletou and menos_70_vida:
@@ -2056,7 +2028,10 @@ def executar_jogo(game_manager=None):
 
             # Lógica de arremesso de moedas atordoadoras / pedras
             if "proximo_tempo_moeda_arremessar" not in inimigo:
-                inimigo["proximo_tempo_moeda_arremessar"] = tempo_atual + random.randint(1500, 3000)
+                inimigo["proximo_tempo_moeda_arremessar"] = tempo_atual + random.randint(
+                    LARAPIO_ARREMESSO_MIN_MS,
+                    LARAPIO_ARREMESSO_MAX_MS,
+                )
 
             possui_cartas_bolsa = len(inimigo.setdefault("cartas_roubadas_larapio", [])) > 0
             pode_arremessar = False
@@ -2067,11 +2042,24 @@ def executar_jogo(game_manager=None):
                     pode_arremessar = True
             else:
                 estado_atual = inimigo.get("estado", "cacando")
-                if estado_atual == "cacando" and inimigo.get("roubou_pontos", False):
+                if estado_atual in ("cacando", "fugindo") and not inimigo.get("possui_chave_loja"):
                     pode_arremessar = True
 
-            if pode_arremessar and tempo_atual >= inimigo["proximo_tempo_moeda_arremessar"]:
-                inimigo["proximo_tempo_moeda_arremessar"] = tempo_atual + random.randint(1500, 3000)
+            jogador_stunado = tempo_atual < tempo_stun_jogador_fim
+            if jogador_stunado:
+                if inimigo.get("pausa_arremesso_stun_ms") is None:
+                    inimigo["pausa_arremesso_stun_ms"] = tempo_atual
+            else:
+                pausa_inicio = inimigo.get("pausa_arremesso_stun_ms")
+                if pausa_inicio is not None:
+                    inimigo["proximo_tempo_moeda_arremessar"] += max(0, tempo_atual - pausa_inicio)
+                    inimigo["pausa_arremesso_stun_ms"] = None
+
+            if pode_arremessar and not jogador_stunado and tempo_atual >= inimigo["proximo_tempo_moeda_arremessar"]:
+                inimigo["proximo_tempo_moeda_arremessar"] = tempo_atual + random.randint(
+                    LARAPIO_ARREMESSO_MIN_MS,
+                    LARAPIO_ARREMESSO_MAX_MS,
+                )
                 cx = pos_x_personagem + largura_personagem // 2
                 cy = pos_y_personagem + altura_personagem // 2
                 if math.hypot(cx - inimigo["rect"].centerx, cy - inimigo["rect"].centery) <= 500:
@@ -2083,7 +2071,12 @@ def executar_jogo(game_manager=None):
             bonus = bonus_larapio(inimigo)
             velocidade_atual = inimigo.get("velocidade", Velocidade_Inimigos_1) * (1 + bonus["velocidade"])
             
-            has_stolen = (inimigo.get("dinheiro_roubado", 0) > 0 or len(inimigo.get("cartas_roubadas_larapio", [])) > 0 or inimigo.get("roubou_pontos", False))
+            has_stolen = (
+                inimigo.get("dinheiro_roubado", 0) > 0
+                or len(inimigo.get("cartas_roubadas_larapio", [])) > 0
+                or inimigo.get("roubou_pontos", False)
+                or inimigo.get("possui_chave_loja", False)
+            )
             
             if not has_stolen:
                 if inimigo.get("player_move_start_time") is None:
@@ -2092,6 +2085,24 @@ def executar_jogo(game_manager=None):
                     tempo_desde_movimento = tempo_atual - inimigo["player_move_start_time"]
                     if tempo_desde_movimento < 4000:
                         velocidade_atual *= 0.4
+
+            # Entre 4 e 8 segundos depois do drop, a chave vira a prioridade
+            # absoluta do Larapio. Ele precisa alcanca-la fisicamente: nada de
+            # coleta a distancia ou teleporte escondido.
+            if not inimigo.get("possui_chave_loja"):
+                chave_alvo = Variaveis.obter_chave_roubavel_larapio(inimigo["rect"].center, tempo_atual)
+                if chave_alvo is not None:
+                    inimigo["estado"] = "cacando_chave"
+                    dx_chave = chave_alvo["rect"].centerx - inimigo["rect"].centerx
+                    dy_chave = chave_alvo["rect"].centery - inimigo["rect"].centery
+                    mover_larapio(inimigo, dx_chave, dy_chave, velocidade_atual * 2.2)
+                    Variaveis.larapio_tentar_roubar_chave(inimigo, tempo_atual)
+                    if tempo_atual - inimigo.get("ultimo_frame", 0) >= LARAPIO_INTERVALO_ANIMACAO:
+                        inimigo["frame_atual"] = (inimigo.get("frame_atual", 0) + 1) % len(frames_larapio)
+                        inimigo["ultimo_frame"] = tempo_atual
+                    return
+                if inimigo.get("estado") == "cacando_chave":
+                    inimigo["estado"] = "cacando"
 
             # ----------------------------------------------------
             # COMPORTAMENTO MODO DIFÍCIL (DROPS DE CARTAS)
@@ -2190,7 +2201,7 @@ def executar_jogo(game_manager=None):
                     if tempo_atual - inimigo.get("inicio_preparo_ataque", tempo_atual) >= LARAPIO_TEMPO_PREPARO_ATAQUE:
                         executar_ataque_larapio(inimigo)
                 elif estado == "fugindo":
-                    if tempo_atual - inimigo.get("inicio_fuga", tempo_atual) >= 10000:
+                    if tempo_atual - inimigo.get("inicio_fuga", tempo_atual) >= 14000:
                         inimigo["estado"] = "cacando"
                         inimigo.pop("target_quina", None)
                         return
@@ -2237,8 +2248,7 @@ def executar_jogo(game_manager=None):
 
             # Verifica a chance de spawn no modo normal
             if not modo_dificil:
-                if random.random() > chance_spawn:
-                    return
+                chance_spawn = 1.0
 
             print(f"==================================================")
             print(f"[TESTE DEBUG] LARAPIO FOI CHAMADO E GERADO NA TELA Aos {tempo_decorrido_run} Segundos!")
@@ -2374,7 +2384,7 @@ def executar_jogo(game_manager=None):
             if not miniboss_condutor:
                 return
 
-            # A ruptura limpa a arena: o confronto sempre começa com somente dois comuns.
+            # A ruptura limpa a arena: o confronto sempre começa com os ecos do Arauto.
             for inimigo in list(inimigos_comum):
                 if inimigo.get("tipo") == TIPO_LARAPIO and (
                     inimigo.get("dinheiro_roubado", 0) > 0 or inimigo.get("cartas_roubadas_larapio")
@@ -2390,7 +2400,8 @@ def executar_jogo(game_manager=None):
                 raio = 175
                 sx = int(min(max(0, miniboss_condutor["rect"].centerx + math.cos(ang) * raio), largura_mapa - largura_inimigo))
                 sy = int(min(max(0, miniboss_condutor["rect"].centery + math.sin(ang) * raio), altura_mapa - altura_inimigo))
-                inimigo = criar_inimigo(sx, sy, tipo=1)
+                tipo_eco = random.choice([1, 2, 3, 4, 5])
+                inimigo = criar_inimigo(sx, sy, tipo=tipo_eco)
                 inimigo["eco_vinculado"] = True
                 inimigo["eco_vinculado_inicio"] = tempo_atual
                 inimigo["vida_maxima"] = max(inimigo.get("vida_maxima", vida_inimigo_maxima), vida_inimigo_maxima * 1.25)
@@ -3247,7 +3258,7 @@ def executar_jogo(game_manager=None):
             vx = (dx / dist) * speed
             vy = (dy / dist) * speed
             
-            is_pedra = (Variaveis.obter_modo_cartas() == "drops")
+            is_pedra = True
 
             moedas_arremessadas.append({
                 "x": float(lx),
@@ -3258,7 +3269,8 @@ def executar_jogo(game_manager=None):
                 "rotacao": random.uniform(0, 360),
                 "vel_rotacao": random.uniform(8, 16),
                 "larapio_id": id(inimigo),
-                "is_pedra": is_pedra
+                "is_pedra": is_pedra,
+                "apenas_stun": True,
             })
 
         def atualizar_e_desenhar_moedas_arremessadas(tela):
@@ -3279,10 +3291,10 @@ def executar_jogo(game_manager=None):
                 
                 # Colisão com o jogador
                 if m["rect"].colliderect(player_rect):
-                    # Stun de 800ms
-                    tempo_stun_jogador_fim = tempo_atual + 800
+                    # Pedra: controle forte, mas sem roubo automatico de carta.
+                    tempo_stun_jogador_fim = tempo_atual + 2000
                     
-                    if m.get("is_pedra"):
+                    if m.get("is_pedra") and not m.get("apenas_stun"):
                         # Roubar carta do deck do jogador
                         cartas_possuidas = [nome for nome, qtd in cartas_compradas.items() if qtd > 0]
                         if cartas_possuidas:
@@ -3372,7 +3384,7 @@ def executar_jogo(game_manager=None):
                                 ini["ir_direto_roubar"] = True
                             
                     efeitos_texto.append({
-                        "texto": "ATURDIDO! (0.8s)",
+                        "texto": "ATURDIDO! (2s)",
                         "x": pos_x_personagem,
                         "y": pos_y_personagem - 24,
                         "tempo_inicio": tempo_atual,
@@ -3417,11 +3429,12 @@ def executar_jogo(game_manager=None):
             joystick = None
 
         running = True
+        custo_carta_atual = custo_base_carta + (sum(cartas_compradas.values()) * custo_por_carta)
         while running:
             tempo_atual = pygame.time.get_ticks()
 
             # Registrar snapshot para o sistema de rewind
-            if vida > 0:
+            if vida > 0 and Variaveis.deve_registrar_snapshot(tempo_atual):
                 snapshot_attrs = {
                     "velocidade_personagem": velocidade_personagem,
                     "intervalo_disparo": intervalo_disparo,
@@ -3568,7 +3581,7 @@ def executar_jogo(game_manager=None):
                         game_manager.mudar_estado(EstadoJogo.SAIR)
                         raise CleanExit()
                     running = False
-                elif event.type == pygame.KEYDOWN:
+                elif event.type == pygame.KEYDOWN and event.key in (pygame.K_ESCAPE, pygame.K_p):
                     if event.key == pygame.K_ESCAPE:
                         if multiplayer_coop.modo_multiplayer():
                             multiplayer_coop.solicitar_acao("pause", 1)
@@ -3619,6 +3632,22 @@ def executar_jogo(game_manager=None):
                     tempo_ultimo_frame_preparo_disparo = tempo_atual
                     direcao_atual = 'disp'
                     frame_atual = 0
+                elif ultimate_manifestacao.acionamento_por_evento(event, joystick) and ultimate_manifestacao.disponivel(tempo_atual) and tempo_atual >= tempo_stun_jogador_fim:
+                    pos_mouse = obter_pos_mouse_jogo()
+                    px_centro = pos_x_personagem + largura_personagem // 2
+                    py_centro = pos_y_personagem + altura_personagem // 2
+                    ondas.append(ultimate_manifestacao.criar_ultimate(
+                        manifestacao_ativa, px_centro, py_centro, pos_mouse, tempo_atual,
+                        dano_person_hit * fator_dano_aureas(tempo_atual), largura_mapa, altura_mapa, intervalo_disparo
+                    ))
+                    ultimate_manifestacao.registrar_uso(tempo_atual)
+                    efeitos_texto.append({
+                        "texto": ultimate_manifestacao.nome_ultimate(manifestacao_ativa).upper(),
+                        "x": px_centro - 80,
+                        "y": py_centro - 72,
+                        "tempo_inicio": tempo_atual,
+                        "cor": (255, 240, 120),
+                    })
                 elif Variaveis.verificar_evento_input(event, "Habilidade Onda") and tempo_atual - tempo_ultimo_uso_habilidade >= cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) * parasitica_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * condutora_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) and tempo_atual >= tempo_stun_jogador_fim:
                     pos_mouse = obter_pos_mouse_jogo()
                     px_centro = pos_x_personagem + largura_personagem // 2
@@ -4011,7 +4040,8 @@ def executar_jogo(game_manager=None):
             )
             vida_arauto_antes_onda = miniboss_condutor["vida"] if alvo_principal_eh_arauto else None
             inimigos_mortos_neste_frame = processar_habilidade_onda(
-                ondas, correntes_eletricas, alvos_onda, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda, disparos, config_graficos
+                ondas, correntes_eletricas, alvos_onda, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda, disparos, config_graficos,
+                player_center=(pos_x_personagem + largura_personagem // 2, pos_y_personagem + altura_personagem // 2)
             )
             if miniboss_condutor and vida_arauto_antes_onda is not None:
                 dano_direto_onda_arauto = max(0.0, vida_arauto_antes_onda - miniboss_condutor["vida"])
@@ -4020,11 +4050,11 @@ def executar_jogo(game_manager=None):
                 if dano_direto_onda_arauto > 0:
                     aplicar_dano_ao_condutor(dano_direto_onda_arauto, (155, 215, 255))
             if boss_info.get("hit_flag") and alvo_principal_eh_arauto:
-                dano_onda = boss_info.get("dano_manifestacao", dano_person_hit * fator_dano_aureas(tempo_atual) * 5)
+                dano_onda = boss_info.get("dano_manifestacao", dano_person_hit * fator_dano_aureas(tempo_atual) * 5.8)
                 aplicar_dano_ao_condutor(dano_onda, (180, 255, 255))
                 boss_info["hit_flag"] = False
             elif boss_info.get("hit_flag") and not boss_morte_processada:
-                dano_onda = boss_info.get("dano_manifestacao", dano_person_hit * fator_dano_aureas(tempo_atual) * 5)
+                dano_onda = boss_info.get("dano_manifestacao", dano_person_hit * fator_dano_aureas(tempo_atual) * 5.8)
                 dano_onda_real = dano_boss_mitigado(dano_onda, 1, inimigos_eliminados, tempo_atual, cartas_compradas.get("Coletora", 0))
                 vida_boss -= dano_onda_real
                 registrar_dano_boss(efeitos_texto, dano_onda_real, pos_x_chefe + chefe_largura // 2, pos_y_chefe - 22, tempo_atual, (180, 255, 255))
@@ -4032,7 +4062,7 @@ def executar_jogo(game_manager=None):
                 boss_info["hit_flag"] = False
 
             # Atualizar e desenhar correntes elétricas
-            inimigos_mortos_correntes = atualizar_e_desenhar_correntes(tela, correntes_eletricas, inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual))
+            inimigos_mortos_correntes = atualizar_e_desenhar_correntes(tela, correntes_eletricas, inimigos_comum, tempo_atual, dano_person_hit * fator_dano_aureas(tempo_atual), config_graficos)
             alvos_passivas = inimigos_comum + ([miniboss_condutor] if miniboss_condutor else [])
             vida_arauto_antes_passivas = miniboss_condutor["vida"] if miniboss_condutor else None
             inimigos_mortos_laceracao = lacerante_manifestacao.atualizar_laceracoes(alvos_passivas, tempo_atual, efeitos_texto)
@@ -4376,7 +4406,12 @@ def executar_jogo(game_manager=None):
                 
                 pulo_y = 0
                 if tipo == TIPO_LARAPIO or tipo == "larapio":
-                    has_stolen = (inimigo.get("dinheiro_roubado", 0) > 0 or len(inimigo.get("cartas_roubadas_larapio", [])) > 0 or inimigo.get("roubou_pontos", False))
+                    has_stolen = (
+                        inimigo.get("dinheiro_roubado", 0) > 0
+                        or len(inimigo.get("cartas_roubadas_larapio", [])) > 0
+                        or inimigo.get("roubou_pontos", False)
+                        or inimigo.get("possui_chave_loja", False)
+                    )
                     if has_stolen:
                         pulo_y = int(abs(math.sin(pygame.time.get_ticks() * 0.012)) * 18)
                         desenhar_y -= pulo_y
@@ -4736,31 +4771,32 @@ def executar_jogo(game_manager=None):
 
 
             ###############################################   DESENHA O PERSONAGEM NA TELA ################################
-            # Desenhar sombra do personagem
-            desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
+            if not ultimate_manifestacao.jogador_oculto(tempo_atual):
+                # Desenhar sombra do personagem
+                desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
 
-            frames_local = multiplayer_coop.frames_jogador_local(frames_animacao, frames_animacao2)
-            if direcao_atual == 'disp' and lacerante_manifestacao.ativa(manifestacao_ativa):
-                estagio = lacerante_manifestacao.obter_proximo_estagio()
-                idx = estagio * 2 + (frame_atual % 2)
-                if idx < len(Variaveis.frames_lacerar):
-                    frame_para_desenhar = Variaveis.frames_lacerar[idx]
+                frames_local = multiplayer_coop.frames_jogador_local(frames_animacao, frames_animacao2)
+                if direcao_atual == 'disp' and lacerante_manifestacao.ativa(manifestacao_ativa):
+                    estagio = lacerante_manifestacao.obter_proximo_estagio()
+                    idx = estagio * 2 + (frame_atual % 2)
+                    if idx < len(Variaveis.frames_lacerar):
+                        frame_para_desenhar = Variaveis.frames_lacerar[idx]
+                    else:
+                        frame_para_desenhar = frames_local[direcao_atual][frame_atual % len(frames_local[direcao_atual])]
                 else:
                     frame_para_desenhar = frames_local[direcao_atual][frame_atual % len(frames_local[direcao_atual])]
-            else:
-                frame_para_desenhar = frames_local[direcao_atual][frame_atual % len(frames_local[direcao_atual])]
-            if direcao_atual == 'disp' and math.cos(angulo_disparo_preparado) < 0:
-                frame_para_desenhar = pygame.transform.flip(frame_para_desenhar, True, False)
-            if angulo_inclinacao_personagem != 0:
-                # Rotaciona o frame pelo centro para manter o eixo
-                frame_rotacionado = pygame.transform.rotate(frame_para_desenhar, angulo_inclinacao_personagem)
-                novo_rect = frame_rotacionado.get_rect(center=(pos_x_personagem + largura_personagem//2, pos_y_personagem + altura_personagem//2))
-                desenhar_personagem_com_dano(tela, frame_rotacionado, novo_rect.x, novo_rect.y, tempo_atual, tempo_ultimo_hit_inimigo)
-            else:
-                w_f, h_f = frame_para_desenhar.get_size()
-                bx = pos_x_personagem + (largura_personagem - w_f) // 2
-                by = pos_y_personagem + (altura_personagem - h_f)
-                desenhar_personagem_com_dano(tela, frame_para_desenhar, bx, by, tempo_atual, tempo_ultimo_hit_inimigo)
+                if direcao_atual == 'disp' and math.cos(angulo_disparo_preparado) < 0:
+                    frame_para_desenhar = pygame.transform.flip(frame_para_desenhar, True, False)
+                if angulo_inclinacao_personagem != 0:
+                    # Rotaciona o frame pelo centro para manter o eixo
+                    frame_rotacionado = pygame.transform.rotate(frame_para_desenhar, angulo_inclinacao_personagem)
+                    novo_rect = frame_rotacionado.get_rect(center=(pos_x_personagem + largura_personagem//2, pos_y_personagem + altura_personagem//2))
+                    desenhar_personagem_com_dano(tela, frame_rotacionado, novo_rect.x, novo_rect.y, tempo_atual, tempo_ultimo_hit_inimigo)
+                else:
+                    w_f, h_f = frame_para_desenhar.get_size()
+                    bx = pos_x_personagem + (largura_personagem - w_f) // 2
+                    by = pos_y_personagem + (altura_personagem - h_f)
+                    desenhar_personagem_com_dano(tela, frame_para_desenhar, bx, by, tempo_atual, tempo_ultimo_hit_inimigo)
 
             insana_aurea.desenhar_insana(
                 tela, estado_insana, aurea, tempo_atual,
@@ -5172,7 +5208,7 @@ def executar_jogo(game_manager=None):
                                 dano_por_tick_veneno_boss = vida_maxima_boss1 * Dano_Veneno_Acumulado
                                 duracao_veneno_boss = 8000 + cartas_compradas.get("Poison", 0) * 100
                                 tempo_inicio_veneno_boss = pygame.time.get_ticks()
-                            ultimo_tick_veneno_boss = pygame.time.get_ticks()
+                                ultimo_tick_veneno_boss = pygame.time.get_ticks()
 
                             if acerto_prismatico["critico"]:
                                 dano *= prismatica_manifestacao.FEIXE_CRITICO_MULT
@@ -5422,13 +5458,17 @@ def executar_jogo(game_manager=None):
                         )
                         if disparo in disparos and not manter_disparo_condutor:
                             estourar_disparo_eletrico(disparos, disparo, vfx_disparo_player, config_graficos)
+            grade_disparos_colisao = Variaveis.construir_grade_disparos(disparos) if len(disparos) >= 12 else None
             for inimigo in inimigos_comum:
                 inimigo_rect = inimigo["rect"]
                 inimigo_image = inimigo["image"]
 
                 inimigo_atingido = False
 
-                for disparo in disparos[:]:
+                disparos_candidatos = Variaveis.consultar_disparos_proximos(grade_disparos_colisao, inimigo_rect) or disparos[:]
+                for disparo in disparos_candidatos:
+                    if disparo.get("_removido_colisao"):
+                        continue
                     if inimigo.get("invisivel", False):
                         continue
 
@@ -5695,20 +5735,12 @@ def executar_jogo(game_manager=None):
 
             total_cartas_compradas = sum(cartas_compradas.values())
             custo_carta_atual = custo_base_carta + (total_cartas_compradas * custo_por_carta)
-            # Verifica se a pontuação atingiu o custo e se o jogador pressionou o botão da loja
+            # A chave coletada é o novo gatilho da loja: sem botão, sem chamado manual.
             modo_loja_normal = Variaveis.obter_modo_cartas() != "drops"
-            abrir_loja_manual = modo_loja_normal and (Variaveis.verificar_input("Comprar na loja") or (joystick and joystick.get_button(3)))
-            if abrir_loja_manual and multiplayer_coop.modo_multiplayer():
-                if pontuacao_exib >= custo_carta_atual:
-                    multiplayer_coop.solicitar_acao("loja", 1)
-                abrir_loja_manual = False
-            if multiplayer_coop.acao_confirmada("loja", 1):
-                abrir_loja_manual = True
+            abrir_loja_manual = modo_loja_normal and Variaveis.tem_chave_loja() and pontuacao_exib >= custo_carta_atual
             if abrir_loja_manual:
                 Variaveis.cancelar_aviso_loja_forcada()
-            if modo_loja_normal:
-                Variaveis.tentar_ativar_larapio_normal(pontuacao_exib, custo_carta_atual, tempo_atual, efeitos_texto)
-            if (pontuacao_exib >= custo_carta_atual) and abrir_loja_manual:
+                Variaveis.consumir_chave_loja()
                 # Calcula quantas cartas o jogador pode comprar com o custo progressivo
                 max_cartas = 0
                 total_custo = 0
@@ -5776,7 +5808,7 @@ def executar_jogo(game_manager=None):
                 "disparo": max(0.0, (intervalo_disparo_racional(intervalo_disparo, aurea, racional_dilatacao_fim, tempo_atual) - (tempo_atual - tempo_ultimo_disparo)) / 1000.0),
                 "teleporte": max(0.0, (tempo_cooldown_dash - (pygame.time.get_ticks() - tempo_ultimo_dash)) / 1000.0),
                 "onda": max(0.0, (cooldown_habilidade * voraz_aurea.bonus_cooldown(estado_voraz, aurea) * parasitica_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * lacerante_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) * condutora_manifestacao.multiplicador_cooldown_habilidade(manifestacao_ativa) - (tempo_atual - tempo_ultimo_uso_habilidade)) / 1000.0),
-                "loja": 1 if pontuacao_exib >= custo_carta_atual else 0,
+                "ultimate": ultimate_manifestacao.restante_ms(tempo_atual) / 1000.0,
             }
 
             if False: # Desativado pois o HUD agora é widescreen desenhado nas bordas
@@ -5866,8 +5898,8 @@ def executar_jogo(game_manager=None):
                     # Desenhar habilidades na tela
                     desenhar_habilidades(tela, cooldowns, dispositivo_ativo, (pos_x_personagem, pos_y_personagem))
                 if Mercenaria_Active:
-                    fonte_combo = pygame.font.Font(None, 36)  # Tamanho maior para o combo
-                    fonte_bonus = pygame.font.Font(None, 28)  # Tamanho menor para o bônus
+                    fonte_combo = Variaveis._hud_font(None, 36)  # Tamanho maior para o combo
+                    fonte_bonus = Variaveis._hud_font(None, 28)  # Tamanho menor para o bônus
 
                     # Texto do combo
                     texto_combo = f"Mercenaria: {eliminacoes_consecutivas} abates"
@@ -5895,7 +5927,7 @@ def executar_jogo(game_manager=None):
 
                 cx = largura_mapa // 2
                 y_msg = int(altura_mapa * 0.15)
-                fonte_tut = pygame.font.Font(None, 48)
+                fonte_tut = Variaveis._hud_font(None, 48)
 
                 # Carregar teclas dinâmicas e modo de teleporte
                 tecla_cima = Variaveis.formatar_nome_tecla(Variaveis.config_teclas.get("Mover para cima", pygame.K_w))
@@ -5903,7 +5935,7 @@ def executar_jogo(game_manager=None):
                 tecla_esquerda = Variaveis.formatar_nome_tecla(Variaveis.config_teclas.get("Mover para esquerda", pygame.K_a))
                 tecla_direita = Variaveis.formatar_nome_tecla(Variaveis.config_teclas.get("Mover para direita", pygame.K_d))
                 tecla_teleporte = Variaveis.formatar_nome_tecla(Variaveis.config_teclas.get("Teleporte", pygame.K_LSHIFT))
-                tecla_loja = Variaveis.formatar_nome_tecla(Variaveis.config_teclas.get("Comprar na loja", pygame.K_e))
+                tecla_loja = "AUTO"
                 modo_teleporte = Variaveis.obter_modo_teleporte()
                 modo_sem_loja = Variaveis.obter_modo_cartas() == "drops"
 
@@ -5941,8 +5973,8 @@ def executar_jogo(game_manager=None):
 
                 # --- Função auxiliar para desenhar texto com contorno ---
                 def _draw_msg(txt, y_pos):
-                    tr = fonte_tut.render(txt, True, (255, 255, 255))
-                    tb = fonte_tut.render(txt, True, (0, 0, 0))
+                    tr = Variaveis._hud_texto(fonte_tut, txt, (255, 255, 255))
+                    tb = Variaveis._hud_texto(fonte_tut, txt, (0, 0, 0))
                     xm = cx - tr.get_width() // 2
                     tela.blit(tb, (xm - 1, y_pos))
                     tela.blit(tb, (xm + 1, y_pos))
@@ -5958,12 +5990,12 @@ def executar_jogo(game_manager=None):
                     esp = 5
                     tecla_y = y_msg + 50
                     
-                    ft_k = pygame.font.Font(None, 24)
+                    ft_k = Variaveis._hud_font(None, 24)
                     # Renderizar as teclas dinâmicas para calcular suas larguras corretas
-                    txt_c = ft_k.render(tecla_cima, True, (255, 255, 255))
-                    txt_e = ft_k.render(tecla_esquerda, True, (255, 255, 255))
-                    txt_b = ft_k.render(tecla_baixo, True, (255, 255, 255))
-                    txt_d = ft_k.render(tecla_direita, True, (255, 255, 255))
+                    txt_c = Variaveis._hud_texto(ft_k, tecla_cima, (255, 255, 255))
+                    txt_e = Variaveis._hud_texto(ft_k, tecla_esquerda, (255, 255, 255))
+                    txt_b = Variaveis._hud_texto(ft_k, tecla_baixo, (255, 255, 255))
+                    txt_d = Variaveis._hud_texto(ft_k, tecla_direita, (255, 255, 255))
                     
                     # Altura padrão 32
                     tam = 32
@@ -6018,15 +6050,15 @@ def executar_jogo(game_manager=None):
                     else:
                         _draw_msg(f"Aperte {tecla_teleporte} para teleportar!", y_msg)
                         
-                    fonte_sub = pygame.font.Font(None, 32)
+                    fonte_sub = Variaveis._hud_font(None, 32)
                     # Subtexto 1 com contraste (Sky Blue)
                     if modo_teleporte == "mouse":
                         t1 = "Solte a tecla para se teleportar na posicao do cursor"
                     else:
                         t1 = "O teleporte vai na direcao da ultima tecla apertada"
                         
-                    sub1_b = fonte_sub.render(t1, True, (0, 0, 0))
-                    sub1 = fonte_sub.render(t1, True, (170, 240, 255))
+                    sub1_b = Variaveis._hud_texto(fonte_sub, t1, (0, 0, 0))
+                    sub1 = Variaveis._hud_texto(fonte_sub, t1, (170, 240, 255))
                     tela.blit(sub1_b, (cx - sub1.get_width() // 2 + 1, y_msg + 46))
                     tela.blit(sub1, (cx - sub1.get_width() // 2, y_msg + 45))
                     
@@ -6036,15 +6068,15 @@ def executar_jogo(game_manager=None):
                     else:
                         t2 = f"Use para se reposicionar! ({tutorial_dash_count}/3)"
                         
-                    sub2_b = fonte_sub.render(t2, True, (0, 0, 0))
-                    sub2 = fonte_sub.render(t2, True, (170, 240, 255))
+                    sub2_b = Variaveis._hud_texto(fonte_sub, t2, (0, 0, 0))
+                    sub2 = Variaveis._hud_texto(fonte_sub, t2, (170, 240, 255))
                     tela.blit(sub2_b, (cx - sub2.get_width() // 2 + 1, y_msg + 76))
                     tela.blit(sub2, (cx - sub2.get_width() // 2, y_msg + 75))
 
                     # Desenhar tecla de Teleporte pulsando
                     pulso = abs(pygame.time.get_ticks() % 1200 - 600) / 600.0
-                    ft_s = pygame.font.Font(None, 24)
-                    st = ft_s.render(tecla_teleporte, True, (255, 255, 255))
+                    ft_s = Variaveis._hud_font(None, 24)
+                    st = Variaveis._hud_texto(ft_s, tecla_teleporte, (255, 255, 255))
                     
                     shift_w = max(80, st.get_width() + 20)
                     shift_h = 32
@@ -6067,9 +6099,9 @@ def executar_jogo(game_manager=None):
                         _draw_msg("Atravesse a barreira usando o teleporte!", y_msg)
                         t_sub = "Você não pode passar andando, apenas teleportando"
                         
-                    fonte_sub = pygame.font.Font(None, 32)
-                    sub_b = fonte_sub.render(t_sub, True, (0, 0, 0))
-                    sub = fonte_sub.render(t_sub, True, (170, 240, 255))
+                    fonte_sub = Variaveis._hud_font(None, 32)
+                    sub_b = Variaveis._hud_texto(fonte_sub, t_sub, (0, 0, 0))
+                    sub = Variaveis._hud_texto(fonte_sub, t_sub, (170, 240, 255))
                     tela.blit(sub_b, (cx - sub.get_width() // 2 + 1, y_msg + 46))
                     tela.blit(sub, (cx - sub.get_width() // 2, y_msg + 45))
 
@@ -6116,8 +6148,8 @@ def executar_jogo(game_manager=None):
                     left_highlight = pygame.Surface((mouse_icon_w // 2, mouse_icon_h // 2), pygame.SRCALPHA)
                     left_highlight.fill((53, 200, 252, int(80 + 80 * pulso)))
                     tela.blit(left_highlight, (mx_icon, my_icon))
-                    ft_lmb = pygame.font.Font(None, 20)
-                    lmb_txt = ft_lmb.render("LMB", True, (255, 255, 255))
+                    ft_lmb = Variaveis._hud_font(None, 20)
+                    lmb_txt = Variaveis._hud_texto(ft_lmb, "LMB", (255, 255, 255))
                     tela.blit(lmb_txt, (mx_icon + mouse_icon_w // 2 - lmb_txt.get_width() // 2, my_icon + mouse_icon_h + 5))
 
                     # Desenhar e gerenciar o inimigo do tutorial
@@ -6170,7 +6202,7 @@ def executar_jogo(game_manager=None):
                                     tempo_fase_completa = time.time()
                                     break
 
-                # ====== FASE 5: Ensinar a loja (Q) ======
+                # ====== FASE 5: Ensinar a loja por chave ======
                 elif tutorial_fase == 5:
                     if modo_sem_loja:
                         tutorial_fase = 7
@@ -6187,19 +6219,21 @@ def executar_jogo(game_manager=None):
                     if pontuacao_exib < custo_temp:
                         pontuacao_exib = custo_temp
                         pontuacao = pontuacao_exib
+                    if not Variaveis.tem_chave_loja():
+                        Variaveis.adicionar_chave_loja()
 
-                    _draw_msg(f"Aperte {tecla_loja} para abrir a loja e comprar uma carta!", y_msg)
-                    fonte_sub = pygame.font.Font(None, 32)
-                    t_sub = "Use seus pontos para ficar mais forte"
-                    sub_b = fonte_sub.render(t_sub, True, (0, 0, 0))
-                    sub = fonte_sub.render(t_sub, True, (170, 240, 255))
+                    _draw_msg("A chave da loja abre a compra automaticamente!", y_msg)
+                    fonte_sub = Variaveis._hud_font(None, 32)
+                    t_sub = "Colete uma chave e tenha pontos para escolher uma carta"
+                    sub_b = Variaveis._hud_texto(fonte_sub, t_sub, (0, 0, 0))
+                    sub = Variaveis._hud_texto(fonte_sub, t_sub, (170, 240, 255))
                     tela.blit(sub_b, (cx - sub.get_width() // 2 + 1, y_msg + 46))
                     tela.blit(sub, (cx - sub.get_width() // 2, y_msg + 45))
 
-                    # Desenhar tecla de loja pulsando
+                    # Desenhar indicador de abertura automatica da loja
                     pulso = abs(pygame.time.get_ticks() % 1200 - 600) / 600.0
-                    ft_q = pygame.font.Font(None, 28)
-                    qt = ft_q.render(tecla_loja, True, (255, 255, 255))
+                    ft_q = Variaveis._hud_font(None, 28)
+                    qt = Variaveis._hud_texto(ft_q, tecla_loja, (255, 255, 255))
                     
                     q_w = max(40, qt.get_width() + 15)
                     q_h = 40
@@ -6314,6 +6348,8 @@ def executar_jogo(game_manager=None):
                 tela.blit(moeda["image"], moeda["rect"])
 
             # --- SISTEMA DE CARTAS DROP ---
+            vida = Variaveis.aplicar_regen_passivo_base(vida, vida_maxima, tempo_atual, "fase1")
+            Variaveis.atualizar_e_coletar_chaves_loja(tela, tempo_atual, personagem_rect, efeitos_texto)
             if Variaveis.obter_modo_cartas() == "drops":
                 Variaveis.tentar_ativar_larapio_hard(pontuacao_exib, custo_carta_atual, tempo_atual, efeitos_texto)
                 Variaveis.atualizar_e_desenhar_cartas_no_chao(tela, tempo_atual)
@@ -6389,10 +6425,10 @@ def executar_jogo(game_manager=None):
                     pygame.draw.rect(card_n, (255, 60, 60), (0, 0, w_n, h_n), width=2, border_radius=12)
                     tela.blit(card_n, (cx_n - w_n // 2, cy_n - h_n // 2))
                     
-                    font_n = pygame.font.Font(None, 32)
-                    msg_line1 = font_n.render("R CHAMA O BOSS IMEDIATAMENTE.", True, (255, 230, 230))
-                    msg_line2 = font_n.render("Se voce ainda esta fraco, NAO aperte R: farme cartas primeiro.", True, (255, 100, 100))
-                    msg_line3 = font_n.render("Quando estiver forte, aperte R para iniciar a luta.", True, (190, 255, 210))
+                    font_n = Variaveis._hud_font(None, 32)
+                    msg_line1 = Variaveis._hud_texto(font_n, "R CHAMA O BOSS IMEDIATAMENTE.", (255, 230, 230))
+                    msg_line2 = Variaveis._hud_texto(font_n, "Se voce ainda esta fraco, NAO aperte R: farme cartas primeiro.", (255, 100, 100))
+                    msg_line3 = Variaveis._hud_texto(font_n, "Quando estiver forte, aperte R para iniciar a luta.", (190, 255, 210))
                     
                     tela.blit(msg_line1, (cx_n - msg_line1.get_width() // 2, cy_n - 42))
                     tela.blit(msg_line2, (cx_n - msg_line2.get_width() // 2, cy_n - 8))
@@ -6410,12 +6446,9 @@ def executar_jogo(game_manager=None):
                 pygame.draw.line(tela, aviso_evento_cor, (0, altura_tela // 3 + 60), (largura_tela, altura_tela // 3 + 60), 2)
                 
                 # Render text
-                try:
-                    fonte_banner = pygame.font.Font(None, 40)
-                except:
-                    fonte_banner = pygame.font.SysFont("arial", 36)
-                txt_b = fonte_banner.render(aviso_evento_texto, True, (0, 0, 0))
-                txt_rend = fonte_banner.render(aviso_evento_texto, True, aviso_evento_cor)
+                fonte_banner = Variaveis._hud_font(None, 40)
+                txt_b = Variaveis._hud_texto(fonte_banner, aviso_evento_texto, (0, 0, 0))
+                txt_rend = Variaveis._hud_texto(fonte_banner, aviso_evento_texto, aviso_evento_cor)
                 
                 cx_b = largura_tela // 2
                 cy_b = altura_tela // 3 + 30
@@ -6431,7 +6464,8 @@ def executar_jogo(game_manager=None):
                 pontuacao_magia, cooldowns, dispositivo_ativo,
                 eliminacoes_consecutivas, bonus_pontuacao, aurea,
                 escudo_devota_ativo, pos_x_personagem, pos_y_personagem,
-                largura_personagem, altura_personagem
+                largura_personagem, altura_personagem,
+                fps_atual=FPS.get_fps()
             )
             voraz_aurea.desenhar_voraz(tela, estado_voraz, aurea, tempo_atual, largura_tela, config_graficos, player_pos=(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem))
 
@@ -6459,7 +6493,7 @@ def executar_jogo(game_manager=None):
             )
             multiplayer_coop.desenhar_diagnostico(tela, fonte)
             pygame.display.flip()
-            dt_ms = FPS.tick(config_graficos.get("fps_limite", 60))  # Limita a taxa de quadros conforme configuração
+            dt_ms = FPS.tick(Variaveis.obter_limite_fps(config_graficos))  # Limita a taxa de quadros conforme configuração
             dt = max(0.05, min(3.0, dt_ms / 16.666667))
             dt *= condutora_manifestacao.fator_tempo_registrador(manifestacao_ativa, tempo_atual)
             Variaveis.dt = dt

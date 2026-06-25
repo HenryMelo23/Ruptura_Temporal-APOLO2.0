@@ -1,8 +1,1 @@
-{
-    "sombras_ativas": "dinamicas",
-    "qualidade_grafica": "alta",
-    "particulas_ativas": true,
-    "efeitos_visuais": true,
-    "fps_limite": 60,
-    "tela_cheia": true
-}
+{"sombras_ativas": "desativadas", "qualidade_grafica": "baixa", "particulas_ativas": false, "efeitos_visuais": false, "fps_limite": 0, "mostrar_fps": true, "escala_gpu": false, "tela_cheia": false}

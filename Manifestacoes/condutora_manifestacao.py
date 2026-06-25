@@ -221,7 +221,7 @@ def criar_auto_attack(manifestacao, vfx, centro_x, centro_y, largura, altura, an
         "vx": math.cos(angulo) * velocidade,
         "vy": math.sin(angulo) * velocidade,
         "velocidade_base_vfx": velocidade,
-        "raio_vfx": max(4, min(9, largura // 2)),
+        "raio_vfx": max(3, min(6, int(largura * 0.30))),
         "nascimento_ms": int(tempo_atual),
         "seed_vfx": random.randint(1000, 999999) + int(tempo_atual),
         "impulsiva_vfx": bool(impulsiva),

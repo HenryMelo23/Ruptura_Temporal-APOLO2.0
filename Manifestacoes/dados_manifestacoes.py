@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import os
+import time
 
 import Caminhos  # Instala o redirecionamento do Cofre Dimensional para saves/*.json.
 
@@ -8,6 +9,11 @@ import Caminhos  # Instala o redirecionamento do Cofre Dimensional para saves/*.
 MANIFESTACAO_PADRAO = "eletrica"
 CAMINHO_MANIFESTACAO_SELECIONADA = "saves/manifestacao_selecionada.json"
 CAMINHO_PROGRESSO_MANIFESTACOES = "saves/manifestacoes_progresso.json"
+_manifestacao_ativa_cache = {
+    "valor": MANIFESTACAO_PADRAO,
+    "mtime": None,
+    "check_s": 0.0,
+}
 
 MANIFESTACOES_JOGAVEIS = {
     "eletrica",
@@ -19,6 +25,11 @@ MANIFESTACOES_JOGAVEIS = {
     "gravitante",
     "ancorada",
 }
+
+# Temporario para desenvolvimento/teste: deixa todas as manifestacoes jogaveis
+# disponiveis sem depender do progresso salvo. Para restaurar a progressao,
+# basta voltar para False.
+LIBERAR_TODAS_MANIFESTACOES = True
 
 MISSOES_DESBLOQUEIO = {
     "eletrica": {
@@ -68,7 +79,24 @@ for _chave, _missao in MISSOES_DESBLOQUEIO.items():
     MISSOES_POR_FASE.setdefault(int(_missao.get("fase", 0)), []).append(_chave)
 
 
+def _todas_missoes_jogaveis():
+    return sorted(
+        str(missao.get("id"))
+        for chave, missao in MISSOES_DESBLOQUEIO.items()
+        if chave in MANIFESTACOES_JOGAVEIS and missao.get("id")
+    )
+
+
+def _todas_manifestacoes_jogaveis():
+    return sorted(MANIFESTACOES_JOGAVEIS)
+
+
 def _progresso_padrao():
+    if LIBERAR_TODAS_MANIFESTACOES:
+        return {
+            "missoes_concluidas": _todas_missoes_jogaveis(),
+            "desbloqueadas": _todas_manifestacoes_jogaveis(),
+        }
     return {"missoes_concluidas": ["eletrica_inicial"], "desbloqueadas": ["eletrica"]}
 
 
@@ -86,13 +114,20 @@ def carregar_progresso_manifestacoes():
                 progresso["desbloqueadas"] = sorted((set(str(m) for m in desbloqueadas) & MANIFESTACOES_JOGAVEIS) | {"eletrica"})
     except Exception:
         pass
+    if LIBERAR_TODAS_MANIFESTACOES:
+        progresso["missoes_concluidas"] = _todas_missoes_jogaveis()
+        progresso["desbloqueadas"] = _todas_manifestacoes_jogaveis()
     return progresso
 
 
 def salvar_progresso_manifestacoes(progresso):
     progresso = progresso if isinstance(progresso, dict) else _progresso_padrao()
-    progresso["missoes_concluidas"] = sorted(set(progresso.get("missoes_concluidas", [])) | {"eletrica_inicial"})
-    progresso["desbloqueadas"] = sorted((set(progresso.get("desbloqueadas", [])) & MANIFESTACOES_JOGAVEIS) | {"eletrica"})
+    if LIBERAR_TODAS_MANIFESTACOES:
+        progresso["missoes_concluidas"] = _todas_missoes_jogaveis()
+        progresso["desbloqueadas"] = _todas_manifestacoes_jogaveis()
+    else:
+        progresso["missoes_concluidas"] = sorted(set(progresso.get("missoes_concluidas", [])) | {"eletrica_inicial"})
+        progresso["desbloqueadas"] = sorted((set(progresso.get("desbloqueadas", [])) & MANIFESTACOES_JOGAVEIS) | {"eletrica"})
     os.makedirs("saves", exist_ok=True)
     with open(CAMINHO_PROGRESSO_MANIFESTACOES, "w", encoding="utf-8") as arquivo:
         json.dump(progresso, arquivo, ensure_ascii=False, indent=4)
@@ -123,6 +158,8 @@ def manifestacao_desbloqueada(chave, progresso=None, considerar_dev=True):
         return True
     if chave not in MANIFESTACOES_JOGAVEIS:
         return False
+    if LIBERAR_TODAS_MANIFESTACOES:
+        return True
     if considerar_dev and Caminhos.modo_desenvolvedor_ativo():
         return True
     progresso = progresso or carregar_progresso_manifestacoes()
@@ -508,27 +545,43 @@ def obter_manifestacoes():
 
 
 def salvar_manifestacao_ativa(chave):
+    global _manifestacao_ativa_cache
     if chave not in MANIFESTACOES_DADOS or not manifestacao_desbloqueada(chave):
         chave = MANIFESTACAO_PADRAO
 
     os.makedirs("saves", exist_ok=True)
     with open(CAMINHO_MANIFESTACAO_SELECIONADA, "w", encoding="utf-8") as arquivo:
         json.dump({"manifestacao_ativa": chave}, arquivo, ensure_ascii=False, indent=4)
+    try:
+        mtime = os.path.getmtime(CAMINHO_MANIFESTACAO_SELECIONADA)
+    except Exception:
+        mtime = None
+    _manifestacao_ativa_cache.update({"valor": chave, "mtime": mtime, "check_s": time.monotonic()})
     return chave
 
 
 def obter_manifestacao_ativa():
+    agora = time.monotonic()
+    if agora - float(_manifestacao_ativa_cache.get("check_s", 0.0)) < 2.0:
+        return _manifestacao_ativa_cache.get("valor") or MANIFESTACAO_PADRAO
+    _manifestacao_ativa_cache["check_s"] = agora
+
     try:
+        mtime = os.path.getmtime(CAMINHO_MANIFESTACAO_SELECIONADA)
+        if _manifestacao_ativa_cache.get("mtime") == mtime:
+            return _manifestacao_ativa_cache.get("valor") or MANIFESTACAO_PADRAO
         with open(CAMINHO_MANIFESTACAO_SELECIONADA, "r", encoding="utf-8") as arquivo:
             dados = json.load(arquivo)
         chave = dados.get("manifestacao_ativa", MANIFESTACAO_PADRAO)
     except Exception:
+        mtime = None
         chave = MANIFESTACAO_PADRAO
 
     if chave not in MANIFESTACOES_DADOS:
         chave = MANIFESTACAO_PADRAO
     if not manifestacao_desbloqueada(chave):
         chave = MANIFESTACAO_PADRAO
+    _manifestacao_ativa_cache.update({"valor": chave, "mtime": mtime, "check_s": agora})
     return chave
 
 

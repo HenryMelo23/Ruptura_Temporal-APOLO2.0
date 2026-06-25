@@ -23,10 +23,28 @@ def carregar_config_graficos():
             "qualidade_grafica": "alta",
             "sombras_ativas": "dinamicas",
             "particulas_ativas": True,
-            "fps_limite": 60
+            "fps_limite": 60,
+            "mostrar_fps": False,
+            "escala_gpu": True
         }
 
 config_graficos = carregar_config_graficos()
+
+def normalizar_limite_fps(valor, padrao=60):
+    """Sanitiza o limite de FPS salvo para evitar travas por valor invalido."""
+    try:
+        limite = int(valor)
+    except Exception:
+        return padrao
+    if limite <= 0:
+        return 0
+    if limite < 30:
+        return padrao
+    return limite
+
+def obter_limite_fps(config=None, padrao=60):
+    cfg = config if isinstance(config, dict) else config_graficos
+    return normalizar_limite_fps((cfg or {}).get("fps_limite", padrao), padrao)
 
 from balanceamento import (
     ANOMALIA_AGLOMERADOR_SEG,
@@ -2033,15 +2051,15 @@ def exibir_cronometro(tela):
 
     tempo_exibido = atualizar_cronometro()
 
-    fonte = pygame.font.Font(None, 36)
+    fonte = _hud_font(None, 36)
 
     
 
     # Renderizar o texto do cronômetro com contorno preto para contraste
 
-    texto_contorno = fonte.render(tempo_exibido, True, (0, 0, 0))  
+    texto_contorno = _hud_texto(fonte, tempo_exibido, (0, 0, 0))
 
-    texto_cronometro = fonte.render(tempo_exibido, True, (255, 255, 255)) 
+    texto_cronometro = _hud_texto(fonte, tempo_exibido, (255, 255, 255))
 
     
 
@@ -2571,17 +2589,45 @@ def recarregar_teclas():
 
 
 def _nivel_detalhes_visuais():
-    try:
-        with open("saves/config_graficos.json", "r") as f:
-            cfg = json.load(f)
-    except Exception:
-        cfg = {}
+    cfg = config_graficos if isinstance(config_graficos, dict) else {}
     nivel = str(cfg.get("nivel_detalhes", cfg.get("qualidade_grafica", "alta"))).lower()
     if nivel in ("alto", "alta"):
         return "alto"
     if nivel in ("medio", "media", "médio", "média"):
         return "medio"
     return "baixo"
+
+_sombra_surface_cache = {}
+
+def desenhar_sombra_cacheada(tela, x, y, largura, altura, modo_sombra="dinamicas", offset_y=5):
+    if modo_sombra == "desativadas":
+        return
+    largura = max(1, int(largura))
+    altura = max(1, int(altura))
+    modo_sombra = str(modo_sombra or "dinamicas")
+    chave = (modo_sombra, largura, altura)
+    sombra_surface = _sombra_surface_cache.get(chave)
+    if sombra_surface is None:
+        if modo_sombra == "simples":
+            sombra_surface = pygame.Surface((largura, max(1, altura // 3)), pygame.SRCALPHA)
+            pygame.draw.ellipse(sombra_surface, (0, 0, 0, 80), (0, 0, largura, max(1, altura // 3)))
+        else:
+            sw = max(1, int(largura * 1.2))
+            sh = max(1, int(altura // 2.5))
+            sombra_surface = pygame.Surface((sw, sh), pygame.SRCALPHA)
+            pygame.draw.ellipse(sombra_surface, (0, 0, 0, 40), (0, 0, sw, sh))
+            margem = int(largura * 0.15)
+            pygame.draw.ellipse(sombra_surface, (0, 0, 0, 70), (margem, margem // 2, int(largura * 0.9), max(1, int(altura // 3))))
+            margem_interna = int(largura * 0.25)
+            pygame.draw.ellipse(sombra_surface, (0, 0, 0, 100), (margem_interna, margem_interna // 2, int(largura * 0.7), max(1, int(altura // 3.5))))
+        if len(_sombra_surface_cache) > 96:
+            _sombra_surface_cache.clear()
+        _sombra_surface_cache[chave] = sombra_surface
+
+    if modo_sombra == "simples":
+        tela.blit(sombra_surface, (int(x), int(y + altura - offset_y)))
+    else:
+        tela.blit(sombra_surface, (int(x - largura * 0.1), int(y + altura - 15 - int(altura // 6))))
 
 
 def _desenhar_luz_loja_disponivel(tela, rect):
@@ -2649,6 +2695,138 @@ def deve_desenhar_habilidades(pos_personagem=None, tamanho_personagem=None):
     return not area_icones.colliderect(rect_personagem)
 
 
+def construir_grade_disparos(disparos, tamanho_celula=256):
+    """Indexa disparos por célula para reduzir testes inimigo x disparo por frame."""
+    if not disparos:
+        return None
+    grade = {}
+    for disparo in disparos:
+        rect = disparo.get("rect") if isinstance(disparo, dict) else None
+        if rect is None:
+            continue
+        min_cx = rect.left // tamanho_celula
+        max_cx = rect.right // tamanho_celula
+        min_cy = rect.top // tamanho_celula
+        max_cy = rect.bottom // tamanho_celula
+        for cy in range(min_cy, max_cy + 1):
+            for cx in range(min_cx, max_cx + 1):
+                grade.setdefault((cx, cy), []).append(disparo)
+    return grade
+
+
+def consultar_disparos_proximos(grade_disparos, alvo_rect, tamanho_celula=256, margem=220):
+    """Retorna disparos próximos do alvo, mantendo margem ampla para colisões especiais."""
+    if not grade_disparos or alvo_rect is None:
+        return None
+    area = alvo_rect.inflate(margem * 2, margem * 2)
+    vistos = set()
+    candidatos = []
+    min_cx = area.left // tamanho_celula
+    max_cx = area.right // tamanho_celula
+    min_cy = area.top // tamanho_celula
+    max_cy = area.bottom // tamanho_celula
+    for cy in range(min_cy, max_cy + 1):
+        for cx in range(min_cx, max_cx + 1):
+            for disparo in grade_disparos.get((cx, cy), ()):
+                ident = id(disparo)
+                if ident not in vistos:
+                    vistos.add(ident)
+                    candidatos.append(disparo)
+    return candidatos
+
+
+_hud_ultimate_cache = {}
+_hud_icone_scaled_cache = {}
+_hud_overlay_cache = {}
+_hud_font_cache = {}
+_hud_text_cache = {}
+
+def _hud_font(caminho, tamanho):
+    chave = (caminho, int(tamanho))
+    fonte = _hud_font_cache.get(chave)
+    if fonte is None:
+        fonte = pygame.font.Font(caminho if caminho and os.path.exists(caminho) else None, int(tamanho))
+        _hud_font_cache[chave] = fonte
+    return fonte
+
+def _hud_texto(fonte, texto, cor):
+    chave = (id(fonte), str(texto), tuple(cor))
+    surf = _hud_text_cache.get(chave)
+    if surf is None:
+        if len(_hud_text_cache) > 512:
+            _hud_text_cache.clear()
+        surf = fonte.render(str(texto), True, cor)
+        _hud_text_cache[chave] = surf
+    return surf
+
+def _hud_overlay_recarga(tamanho, modo_faixa):
+    tamanho = (int(tamanho[0]), int(tamanho[1]))
+    chave = (tamanho[0], tamanho[1], bool(modo_faixa))
+    overlay = _hud_overlay_cache.get(chave)
+    if overlay is None:
+        overlay = pygame.Surface(tamanho, pygame.SRCALPHA)
+        pygame.draw.rect(overlay, (0, 0, 0, 160), overlay.get_rect(), border_radius=12 if modo_faixa else 15)
+        _hud_overlay_cache[chave] = overlay
+    return overlay
+
+def _hud_icone_escalado(icone, tamanho):
+    tamanho = (int(tamanho), int(tamanho)) if isinstance(tamanho, (int, float)) else (int(tamanho[0]), int(tamanho[1]))
+    if icone.get_size() == tamanho:
+        return icone
+    chave = (id(icone), tamanho)
+    scaled = _hud_icone_scaled_cache.get(chave)
+    if scaled is None:
+        if len(_hud_icone_scaled_cache) > 64:
+            _hud_icone_scaled_cache.clear()
+        scaled = pygame.transform.scale(icone, tamanho)
+        _hud_icone_scaled_cache[chave] = scaled
+    return scaled
+
+def _criar_icone_ultimate_manifestacao(pronta=True):
+    tamanho = int(icone_tamanho[0])
+    try:
+        manifestacao_cache = str(obter_manifestacao_ativa()).lower()
+    except Exception:
+        manifestacao_cache = "desconhecida"
+    pulso_frame = int((pygame.time.get_ticks() // 90) % 18) if pronta else 0
+    chave_cache = (manifestacao_cache, bool(pronta), tamanho, pulso_frame)
+    cached = _hud_ultimate_cache.get(chave_cache)
+    if cached is not None:
+        return cached
+    surf = pygame.Surface((tamanho, tamanho), pygame.SRCALPHA)
+    try:
+        manifestacao = obter_manifestacao_ativa()
+        from dados_manifestacoes import MANIFESTACOES_DADOS
+        dados = MANIFESTACOES_DADOS.get(str(manifestacao).lower(), {})
+        cor = tuple(dados.get("cor", (255, 220, 80)))
+        cor2 = tuple(dados.get("cor_secundaria", (180, 80, 255)))
+    except Exception:
+        cor, cor2 = (255, 220, 80), (180, 80, 255)
+    if not pronta:
+        cor = tuple(max(25, int(c * 0.34)) for c in cor)
+        cor2 = tuple(max(18, int(c * 0.30)) for c in cor2)
+    centro = tamanho // 2
+    pulso = 1.0 + math.sin(pulso_frame / 18.0 * math.tau) * (0.08 if pronta else 0.025)
+    pygame.draw.rect(surf, (10, 8, 24, 210), surf.get_rect(), border_radius=14)
+    pygame.draw.circle(surf, (*cor2, 60 if pronta else 32), (centro, centro), int(34 * pulso))
+    pontos = []
+    for i in range(8):
+        ang = -math.pi / 2 + i * math.tau / 8
+        raio = 25 if i % 2 == 0 else 12
+        pontos.append((int(centro + math.cos(ang) * raio * pulso), int(centro + math.sin(ang) * raio * pulso)))
+    pygame.draw.polygon(surf, (*cor, 210), pontos, 3)
+    pygame.draw.circle(surf, (*cor2, 230), (centro, centro), 14, 3)
+    pygame.draw.circle(surf, (255, 255, 255, 235 if pronta else 120), (centro, centro), 5)
+    fonte_ult = _hud_font(None, 16)
+    texto = _hud_texto(fonte_ult, "ULT", (255, 255, 220) if pronta else (150, 150, 150))
+    surf.blit(texto, (centro - texto.get_width() // 2, tamanho - 18))
+    pygame.draw.rect(surf, (*cor, 230 if pronta else 130), surf.get_rect().inflate(-4, -4), 2, border_radius=12)
+    if len(_hud_ultimate_cache) > 96:
+        _hud_ultimate_cache.clear()
+    _hud_ultimate_cache[chave_cache] = surf
+    return surf
+
+
 def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None, area_externa=None):
 
     if dispositivo_ativo == "teclado":
@@ -2659,7 +2837,7 @@ def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None
 
         tecla_onda = formatar_nome_tecla(config_teclas.get("Habilidade Onda", "MOUSE_3"))
 
-        tecla_loja = formatar_nome_tecla(config_teclas.get("Comprar na loja", pygame.K_e))
+        tecla_ultimate = "E"
 
     else:
 
@@ -2669,7 +2847,7 @@ def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None
 
         tecla_onda = "B"
 
-        tecla_loja = "Y"
+        tecla_ultimate = "Y"
 
 
 
@@ -2681,15 +2859,9 @@ def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None
 
         ("onda", tecla_onda, icone_onda_pronto, icone_onda_recarga, cooldowns.get('onda', 0.0)),
 
-        ("loja", tecla_loja, icone_loja, icone_loja_pronto, cooldowns.get('loja', 0.0)),
+        ("ultimate", tecla_ultimate, icone_loja_pronto, icone_loja, cooldowns.get('ultimate', cooldowns.get('loja', 0.0))),
 
     ]
-
-    if obter_modo_cartas() == "drops":
-
-        habilidades = [h for h in habilidades if h[0] != "loja"]
-
-    
 
     num_hab = len(habilidades)
     modo_faixa = area_externa is not None
@@ -2731,6 +2903,8 @@ def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None
             else:
 
                 icone = icone_pronto
+        if nome == "ultimate":
+            icone = _criar_icone_ultimate_manifestacao(cooldown <= 0.0)
 
         else:
 
@@ -2749,7 +2923,7 @@ def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None
         # Desenhar o ícone
 
         if modo_faixa:
-            icone = pygame.transform.smoothscale(icone, (tamanho_icone_local, tamanho_icone_local))
+            icone = _hud_icone_escalado(icone, (tamanho_icone_local, tamanho_icone_local))
         tela.blit(icone, (x, y))
 
         
@@ -2761,9 +2935,7 @@ def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None
             # Desenhar overlay translúcido para indicar recarga
 
             tamanho_overlay = (tamanho_icone_local, tamanho_icone_local) if modo_faixa else icone_tamanho
-            overlay = pygame.Surface(tamanho_overlay, pygame.SRCALPHA)
-
-            pygame.draw.rect(overlay, (0, 0, 0, 160), overlay.get_rect(), border_radius=12 if modo_faixa else 15)
+            overlay = _hud_overlay_recarga(tamanho_overlay, modo_faixa)
 
             tela.blit(overlay, (x, y))
 
@@ -2771,7 +2943,7 @@ def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None
 
             # Desenhar texto com contorno e sombra de forma premium
 
-            fonte_cd = pygame.font.Font("Fonts/Outfit-Bold.ttf" if os.path.exists("Fonts/Outfit-Bold.ttf") else None, 20 if modo_faixa else 26)
+            fonte_cd = _hud_font("Fonts/Outfit-Bold.ttf", 20 if modo_faixa else 26)
 
             texto_cd = f"{cooldown:.1f}s"
 
@@ -2779,11 +2951,11 @@ def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None
 
             # Renderizar contorno/sombra primeiro
 
-            texto_sombra = fonte_cd.render(texto_cd, True, (0, 0, 0))
+            texto_sombra = _hud_texto(fonte_cd, texto_cd, (0, 0, 0))
 
             # Texto principal em ciano neon brilhante
 
-            texto_surf = fonte_cd.render(texto_cd, True, (0, 255, 240))
+            texto_surf = _hud_texto(fonte_cd, texto_cd, (0, 255, 240))
 
             
 
@@ -2819,10 +2991,10 @@ def desenhar_habilidades(tela, cooldowns, dispositivo_ativo, pos_personagem=None
 
         # Desenhar a tecla acima do ícone com contorno
 
-        fonte = pygame.font.Font(None, 18 if modo_faixa else 20)
+        fonte = _hud_font(None, 18 if modo_faixa else 20)
 
         if modo_faixa:
-            texto_tecla = fonte.render(tecla.upper(), True, cor_texto)
+            texto_tecla = _hud_texto(fonte, tecla.upper(), cor_texto)
             render_texto_com_contorno(
                 fonte, tecla.upper(), cor_texto, cor_contorno,
                 x + (tamanho_icone_local - texto_tecla.get_width()) // 2,
@@ -2837,7 +3009,7 @@ def render_texto_com_contorno(fonte, texto, cor_texto, cor_contorno, x, y, tela,
 
     """Renderiza texto com contorno."""
 
-    texto_render = fonte.render(texto, True, cor_contorno)
+    texto_render = _hud_texto(fonte, texto, cor_contorno)
 
     
 
@@ -2855,7 +3027,7 @@ def render_texto_com_contorno(fonte, texto, cor_texto, cor_contorno, x, y, tela,
 
     # Desenhar o texto principal
 
-    texto_principal = fonte.render(texto, True, cor_texto)
+    texto_principal = _hud_texto(fonte, texto, cor_texto)
 
     tela.blit(texto_principal, (x, y))
 
@@ -3989,6 +4161,35 @@ aviso_loja_forcada_fim_ms = None
 ultimo_spawn_larapio_normal_ms = 0
 ultimo_spawn_larapio_hard_ms = 0
 larapios_pontos = []
+chaves_loja_chao = []
+chaves_loja_jogador = 0
+ultimo_portador_chave_ms = pygame.time.get_ticks()
+CHAVE_LOJA_CHANCE = 0.02  # 2% por inimigo abatido no modo loja.
+CHAVE_LOJA_GARANTIA_MS = 3 * 60 * 1000
+CHAVE_LOJA_DURACAO_MS = 15000
+_regen_passivo_estado = {}
+REGEN_PASSIVO_ESPERA_MS = 10000
+REGEN_PASSIVO_INTERVALO_MS = 1000
+REGEN_PASSIVO_PERCENTUAL = 0.05
+
+
+def aplicar_regen_passivo_base(vida_atual, vida_maxima_atual, tempo_atual_ms, chave="jogador"):
+    agora = int(tempo_atual_ms)
+    vida_atual = float(vida_atual)
+    vida_maxima_atual = max(1.0, float(vida_maxima_atual))
+    estado = _regen_passivo_estado.setdefault(chave, {"vida_anterior": vida_atual, "ultimo_dano": agora, "ultima_cura": agora})
+    if vida_atual < float(estado.get("vida_anterior", vida_atual)) - 0.01:
+        estado["ultimo_dano"] = agora
+        estado["ultima_cura"] = agora
+    if (
+        vida_atual < vida_maxima_atual
+        and agora - int(estado.get("ultimo_dano", agora)) >= REGEN_PASSIVO_ESPERA_MS
+        and agora - int(estado.get("ultima_cura", agora)) >= REGEN_PASSIVO_INTERVALO_MS
+    ):
+        vida_atual = min(vida_maxima_atual, vida_atual + vida_maxima_atual * REGEN_PASSIVO_PERCENTUAL)
+        estado["ultima_cura"] = agora
+    estado["vida_anterior"] = vida_atual
+    return vida_atual
 
 
 def obter_config_jogabilidade(forcar_recarregar=False):
@@ -4218,17 +4419,19 @@ def atualizar_e_desenhar_larapios_pontos(tela, tempo_atual_ms, pos_x, pos_y, lar
 
 
 manifestacao_ativa = "eletrica"
+_obter_manifestacao_ativa_func = None
 
 
 def obter_manifestacao_ativa():
 
-    global manifestacao_ativa
+    global manifestacao_ativa, _obter_manifestacao_ativa_func
 
     try:
 
-        from dados_manifestacoes import obter_manifestacao_ativa as _obter_manifestacao_ativa
+        if _obter_manifestacao_ativa_func is None:
+            from dados_manifestacoes import obter_manifestacao_ativa as _obter_manifestacao_ativa_func
 
-        manifestacao_ativa = _obter_manifestacao_ativa()
+        manifestacao_ativa = _obter_manifestacao_ativa_func()
 
     except Exception:
 
@@ -4469,27 +4672,40 @@ CARTA_DROP_FRAGMENTOS_ROWS = 5
 LARAPIO_HARD_VELOCIDADE = 3.8
 LARAPIO_HARD_FUGA_MS = 6500
 LARAPIO_HARD_MARGEM_ESCAPE = 90
+_modo_cartas_cache = {
+    "valor": "loja",
+    "mtime": None,
+    "check_ms": 0,
+}
 
 
 
 def obter_modo_cartas():
 
+    agora = pygame.time.get_ticks()
+    if agora - int(_modo_cartas_cache.get("check_ms", 0)) < 2000:
+        return _modo_cartas_cache.get("valor") or "loja"
+    _modo_cartas_cache["check_ms"] = agora
+
     try:
 
-        import os
+        caminho = "saves/config_cartas.json"
+        mtime = os.path.getmtime(caminho)
+        if _modo_cartas_cache.get("mtime") == mtime:
+            return _modo_cartas_cache.get("valor") or "loja"
 
-        import json
-
-        if os.path.exists("saves/config_cartas.json"):
-
-            with open("saves/config_cartas.json", "r") as f:
-
-                return json.load(f).get("modo_cartas", "loja")
+        with open(caminho, "r") as f:
+            valor = json.load(f).get("modo_cartas", "loja")
+        if valor not in ("loja", "drops"):
+            valor = "loja"
+        _modo_cartas_cache.update({"valor": valor, "mtime": mtime, "check_ms": agora})
+        return valor
 
     except:
 
         pass
 
+    _modo_cartas_cache.update({"valor": "loja", "mtime": None, "check_ms": agora})
     return "loja"
 
 
@@ -4796,9 +5012,122 @@ def _desenhar_desfragmentacao_carta(tela, carta, progresso):
         tela.blit(poeira_surf, (int(px) - raio - 1, int(py) - raio - 1))
 
 
+def tentar_soltar_chave_loja(posicao, tempo_atual):
+    global ultimo_portador_chave_ms
+    if obter_modo_cartas() == "drops":
+        return False
+    agora = int(tempo_atual)
+    garantida = ultimo_portador_chave_ms <= 0 or agora - ultimo_portador_chave_ms >= CHAVE_LOJA_GARANTIA_MS
+    if not garantida and random.random() >= CHAVE_LOJA_CHANCE:
+        return False
+    ultimo_portador_chave_ms = agora
+    rect = pygame.Rect(0, 0, 30, 42)
+    rect.center = (int(posicao[0]), int(posicao[1]))
+    chaves_loja_chao.append({"rect": rect, "tempo_criado": agora, "fim_ms": agora + CHAVE_LOJA_DURACAO_MS})
+    return True
+
+
+def tem_chave_loja():
+    return chaves_loja_jogador > 0
+
+
+def adicionar_chave_loja(quantidade=1):
+    global chaves_loja_jogador
+    chaves_loja_jogador += max(0, int(quantidade))
+    return chaves_loja_jogador
+
+
+def consumir_chave_loja():
+    global chaves_loja_jogador
+    if chaves_loja_jogador <= 0:
+        return False
+    chaves_loja_jogador -= 1
+    return True
+
+
+def soltar_chave_do_larapio(posicao, tempo_atual):
+    rect = pygame.Rect(0, 0, 30, 42)
+    rect.center = (int(posicao[0]), int(posicao[1]))
+    chaves_loja_chao.append({"rect": rect, "tempo_criado": int(tempo_atual), "fim_ms": int(tempo_atual) + CHAVE_LOJA_DURACAO_MS, "recuperada": True})
+
+
+def larapio_tentar_roubar_chave(inimigo, tempo_atual):
+    if inimigo.get("possui_chave_loja"):
+        return False
+    agora = int(tempo_atual)
+    elegiveis = [c for c in chaves_loja_chao if 4000 <= agora - c["tempo_criado"] <= 8000]
+    if not elegiveis:
+        return False
+    chave = min(elegiveis, key=lambda c: math.hypot(c["rect"].centerx - inimigo["rect"].centerx, c["rect"].centery - inimigo["rect"].centery))
+    if not inimigo["rect"].inflate(42, 42).colliderect(chave["rect"]):
+        return False
+    chaves_loja_chao.remove(chave)
+    inimigo["possui_chave_loja"] = True
+    inimigo["estado"] = "fugindo"
+    inimigo["inicio_fuga"] = agora
+    return True
+
+
+def obter_chave_roubavel_larapio(posicao, tempo_atual):
+    """Retorna a chave mais proxima dentro da janela de roubo de 4 a 8 segundos."""
+    agora = int(tempo_atual)
+    elegiveis = [c for c in chaves_loja_chao if 4000 <= agora - c["tempo_criado"] <= 8000]
+    if not elegiveis:
+        return None
+    px, py = posicao
+    return min(elegiveis, key=lambda c: math.hypot(c["rect"].centerx - px, c["rect"].centery - py))
+
+
+def _desenhar_chaves_loja(tela, tempo_atual):
+    vivas = []
+    for chave in chaves_loja_chao:
+        restante = int(chave["fim_ms"]) - int(tempo_atual)
+        if restante <= 0:
+            continue
+        vivas.append(chave)
+        rect = chave["rect"]
+        pulso = 1.0 + math.sin(tempo_atual * 0.012) * 0.14
+        alpha = 255 if restante > 2200 else max(0, int(255 * restante / 2200.0))
+        surf = pygame.Surface((56, 64), pygame.SRCALPHA)
+        cx, cy = 28, 31
+        pygame.draw.circle(surf, (255, 205, 55, int(48 * pulso)), (cx, cy), int(25 * pulso))
+        pygame.draw.circle(surf, (255, 235, 125, alpha), (cx - 5, cy - 8), 9, 3)
+        pygame.draw.line(surf, (255, 220, 75, alpha), (cx + 2, cy - 2), (cx + 2, cy + 21), 6)
+        pygame.draw.line(surf, (255, 220, 75, alpha), (cx + 2, cy + 13), (cx + 12, cy + 13), 5)
+        pygame.draw.line(surf, (255, 220, 75, alpha), (cx + 2, cy + 20), (cx + 9, cy + 20), 4)
+        tela.blit(surf, surf.get_rect(center=rect.center))
+        if restante <= 2200:
+            progresso = 1.0 - restante / 2200.0
+            for indice in range(8):
+                angulo = indice * (math.tau / 8.0) + 0.35
+                distancia = 8 + 30 * progresso
+                fx = rect.centerx + math.cos(angulo) * distancia
+                fy = rect.centery + math.sin(angulo) * distancia - 10 * progresso
+                tamanho = max(1, int((4 - indice % 3) * (1.0 - progresso * 0.65)))
+                pygame.draw.polygon(
+                    tela,
+                    (255, 218, 76, alpha),
+                    [(int(fx), int(fy - tamanho)), (int(fx + tamanho), int(fy + tamanho)), (int(fx - tamanho), int(fy + tamanho))],
+                )
+    chaves_loja_chao[:] = vivas
+
+
+def atualizar_e_coletar_chaves_loja(tela, tempo_atual, personagem_rect, efeitos_texto_lista):
+    global chaves_loja_jogador
+    _desenhar_chaves_loja(tela, tempo_atual)
+    for chave in list(chaves_loja_chao):
+        if personagem_rect.colliderect(chave["rect"]):
+            chaves_loja_chao.remove(chave)
+            chaves_loja_jogador += 1
+            efeitos_texto_lista.append({"texto": "+CHAVE DA LOJA", "x": chave["rect"].centerx, "y": chave["rect"].centery - 24, "cor": (255, 225, 90), "tempo_inicio": int(tempo_atual)})
+    return chaves_loja_jogador
+
+
 def tentar_soltar_carta(posicao, tempo_atual, chance_sorte_jogador, inimigos_eliminados):
 
     global ultimo_drop_carta_ms
+
+    tentar_soltar_chave_loja(posicao, tempo_atual)
 
     if obter_modo_cartas() != "drops":
 
@@ -5176,13 +5505,14 @@ def coletar_cartas_no_chao(personagem_rect, stats, efeitos_texto_lista):
 
     """Verifica colisão do personagem com cartas no chão, aplica efeitos e retorna lista de nomes coletados."""
 
-    global cartas_no_chao
+    global cartas_no_chao, chaves_loja_jogador
 
     coletadas = []
 
     novas_cartas = []
 
     tempo_agora = pygame.time.get_ticks()
+
 
     
 
@@ -5276,6 +5606,17 @@ def obter_penalidade_atual():
     idx = min(tentativas_rewind, MAX_TENTATIVAS_REWIND - 1)
 
     return _PENALIDADES_REWIND[idx]
+
+
+def deve_registrar_snapshot(tempo_atual, intervalo_ms=1000):
+
+    try:
+
+        return int(tempo_atual) - int(ultimo_registro_tempo) >= int(intervalo_ms)
+
+    except Exception:
+
+        return True
 
 
 
@@ -5501,6 +5842,7 @@ def reset_game_session():
     global Tempo_cura, porcentagem_cura, tempo_ultima_regeneracao, cartas_compradas, ultimo_drop_carta_ms, ultimo_teste_larapio_ms
 
     global ultimo_spawn_larapio_normal_ms, ultimo_spawn_larapio_hard_ms, larapios_pontos
+    global chaves_loja_chao, chaves_loja_jogador, ultimo_portador_chave_ms, _regen_passivo_estado
 
     global trembo, Petro_active, vida_petro, vida_maxima_petro, dano_petro, Resistencia_petro, petro_evolucao
 
@@ -5543,6 +5885,16 @@ def reset_game_session():
     ultimo_spawn_larapio_hard_ms = 0
 
     larapios_pontos = []
+
+    chaves_loja_chao = []
+    chaves_loja_jogador = 0
+    ultimo_portador_chave_ms = pygame.time.get_ticks()
+    _regen_passivo_estado = {}
+    try:
+        import ultimate_manifestacao
+        ultimate_manifestacao.resetar_cooldown(pygame.time.get_ticks(), pronta=True)
+    except Exception:
+        pass
 
     cancelar_aviso_loja_forcada()
 
@@ -6135,8 +6487,8 @@ def desenhar_overlay_vida_critica(tela, vida_atual, vida_maxima_atual, tempo_atu
 
 # --- CONSTANTES MINIBOSS CONDUTOR DE ECOS ---
 MINIBOSS_CONDUTOR_ENTRADA_MS = 2500
-MINIBOSS_CONDUTOR_ECOS_INICIAIS = 2
-MINIBOSS_CONDUTOR_TEMPO_SEG = 8 * 60
+MINIBOSS_CONDUTOR_ECOS_INICIAIS = 7
+MINIBOSS_CONDUTOR_TEMPO_SEG = 6 * 60
 MINIBOSS_CONDUTOR_REDUCAO_POR_ECO = 0.20
 MINIBOSS_CONDUTOR_DISPARO_COOLDOWN = 2300
 MINIBOSS_CONDUTOR_OLHAR_COOLDOWN = 8500

@@ -69,7 +69,7 @@ def _criar_feixe(centro_x, centro_y, largura, altura, angulo, velocidade, tempo_
         "vy": math.sin(angulo) * velocidade,
         "velocidade_prismatica": velocidade,
         "velocidade_base_vfx": velocidade,
-        "raio_vfx": max(3, min(8, largura // 2)),
+        "raio_vfx": max(3, min(5, int(largura * 0.26))),
         "nascimento_ms": int(tempo_atual),
         "seed_vfx": random.randint(1000, 999999) + int(tempo_atual),
         "impulsiva_vfx": bool(impulsiva),

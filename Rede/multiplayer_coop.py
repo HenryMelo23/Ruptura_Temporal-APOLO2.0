@@ -11,6 +11,8 @@ from qa_logger import registrar_erro
 _conn = None
 _threads_started = False
 _modo = "offline"
+_modo_config_carregado = False
+_ip_config = None
 _remote = {
     "ativo": False,
     "x": 0,
@@ -150,14 +152,14 @@ def _ler_modo_jogo():
 
 
 def modo_multiplayer():
-    modo, _ = _ler_modo_jogo()
-    return modo in ("host", "join")
+    return modo_atual() in ("host", "join")
 
 
 def modo_atual():
-    global _modo
-    if _modo == "offline":
-        _modo, _ = _ler_modo_jogo()
+    global _modo, _ip_config, _modo_config_carregado
+    if not _modo_config_carregado:
+        _modo, _ip_config = _ler_modo_jogo()
+        _modo_config_carregado = True
     return _modo
 
 
@@ -194,9 +196,12 @@ def aplicar_multiplicador_vida_boss(valor):
 
 
 def inicializar_se_preciso():
-    global _conn, _threads_started, _modo
+    global _conn, _threads_started, _modo, _ip_config, _modo_config_carregado
 
-    _modo, ip = _ler_modo_jogo()
+    if not _modo_config_carregado:
+        _modo, _ip_config = _ler_modo_jogo()
+        _modo_config_carregado = True
+    ip = _ip_config
     if _modo not in ("host", "join"):
         return False
 

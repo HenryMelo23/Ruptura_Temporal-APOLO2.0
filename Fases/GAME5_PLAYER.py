@@ -1203,12 +1203,13 @@ def executar_jogo(game_manager=None):
             joystick = None
 
         running = True
+        custo_carta_atual = custo_base_carta + (sum(cartas_compradas.values()) * custo_por_carta)
         while running:
             tempo_atual = pygame.time.get_ticks()
             _autosave_treino_ias(tempo_atual)
 
             # Registrar snapshot para o sistema de rewind
-            if vida > 0:
+            if vida > 0 and Variaveis.deve_registrar_snapshot(tempo_atual):
                 snapshot_attrs = {
                     "velocidade_personagem": velocidade_personagem,
                     "intervalo_disparo": intervalo_disparo,
@@ -3391,7 +3392,8 @@ def executar_jogo(game_manager=None):
                 pontuacao_magia, cooldowns, dispositivo_ativo,
                 eliminacoes_consecutivas, bonus_pontuacao, aurea,
                 escudo_devota_ativo, pos_x_personagem, pos_y_personagem,
-                largura_personagem, altura_personagem
+                largura_personagem, altura_personagem,
+                fps_atual=FPS.get_fps()
             )
 
             Variaveis.aplicar_tremor_dano_tela(tela, tempo_atual, tempo_ultimo_hit_inimigo, piscando_vida)
@@ -3403,7 +3405,7 @@ def executar_jogo(game_manager=None):
             pygame.display.flip()
             # 144 FPS: A IA já roda em processo separado (multiprocessing), não precisa de tick alto.
             # O tick(900) anterior fazia TODO o código Python rodar 900x/s, causando 80%+ CPU.
-            dt_ms = FPS.tick(config_graficos.get("fps_limite", 60))
+            dt_ms = FPS.tick(Variaveis.obter_limite_fps(config_graficos))
             dt = max(0.05, min(3.0, dt_ms / 16.666667))
             Variaveis.dt = dt
 

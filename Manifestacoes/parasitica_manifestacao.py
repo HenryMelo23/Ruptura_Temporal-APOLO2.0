@@ -278,7 +278,7 @@ def criar_auto_attack(manifestacao, vfx, centro_x, centro_y, largura, altura, an
     disparo = vfx.criar_disparo(centro_x, centro_y, largura, altura, angulo, velocidade * 0.88, tempo_atual, impulsiva)
     disparo["tipo_manifestacao"] = "parasitica_semente"
     disparo["dano_mult_manifestacao"] = SEMENTE_DANO_INICIAL_MULT
-    disparo["raio_vfx"] = max(4, min(9, int(min(largura, altura) * 0.5)))
+    disparo["raio_vfx"] = max(3, min(6, int(min(largura, altura) * 0.30)))
     return disparo
 
 

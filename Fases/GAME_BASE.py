@@ -803,6 +803,7 @@ def executar_jogo(game_manager=None):
         ###################################################################################################PRINCIPAL#################################################################################################################
         #LOOP PRINCIPAL
         running = True
+        custo_carta_atual = custo_base_carta + (sum(cartas_compradas.values()) * custo_por_carta)
         while running:
             tempo_atual = pygame.time.get_ticks()
             nivel_impulsiva = upgrades.get("Impulsiva", 0)
@@ -2357,7 +2358,7 @@ def executar_jogo(game_manager=None):
             tela.blit(cursor_imagem, (mouse_x, mouse_y))
             exibir_cronometro(tela)
             pygame.display.flip()
-            FPS.tick(config_graficos.get("fps_limite", 60))  # Limita a taxa de quadros conforme configuração
+            FPS.tick(Variaveis.obter_limite_fps(config_graficos))  # Limita a taxa de quadros conforme configuração
 
 
         # Encerrar o Pygame

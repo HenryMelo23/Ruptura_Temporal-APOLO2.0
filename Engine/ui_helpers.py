@@ -4,8 +4,13 @@ import os
 import math
 import random
 import json
+import time
 
 _font_cache = {}
+_text_surface_cache = {}
+_moldura_cache = {}
+_fundo_palco_cache = {}
+_config_graficos_cache = {"dados": {}, "mtime": None, "check_ms": 0}
 _cursor_personalizado = None
 _vida_animacoes = {}
 _stage = {
@@ -24,6 +29,9 @@ _stage = {
     "frame_surface": None,
     "logical_dst_rect": None,
     "window_scale": 1.0,
+    "hardware_scaled": False,
+    "perf_comp_ms": 0.0,
+    "perf_flip_ms": 0.0,
 }
 
 _MIN_LARGURA_HUD_FULLSCREEN = 150
@@ -39,6 +47,16 @@ def get_cached_font(caminho, tamanho):
             _font_cache[key] = pygame.font.Font(None, tamanho)
     return _font_cache[key]
 
+def _get_cached_text_surface(fonte, texto, cor):
+    chave = (id(fonte), str(texto), tuple(cor))
+    surf = _text_surface_cache.get(chave)
+    if surf is None:
+        if len(_text_surface_cache) > 768:
+            _text_surface_cache.clear()
+        surf = fonte.render(str(texto), True, cor)
+        _text_surface_cache[chave] = surf
+    return surf
+
 def palco_ativo():
     return bool(_stage["active"])
 
@@ -50,7 +68,7 @@ def registrar_widget_aurea(widget):
     """Move o medidor da aura para a faixa externa no proximo flip."""
     if not _stage["active"]:
         return False
-    _stage["aura_widget"] = widget.copy() if widget is not None else None
+    _stage["aura_widget"] = widget if widget is not None else None
     _stage["aura_atualizado_ms"] = pygame.time.get_ticks()
     return True
 
@@ -219,7 +237,47 @@ def ativar_palco_fullscreen(largura_jogo, altura_jogo):
     if _stage["orig_flip"] is None:
         _stage["orig_flip"] = pygame.display.flip
 
-    display = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+    os.environ["SDL_RENDER_VSYNC"] = "0"
+    os.environ["SDL_RENDER_SCALE_QUALITY"] = "0"
+    usar_scaled_gpu = bool(_carregar_config_graficos().get("escala_gpu", True))
+    if usar_scaled_gpu:
+        try:
+            display = pygame.display.set_mode(
+                (int(largura_jogo), int(altura_jogo + _ALTURA_HUD_SUPERIOR + _ALTURA_HUD_INFERIOR)),
+                pygame.FULLSCREEN | pygame.SCALED,
+                vsync=0,
+            )
+            pygame.mouse.set_visible(False)
+            screen_w, screen_h = display.get_size()
+            dst_rect = pygame.Rect(0, _ALTURA_HUD_SUPERIOR, int(largura_jogo), int(altura_jogo))
+            _stage.update({
+                "active": True,
+                "display": display,
+                "game_surface": pygame.Surface((largura_jogo, altura_jogo)).convert(),
+                "game_size": (largura_jogo, altura_jogo),
+                "dst_rect": dst_rect,
+                "hud": None,
+                "hud_atualizado_ms": 0,
+                "aura_widget": None,
+                "aura_atualizado_ms": 0,
+                "top_h": dst_rect.top,
+                "bottom_h": screen_h - dst_rect.bottom,
+                "frame_surface": None,
+                "logical_dst_rect": None,
+                "window_scale": 1.0,
+                "hardware_scaled": True,
+                "perf_comp_ms": 0.0,
+                "perf_flip_ms": 0.0,
+            })
+            pygame.display.flip = _flip_palco
+            return _stage["game_surface"]
+        except Exception:
+            pass
+
+    try:
+        display = pygame.display.set_mode((0, 0), pygame.FULLSCREEN, vsync=0)
+    except TypeError:
+        display = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
     pygame.mouse.set_visible(False)
     screen_w, screen_h = display.get_size()
     top_h = max(72, min(82, int(screen_h * 0.072)))
@@ -255,6 +313,9 @@ def ativar_palco_fullscreen(largura_jogo, altura_jogo):
         "frame_surface": None,
         "logical_dst_rect": None,
         "window_scale": escala,
+        "hardware_scaled": False,
+        "perf_comp_ms": 0.0,
+        "perf_flip_ms": 0.0,
     })
     pygame.display.flip = _flip_palco
     return _stage["game_surface"]
@@ -318,7 +379,11 @@ def ativar_palco_janela(largura_jogo, altura_jogo):
     largura_jogo = int(largura_jogo)
     altura_jogo = int(altura_jogo)
     tamanho_display, dst_rect, escala, bottom_h = _calcular_layout_janela(largura_jogo, altura_jogo)
-    display = pygame.display.set_mode(tamanho_display)
+    os.environ["SDL_RENDER_VSYNC"] = "0"
+    try:
+        display = pygame.display.set_mode(tamanho_display, vsync=0)
+    except TypeError:
+        display = pygame.display.set_mode(tamanho_display)
     pygame.mouse.set_visible(False)
     frame_surface = pygame.Surface(
         (largura_jogo, altura_jogo + _ALTURA_HUD_SUPERIOR + _ALTURA_HUD_INFERIOR)
@@ -364,8 +429,8 @@ def desativar_palco():
     })
 
 def _texto_contorno(surface, fonte, texto, cor, pos):
-    sombra = fonte.render(str(texto), True, (0, 0, 0))
-    base = fonte.render(str(texto), True, cor)
+    sombra = _get_cached_text_surface(fonte, texto, (0, 0, 0))
+    base = _get_cached_text_surface(fonte, texto, cor)
     x, y = pos
     surface.blit(sombra, (x - 1, y))
     surface.blit(sombra, (x + 1, y))
@@ -373,31 +438,65 @@ def _texto_contorno(surface, fonte, texto, cor, pos):
     surface.blit(sombra, (x, y + 1))
     surface.blit(base, (x, y))
 
+def _fps_inteiro(fps_atual):
+    try:
+        return max(0, int(round(float(fps_atual or 0))))
+    except Exception:
+        return 0
+
+def _desenhar_fps_run(surface, fps_atual, config_graficos=None, pos=None):
+    if not (config_graficos or {}).get("mostrar_fps", False):
+        return
+    fps = _fps_inteiro(fps_atual)
+    fonte_label = get_cached_font(None, 14)
+    fonte_valor = get_cached_font(None, 22)
+    label = "FPS"
+    valor = str(fps)
+    label_img = fonte_label.render(label, True, (0, 255, 204))
+    valor_img = fonte_valor.render(valor, True, (255, 255, 255))
+    if pos is None:
+        x = surface.get_width() - max(label_img.get_width(), valor_img.get_width()) - 18
+        y = 52
+    else:
+        x, y = pos
+    _texto_contorno(surface, fonte_label, label, (0, 255, 204), (x, y))
+    _texto_contorno(surface, fonte_valor, valor, (255, 255, 255), (x, y + 15))
+
 def _desenhar_moldura(surface, rect, lado):
     if rect.width <= 0 or rect.height <= 0:
         return
+    chave = (int(rect.width), int(rect.height), str(lado))
+    painel = _moldura_cache.get(chave)
+    if painel is not None:
+        surface.blit(painel, rect.topleft)
+        return
     painel = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
     painel.fill((8, 7, 16, 255))
-    tempo = pygame.time.get_ticks() * 0.001
-    for y in range(-40, rect.height + 40, 40):
-        yy = int((y + tempo * 18) % (rect.height + 40) - 20)
-        pygame.draw.line(painel, (0, 180, 200, 22), (0, yy), (rect.width, yy), 1)
+    for y in range(0, rect.height + 1, 40):
+        pygame.draw.line(painel, (0, 180, 200, 18), (0, y), (rect.width, y), 1)
     for x in range(0, rect.width, 40):
-        pygame.draw.line(painel, (0, 180, 200, 15), (x, 0), (x, rect.height), 1)
+        pygame.draw.line(painel, (0, 180, 200, 12), (x, 0), (x, rect.height), 1)
     borda_x = rect.width - 4 if lado == "esquerda" else 0
     pygame.draw.line(painel, (0, 255, 220), (borda_x, 0), (borda_x, rect.height), 4)
     pygame.draw.line(painel, (255, 255, 255, 30), (borda_x + (1 if lado == "direita" else -1), 0), (borda_x + (1 if lado == "direita" else -1), rect.height), 1)
+    _moldura_cache[chave] = painel
     surface.blit(painel, rect.topleft)
 
 def _desenhar_fundo_palco(surface):
     largura, altura = surface.get_size()
-    surface.fill((8, 7, 16))
-    tempo = pygame.time.get_ticks() * 0.001
-    for y in range(-40, altura + 40, 40):
-        yy = int((y + tempo * 18) % (altura + 40) - 20)
-        pygame.draw.line(surface, (5, 34, 43), (0, yy), (largura, yy), 1)
+    chave = (int(largura), int(altura))
+    fundo = _fundo_palco_cache.get(chave)
+    if fundo is not None:
+        surface.blit(fundo, (0, 0))
+        return
+    fundo = pygame.Surface((largura, altura)).convert()
+    fundo.fill((8, 7, 16))
+    for y in range(0, altura + 1, 40):
+        pygame.draw.line(fundo, (5, 34, 43), (0, y), (largura, y), 1)
     for x in range(0, largura, 40):
-        pygame.draw.line(surface, (4, 27, 36), (x, 0), (x, altura), 1)
+        pygame.draw.line(fundo, (4, 27, 36), (x, 0), (x, altura), 1)
+    _fundo_palco_cache[chave] = fundo
+    surface.blit(fundo, (0, 0))
 
 def _desenhar_barra_sidebar(surface, x, y, w, h, atual, maximo, cor):
     maximo = max(1.0, float(maximo))
@@ -410,11 +509,7 @@ def _desenhar_barra_sidebar(surface, x, y, w, h, atual, maximo, cor):
 def _obter_nivel_detalhes(config_graficos=None):
     cfg = config_graficos or {}
     if not cfg:
-        try:
-            with open("saves/config_graficos.json", "r") as f:
-                cfg = json.load(f)
-        except Exception:
-            cfg = {}
+        cfg = _carregar_config_graficos()
     nivel = str(cfg.get("nivel_detalhes", cfg.get("qualidade_grafica", "alta"))).lower()
     if nivel in ("alto", "alta"):
         return "alto"
@@ -423,10 +518,23 @@ def _obter_nivel_detalhes(config_graficos=None):
     return "baixo"
 
 def _carregar_config_graficos():
+    caminho = "saves/config_graficos.json"
+    agora = pygame.time.get_ticks()
+    if _config_graficos_cache["dados"] and agora - int(_config_graficos_cache.get("check_ms", 0)) < 500:
+        return _config_graficos_cache["dados"]
+    _config_graficos_cache["check_ms"] = agora
     try:
-        with open("saves/config_graficos.json", "r") as f:
-            return json.load(f)
+        mtime = os.path.getmtime(caminho)
+        if _config_graficos_cache["dados"] and _config_graficos_cache.get("mtime") == mtime:
+            return _config_graficos_cache["dados"]
+        with open(caminho, "r") as f:
+            dados = json.load(f)
+        _config_graficos_cache["dados"] = dados
+        _config_graficos_cache["mtime"] = mtime
+        return dados
     except Exception:
+        if _config_graficos_cache["dados"]:
+            return _config_graficos_cache["dados"]
         return {}
 
 def _atualizar_animacao_vida(chave, atual, maximo):
@@ -1210,6 +1318,23 @@ def _desenhar_hud_molduras(display):
         tempo_centro = right.centerx if right.width >= 110 else screen_w - max(48, tempo_img.get_width() // 2 + 18)
         _texto_contorno(display, font_label, "TEMPO", (0, 255, 204), (tempo_centro - tempo_label_img.get_width() // 2, 10))
         _texto_contorno(display, font_valor_topo, tempo_txt, (255, 255, 255), (tempo_centro - tempo_img.get_width() // 2, 34))
+        if hud.get("config_graficos", {}).get("mostrar_fps", False):
+            fps_txt = (
+                f"{_fps_inteiro(hud.get('fps_atual'))} FPS "
+                f"C{_stage.get('perf_comp_ms', 0.0):.1f}/F{_stage.get('perf_flip_ms', 0.0):.1f}"
+            )
+            fps_img = _get_cached_text_surface(font_label, fps_txt, (175, 255, 240))
+            if top.height >= 72:
+                fps_pos = (tempo_centro - fps_img.get_width() // 2, 56)
+            else:
+                fps_pos = (max(rect.right + 8, tempo_centro - fps_img.get_width() - 62), 34)
+            _texto_contorno(
+                display,
+                font_label,
+                fps_txt,
+                (175, 255, 240),
+                fps_pos,
+            )
 
     if bottom.height >= 64:
         Variaveis.desenhar_habilidades(
@@ -1282,6 +1407,7 @@ def _desenhar_hud_molduras(display):
 def _flip_palco():
     if not _stage["active"]:
         return _stage["orig_flip"]()
+    t0 = time.perf_counter()
     display = _stage["display"]
     frame = _stage.get("frame_surface")
     logical_rect = _stage.get("logical_dst_rect")
@@ -1298,20 +1424,35 @@ def _flip_palco():
         finally:
             _stage["dst_rect"] = physical_rect
 
-        display.fill((0, 0, 0))
         if frame.get_size() == display.get_size():
             display.blit(frame, (0, 0))
         else:
-            display.blit(pygame.transform.smoothscale(frame, display.get_size()), (0, 0))
-        return _stage["orig_flip"]()
+            # O frame muda a cada tick. smoothscale no quadro inteiro custa caro
+            # demais para 120 FPS; scale preserva melhor o pixel-art e e muito
+            # mais barato em tempo real.
+            display.blit(pygame.transform.scale(frame, display.get_size()), (0, 0))
+        t1 = time.perf_counter()
+        resultado = _stage["orig_flip"]()
+        t2 = time.perf_counter()
+        _stage["perf_comp_ms"] = (t1 - t0) * 1000.0
+        _stage["perf_flip_ms"] = (t2 - t1) * 1000.0
+        return resultado
 
     _desenhar_fundo_palco(display)
     _desenhar_moldura(display, pygame.Rect(0, 0, _stage["dst_rect"].x, display.get_height()), "esquerda")
     _desenhar_moldura(display, pygame.Rect(_stage["dst_rect"].right, 0, display.get_width() - _stage["dst_rect"].right, display.get_height()), "direita")
-    scaled = pygame.transform.smoothscale(_stage["game_surface"], _stage["dst_rect"].size)
-    display.blit(scaled, _stage["dst_rect"].topleft)
+    if _stage["game_surface"].get_size() == _stage["dst_rect"].size:
+        display.blit(_stage["game_surface"], _stage["dst_rect"].topleft)
+    else:
+        scaled = pygame.transform.scale(_stage["game_surface"], _stage["dst_rect"].size)
+        display.blit(scaled, _stage["dst_rect"].topleft)
     _desenhar_hud_molduras(display)
-    return _stage["orig_flip"]()
+    t1 = time.perf_counter()
+    resultado = _stage["orig_flip"]()
+    t2 = time.perf_counter()
+    _stage["perf_comp_ms"] = (t1 - t0) * 1000.0
+    _stage["perf_flip_ms"] = (t2 - t1) * 1000.0
+    return resultado
 
 def _misturar_cores(cor_a, cor_b, peso):
     peso = max(0.0, min(1.0, peso))
@@ -1694,6 +1835,7 @@ def desenhar_hud_fase(
     pos_y_personagem=None,
     largura_personagem=None,
     altura_personagem=None,
+    fps_atual=None,
 ):
     import Variaveis
     config_graficos_hud = _carregar_config_graficos()
@@ -1725,6 +1867,7 @@ def desenhar_hud_fase(
             "aurea": aurea,
             "escudo_devota_ativo": escudo_devota_ativo,
             "config_graficos": config_graficos_hud,
+            "fps_atual": fps_atual,
         }
         _stage["hud_atualizado_ms"] = pygame.time.get_ticks()
         return
@@ -1798,6 +1941,7 @@ def desenhar_hud_fase(
     tela.blit(texto_vida, (posicao_barra_vida[0]*2, posicao_barra_vida[1] + 5))
 
     tela.blit(Variaveis.imagem_vida, Variaveis.posicao_vida)
+    _desenhar_fps_run(tela, fps_atual, config_graficos_hud)
 
     deve_desenhar_icones = True
     if None not in (pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem):

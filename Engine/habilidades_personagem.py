@@ -10,6 +10,7 @@ import parasitica_manifestacao
 import condutora_manifestacao
 import gravitante_manifestacao
 import ancorada_manifestacao
+import ultimate_manifestacao
 
 def calcular_corrente_eletrica_grafo(origem_inimigo, inimigos_comum):
     """
@@ -186,20 +187,28 @@ def aplicar_efeito_visual_choque(tela, inimigo):
     """
     inimigo["eletrocutado"] = True
 
-def atualizar_e_desenhar_correntes(tela, correntes_eletricas, inimigos_comum, tempo_atual, dano_jogador=10.0):
+def atualizar_e_desenhar_correntes(tela, correntes_eletricas, inimigos_comum, tempo_atual, dano_jogador=10.0, config_graficos=None):
+    if not correntes_eletricas:
+        for inimigo in inimigos_comum:
+            if isinstance(inimigo, dict) and inimigo.get("eletrocutado"):
+                inimigo["eletrocutado"] = False
+        return []
+
     for inimigo in inimigos_comum:
         if isinstance(inimigo, dict):
             inimigo["eletrocutado"] = False
 
     particulas_ativas = True
     qualidade = "alta"
-    try:
-        with open("saves/config_graficos.json", "r") as f:
-            cfg = json.load(f)
-            particulas_ativas = cfg.get("particulas_ativas", True)
-            qualidade = cfg.get("qualidade_grafica", "alta")
-    except:
-        pass
+    cfg = config_graficos if isinstance(config_graficos, dict) else None
+    if cfg is None:
+        try:
+            with open("saves/config_graficos.json", "r") as f:
+                cfg = json.load(f)
+        except Exception:
+            cfg = {}
+    particulas_ativas = cfg.get("particulas_ativas", True)
+    qualidade = cfg.get("qualidade_grafica", "alta")
 
     novas_correntes = []
     inimigos_mortos = []
@@ -271,7 +280,7 @@ def atualizar_e_desenhar_correntes(tela, correntes_eletricas, inimigos_comum, te
     correntes_eletricas[:] = novas_correntes
     return inimigos_mortos
 
-def processar_habilidade_onda(ondas, correntes_eletricas, inimigos_comum, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda, disparos=None, config_graficos=None):
+def processar_habilidade_onda(ondas, correntes_eletricas, inimigos_comum, boss_info, tela, dt, tempo_atual, largura_mapa, altura_mapa, velocidade_onda, disparos=None, config_graficos=None, player_center=None):
     """
     Processa movimento e colisão da onda, e inicializa as correntes elétricas.
     `boss_info` é um dict com: {"vivo": bool, "rect": pygame.Rect, "atingido_por_onda": int} e atualizará o int de hit
@@ -280,6 +289,15 @@ def processar_habilidade_onda(ondas, correntes_eletricas, inimigos_comum, boss_i
     inimigos_mortos_neste_frame = []
     
     for onda in ondas:
+        if onda.get("tipo_manifestacao") == "ultimate_manifestacao":
+            manter, mortos_ultimate = ultimate_manifestacao.processar_ultimate(
+                onda, inimigos_comum, boss_info, tela, tempo_atual, config_graficos, disparos=disparos, player_center=player_center
+            )
+            inimigos_mortos_neste_frame.extend(mortos_ultimate)
+            if manter:
+                novas_ondas.append(onda)
+            continue
+
         if onda.get("tipo_manifestacao") in ("chamado_reverso", "memoria_instavel_ativacao"):
             retornante_manifestacao.desenhar_chamado(tela, onda, tempo_atual, config_graficos)
             if tempo_atual < int(onda.get("fim_ms", 0)):

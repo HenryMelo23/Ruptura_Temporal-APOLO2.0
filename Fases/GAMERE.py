@@ -1245,6 +1245,7 @@ def executar_jogo(game_manager=None):
                 registrar_erro("Erro ao executar animacao de spawn do portal", e)
 
         running = True
+        custo_carta_atual = custo_base_carta + (sum(cartas_compradas.values()) * custo_por_carta)
         while running:
             tempo_atual = pygame.time.get_ticks()
             if modo == "host":
@@ -1263,7 +1264,7 @@ def executar_jogo(game_manager=None):
                     tempo_ultimo_inimigo = tempo_atual
 
             # Registrar snapshot para o sistema de rewind
-            if vida > 0:
+            if vida > 0 and Variaveis.deve_registrar_snapshot(tempo_atual):
                 snapshot_attrs = {
                     "velocidade_personagem": velocidade_personagem,
                     "intervalo_disparo": intervalo_disparo,

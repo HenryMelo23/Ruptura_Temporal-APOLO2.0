@@ -2515,10 +2515,14 @@ def tela_configuracoes_graficas(tela, fonte):
             "efeitos_visuais": True,
             "efeitos_manifestacoes": "alto",
             "fps_limite": 60,
+            "mostrar_fps": False,
+            "escala_gpu": True,
             "tela_cheia": False,
             "sangue_lacerante": "alto"
         }
     config.setdefault("fps_limite", 60)
+    config.setdefault("mostrar_fps", False)
+    config.setdefault("escala_gpu", True)
     config.setdefault("nivel_detalhes", "alto")
     config.setdefault("particulas_ativas", True)
     config.setdefault("efeitos_visuais", True)
@@ -2537,6 +2541,8 @@ def tela_configuracoes_graficas(tela, fonte):
         {"nome": "Efeitos Visuais", "chave": "efeitos_visuais", "valores": [True, False], "labels": ["Ativados", "Desativados"]},
         {"nome": "Efeitos Manifestacoes", "chave": "efeitos_manifestacoes", "valores": ["alto", "medio", "baixo", "desativado"], "labels": ["Alto", "Medio", "Baixo", "Desativado"]},
         {"nome": "Limite de FPS", "chave": "fps_limite", "valores": [30, 60, 120, 0], "labels": ["30 FPS", "60 FPS", "120 FPS", "Ilimitado"]},
+        {"nome": "Mostrar FPS", "chave": "mostrar_fps", "valores": [False, True], "labels": ["Desativado", "Ativado"]},
+        {"nome": "Escala GPU", "chave": "escala_gpu", "valores": [True, False], "labels": ["Ativada", "Compatibilidade"]},
         {"nome": "Sangue Lacerante", "chave": "sangue_lacerante", "valores": ["alto", "reduzido", "desativado"], "labels": ["Completo", "Reduzido", "Desativado"]},
         {"nome": "Aplicar Alteracoes", "chave": "__aplicar__", "valores": None, "labels": None},
         {"nome": "Voltar", "chave": None, "valores": None, "labels": None}
@@ -2584,6 +2590,14 @@ def tela_configuracoes_graficas(tela, fonte):
             60: "Padrao recomendado para jogabilidade fluida e estavel.",
             120: "Para monitores de alta taxa de atualizacao (120Hz ou mais).",
             0: "Ilimitado. Roda o mais rapido possivel (uso maximo de hardware)."
+        },
+        "mostrar_fps": {
+            False: "Oculta o contador de FPS durante a run.",
+            True: "Mostra o FPS atual durante a run para diagnosticar desempenho."
+        },
+        "escala_gpu": {
+            True: "Usa SDL/GPU para escalar a tela cheia. Muito mais leve em fullscreen.",
+            False: "Modo compatibilidade: escala pelo caminho antigo em software."
         },
         "sangue_lacerante": {
             "alto": "Efeito de sangue completo na passiva Lacerante. Maxima fidelidade.",

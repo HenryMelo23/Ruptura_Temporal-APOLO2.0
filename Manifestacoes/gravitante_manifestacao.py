@@ -118,7 +118,7 @@ def criar_auto_attack(manifestacao, vfx, centro_x, centro_y, largura, altura, an
     )
     disparo["tipo_manifestacao"] = "gravitante_orbe"
     disparo["dano_mult_manifestacao"] = ORBE_DANO_IMPACTO_MULT
-    disparo["raio_vfx"] = max(5, min(11, int(min(largura, altura) * 0.55)))
+    disparo["raio_vfx"] = max(4, min(7, int(min(largura, altura) * 0.32)))
     disparo["pulso_gravitante"] = random.random() * math.tau
     return disparo
 

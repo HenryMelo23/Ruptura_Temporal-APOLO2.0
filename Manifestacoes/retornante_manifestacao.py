@@ -112,7 +112,7 @@ def criar_auto_attack(manifestacao, vfx, centro_x, centro_y, largura, altura, an
         "vy": math.sin(angulo) * velocidade * PULSO_VELOCIDADE_IDA_MULT,
         "velocidade_retornante": velocidade,
         "velocidade_base_vfx": velocidade,
-        "raio_vfx": max(5, min(12, largura // 2)),
+        "raio_vfx": max(4, min(8, int(largura * 0.28))),
         "nascimento_ms": int(tempo_atual),
         "seed_vfx": random.randint(1000, 999999) + int(tempo_atual),
         "impulsiva_vfx": bool(impulsiva),
@@ -140,7 +140,7 @@ def _redimensionar_pulso(disparo, escala):
     rect.center = centro
     disparo["pos_x"] = float(rect.x)
     disparo["pos_y"] = float(rect.y)
-    disparo["raio_vfx"] = max(4, min(15, rect.width // 2))
+    disparo["raio_vfx"] = max(4, min(9, int(rect.width * 0.30)))
 
 
 def _tornar_instavel(disparo, tempo_atual):
@@ -153,7 +153,8 @@ def _tornar_instavel(disparo, tempo_atual):
     disparo["memoria_instavel_hits_ms"] = {}
     disparo["memoria_instavel_ultimo_hit_ms"] = -999999
     disparo["memoria_instavel_ultimo_alvo"] = None
-    disparo["memoria_instavel_buscar_alvo"] = False
+    disparo["memoria_instavel_buscar_alvo"] = True
+    disparo["memoria_instavel_proxima_busca_ms"] = int(tempo_atual)
     disparo["retornante_forcado"] = False
     disparo["retornante_marca_ms"] = int(tempo_atual)
     _redimensionar_pulso(disparo, MEMORIA_INSTAVEL_ESCALA)
@@ -259,7 +260,7 @@ def _finalizar_instabilidade(disparo, tempo_atual):
     _redimensionar_pulso(disparo, 1.22 if impactos >= 6 else 1.0)
 
 
-def _direcionar_ricochete(disparo, alvos):
+def _direcionar_ricochete(disparo, alvos, tempo_atual):
     rect = disparo["rect"]
     ultimo = disparo.get("memoria_instavel_ultimo_alvo")
     candidatos = []
@@ -267,7 +268,9 @@ def _direcionar_ricochete(disparo, alvos):
         alvo_rect = _rect_alvo(alvo)
         if alvo_rect is None or (isinstance(alvo, dict) and (alvo.get("invisivel") or alvo.get("vida", 1) <= 0)):
             continue
-        if _id_alvo(alvo) == ultimo:
+        alvo_id = _id_alvo(alvo)
+        ultimo_hit = int(disparo.get("memoria_instavel_hits_ms", {}).get(alvo_id, -999999))
+        if alvo_id == ultimo and int(tempo_atual) - ultimo_hit < MEMORIA_INSTAVEL_INTERVALO_ALVO_MS:
             continue
         distancia = math.hypot(alvo_rect.centerx - rect.centerx, alvo_rect.centery - rect.centery)
         if distancia <= MEMORIA_INSTAVEL_RAIO_BUSCA:
@@ -280,6 +283,7 @@ def _direcionar_ricochete(disparo, alvos):
         # manterem o pulso vivo ate surgir uma nova oportunidade.
         disparo["angulo"] = float(disparo.get("angulo", 0.0)) + math.pi + 0.19
     disparo["memoria_instavel_buscar_alvo"] = False
+    disparo["memoria_instavel_proxima_busca_ms"] = int(tempo_atual) + 480
 
 
 def atualizar_disparo(disparo, player_x, player_y, dt, tempo_atual, alvos=None, largura_mapa=None, altura_mapa=None):
@@ -296,8 +300,10 @@ def atualizar_disparo(disparo, player_x, player_y, dt, tempo_atual, alvos=None, 
             _finalizar_instabilidade(disparo, tempo_atual)
             fase = "volta"
         else:
+            if int(tempo_atual) >= int(disparo.get("memoria_instavel_proxima_busca_ms", 0)):
+                disparo["memoria_instavel_buscar_alvo"] = True
             if disparo.get("memoria_instavel_buscar_alvo"):
-                _direcionar_ricochete(disparo, alvos)
+                _direcionar_ricochete(disparo, alvos, tempo_atual)
             angulo = float(disparo.get("angulo", 0.0))
             vx = math.cos(angulo) * velocidade_base
             vy = math.sin(angulo) * velocidade_base
@@ -341,6 +347,20 @@ def atualizar_disparo(disparo, player_x, player_y, dt, tempo_atual, alvos=None, 
         dx, dy = float(player_x) - cx, float(player_y) - cy
         dist_player = math.hypot(dx, dy)
         if dist_player <= max(20, rect.width + 8):
+            if int(tempo_atual) < int(disparo.get("retornante_paradoxo_ate", 0)):
+                ciclos = min(2, int(disparo.get("retornante_paradoxo_ciclos", 0)) + 1)
+                disparo["retornante_paradoxo_ciclos"] = ciclos
+                disparo["retornante_fase"] = "ida"
+                disparo["distancia_ida"] = 0.0
+                disparo["alcance_retornante"] = 165 + ciclos * 45
+                disparo["retornante_hits_ida"] = []
+                disparo["retornante_hits_volta"] = []
+                disparo["retornante_marca_ms"] = int(tempo_atual)
+                angulo_saida = float(disparo.get("angulo", 0.0))
+                disparo["pos_x"] = float(player_x) + math.cos(angulo_saida) * max(18, rect.width)
+                disparo["pos_y"] = float(player_y) + math.sin(angulo_saida) * max(18, rect.height)
+                rect.center = (int(disparo["pos_x"]), int(disparo["pos_y"]))
+                return True
             disparo["expirado"] = True
             return False
         nx, ny = _normalizar(dx, dy)
@@ -460,6 +480,11 @@ def multiplicador_dano_disparo(disparo):
         mult *= float(disparo.get("memoria_retorno_bonus", 1.0))
     if disparo.get("retornante_forcado") and _fase(disparo) == "volta":
         mult *= PULSO_RETORNO_FORCADO_MULT
+    ciclos = min(2, int(disparo.get("retornante_paradoxo_ciclos", 0)))
+    if ciclos:
+        mult *= (0.80, 0.65)[ciclos - 1]
+    if disparo.get("retornante_paradoxo_final") and fase == "volta":
+        mult *= 1.18
     return mult
 
 

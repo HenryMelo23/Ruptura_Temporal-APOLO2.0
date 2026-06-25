@@ -108,6 +108,8 @@ if not hasattr(builtins, "_saves_redirected"):
                 "efeitos_visuais": True,
                 "efeitos_manifestacoes": "alto",
                 "fps_limite": 60,
+                "mostrar_fps": False,
+                "escala_gpu": True,
                 "tela_cheia": False
             },
             "config_teclas.json": {

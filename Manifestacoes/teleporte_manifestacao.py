@@ -84,6 +84,19 @@ def _normalizar(vx, vy):
     return vx / comp, vy / comp
 
 
+def _camada_segmento(tela, x1, y1, x2, y2, margem=32):
+    bounds = pygame.Rect(
+        int(min(x1, x2) - margem),
+        int(min(y1, y2) - margem),
+        int(abs(x2 - x1) + margem * 2),
+        int(abs(y2 - y1) + margem * 2),
+    )
+    area = tela.get_rect().clip(bounds)
+    if area.width <= 0 or area.height <= 0:
+        return None, None
+    return pygame.Surface(area.size, pygame.SRCALPHA), area
+
+
 def _distancia_segmento(px, py, ax, ay, bx, by):
     abx, aby = bx - ax, by - ay
     apx, apy = px - ax, py - ay
@@ -748,23 +761,24 @@ def _desenhar_efeito(tela, efeito, tempo_atual, perfil):
         origem = efeito.get("origem")
         if origem:
             ox, oy = origem
-            surf = pygame.Surface(tela.get_size(), pygame.SRCALPHA)
-            vx, vy = _normalizar(x - ox, y - oy)
-            lx, ly = -vy, vx
-            for desloc, cor_luz, alpha in ((-10, cor2, 50), (0, cor, 72), (10, cor3, 46)):
-                pygame.draw.line(
-                    surf,
-                    (*cor_luz, int(alpha * fade)),
-                    (int(ox + lx * desloc), int(oy + ly * desloc)),
-                    (int(x + lx * desloc * 0.4), int(y + ly * desloc * 0.4)),
-                    2,
-                )
-            for i in range(5):
-                t = (p * 1.4 + i / 5.0) % 1.0
-                px = ox + (x - ox) * t
-                py = oy + (y - oy) * t
-                pygame.draw.circle(surf, (*random.choice((cor, cor2, cor3)), int(90 * fade)), (int(px), int(py)), 3)
-            tela.blit(surf, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+            surf, area = _camada_segmento(tela, ox, oy, x, y, 44)
+            if surf is not None:
+                vx, vy = _normalizar(x - ox, y - oy)
+                lx, ly = -vy, vx
+                for desloc, cor_luz, alpha in ((-10, cor2, 50), (0, cor, 72), (10, cor3, 46)):
+                    pygame.draw.line(
+                        surf,
+                        (*cor_luz, int(alpha * fade)),
+                        (int(ox + lx * desloc - area.x), int(oy + ly * desloc - area.y)),
+                        (int(x + lx * desloc * 0.4 - area.x), int(y + ly * desloc * 0.4 - area.y)),
+                        2,
+                    )
+                for i in range(5):
+                    t = (p * 1.4 + i / 5.0) % 1.0
+                    px = ox + (x - ox) * t
+                    py = oy + (y - oy) * t
+                    pygame.draw.circle(surf, (*random.choice((cor, cor2, cor3)), int(90 * fade)), (int(px - area.x), int(py - area.y)), 3)
+                tela.blit(surf, area.topleft, special_flags=pygame.BLEND_RGBA_ADD)
         pts = [(x, y - r), (x + r, y), (x, y + r), (x - r, y)]
         surf = pygame.Surface((r * 2 + 24, r * 2 + 24), pygame.SRCALPHA)
         local = [(px - x + r + 12, py - y + r + 12) for px, py in pts]

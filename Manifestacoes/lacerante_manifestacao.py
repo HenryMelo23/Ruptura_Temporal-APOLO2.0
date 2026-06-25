@@ -92,6 +92,18 @@ def _bounds_segmento(x1, y1, x2, y2, largura):
     return pygame.Rect(left, top, int(abs(x2 - x1) + margem * 2), int(abs(y2 - y1) + margem * 2))
 
 
+def _surface_local(tela, bounds):
+    area = tela.get_rect().clip(bounds)
+    if area.width <= 0 or area.height <= 0:
+        return None, None
+    return pygame.Surface(area.size, pygame.SRCALPHA), area
+
+
+def _pontos_localizados(pontos, area):
+    ox, oy = area.x, area.y
+    return [(x - ox, y - oy) for x, y in pontos]
+
+
 def _rect_intersecta_segmento(rect, x1, y1, x2, y2, largura):
     dx = x2 - x1
     dy = y2 - y1
@@ -347,13 +359,20 @@ def criar_fenda(origem_x, origem_y, angulo, tempo_atual, dano_base):
 
 
 def _desenhar_linha_lacerante(tela, x1, y1, x2, y2, largura, alpha, explodindo=False):
-    surf = pygame.Surface(tela.get_size(), pygame.SRCALPHA)
+    bounds = _bounds_segmento(x1, y1, x2, y2, largura * 2.4 + 24)
+    surf, area = _surface_local(tela, bounds)
+    if surf is None:
+        return
+    x1 -= area.x
+    y1 -= area.y
+    x2 -= area.x
+    y2 -= area.y
     cor = (*COR_LACERANTE, max(0, min(255, int(alpha))))
     cor_clara = (*COR_LACERANTE_CLARA, max(0, min(255, int(alpha * 0.9))))
     pygame.draw.line(surf, (*COR_LACERANTE_ESCURA, max(0, min(210, int(alpha * 0.55)))), (int(x1), int(y1)), (int(x2), int(y2)), max(2, int(largura)))
     pygame.draw.line(surf, cor, (int(x1), int(y1)), (int(x2), int(y2)), max(2, int(largura * (0.32 if explodindo else 0.18))))
     pygame.draw.line(surf, cor_clara, (int(x1), int(y1)), (int(x2), int(y2)), 2)
-    tela.blit(surf, (0, 0))
+    tela.blit(surf, area.topleft)
 
 
 def _pontos_int(pontos):
@@ -432,8 +451,14 @@ def _contorno_rasgo(pontos, largura, abertura, semente, escala=1.0):
     return esquerda, direita, esquerda + list(reversed(direita))
 
 
-def _desenhar_glow_rasgo(surf, pontos_i, largura_base, alpha):
-    for escala, fator_alpha in ((1.65, 0.12), (1.22, 0.18), (0.86, 0.24)):
+def _desenhar_glow_rasgo(surf, pontos_i, largura_base, alpha, nivel_detalhe=2):
+    if nivel_detalhe <= 0:
+        camadas = ((1.12, 0.20),)
+    elif nivel_detalhe == 1:
+        camadas = ((1.38, 0.14), (0.92, 0.22))
+    else:
+        camadas = ((1.65, 0.12), (1.22, 0.18), (0.86, 0.24))
+    for escala, fator_alpha in camadas:
         pygame.draw.lines(
             surf,
             (*COR_LACERANTE, max(0, min(145, int(alpha * fator_alpha)))),
@@ -485,22 +510,37 @@ def _desenhar_particulas_borda(surf, pontos, largura_base, alpha, progresso, sem
             pygame.draw.line(surf, (*cor, a), (int(px), int(py)), (int(tx), int(ty)), 1)
 
 
-def _desenhar_curva_lacerante(tela, pontos, largura, alpha, progresso, semente, explodindo=True):
+def _desenhar_curva_lacerante(tela, pontos, largura, alpha, progresso, semente, explodindo=True, carga_vfx=0):
     if not pontos or len(pontos) < 2 or alpha <= 0:
         return
 
-    surf = pygame.Surface(tela.get_size(), pygame.SRCALPHA)
-    rng = random.Random(int(semente) + 4049)
     fade = _clamp(1.0 - progresso, 0.0, 1.0)
     largura_base = max(3, int(largura))
+    carga_vfx = max(0, int(carga_vfx or 0))
+    detalhe_medio = carga_vfx >= 18
+    detalhe_baixo = carga_vfx >= 24
+    margem_visual = max(largura_base * 4.2, largura_base + (96 if explodindo else 58))
+    bounds = _bounds_pontos(pontos, margem_visual)
+    surf, area = _surface_local(tela, bounds)
+    if surf is None:
+        return
+
+    pontos = _pontos_localizados(pontos, area)
+    rng = random.Random(int(semente) + 4049)
     pontos_i = _pontos_int(pontos)
 
     abertura = _clamp(0.32 + progresso * 1.65, 0.16, 1.0) if not explodindo else _clamp(0.78 + fade * 0.28, 0.32, 1.1)
-    esquerda_sombra, direita_sombra, poligono_sombra = _contorno_rasgo(pontos, largura_base, abertura, semente, 1.28)
+    if detalhe_medio:
+        esquerda_sombra, direita_sombra, poligono_sombra = [], [], []
+    else:
+        esquerda_sombra, direita_sombra, poligono_sombra = _contorno_rasgo(pontos, largura_base, abertura, semente, 1.28)
     esquerda, direita, poligono = _contorno_rasgo(pontos, largura_base, abertura, semente, 1.0)
-    esquerda_miolo, direita_miolo, poligono_miolo = _contorno_rasgo(pontos, largura_base, abertura * 0.78, semente + 37, 0.72)
+    if detalhe_baixo:
+        esquerda_miolo, direita_miolo, poligono_miolo = [], [], []
+    else:
+        esquerda_miolo, direita_miolo, poligono_miolo = _contorno_rasgo(pontos, largura_base, abertura * 0.78, semente + 37, 0.72)
 
-    _desenhar_glow_rasgo(surf, pontos_i, largura_base, alpha)
+    _desenhar_glow_rasgo(surf, pontos_i, largura_base, alpha, 0 if detalhe_baixo else 1 if detalhe_medio else 2)
     if len(poligono_sombra) >= 3:
         pygame.draw.polygon(surf, (18, 0, 10, max(0, min(185, int(alpha * 0.36)))), poligono_sombra)
     if len(poligono) >= 3:
@@ -515,11 +555,13 @@ def _desenhar_curva_lacerante(tela, pontos, largura, alpha, progresso, semente, 
         pontos_i,
         max(2, int(largura_base * (0.22 if explodindo else 0.12))),
     )
-    _desenhar_bordas_rasgadas(surf, esquerda_sombra, direita_sombra, largura_base, alpha * 0.78)
+    if not detalhe_medio:
+        _desenhar_bordas_rasgadas(surf, esquerda_sombra, direita_sombra, largura_base, alpha * 0.78)
     _desenhar_bordas_rasgadas(surf, esquerda, direita, largura_base, alpha)
 
     frente, normal = _vetores(math.atan2(pontos[-1][1] - pontos[0][1], pontos[-1][0] - pontos[0][0]))
-    for trilha in range(2):
+    total_trilhas = 0 if detalhe_baixo else 1 if detalhe_medio else 2
+    for trilha in range(total_trilhas):
         desloc = (-10 + trilha * 20) * (0.45 + 0.45 * fade)
         trilha_pontos = []
         for x, y in pontos:
@@ -550,6 +592,11 @@ def _desenhar_curva_lacerante(tela, pontos, largura, alpha, progresso, semente, 
         max(1, int(largura_base * 0.035)),
     )
 
+    quantidade_particulas = 46 if explodindo else 22
+    if detalhe_baixo:
+        quantidade_particulas = 4 if explodindo else 3
+    elif detalhe_medio:
+        quantidade_particulas = 14 if explodindo else 7
     _desenhar_particulas_borda(
         surf,
         pontos,
@@ -557,11 +604,12 @@ def _desenhar_curva_lacerante(tela, pontos, largura, alpha, progresso, semente, 
         alpha,
         progresso,
         semente,
-        46 if explodindo else 22,
+        quantidade_particulas,
     )
 
     if explodindo:
-        for _ in range(16):
+        total_estilhacos = 2 if detalhe_baixo else 7 if detalhe_medio else 16
+        for _ in range(total_estilhacos):
             k = rng.random()
             px, py = _ponto_em_curva(pontos, k)
             espalhar = rng.uniform(-largura_base * 0.38, largura_base * 0.38) * fade
@@ -579,7 +627,7 @@ def _desenhar_curva_lacerante(tela, pontos, largura, alpha, progresso, semente, 
                 rng.choice((1, 1, 2)),
             )
 
-    tela.blit(surf, (0, 0))
+    tela.blit(surf, area.topleft)
 
 
 def desenhar_corte(tela, disparo, tempo_atual):
@@ -592,8 +640,9 @@ def desenhar_corte(tela, disparo, tempo_atual):
         alpha = min(255, int(alpha * 1.16))
     pontos = disparo.get("pontos_corte")
     largura = float(disparo.get("largura_corte", CORTE_LARGURA)) * (0.72 + 0.38 * (1.0 - t))
+    carga_vfx = int(disparo.get("_vfx_quantidade_frame", 0) or 0)
     if pontos:
-        _desenhar_curva_lacerante(tela, pontos, largura, alpha, t, disparo.get("nascimento_ms", 0), True)
+        _desenhar_curva_lacerante(tela, pontos, largura, alpha, t, disparo.get("nascimento_ms", 0), True, carga_vfx)
     else:
         x1, y1 = disparo.get("inicio", disparo["rect"].center)
         x2, y2 = disparo.get("fim", disparo["rect"].center)
@@ -734,7 +783,8 @@ def _adicionar_poca_sangue(x, y, tempo_atual, opcao_sangue, intensidade=1.0, ang
     })
 
 
-def _desenhar_poca_liquida(surf, r, alpha, progresso):
+def _desenhar_poca_liquida(surf, r, alpha, progresso, offset=(0, 0)):
+    ox, oy = offset
     rx = max(2, int(r.get("rx", r["tamanho_max"])))
     ry = max(2, int(r.get("ry", r["tamanho_max"] * 0.55)))
     margem = max(4, int(max(rx, ry) * 0.45))
@@ -763,16 +813,18 @@ def _desenhar_poca_liquida(surf, r, alpha, progresso):
         pygame.draw.circle(local, (*gota["cor"], ga), (gx, gy), max(1, int(gota["raio"] * crescimento)))
 
     rot = pygame.transform.rotate(local, r.get("angulo", 0.0))
-    surf.blit(rot, rot.get_rect(center=(int(r["x"]), int(r["y"]))).topleft)
+    surf.blit(rot, rot.get_rect(center=(int(r["x"] - ox), int(r["y"] - oy))).topleft)
 
 
-def _recortar_sangue_sobre_inimigos(surf, inimigos_comum):
+def _recortar_sangue_sobre_inimigos(surf, inimigos_comum, offset=(0, 0)):
+    ox, oy = offset
     for inimigo in list(inimigos_comum or []):
         rect = inimigo.get("rect") if isinstance(inimigo, dict) else None
         if rect is None:
             continue
         area = rect.inflate(8, 10)
         area.y -= 5
+        area = area.move(-ox, -oy)
         surf.fill((0, 0, 0, 0), area, special_flags=pygame.BLEND_RGBA_MULT)
 
 
@@ -810,12 +862,13 @@ def atualizar_e_desenhar_sangue_lacerante(tela, inimigos_comum, config_graficos=
                 lacerado = True
 
         if lacerado:
-            max_particulas = 520 if opcao_sangue == "alto" else 130
-            max_rastros = 780 if opcao_sangue == "alto" else 240
+            max_particulas = 220 if opcao_sangue == "alto" else 70
+            max_rastros = 280 if opcao_sangue == "alto" else 110
             rect = inimigo["rect"]
             pos_antiga = inimigo.get("lacerante_pos_anterior")
             chao_x, chao_y = _origem_sangue_chao(inimigo, pos_antiga)
-            spawn_chance = 0.78 if opcao_sangue == "alto" else 0.22
+            carga_sangue = max(len(rastros_sangue) / max(1, max_rastros), len(particulas_sangue) / max(1, max_particulas))
+            spawn_chance = (0.52 if opcao_sangue == "alto" else 0.18) * max(0.18, 1.0 - carga_sangue)
 
             if random.random() < spawn_chance and len(particulas_sangue) < max_particulas:
                 px = chao_x + random.uniform(-rect.width * 0.28, rect.width * 0.28)
@@ -848,8 +901,8 @@ def atualizar_e_desenhar_sangue_lacerante(tela, inimigos_comum, config_graficos=
             dist = math.hypot(dx, dy)
 
             if dist > 0.5:
-                num_steps = max(1, int(dist / (3.4 if opcao_sangue == "alto" else 10.0)))
-                num_steps = min(16 if opcao_sangue == "alto" else 6, num_steps)
+                num_steps = max(1, int(dist / (6.0 if opcao_sangue == "alto" else 12.0)))
+                num_steps = min(8 if opcao_sangue == "alto" else 4, num_steps)
                 angulo_mov = math.atan2(dy, dx) if dist > 0.001 else 0.0
 
                 for step in range(num_steps):
@@ -859,7 +912,7 @@ def atualizar_e_desenhar_sangue_lacerante(tela, inimigos_comum, config_graficos=
                     intensidade = 0.75 + min(1.4, dist / 22.0)
                     _adicionar_poca_sangue(tx, ty, tempo_atual, opcao_sangue, intensidade, angulo_mov)
 
-                    if opcao_sangue == "alto" and random.random() < 0.55:
+                    if opcao_sangue == "alto" and len(rastros_sangue) < max_rastros * 0.72 and random.random() < 0.22:
                         for _ in range(random.randint(1, 3)):
                             gx = tx + random.uniform(-16, 16)
                             gy = ty + random.uniform(-8, 10)
@@ -876,9 +929,28 @@ def atualizar_e_desenhar_sangue_lacerante(tela, inimigos_comum, config_graficos=
     novos_rastros = []
     surf = None
     
-    # Pre-check if we need a Surface
+    # Pre-check if we need a local alpha Surface. Avoid full-screen allocation.
     if rastros_sangue or particulas_sangue:
-        surf = pygame.Surface(tela.get_size(), pygame.SRCALPHA)
+        bounds = None
+        for r in rastros_sangue:
+            margem = int(max(r.get("rx", r.get("tamanho_max", 8)), r.get("ry", r.get("tamanho_max", 8))) * 3.2 + 10)
+            rect = pygame.Rect(int(r["x"] - margem), int(r["y"] - margem), margem * 2, margem * 2)
+            bounds = rect if bounds is None else bounds.union(rect)
+        for p in particulas_sangue:
+            margem = int(max(5, p.get("tamanho", 2) * 4 + 6))
+            rect = pygame.Rect(int(p["x"] - margem), int(p["y"] - margem), margem * 2, margem * 2)
+            bounds = rect if bounds is None else bounds.union(rect)
+        if bounds is not None:
+            bounds = tela.get_rect().clip(bounds.inflate(16, 16))
+            if bounds.width > 0 and bounds.height > 0:
+                surf = pygame.Surface(bounds.size, pygame.SRCALPHA)
+                offset_sangue = bounds.topleft
+            else:
+                offset_sangue = (0, 0)
+        else:
+            offset_sangue = (0, 0)
+    else:
+        offset_sangue = (0, 0)
 
     for r in rastros_sangue:
         idade = tempo_atual - r["tempo_criacao"]
@@ -892,12 +964,18 @@ def atualizar_e_desenhar_sangue_lacerante(tela, inimigos_comum, config_graficos=
         tamanho = r["tamanho_max"] * (0.82 + 0.34 * min(1.0, progresso * 2.0))
 
         if surf is not None:
-            if opcao_sangue == "alto":
-                _desenhar_poca_liquida(surf, r, alpha, progresso)
+            if opcao_sangue == "alto" and len(rastros_sangue) <= 180:
+                _desenhar_poca_liquida(surf, r, alpha, progresso, offset_sangue)
             else:
-                pygame.draw.circle(surf, (*r["cor"], alpha), (int(r["x"]), int(r["y"])), int(tamanho))
+                rx = max(2, int(r.get("rx", tamanho)))
+                ry = max(2, int(r.get("ry", tamanho * 0.55)))
+                pygame.draw.ellipse(
+                    surf,
+                    (*r["cor"], alpha),
+                    pygame.Rect(int(r["x"] - offset_sangue[0] - rx), int(r["y"] - offset_sangue[1] - ry), rx * 2, ry * 2),
+                )
                 if tamanho > 4:
-                    pygame.draw.circle(surf, (50, 0, 0, int(alpha * 0.6)), (int(r["x"] + 1), int(r["y"] + 1)), int(tamanho * 0.55))
+                    pygame.draw.circle(surf, (50, 0, 0, int(alpha * 0.6)), (int(r["x"] + 1 - offset_sangue[0]), int(r["y"] + 1 - offset_sangue[1])), int(tamanho * 0.55))
                 
     rastros_sangue = novos_rastros
 
@@ -920,16 +998,16 @@ def atualizar_e_desenhar_sangue_lacerante(tela, inimigos_comum, config_graficos=
         tamanho = max(1.0, p["tamanho"] * (0.5 + 0.5 * progresso_vida))
         
         if surf is not None:
-            pygame.draw.circle(surf, (*p["cor"], alpha), (int(p["x"]), int(p["y"])), int(tamanho))
+            pygame.draw.circle(surf, (*p["cor"], alpha), (int(p["x"] - offset_sangue[0]), int(p["y"] - offset_sangue[1])), int(tamanho))
 
             if opcao_sangue == "alto" and p["vida"] < p["vida_max"] - 2:
                 prev_x = p["x"] - p["vx"] * 1.5
                 prev_y = p["y"] - p["vy"] * 1.5
-                pygame.draw.line(surf, (*p["cor"], int(alpha * 0.4)), (int(prev_x), int(prev_y)), (int(p["x"]), int(p["y"])), max(1, int(tamanho - 1)))
+                pygame.draw.line(surf, (*p["cor"], int(alpha * 0.4)), (int(prev_x - offset_sangue[0]), int(prev_y - offset_sangue[1])), (int(p["x"] - offset_sangue[0]), int(p["y"] - offset_sangue[1])), max(1, int(tamanho - 1)))
 
     particulas_sangue = novas_particulas
 
     # 4. Blit to screen
     if surf is not None:
-        _recortar_sangue_sobre_inimigos(surf, inimigos_comum)
-        tela.blit(surf, (0, 0))
+        _recortar_sangue_sobre_inimigos(surf, inimigos_comum, offset_sangue)
+        tela.blit(surf, offset_sangue)

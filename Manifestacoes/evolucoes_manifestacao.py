@@ -467,28 +467,43 @@ def ao_teleportar(estado, origem, destino, inimigos, agora_ms):
 
 def atualizar_e_desenhar(tela, estado, inimigos, agora_ms):
     cor = tuple(MANIFESTACOES_DADOS.get(estado.get("manifestacao"), {}).get("cor", (175, 80, 255)))
-    trilhas = pygame.Surface(tela.get_size(), pygame.SRCALPHA)
-    tem_trilha = False
+    itens = []
+    bounds = None
     for inimigo in inimigos:
         deslocamento = inimigo.get("ruptura_deslocamento") if isinstance(inimigo, dict) else None
         rect = inimigo.get("rect") if isinstance(inimigo, dict) else None
         if not deslocamento or rect is None:
             continue
-        tem_trilha = True
         pontos = [
             (int(x + rect.width / 2), int(y + rect.height / 2))
             for x, y in amostrar_trajetoria(deslocamento)
         ]
+        destino = (int(deslocamento["destino_x"] + rect.width / 2), int(deslocamento["destino_y"] + rect.height / 2))
+        progresso = progresso_deslocamento(deslocamento, agora_ms)
+        itens.append((rect, deslocamento, pontos, destino, progresso))
+        pontos_bounds = pontos + [destino, rect.center]
+        xs = [p[0] for p in pontos_bounds]
+        ys = [p[1] for p in pontos_bounds]
+        area = pygame.Rect(min(xs) - 32, min(ys) - 32, max(xs) - min(xs) + 64, max(ys) - min(ys) + 64)
+        bounds = area if bounds is None else bounds.union(area)
+    if not itens or bounds is None:
+        return
+    area_tela = tela.get_rect().clip(bounds)
+    if area_tela.width <= 0 or area_tela.height <= 0:
+        return
+    trilhas = pygame.Surface(area_tela.size, pygame.SRCALPHA)
+    ox, oy = area_tela.topleft
+    for rect, deslocamento, pontos, destino, progresso in itens:
+        pontos = [(x - ox, y - oy) for x, y in pontos]
+        destino = (destino[0] - ox, destino[1] - oy)
+        centro = (rect.centerx - ox, rect.centery - oy)
         if len(pontos) > 1:
             for indice in range(0, len(pontos) - 1, 2):
                 pygame.draw.line(trilhas, (*cor, 120), pontos[indice], pontos[indice + 1], 2)
-        destino = (int(deslocamento["destino_x"] + rect.width / 2), int(deslocamento["destino_y"] + rect.height / 2))
-        progresso = progresso_deslocamento(deslocamento, agora_ms)
         raio_destino = int(10 + 12 * progresso)
         pygame.draw.circle(trilhas, (*cor, 205), destino, raio_destino, 2)
-        pygame.draw.circle(trilhas, (235, 235, 255, 190), rect.center, max(5, int(13 * (1.0 - progresso))), 1)
-    if tem_trilha:
-        tela.blit(trilhas, (0, 0))
+        pygame.draw.circle(trilhas, (235, 235, 255, 190), centro, max(5, int(13 * (1.0 - progresso))), 1)
+    tela.blit(trilhas, area_tela.topleft)
     for campo in list(estado["campos"]):
         if agora_ms >= campo["fim"]:
             estado["campos"].remove(campo)

@@ -186,7 +186,7 @@ def criar_auto_attack(manifestacao, vfx, centro_x, centro_y, largura, altura, an
     territorio = _tipo_territorio(zona)
     disparo = vfx.criar_disparo(centro_x, centro_y, largura, altura, angulo, velocidade, tempo_atual, impulsiva)
     disparo["tipo_manifestacao"] = "ancorada_disparo"
-    disparo["raio_vfx"] = max(5, min(12, int(min(largura, altura) * 0.55)))
+    disparo["raio_vfx"] = max(4, min(7, int(min(largura, altura) * 0.32)))
     disparo["dano_mult_manifestacao"] = (
         DOMINIO_DANO_DISPARO_MULT if territorio == "dominio"
         else ANCORA_DANO_DISPARO_MULT if territorio == "ancora"
