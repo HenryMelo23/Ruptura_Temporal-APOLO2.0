@@ -401,14 +401,14 @@ def abrir_configuracoes_graficas(tela, fontes, fundo_pausa=None):
                     if tentar_sair():
                         rodando = False
                         
-        y_inicial = altura_tela // 4 + 10
-        espacamento = 44
-        desc_y = min(altura_tela - 145, y_inicial + len(opcoes_config) * espacamento + 12)
+        y_inicial = altura_tela // 5 - 10
+        espacamento = 38
+        desc_y = min(altura_tela - 90, y_inicial + len(opcoes_config) * espacamento + 8)
         lista_rect = pygame.Rect(
             largura_tela // 4 - 44,
-            y_inicial - 24,
+            y_inicial - 18,
             largura_tela // 2 + 88,
-            max(80, desc_y - (y_inicial - 24) - 14),
+            max(80, desc_y - (y_inicial - 18) - 10),
         )
         _desenhar_painel_legibilidade(tela, lista_rect, alpha=218, borda_alpha=70)
         

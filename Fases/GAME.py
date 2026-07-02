@@ -1419,9 +1419,16 @@ def executar_jogo(game_manager=None):
                 })
                 
             return enemy_dict
-        def desenhar_sombra(tela, x, y, largura, altura, offset_y=5):
-            """Desenha uma sombra elíptica embaixo de um ser com três níveis de qualidade"""
+        def desenhar_sombra(tela, x, y, largura, altura, offset_y=5, imagem=None):
+            """Desenha uma sombra elíptica ou com base no sprite"""
             modo_sombra = config_graficos.get("sombras_ativas", "dinamicas")
+            if imagem is not None and modo_sombra == "dinamicas":
+                try:
+                    from Engine.render_engine import MotorRenderizacao
+                    if MotorRenderizacao.desenhar_sombra_dinamica_sprite(tela, imagem, x, y, largura, altura, modo_sombra, offset_y):
+                        return
+                except Exception:
+                    pass
             Variaveis.desenhar_sombra_cacheada(tela, x, y, largura, altura, modo_sombra, offset_y)
             return
 
@@ -2694,7 +2701,7 @@ def executar_jogo(game_manager=None):
             frame = frames_condutor[miniboss_condutor.get("frame_atual", 0) % len(frames_condutor)]
             if miniboss_condutor.get("direcao_x", 1) < 0:
                 frame = pygame.transform.flip(frame, True, False)
-            desenhar_sombra(tela, rect.x, rect.y, rect.width, rect.height)
+            desenhar_sombra(tela, rect.x, rect.y, rect.width, rect.height, imagem=frame)
             aura_raio = int(rect.width * 0.70 + 8 * math.sin(tempo_atual * 0.006))
             pygame.draw.circle(tela, (110, 70, 220), rect.center, aura_raio, 2)
             pygame.draw.circle(tela, (90, 210, 255), rect.center, max(18, aura_raio - 24), 1)
@@ -4416,7 +4423,7 @@ def executar_jogo(game_manager=None):
                         pulo_y = int(abs(math.sin(pygame.time.get_ticks() * 0.012)) * 18)
                         desenhar_y -= pulo_y
 
-                desenhar_sombra(tela, desenhar_x, desenhar_y + pulo_y, l_vis, a_vis)
+                desenhar_sombra(tela, desenhar_x, desenhar_y + pulo_y, l_vis, a_vis, imagem=img_render)
                 if tipo == TIPO_LARAPIO or tipo == "larapio":
                     portal_charge = inimigo.get("portal_charge", 0.0)
                     if portal_charge > 0.0:
@@ -4772,9 +4779,6 @@ def executar_jogo(game_manager=None):
 
             ###############################################   DESENHA O PERSONAGEM NA TELA ################################
             if not ultimate_manifestacao.jogador_oculto(tempo_atual):
-                # Desenhar sombra do personagem
-                desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
-
                 frames_local = multiplayer_coop.frames_jogador_local(frames_animacao, frames_animacao2)
                 if direcao_atual == 'disp' and lacerante_manifestacao.ativa(manifestacao_ativa):
                     estagio = lacerante_manifestacao.obter_proximo_estagio()
@@ -4787,6 +4791,10 @@ def executar_jogo(game_manager=None):
                     frame_para_desenhar = frames_local[direcao_atual][frame_atual % len(frames_local[direcao_atual])]
                 if direcao_atual == 'disp' and math.cos(angulo_disparo_preparado) < 0:
                     frame_para_desenhar = pygame.transform.flip(frame_para_desenhar, True, False)
+                    
+                # Desenhar sombra do personagem usando o frame atual
+                desenhar_sombra(tela, pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem, imagem=frame_para_desenhar)
+
                 if angulo_inclinacao_personagem != 0:
                     # Rotaciona o frame pelo centro para manter o eixo
                     frame_rotacionado = pygame.transform.rotate(frame_para_desenhar, angulo_inclinacao_personagem)
@@ -4879,8 +4887,10 @@ def executar_jogo(game_manager=None):
                         direcao_trembo = 'down' if diff_y > 0 else 'up'
                 else:
                     direcao_trembo = direcao_atual
-                desenhar_sombra(tela, pos_x_segundo_personagem, pos_y_segundo_personagem, int(largura_trembo), int(altura_trembo), offset_y=2)
-                tela.blit(frames_animacao_trembo[direcao_trembo][frame_atual % len(frames_animacao_trembo[direcao_trembo])], (pos_x_segundo_personagem, pos_y_segundo_personagem))
+                if "frames_animacao_trembo" in globals() and direcao_trembo in frames_animacao_trembo:
+                    frame_trembo = frames_animacao_trembo[direcao_trembo][frame_atual % len(frames_animacao_trembo[direcao_trembo])]
+                    desenhar_sombra(tela, pos_x_segundo_personagem, pos_y_segundo_personagem, int(largura_trembo), int(altura_trembo), offset_y=2, imagem=frame_trembo)
+                    tela.blit(frame_trembo, (pos_x_segundo_personagem, pos_y_segundo_personagem))
             if trembo and tempo_atual - tempo_ultima_regeneracao >= Tempo_cura and vida < vida_maxima:
                 cura_trembo = vida_maxima * porcentagem_cura
                 vida = min(vida_maxima, vida + cura_trembo)
@@ -5019,9 +5029,10 @@ def executar_jogo(game_manager=None):
                     comando_direção_petro=False
 
                 desenhar_barra_de_vida_petro(tela, vida_petro, pos_x_petro, pos_y_petro - 20,vida_maxima_petro)
-                # Desenhar sombra do Petro
-                desenhar_sombra(tela, pos_x_petro, pos_y_petro, largura_personagem, altura_personagem)
-                tela.blit(petro_nivel[direcao_atual_petro][frame_atual % len(petro_nivel[direcao_atual_petro])], (pos_x_petro, pos_y_petro))
+                if "petro_nivel" in globals() and direcao_atual_petro in petro_nivel:
+                    frame_petro = petro_nivel[direcao_atual_petro][frame_atual % len(petro_nivel[direcao_atual_petro])]
+                    desenhar_sombra(tela, pos_x_petro, pos_y_petro, largura_personagem, altura_personagem, imagem=frame_petro)
+                    tela.blit(frame_petro, (pos_x_petro, pos_y_petro))
 
 
         #AQUI GERAMOS O BOSS:
@@ -6156,7 +6167,7 @@ def executar_jogo(game_manager=None):
                     if tutorial_inimigo_ativo and tutorial_inimigo is not None:
                         # Desenhar sombra e sprite do inimigo
                         tutorial_inimigo["image"] = frames_inimigo[frame_atual % len(frames_inimigo)]
-                        desenhar_sombra(tela, tutorial_inimigo["rect"].x, tutorial_inimigo["rect"].y, largura_inimigo, altura_inimigo)
+                        desenhar_sombra(tela, tutorial_inimigo["rect"].x, tutorial_inimigo["rect"].y, largura_inimigo, altura_inimigo, imagem=tutorial_inimigo["image"])
                         tela.blit(tutorial_inimigo["image"], tutorial_inimigo["rect"])
                         desenhar_barra_de_vida(tela, tutorial_inimigo["rect"].x, tutorial_inimigo["rect"].y - 10, largura_inimigo, 5, tutorial_inimigo["vida"], tutorial_inimigo["vida_maxima"], tutorial_inimigo.get("eletrocutado", False), Executa_inimigo if Ultimo_Estalo else None)
 

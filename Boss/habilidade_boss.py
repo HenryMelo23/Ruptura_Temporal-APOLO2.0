@@ -10,6 +10,15 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+try:
+    from umbra_cortex import obter_cortex, registrar_plano_no_estado
+except Exception:
+    try:
+        from Engine.umbra_cortex import obter_cortex, registrar_plano_no_estado
+    except Exception:
+        obter_cortex = None
+        registrar_plano_no_estado = None
+
 # ============================================================
 # SISTEMA ADAPTATIVO DA UMBRA — FLAGS DE CONTROLE
 # ============================================================
@@ -241,6 +250,35 @@ def _aplicar_bonus_profecia(decisao, acoes, estado_ia, agora):
     if decisao != original:
         _log_adapt(f"Profecia bonus: {original} → {decisao} ({bonus['tipo']})")
     return decisao
+
+
+def _decidir_com_cortex(
+    agora, boss_pos, player_pos, historico_player, disparos_player,
+    estado_ia, config_boss, acoes_disponiveis, decisao_base
+):
+    """Mistura DQN legado com a mente neural da Umbra sem quebrar fallback."""
+    if obter_cortex is None or registrar_plano_no_estado is None:
+        return decisao_base
+    try:
+        cortex = obter_cortex(estado_ia)
+        percepcao = cortex.perceber(
+            agora=agora,
+            boss_pos=(boss_pos['x'], boss_pos['y']),
+            player_pos=(player_pos[0], player_pos[1]),
+            historico_player=historico_player,
+            disparos_player=disparos_player,
+            estado_ia=estado_ia,
+            config_boss=config_boss,
+        )
+        plano = cortex.escolher(percepcao, acoes_disponiveis, decisao_base)
+        registrar_plano_no_estado(estado_ia, plano)
+        estado_ia['decisao_dqn_legado'] = decisao_base
+        estado_ia['decisao_cortex'] = plano.acao
+        if plano.confianca >= 0.34 or decisao_base == "ATAQUE":
+            return plano.acao
+    except Exception as e:
+        estado_ia['erro_cortex_umbra'] = str(e)
+    return decisao_base
 
 
 class UmbraDQN(nn.Module):
@@ -790,13 +828,18 @@ def processar_ia_umbra(agora, boss_pos, player_pos, historico_player, disparos_p
     if ADAPTACAO_UMBRA_ATIVA:
         decisao = _aplicar_bonus_profecia(decisao, acoes_disponiveis, estado_ia, agora)
 
+    decisao = _decidir_com_cortex(
+        agora, boss_pos, player_pos, historico_player, disparos_player,
+        estado_ia, config_boss, acoes_disponiveis, decisao
+    )
+
     if estado_ia.get('laser_ativo'):
         decisao = "NENHUMA"
 
     acoes_simultaneas = estado_ia.get('decisoes_ativas', [])
     if decisao not in acoes_simultaneas and decisao != "NENHUMA":
         acoes_simultaneas.append(decisao)
-    estado_ia['decisoes_ativas'] = acoes_simultaneas
+    estado_ia['decisoes_ativas'] = acoes_simultaneas[-8:]
 
     if decisao == "SIFON":
         estado_ia['parede_ativa'] = True
@@ -1038,6 +1081,36 @@ def movimentacao_inteligente_umbra(agora, boss_pos, player_pos, disparos, estado
     # === SISTEMA ADAPTATIVO: bias de movimentação ===
     if ADAPTACAO_UMBRA_ATIVA and estado_mov.get('_modificadores_umbra'):
         decisao = _aplicar_bias_movimento(decisao, estado_mov, dist_p)
+
+    if obter_cortex is not None:
+        try:
+            cortex = obter_cortex(estado_mov)
+            percepcao_mov = cortex.perceber(
+                agora=agora,
+                boss_pos=(bx, by),
+                player_pos=(px, py),
+                historico_player=historico_player,
+                disparos_player=disparos,
+                estado_ia=estado_mov,
+                config_boss={
+                    'vida_atual': dados_player.get('vida_atual', 1),
+                    'vida_max': dados_player.get('vida_max', 1),
+                    'mapa_atual': dados_player.get('mapa_atual', 'Fase_Base'),
+                    'largura_mapa': largura_mapa,
+                    'altura_mapa': altura_mapa,
+                },
+            )
+            plano_mov = cortex.ajustar_movimento(decisao, percepcao_mov, estrategias)
+            estado_mov['mente_umbra_movimento'] = {
+                'acao': plano_mov.acao,
+                'intencao': plano_mov.intencao,
+                'confianca': plano_mov.confianca,
+                'pesos': plano_mov.pesos,
+            }
+            if plano_mov.confianca >= 0.55:
+                decisao = plano_mov.acao
+        except Exception as e:
+            estado_mov['erro_cortex_movimento'] = str(e)
 
     meio_w, meio_h = largura_mapa / 2.0, altura_mapa / 2.0
 

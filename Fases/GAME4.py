@@ -749,9 +749,16 @@ def criar_inimigo(x, y):
     image = frames_inimigo_esquerda4[0]
     return {"rect": pygame.Rect(x, y, largura_inimigo, altura_inimigo), "image": image, "vida": vida_inimigo_maxima, "vida_maxima": vida_inimigo_maxima}
 
-def desenhar_sombra(tela, x, y, largura, altura, offset_y=5):
-    """Desenha uma sombra elíptica embaixo de um ser com três níveis de qualidade"""
+def desenhar_sombra(tela, x, y, largura, altura, offset_y=5, imagem=None):
+    """Desenha uma sombra elíptica ou com base no sprite"""
     modo_sombra = config_graficos.get("sombras_ativas", "dinamicas")
+    if imagem is not None and modo_sombra == "dinamicas":
+        try:
+            from Engine.render_engine import MotorRenderizacao
+            if MotorRenderizacao.desenhar_sombra_dinamica_sprite(tela, imagem, x, y, largura, altura, modo_sombra, offset_y):
+                return
+        except Exception:
+            pass
     Variaveis.desenhar_sombra_cacheada(tela, x, y, largura, altura, modo_sombra, offset_y)
     return
     

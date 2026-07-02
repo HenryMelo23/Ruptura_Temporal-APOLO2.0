@@ -876,9 +876,11 @@ def criar_disparo_inimigo(pos_inimigo, pos_personagem, tipo="semente"):
     dy = pos_personagem[1] - pos_inimigo[1]
     dist = max(1, math.sqrt(dx ** 2 + dy ** 2))
 
+    vel = velocidade_disparo_inimigo
+    if tipo == "semente":
+        vel *= 1.6  # Burst inicial alto para a gosma
     
-    
-    direcao_disparo_inimigo = (dx / dist * velocidade_disparo_inimigo, dy / dist * velocidade_disparo_inimigo)
+    direcao_disparo_inimigo = (dx / dist * vel, dy / dist * vel)
 
     return {
         "rect": pygame.Rect(pos_inimigo[0], pos_inimigo[1], largura_disparo, altura_disparo),
@@ -913,7 +915,7 @@ def criar_inimigo(x, y):
         "enredador_proxima_troca": agora + random.randint(15000, 17500),
         "proxima_investida": agora + random.randint(900, 1900),
         "investida_ate": 0,
-        "proximo_disparo": agora + random.randint(1200, 2600),
+        "proximo_disparo": agora + random.randint(2800, 4800),
         "spawn_progress": 0.0,
         "spawn_complete": False,
         "vida_anterior": vida_base,
@@ -954,9 +956,16 @@ def desenhar_area_sarcas(tela, area, tempo_atual):
         pygame.draw.line(surf, (150, 255, 125, 130), (x1, y1), (x2, y2), 2)
     tela.blit(surf, (area["x"] - raio - 4, area["y"] - raio - 4))
 
-def desenhar_sombra(tela, x, y, largura, altura, offset_y=5):
-    """Desenha uma sombra elíptica embaixo de um ser com três níveis de qualidade"""
+def desenhar_sombra(tela, x, y, largura, altura, offset_y=5, imagem=None):
+    """Desenha uma sombra elíptica ou com base no sprite"""
     modo_sombra = config_graficos.get("sombras_ativas", "dinamicas")
+    if imagem is not None and modo_sombra == "dinamicas":
+        try:
+            from Engine.render_engine import MotorRenderizacao
+            if MotorRenderizacao.desenhar_sombra_dinamica_sprite(tela, imagem, x, y, largura, altura, modo_sombra, offset_y):
+                return
+        except Exception:
+            pass
     Variaveis.desenhar_sombra_cacheada(tela, x, y, largura, altura, modo_sombra, offset_y)
     return
     
@@ -2681,12 +2690,12 @@ def executar_jogo(game_manager=None):
                             inimigo["pos_x"] += (dx / dist) * vel_inimigo_frame * 0.18
                             inimigo["pos_y"] += (dy / dist) * vel_inimigo_frame * 0.18
                 else:
-                    vel_inimigo_frame *= 1.35
+                    vel_inimigo_frame *= 0.85  # Balanceamento: Reduzido de 1.35 para 0.85 para movimento base menos agressivo
                     if tempo_atual >= inimigo.get("proxima_investida", 0):
                         inimigo["investida_ate"] = tempo_atual + 260
                         inimigo["proxima_investida"] = tempo_atual + random.randint(1350, 2300)
                     if tempo_atual < inimigo.get("investida_ate", 0):
-                        vel_inimigo_frame *= 2.65
+                        vel_inimigo_frame *= 1.85  # Balanceamento: Reduzido de 2.65 para 1.85 para investidas mais reativas
                     inimigo["pos_x"] += (dx / dist) * vel_inimigo_frame
                     inimigo["pos_y"] += (dy / dist) * vel_inimigo_frame
                 inimigo["rect"].x = int(inimigo["pos_x"])
@@ -2840,10 +2849,11 @@ def executar_jogo(game_manager=None):
                 desenhar_barra_de_vida(tela, inimigo["rect"].x, inimigo["rect"].y - 10, inimigo["rect"].width, 5, inimigo["vida"], inimigo["vida_maxima"], inimigo.get("eletrocutado", False), Executa_inimigo if Ultimo_Estalo else None)
 
                 tempo_atual = pygame.time.get_ticks()
-                if inimigo.get("tipo", "aguilhao") == "enredador" and tempo_atual >= inimigo.get("proximo_disparo", 0):
+                if (inimigo.get("tipo", "aguilhao") == "enredador" and tempo_atual >= inimigo.get("proximo_disparo", 0) and
+                    0 <= inimigo["rect"].centerx <= largura_mapa and 0 <= inimigo["rect"].centery <= altura_mapa):
                     inimigo["atacando_ate"] = tempo_atual + 360
-                    disparos_inimigos.append(criar_disparo_inimigo((inimigo["rect"].x, inimigo["rect"].y), (pos_x_personagem, pos_y_personagem)))
-                    inimigo["proximo_disparo"] = tempo_atual + random.randint(1850, 3400)
+                    disparos_inimigos.append(criar_disparo_inimigo((inimigo["rect"].centerx, inimigo["rect"].centery), (pos_x_personagem, pos_y_personagem)))
+                    inimigo["proximo_disparo"] = tempo_atual + random.randint(2800, 4800)
 
 
             personagem_rect = pygame.Rect(pos_x_personagem, pos_y_personagem, largura_personagem, altura_personagem)
@@ -2881,16 +2891,34 @@ def executar_jogo(game_manager=None):
             # Verifica colisão entre disparos dos inimigos e personagem
             novos_disparos_inimigos = []
             for disparo_inimigo in disparos_inimigos:
-                pos_x_disparo_inimigo, pos_y_disparo_inimigo = disparo_inimigo["rect"].x, disparo_inimigo["rect"].y
-                tela.blit(frames_disparo4[frame_atual_disparo], (pos_x_disparo_inimigo, pos_y_disparo_inimigo))
+                if disparo_inimigo.get("tipo") == "semente":
+                    from Engine.efeitos_procedurais import atualizar_fisica_gosma, desenhar_gosma_procedural
+                    atualizar_fisica_gosma(disparo_inimigo, dt)
+                    desenhar_gosma_procedural(tela, disparo_inimigo, tempo_atual, config_graficos)
+                    pos_x_disparo_inimigo, pos_y_disparo_inimigo = disparo_inimigo["rect"].x, disparo_inimigo["rect"].y
+                else:
+                    pos_x_disparo_inimigo, pos_y_disparo_inimigo = disparo_inimigo["rect"].x, disparo_inimigo["rect"].y
+                    tela.blit(frames_disparo4[frame_atual_disparo], (pos_x_disparo_inimigo, pos_y_disparo_inimigo))
 
-                # Atualize a posição do disparo do inimigo
-                disparo_inimigo["rect"].x += disparo_inimigo["velocidade"][0]
-                disparo_inimigo["rect"].y += disparo_inimigo["velocidade"][1]
+                    # Atualize a posição do disparo do inimigo
+                    disparo_inimigo["rect"].x += int(disparo_inimigo["velocidade"][0])
+                    disparo_inimigo["rect"].y += int(disparo_inimigo["velocidade"][1])
 
-                if disparo_inimigo.get("tipo") == "semente" and tempo_atual - disparo_inimigo.get("nascimento", tempo_atual) >= 1550:
-                    criar_area_sarcas(disparo_inimigo["rect"].centerx, disparo_inimigo["rect"].centery, raio=78, duracao=5400, origem="enredador")
-                    continue
+                if disparo_inimigo.get("tipo") == "semente":
+                    speed = math.hypot(*disparo_inimigo.get("velocidade", (0,0)))
+                    idade_disparo = tempo_atual - disparo_inimigo.get("nascimento", tempo_atual)
+                    if speed < 1.0 or idade_disparo >= 1550:
+                        criar_area_sarcas(disparo_inimigo["rect"].centerx, disparo_inimigo["rect"].centery, raio=78, duracao=5400, origem="enredador")
+                        # Efeito de splat
+                        qualidade = config_graficos.get("qualidade_grafica", "alta")
+                        num_parts = 12 if qualidade == "alta" else (6 if qualidade == "media" else 0)
+                        for _ in range(num_parts):
+                            spawn_enemy_particle(
+                                "dust", disparo_inimigo["rect"].centerx, disparo_inimigo["rect"].centery,
+                                cor=(95, 210, 50), tamanho=random.randint(3, 7),
+                                vx=random.uniform(-3, 3), vy=random.uniform(-3, 3), vida=random.randint(200, 500)
+                            )
+                        continue
 
 
 
@@ -2909,6 +2937,17 @@ def executar_jogo(game_manager=None):
                         piscando_vida=True
                         ferida_espinhosa_ate = tempo_atual + 5200
                         criar_area_sarcas(pos_x_disparo_inimigo, pos_y_disparo_inimigo, raio=82, duracao=5600, origem="enredador")
+                        
+                        if disparo_inimigo.get("tipo") == "semente":
+                            qualidade = config_graficos.get("qualidade_grafica", "alta")
+                            num_parts = 12 if qualidade == "alta" else (6 if qualidade == "media" else 0)
+                            for _ in range(num_parts):
+                                spawn_enemy_particle(
+                                    "dust", pos_x_disparo_inimigo, pos_y_disparo_inimigo,
+                                    cor=(95, 210, 50), tamanho=random.randint(3, 7),
+                                    vx=random.uniform(-3, 3), vy=random.uniform(-3, 3), vida=random.randint(200, 500)
+                                )
+                        
                         disparos_inimigos.remove(disparo_inimigo)
                     continue
                 # Adicione o disparo à lista se não atingir o final do mapa
