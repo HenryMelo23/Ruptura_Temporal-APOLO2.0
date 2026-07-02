@@ -1,0 +1,21 @@
+{
+  "geracao": 155,
+  "score": 20593.974,
+  "venceu_apolo": false,
+  "tempo_s": 91.25,
+  "vida_apolo": 0.0,
+  "vida_umbra": 460.61,
+  "dano_apolo": 1080.0,
+  "dano_umbra": 10424.71,
+  "hits_sofridos": 12,
+  "acoes_umbra": {
+    "ATAQUE": 1426,
+    "DESCARGA_ELETRICA": 1243,
+    "SIFON": 1085,
+    "TELEPORTE": 1240,
+    "TELEPORTE_JUKE": 987,
+    "TRANSMUTAR_ATRITO": 959,
+    "TRANSMUTAR_RASTRO": 100,
+    "TRANSMUTAR_RESSONANCIA": 518
+  }
+}

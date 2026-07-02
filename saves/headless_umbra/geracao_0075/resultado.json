@@ -1,0 +1,19 @@
+{
+  "geracao": 75,
+  "score": 5886.021,
+  "venceu_apolo": false,
+  "tempo_s": 34.14,
+  "vida_apolo": 0.0,
+  "vida_umbra": 4683.88,
+  "dano_apolo": 1080.0,
+  "dano_umbra": 4661.13,
+  "hits_sofridos": 12,
+  "acoes_umbra": {
+    "ATAQUE": 534,
+    "DESCARGA_ELETRICA": 362,
+    "SIFON": 220,
+    "TELEPORTE": 123,
+    "TELEPORTE_JUKE": 376,
+    "TRANSMUTAR_NECROSE": 96
+  }
+}

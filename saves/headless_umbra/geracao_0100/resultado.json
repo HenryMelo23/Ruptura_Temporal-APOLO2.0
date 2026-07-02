@@ -1,0 +1,16 @@
+{
+  "geracao": 100,
+  "score": -2217.493,
+  "venceu_apolo": false,
+  "tempo_s": 11.63,
+  "vida_apolo": 0.0,
+  "vida_umbra": 7442.1,
+  "dano_apolo": 1008.0,
+  "dano_umbra": 1557.9,
+  "hits_sofridos": 45,
+  "acoes_umbra": {
+    "ATAQUE": 182,
+    "DESCARGA_ELETRICA": 10,
+    "TELEPORTE": 19
+  }
+}

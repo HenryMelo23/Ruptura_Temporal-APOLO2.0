@@ -1,0 +1,5068 @@
+[
+  {
+    "geracao": 1,
+    "score": -2519.079,
+    "venceu_apolo": false,
+    "tempo_s": 12.1,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7526.02,
+    "dano_apolo": 1050.0,
+    "dano_umbra": 1473.98,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 189,
+      "PRISAO": 48,
+      "TELEPORTE_JUKE": 30
+    }
+  },
+  {
+    "geracao": 2,
+    "score": 6209.599,
+    "venceu_apolo": false,
+    "tempo_s": 31.92,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4570.82,
+    "dano_apolo": 1020.0,
+    "dano_umbra": 4842.9,
+    "hits_sofridos": 15,
+    "acoes_umbra": {
+      "ATAQUE": 499,
+      "SIFON": 186,
+      "TELEPORTE": 90,
+      "TELEPORTE_JUKE": 339,
+      "VORTICE": 311
+    }
+  },
+  {
+    "geracao": 3,
+    "score": 4899.625,
+    "venceu_apolo": false,
+    "tempo_s": 36.94,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5088.58,
+    "dano_apolo": 1085.0,
+    "dano_umbra": 4248.88,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 578,
+      "PRISAO": 437,
+      "SIFON": 252,
+      "TELEPORTE": 421,
+      "TELEPORTE_JUKE": 264,
+      "TRANSMUTAR_VORTICE": 157
+    }
+  },
+  {
+    "geracao": 4,
+    "score": -71.699,
+    "venceu_apolo": false,
+    "tempo_s": 18.43,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6572.35,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 2427.65,
+    "hits_sofridos": 13,
+    "acoes_umbra": {
+      "ATAQUE": 288,
+      "CAMINHO_ESPINHOS": 163,
+      "TELEPORTE": 131
+    }
+  },
+  {
+    "geracao": 5,
+    "score": 1624.687,
+    "venceu_apolo": false,
+    "tempo_s": 18.56,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5957.61,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 3042.39,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 290,
+      "TELEPORTE": 133,
+      "VORTICE": 102
+    }
+  },
+  {
+    "geracao": 6,
+    "score": 520.037,
+    "venceu_apolo": false,
+    "tempo_s": 17.68,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6328.36,
+    "dano_apolo": 1075.0,
+    "dano_umbra": 2671.64,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 277,
+      "PRISAO": 136,
+      "TELEPORTE": 119
+    }
+  },
+  {
+    "geracao": 7,
+    "score": 2648.316,
+    "venceu_apolo": false,
+    "tempo_s": 19.63,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5343.46,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 3656.54,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 307,
+      "PRAGA_RATOS": 119,
+      "TELEPORTE_JUKE": 150
+    }
+  },
+  {
+    "geracao": 8,
+    "score": 10122.573,
+    "venceu_apolo": false,
+    "tempo_s": 40.21,
+    "vida_apolo": 0.0,
+    "vida_umbra": 2972.1,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 6504.76,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 629,
+      "PRAGA_RATOS": 441,
+      "SIFON": 315,
+      "TELEPORTE": 472,
+      "TRANSMUTAR_RASTRO": 220
+    }
+  },
+  {
+    "geracao": 9,
+    "score": -1424.714,
+    "venceu_apolo": false,
+    "tempo_s": 11.63,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7045.63,
+    "dano_apolo": 1008.0,
+    "dano_umbra": 1954.37,
+    "hits_sofridos": 45,
+    "acoes_umbra": {
+      "ATAQUE": 182,
+      "DESCARGA_ELETRICA": 10,
+      "TELEPORTE": 25
+    }
+  },
+  {
+    "geracao": 10,
+    "score": 1824.154,
+    "venceu_apolo": false,
+    "tempo_s": 18.53,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5742.55,
+    "dano_apolo": 1015.0,
+    "dano_umbra": 3257.45,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 290,
+      "PRISAO": 149,
+      "TELEPORTE": 133
+    }
+  },
+  {
+    "geracao": 11,
+    "score": 722.351,
+    "venceu_apolo": false,
+    "tempo_s": 18.45,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6215.08,
+    "dano_apolo": 1075.0,
+    "dano_umbra": 2784.92,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 289,
+      "PRISAO": 148,
+      "TELEPORTE_JUKE": 130
+    }
+  },
+  {
+    "geracao": 12,
+    "score": -1962.753,
+    "venceu_apolo": false,
+    "tempo_s": 12.85,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7191.19,
+    "dano_apolo": 1075.0,
+    "dano_umbra": 1808.81,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 201,
+      "PRISAO": 60,
+      "TELEPORTE_JUKE": 44
+    }
+  },
+  {
+    "geracao": 13,
+    "score": -714.074,
+    "venceu_apolo": false,
+    "tempo_s": 12.32,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6752.24,
+    "dano_apolo": 1002.0,
+    "dano_umbra": 2247.76,
+    "hits_sofridos": 38,
+    "acoes_umbra": {
+      "ATAQUE": 193,
+      "DESCARGA_ELETRICA": 21,
+      "TELEPORTE": 36
+    }
+  },
+  {
+    "geracao": 14,
+    "score": 819.687,
+    "venceu_apolo": false,
+    "tempo_s": 17.78,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6208.94,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2791.06,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 278,
+      "PRAGA_RATOS": 90,
+      "TELEPORTE": 121
+    }
+  },
+  {
+    "geracao": 15,
+    "score": 1510.115,
+    "venceu_apolo": false,
+    "tempo_s": 18.02,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5903.41,
+    "dano_apolo": 1070.0,
+    "dano_umbra": 3114.59,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 282,
+      "PRAGA_RATOS": 94,
+      "TELEPORTE": 125
+    }
+  },
+  {
+    "geracao": 16,
+    "score": -2030.709,
+    "venceu_apolo": false,
+    "tempo_s": 12.03,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7390.59,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 1609.41,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 188,
+      "CAMINHO_ESPINHOS": 63,
+      "TELEPORTE": 30
+    }
+  },
+  {
+    "geracao": 17,
+    "score": 6140.983,
+    "venceu_apolo": false,
+    "tempo_s": 29.52,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4648.1,
+    "dano_apolo": 1020.0,
+    "dano_umbra": 4781.13,
+    "hits_sofridos": 15,
+    "acoes_umbra": {
+      "ATAQUE": 462,
+      "SIFON": 149,
+      "TELEPORTE": 305,
+      "TELEPORTE_JUKE": 53,
+      "VORTICE": 274
+    }
+  },
+  {
+    "geracao": 18,
+    "score": -2005.826,
+    "venceu_apolo": false,
+    "tempo_s": 15.57,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7377.87,
+    "dano_apolo": 1075.0,
+    "dano_umbra": 1622.13,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 244,
+      "PRISAO": 103,
+      "TELEPORTE": 87
+    }
+  },
+  {
+    "geracao": 19,
+    "score": 475.686,
+    "venceu_apolo": false,
+    "tempo_s": 17.38,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6387.61,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 2612.39,
+    "hits_sofridos": 14,
+    "acoes_umbra": {
+      "ATAQUE": 272,
+      "PRISAO": 131,
+      "TELEPORTE": 115
+    }
+  },
+  {
+    "geracao": 20,
+    "score": 2921.191,
+    "venceu_apolo": false,
+    "tempo_s": 28.16,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5828.69,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 3508.0,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 440,
+      "CAMINHO_ESPINHOS": 315,
+      "SIFON": 127,
+      "TELEPORTE": 283
+    }
+  },
+  {
+    "geracao": 21,
+    "score": -602.826,
+    "venceu_apolo": false,
+    "tempo_s": 14.9,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6770.69,
+    "dano_apolo": 1075.0,
+    "dano_umbra": 2229.31,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 233,
+      "PRISAO": 92,
+      "TELEPORTE": 76
+    }
+  },
+  {
+    "geracao": 22,
+    "score": 6211.093,
+    "venceu_apolo": false,
+    "tempo_s": 35.01,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4596.51,
+    "dano_apolo": 1050.0,
+    "dano_umbra": 4786.37,
+    "hits_sofridos": 25,
+    "acoes_umbra": {
+      "ATAQUE": 547,
+      "MIASMA": 390,
+      "SIFON": 218,
+      "TELEPORTE": 387,
+      "TRANSMUTAR_NECROSE": 123
+    }
+  },
+  {
+    "geracao": 23,
+    "score": 1883.687,
+    "venceu_apolo": false,
+    "tempo_s": 21.23,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5915.9,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 3120.44,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 332,
+      "CAMINHO_ESPINHOS": 207,
+      "SIFON": 7,
+      "TELEPORTE": 18,
+      "TELEPORTE_JUKE": 175
+    }
+  },
+  {
+    "geracao": 24,
+    "score": 7622.817,
+    "venceu_apolo": false,
+    "tempo_s": 32.58,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3985.68,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 5456.29,
+    "hits_sofridos": 13,
+    "acoes_umbra": {
+      "ATAQUE": 509,
+      "CAMINHO_ESPINHOS": 384,
+      "SIFON": 196,
+      "TELEPORTE": 351,
+      "TRANSMUTAR_GRAVIDADE": 47
+    }
+  },
+  {
+    "geracao": 25,
+    "score": 2330.899,
+    "venceu_apolo": false,
+    "tempo_s": 18.66,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5556.92,
+    "dano_apolo": 1055.0,
+    "dano_umbra": 3443.08,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 292,
+      "TELEPORTE_JUKE": 135,
+      "VORTICE": 104
+    }
+  },
+  {
+    "geracao": 26,
+    "score": 4921.981,
+    "venceu_apolo": false,
+    "tempo_s": 23.55,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4575.54,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 4424.46,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 368,
+      "LASER_SOBRECARGA": 196,
+      "TELEPORTE": 211
+    }
+  },
+  {
+    "geracao": 27,
+    "score": 10236.08,
+    "venceu_apolo": false,
+    "tempo_s": 54.02,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3020.6,
+    "dano_apolo": 1100.0,
+    "dano_umbra": 6424.87,
+    "hits_sofridos": 9,
+    "acoes_umbra": {
+      "ATAQUE": 844,
+      "PRAGA_RATOS": 656,
+      "SIFON": 528,
+      "TELEPORTE": 687,
+      "TELEPORTE_JUKE": 93,
+      "TRANSMUTAR_RASTRO": 291
+    }
+  },
+  {
+    "geracao": 28,
+    "score": 3864.811,
+    "venceu_apolo": false,
+    "tempo_s": 30.16,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5521.31,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 3819.82,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 472,
+      "MIASMA": 315,
+      "SIFON": 159,
+      "TELEPORTE": 63,
+      "TELEPORTE_JUKE": 314
+    }
+  },
+  {
+    "geracao": 29,
+    "score": 6290.07,
+    "venceu_apolo": false,
+    "tempo_s": 36.48,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4408.46,
+    "dano_apolo": 1060.0,
+    "dano_umbra": 5013.51,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 570,
+      "PRAGA_RATOS": 382,
+      "SIFON": 245,
+      "TELEPORTE": 256,
+      "TELEPORTE_JUKE": 413,
+      "TRANSMUTAR_RASTRO": 150
+    }
+  },
+  {
+    "geracao": 30,
+    "score": 1191.024,
+    "venceu_apolo": false,
+    "tempo_s": 19.97,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6111.69,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2888.31,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 312,
+      "MIASMA": 155,
+      "TELEPORTE_JUKE": 154
+    }
+  },
+  {
+    "geracao": 31,
+    "score": 294.915,
+    "venceu_apolo": false,
+    "tempo_s": 20.06,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6496.99,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2503.01,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 314,
+      "CAMINHO_ESPINHOS": 189,
+      "TELEPORTE": 157
+    }
+  },
+  {
+    "geracao": 32,
+    "score": 4685.254,
+    "venceu_apolo": false,
+    "tempo_s": 26.82,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4676.68,
+    "dano_apolo": 1048.32,
+    "dano_umbra": 4323.32,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 419,
+      "LASER_SOBRECARGA": 247,
+      "TELEPORTE": 262
+    }
+  },
+  {
+    "geracao": 33,
+    "score": 362.038,
+    "venceu_apolo": false,
+    "tempo_s": 18.53,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6324.87,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 2675.13,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 290,
+      "PRISAO": 149,
+      "TELEPORTE_JUKE": 133
+    }
+  },
+  {
+    "geracao": 34,
+    "score": -1898.158,
+    "venceu_apolo": false,
+    "tempo_s": 11.87,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7316.7,
+    "dano_apolo": 1008.0,
+    "dano_umbra": 1683.3,
+    "hits_sofridos": 58,
+    "acoes_umbra": {
+      "ATAQUE": 186,
+      "DESCARGA_ELETRICA": 14,
+      "TELEPORTE": 29
+    }
+  },
+  {
+    "geracao": 35,
+    "score": 8797.34,
+    "venceu_apolo": false,
+    "tempo_s": 40.37,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3561.35,
+    "dano_apolo": 1070.0,
+    "dano_umbra": 5849.02,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 631,
+      "PRAGA_RATOS": 443,
+      "SIFON": 310,
+      "TELEPORTE": 212,
+      "TELEPORTE_JUKE": 468,
+      "TRANSMUTAR_GRAVIDADE": 73
+    }
+  },
+  {
+    "geracao": 36,
+    "score": 5370.489,
+    "venceu_apolo": false,
+    "tempo_s": 31.07,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4563.02,
+    "dano_apolo": 1000.43,
+    "dano_umbra": 4436.98,
+    "hits_sofridos": 22,
+    "acoes_umbra": {
+      "ATAQUE": 486,
+      "LASER_SOBRECARGA": 314,
+      "TELEPORTE": 327
+    }
+  },
+  {
+    "geracao": 37,
+    "score": -1757.742,
+    "venceu_apolo": false,
+    "tempo_s": 11.98,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7270.48,
+    "dano_apolo": 1002.0,
+    "dano_umbra": 1729.52,
+    "hits_sofridos": 64,
+    "acoes_umbra": {
+      "ATAQUE": 188,
+      "DESCARGA_ELETRICA": 16,
+      "TELEPORTE": 31
+    }
+  },
+  {
+    "geracao": 38,
+    "score": 1583.312,
+    "venceu_apolo": false,
+    "tempo_s": 18.59,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5852.84,
+    "dano_apolo": 1050.0,
+    "dano_umbra": 3147.16,
+    "hits_sofridos": 13,
+    "acoes_umbra": {
+      "ATAQUE": 291,
+      "CAMINHO_ESPINHOS": 166,
+      "TELEPORTE_JUKE": 134
+    }
+  },
+  {
+    "geracao": 39,
+    "score": 5484.683,
+    "venceu_apolo": false,
+    "tempo_s": 32.35,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4794.37,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4572.44,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 506,
+      "CAMINHO_ESPINHOS": 381,
+      "SIFON": 192,
+      "TELEPORTE": 96,
+      "TELEPORTE_JUKE": 348,
+      "TRANSMUTAR_VORTICE": 42
+    }
+  },
+  {
+    "geracao": 40,
+    "score": -1164.707,
+    "venceu_apolo": false,
+    "tempo_s": 20.72,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7010.43,
+    "dano_apolo": 1020.0,
+    "dano_umbra": 1989.57,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 324,
+      "PRISAO": 183,
+      "TELEPORTE_JUKE": 164
+    }
+  },
+  {
+    "geracao": 41,
+    "score": 693.807,
+    "venceu_apolo": false,
+    "tempo_s": 19.65,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6255.86,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2744.14,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 307,
+      "MIASMA": 150,
+      "TELEPORTE_JUKE": 148
+    }
+  },
+  {
+    "geracao": 42,
+    "score": 1362.226,
+    "venceu_apolo": false,
+    "tempo_s": 20.02,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6072.67,
+    "dano_apolo": 1030.0,
+    "dano_umbra": 2927.33,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 313,
+      "TELEPORTE": 156,
+      "VORTICE": 125
+    }
+  },
+  {
+    "geracao": 43,
+    "score": 6126.071,
+    "venceu_apolo": false,
+    "tempo_s": 49.9,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4425.38,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4934.34,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 780,
+      "DESCARGA_ELETRICA": 608,
+      "SIFON": 431,
+      "TELEPORTE_JUKE": 618,
+      "TRANSMUTAR_RESSONANCIA": 335
+    }
+  },
+  {
+    "geracao": 44,
+    "score": -1747.362,
+    "venceu_apolo": false,
+    "tempo_s": 11.87,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7258.58,
+    "dano_apolo": 1008.0,
+    "dano_umbra": 1741.42,
+    "hits_sofridos": 58,
+    "acoes_umbra": {
+      "ATAQUE": 186,
+      "DESCARGA_ELETRICA": 14,
+      "TELEPORTE_JUKE": 27
+    }
+  },
+  {
+    "geracao": 45,
+    "score": 8165.695,
+    "venceu_apolo": false,
+    "tempo_s": 32.05,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3749.59,
+    "dano_apolo": 1020.0,
+    "dano_umbra": 5719.53,
+    "hits_sofridos": 15,
+    "acoes_umbra": {
+      "ATAQUE": 501,
+      "SIFON": 168,
+      "TELEPORTE": 342,
+      "TELEPORTE_JUKE": 185,
+      "VORTICE": 313
+    }
+  },
+  {
+    "geracao": 46,
+    "score": 717.191,
+    "venceu_apolo": false,
+    "tempo_s": 18.53,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6291.32,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 2708.68,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 290,
+      "PRISAO": 149,
+      "TELEPORTE": 132
+    }
+  },
+  {
+    "geracao": 47,
+    "score": 8411.777,
+    "venceu_apolo": false,
+    "tempo_s": 37.22,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3404.75,
+    "dano_apolo": 1010.66,
+    "dano_umbra": 5595.25,
+    "hits_sofridos": 24,
+    "acoes_umbra": {
+      "ATAQUE": 582,
+      "LASER_SOBRECARGA": 410,
+      "TELEPORTE": 425,
+      "TRANSMUTAR_GRAVIDADE": 65
+    }
+  },
+  {
+    "geracao": 48,
+    "score": -613.176,
+    "venceu_apolo": false,
+    "tempo_s": 14.94,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6779.47,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2220.53,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 234,
+      "PRISAO": 93,
+      "TELEPORTE": 75
+    }
+  },
+  {
+    "geracao": 49,
+    "score": -1176.189,
+    "venceu_apolo": false,
+    "tempo_s": 13.68,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7020.36,
+    "dano_apolo": 1016.4,
+    "dano_umbra": 1979.64,
+    "hits_sofridos": 14,
+    "acoes_umbra": {
+      "ATAQUE": 214,
+      "LASER_SOBRECARGA": 41,
+      "TELEPORTE_JUKE": 50
+    }
+  },
+  {
+    "geracao": 50,
+    "score": 5258.779,
+    "venceu_apolo": false,
+    "tempo_s": 29.73,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4906.69,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 4473.62,
+    "hits_sofridos": 13,
+    "acoes_umbra": {
+      "ATAQUE": 465,
+      "CAMINHO_ESPINHOS": 340,
+      "SIFON": 130,
+      "TELEPORTE": 146,
+      "TELEPORTE_JUKE": 303
+    }
+  },
+  {
+    "geracao": 51,
+    "score": 11468.694,
+    "venceu_apolo": false,
+    "tempo_s": 47.42,
+    "vida_apolo": 0.0,
+    "vida_umbra": 2788.31,
+    "dano_apolo": 1025.35,
+    "dano_umbra": 6829.9,
+    "hits_sofridos": 25,
+    "acoes_umbra": {
+      "ATAQUE": 741,
+      "LASER_SOBRECARGA": 569,
+      "SIFON": 223,
+      "TELEPORTE_JUKE": 584,
+      "TRANSMUTAR_RESSONANCIA": 126
+    }
+  },
+  {
+    "geracao": 52,
+    "score": 5.966,
+    "venceu_apolo": false,
+    "tempo_s": 16.1,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6537.82,
+    "dano_apolo": 1075.0,
+    "dano_umbra": 2462.18,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 252,
+      "PRISAO": 111,
+      "TELEPORTE_JUKE": 94
+    }
+  },
+  {
+    "geracao": 53,
+    "score": 14589.348,
+    "venceu_apolo": false,
+    "tempo_s": 64.54,
+    "vida_apolo": 0.0,
+    "vida_umbra": 1727.02,
+    "dano_apolo": 1050.43,
+    "dano_umbra": 8113.01,
+    "hits_sofridos": 27,
+    "acoes_umbra": {
+      "ATAQUE": 1009,
+      "LASER_SOBRECARGA": 837,
+      "SIFON": 135,
+      "TELEPORTE": 40,
+      "TELEPORTE_JUKE": 847,
+      "TRANSMUTAR_GRAVIDADE": 31,
+      "TRANSMUTAR_VORTICE": 491
+    }
+  },
+  {
+    "geracao": 54,
+    "score": -1744.328,
+    "venceu_apolo": false,
+    "tempo_s": 11.63,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7263.01,
+    "dano_apolo": 1008.0,
+    "dano_umbra": 1736.99,
+    "hits_sofridos": 45,
+    "acoes_umbra": {
+      "ATAQUE": 182,
+      "DESCARGA_ELETRICA": 10,
+      "TELEPORTE_JUKE": 25
+    }
+  },
+  {
+    "geracao": 55,
+    "score": -3385.675,
+    "venceu_apolo": false,
+    "tempo_s": 11.06,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7937.35,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 1062.65,
+    "hits_sofridos": 14,
+    "acoes_umbra": {
+      "ATAQUE": 173,
+      "PRISAO": 32,
+      "TELEPORTE_JUKE": 16
+    }
+  },
+  {
+    "geracao": 56,
+    "score": -531.51,
+    "venceu_apolo": false,
+    "tempo_s": 18.29,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6739.2,
+    "dano_apolo": 1070.0,
+    "dano_umbra": 2278.8,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 286,
+      "PRAGA_RATOS": 98,
+      "TELEPORTE": 129
+    }
+  },
+  {
+    "geracao": 57,
+    "score": 2456.845,
+    "venceu_apolo": false,
+    "tempo_s": 28.03,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5962.63,
+    "dano_apolo": 1002.0,
+    "dano_umbra": 3371.18,
+    "hits_sofridos": 38,
+    "acoes_umbra": {
+      "ATAQUE": 438,
+      "DESCARGA_ELETRICA": 266,
+      "SIFON": 119,
+      "TELEPORTE": 279,
+      "TELEPORTE_JUKE": 20
+    }
+  },
+  {
+    "geracao": 58,
+    "score": 1374.47,
+    "venceu_apolo": false,
+    "tempo_s": 24.14,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6307.61,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 2883.31,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 378,
+      "MIASMA": 221,
+      "SIFON": 52,
+      "TELEPORTE": 219,
+      "TELEPORTE_JUKE": 62
+    }
+  },
+  {
+    "geracao": 59,
+    "score": -506.829,
+    "venceu_apolo": false,
+    "tempo_s": 16.8,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6784.17,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 2215.83,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 263,
+      "CAMINHO_ESPINHOS": 138,
+      "TELEPORTE_JUKE": 104
+    }
+  },
+  {
+    "geracao": 60,
+    "score": 3306.931,
+    "venceu_apolo": false,
+    "tempo_s": 27.07,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5209.77,
+    "dano_apolo": 1048.4,
+    "dano_umbra": 3790.23,
+    "hits_sofridos": 18,
+    "acoes_umbra": {
+      "ATAQUE": 423,
+      "LASER_SOBRECARGA": 249,
+      "TELEPORTE_JUKE": 263
+    }
+  },
+  {
+    "geracao": 61,
+    "score": 368.766,
+    "venceu_apolo": false,
+    "tempo_s": 20.21,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6486.56,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2513.44,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 316,
+      "MIASMA": 159,
+      "TELEPORTE_JUKE": 156
+    }
+  },
+  {
+    "geracao": 62,
+    "score": 7019.04,
+    "venceu_apolo": false,
+    "tempo_s": 44.02,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4390.13,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 4931.43,
+    "hits_sofridos": 29,
+    "acoes_umbra": {
+      "ATAQUE": 688,
+      "MIASMA": 531,
+      "SIFON": 371,
+      "TELEPORTE_JUKE": 529,
+      "TRANSMUTAR_HEMORRAGIA": 264
+    }
+  },
+  {
+    "geracao": 63,
+    "score": 7590.548,
+    "venceu_apolo": false,
+    "tempo_s": 47.55,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3561.77,
+    "dano_apolo": 1002.0,
+    "dano_umbra": 5438.23,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 743,
+      "LASER_SOBRECARGA": 570,
+      "TELEPORTE_JUKE": 581,
+      "TRANSMUTAR_HEMORRAGIA": 215
+    }
+  },
+  {
+    "geracao": 64,
+    "score": 1306.399,
+    "venceu_apolo": false,
+    "tempo_s": 21.79,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6133.56,
+    "dano_apolo": 1070.0,
+    "dano_umbra": 2884.44,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 341,
+      "PRAGA_RATOS": 153,
+      "TELEPORTE_JUKE": 180
+    }
+  },
+  {
+    "geracao": 65,
+    "score": 6545.455,
+    "venceu_apolo": false,
+    "tempo_s": 34.9,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4031.55,
+    "dano_apolo": 1074.58,
+    "dano_umbra": 4968.45,
+    "hits_sofridos": 21,
+    "acoes_umbra": {
+      "ATAQUE": 546,
+      "LASER_SOBRECARGA": 374,
+      "TELEPORTE": 389,
+      "TRANSMUTAR_RASTRO": 29
+    }
+  },
+  {
+    "geracao": 66,
+    "score": 4369.941,
+    "venceu_apolo": false,
+    "tempo_s": 27.46,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5254.76,
+    "dano_apolo": 1008.0,
+    "dano_umbra": 4138.05,
+    "hits_sofridos": 32,
+    "acoes_umbra": {
+      "ATAQUE": 429,
+      "DESCARGA_ELETRICA": 257,
+      "SIFON": 101,
+      "TELEPORTE_JUKE": 272
+    }
+  },
+  {
+    "geracao": 67,
+    "score": 8801.464,
+    "venceu_apolo": false,
+    "tempo_s": 34.02,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3437.8,
+    "dano_apolo": 1060.0,
+    "dano_umbra": 6010.19,
+    "hits_sofridos": 13,
+    "acoes_umbra": {
+      "ATAQUE": 532,
+      "SIFON": 219,
+      "TELEPORTE": 374,
+      "VORTICE": 344
+    }
+  },
+  {
+    "geracao": 68,
+    "score": 4424.926,
+    "venceu_apolo": false,
+    "tempo_s": 26.93,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4823.15,
+    "dano_apolo": 1031.75,
+    "dano_umbra": 4176.85,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 421,
+      "LASER_SOBRECARGA": 249,
+      "TELEPORTE": 262
+    }
+  },
+  {
+    "geracao": 69,
+    "score": 4264.006,
+    "venceu_apolo": false,
+    "tempo_s": 33.42,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5222.91,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4095.56,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 523,
+      "CAMINHO_ESPINHOS": 398,
+      "SIFON": 209,
+      "TELEPORTE_JUKE": 366,
+      "TRANSMUTAR_HEMORRAGIA": 56
+    }
+  },
+  {
+    "geracao": 70,
+    "score": 8738.157,
+    "venceu_apolo": false,
+    "tempo_s": 41.98,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3588.77,
+    "dano_apolo": 1050.0,
+    "dano_umbra": 5884.57,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 656,
+      "PRAGA_RATOS": 468,
+      "SIFON": 343,
+      "TELEPORTE": 497,
+      "TELEPORTE_JUKE": 246,
+      "TRANSMUTAR_GRAVIDADE": 105
+    }
+  },
+  {
+    "geracao": 71,
+    "score": 5339.176,
+    "venceu_apolo": false,
+    "tempo_s": 30.83,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4914.88,
+    "dano_apolo": 1075.0,
+    "dano_umbra": 4468.65,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 482,
+      "PRISAO": 341,
+      "SIFON": 149,
+      "TELEPORTE": 325
+    }
+  },
+  {
+    "geracao": 72,
+    "score": 10355.618,
+    "venceu_apolo": false,
+    "tempo_s": 47.25,
+    "vida_apolo": 0.0,
+    "vida_umbra": 2633.02,
+    "dano_apolo": 1042.78,
+    "dano_umbra": 6366.98,
+    "hits_sofridos": 28,
+    "acoes_umbra": {
+      "ATAQUE": 739,
+      "LASER_SOBRECARGA": 567,
+      "TELEPORTE": 582,
+      "TELEPORTE_JUKE": 222,
+      "TRANSMUTAR_VORTICE": 208
+    }
+  },
+  {
+    "geracao": 73,
+    "score": -385.914,
+    "venceu_apolo": false,
+    "tempo_s": 19.02,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6807.7,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 2192.3,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 298,
+      "PRISAO": 157,
+      "TELEPORTE": 138
+    }
+  },
+  {
+    "geracao": 74,
+    "score": 3792.534,
+    "venceu_apolo": false,
+    "tempo_s": 31.25,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5463.27,
+    "dano_apolo": 1014.0,
+    "dano_umbra": 3886.63,
+    "hits_sofridos": 26,
+    "acoes_umbra": {
+      "ATAQUE": 489,
+      "DESCARGA_ELETRICA": 317,
+      "SIFON": 159,
+      "TELEPORTE": 174,
+      "TELEPORTE_JUKE": 331,
+      "TRANSMUTAR_HEMORRAGIA": 32
+    }
+  },
+  {
+    "geracao": 75,
+    "score": 5886.021,
+    "venceu_apolo": false,
+    "tempo_s": 34.14,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4683.88,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4661.13,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 534,
+      "DESCARGA_ELETRICA": 362,
+      "SIFON": 220,
+      "TELEPORTE": 123,
+      "TELEPORTE_JUKE": 376,
+      "TRANSMUTAR_NECROSE": 96
+    }
+  },
+  {
+    "geracao": 76,
+    "score": 4488.023,
+    "venceu_apolo": false,
+    "tempo_s": 35.46,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4880.53,
+    "dano_apolo": 1000.4,
+    "dano_umbra": 4119.47,
+    "hits_sofridos": 21,
+    "acoes_umbra": {
+      "ATAQUE": 554,
+      "LASER_SOBRECARGA": 382,
+      "TELEPORTE_JUKE": 396,
+      "TRANSMUTAR_HEMORRAGIA": 36
+    }
+  },
+  {
+    "geracao": 77,
+    "score": -996.787,
+    "venceu_apolo": false,
+    "tempo_s": 13.9,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6993.34,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 2006.66,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 218,
+      "CAMINHO_ESPINHOS": 93,
+      "TELEPORTE_JUKE": 60
+    }
+  },
+  {
+    "geracao": 78,
+    "score": 1329.323,
+    "venceu_apolo": false,
+    "tempo_s": 19.12,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6000.55,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2999.45,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 299,
+      "PRAGA_RATOS": 111,
+      "TELEPORTE": 141
+    }
+  },
+  {
+    "geracao": 79,
+    "score": 132.372,
+    "venceu_apolo": false,
+    "tempo_s": 19.26,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6544.09,
+    "dano_apolo": 1005.0,
+    "dano_umbra": 2455.91,
+    "hits_sofridos": 13,
+    "acoes_umbra": {
+      "ATAQUE": 301,
+      "TELEPORTE": 137,
+      "VORTICE": 113
+    }
+  },
+  {
+    "geracao": 80,
+    "score": 5153.793,
+    "venceu_apolo": false,
+    "tempo_s": 26.54,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4894.26,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4548.26,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 415,
+      "PRAGA_RATOS": 227,
+      "SIFON": 101,
+      "TELEPORTE": 253
+    }
+  },
+  {
+    "geracao": 81,
+    "score": 4190.002,
+    "venceu_apolo": false,
+    "tempo_s": 26.94,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5375.96,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4023.6,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 421,
+      "PRAGA_RATOS": 233,
+      "SIFON": 104,
+      "TELEPORTE_JUKE": 262
+    }
+  },
+  {
+    "geracao": 82,
+    "score": 3636.197,
+    "venceu_apolo": false,
+    "tempo_s": 32.75,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5392.94,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 3909.5,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 512,
+      "CAMINHO_ESPINHOS": 387,
+      "SIFON": 198,
+      "TELEPORTE": 355,
+      "TRANSMUTAR_HEMORRAGIA": 45
+    }
+  },
+  {
+    "geracao": 83,
+    "score": -1711.677,
+    "venceu_apolo": false,
+    "tempo_s": 15.17,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7267.61,
+    "dano_apolo": 1075.0,
+    "dano_umbra": 1732.39,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 237,
+      "PRISAO": 96,
+      "TELEPORTE_JUKE": 80
+    }
+  },
+  {
+    "geracao": 84,
+    "score": -395.634,
+    "venceu_apolo": false,
+    "tempo_s": 17.82,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6692.34,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2307.66,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 279,
+      "DESCARGA_ELETRICA": 106,
+      "TELEPORTE_JUKE": 121
+    }
+  },
+  {
+    "geracao": 85,
+    "score": 7288.355,
+    "venceu_apolo": false,
+    "tempo_s": 33.1,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4042.6,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 5386.44,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 518,
+      "CAMINHO_ESPINHOS": 393,
+      "SIFON": 190,
+      "TELEPORTE": 359,
+      "TELEPORTE_JUKE": 44,
+      "TRANSMUTAR_NECROSE": 35
+    }
+  },
+  {
+    "geracao": 86,
+    "score": -2449.61,
+    "venceu_apolo": false,
+    "tempo_s": 12.62,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7529.63,
+    "dano_apolo": 1075.0,
+    "dano_umbra": 1470.37,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 198,
+      "PRISAO": 57,
+      "TELEPORTE_JUKE": 34
+    }
+  },
+  {
+    "geracao": 87,
+    "score": 888.556,
+    "venceu_apolo": false,
+    "tempo_s": 20.53,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6279.78,
+    "dano_apolo": 1020.0,
+    "dano_umbra": 2753.25,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 321,
+      "PRISAO": 180,
+      "SIFON": 8,
+      "TELEPORTE": 162
+    }
+  },
+  {
+    "geracao": 88,
+    "score": 8361.091,
+    "venceu_apolo": false,
+    "tempo_s": 44.26,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3796.22,
+    "dano_apolo": 1050.0,
+    "dano_umbra": 5584.61,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 692,
+      "PRAGA_RATOS": 504,
+      "SIFON": 375,
+      "TELEPORTE": 535,
+      "TRANSMUTAR_VORTICE": 139
+    }
+  },
+  {
+    "geracao": 89,
+    "score": -1524.374,
+    "venceu_apolo": false,
+    "tempo_s": 11.39,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7150.22,
+    "dano_apolo": 1008.0,
+    "dano_umbra": 1849.78,
+    "hits_sofridos": 32,
+    "acoes_umbra": {
+      "ATAQUE": 178,
+      "DESCARGA_ELETRICA": 6,
+      "TELEPORTE": 19
+    }
+  },
+  {
+    "geracao": 90,
+    "score": 1428.787,
+    "venceu_apolo": false,
+    "tempo_s": 19.6,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5997.67,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 3002.33,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 307,
+      "TELEPORTE_JUKE": 147,
+      "VORTICE": 119
+    }
+  },
+  {
+    "geracao": 91,
+    "score": 5940.246,
+    "venceu_apolo": false,
+    "tempo_s": 35.65,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4575.14,
+    "dano_apolo": 1050.0,
+    "dano_umbra": 4796.1,
+    "hits_sofridos": 25,
+    "acoes_umbra": {
+      "ATAQUE": 557,
+      "MIASMA": 400,
+      "SIFON": 237,
+      "TELEPORTE": 399,
+      "TRANSMUTAR_ATRITO": 142
+    }
+  },
+  {
+    "geracao": 92,
+    "score": 2074.191,
+    "venceu_apolo": false,
+    "tempo_s": 21.26,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5819.88,
+    "dano_apolo": 1070.0,
+    "dano_umbra": 3313.83,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 333,
+      "PRAGA_RATOS": 145,
+      "SIFON": 20,
+      "TELEPORTE_JUKE": 172
+    }
+  },
+  {
+    "geracao": 93,
+    "score": -81.097,
+    "venceu_apolo": false,
+    "tempo_s": 17.33,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6606.26,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2393.74,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 271,
+      "PRAGA_RATOS": 83,
+      "TELEPORTE": 108
+    }
+  },
+  {
+    "geracao": 94,
+    "score": 998.615,
+    "venceu_apolo": false,
+    "tempo_s": 16.75,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6120.65,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2879.35,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 262,
+      "PRAGA_RATOS": 74,
+      "TELEPORTE_JUKE": 103
+    }
+  },
+  {
+    "geracao": 95,
+    "score": 582.338,
+    "venceu_apolo": false,
+    "tempo_s": 20.06,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6361.76,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 2638.24,
+    "hits_sofridos": 13,
+    "acoes_umbra": {
+      "ATAQUE": 314,
+      "CAMINHO_ESPINHOS": 189,
+      "TELEPORTE_JUKE": 152
+    }
+  },
+  {
+    "geracao": 96,
+    "score": -869.13,
+    "venceu_apolo": false,
+    "tempo_s": 14.93,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6947.45,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 2052.55,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 234,
+      "CAMINHO_ESPINHOS": 109,
+      "TELEPORTE_JUKE": 76
+    }
+  },
+  {
+    "geracao": 97,
+    "score": 17766.975,
+    "venceu_apolo": false,
+    "tempo_s": 73.22,
+    "vida_apolo": 0.0,
+    "vida_umbra": 792.83,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 9249.82,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 1144,
+      "CAMINHO_ESPINHOS": 1019,
+      "SIFON": 830,
+      "TELEPORTE": 726,
+      "TELEPORTE_JUKE": 980,
+      "TRANSMUTAR_ATRITO": 206,
+      "TRANSMUTAR_GRAVIDADE": 675
+    }
+  },
+  {
+    "geracao": 98,
+    "score": 5863.8,
+    "venceu_apolo": false,
+    "tempo_s": 40.22,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4754.58,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 4541.06,
+    "hits_sofridos": 28,
+    "acoes_umbra": {
+      "ATAQUE": 629,
+      "MIASMA": 472,
+      "SIFON": 314,
+      "TELEPORTE_JUKE": 469,
+      "TRANSMUTAR_GRAVIDADE": 214
+    }
+  },
+  {
+    "geracao": 99,
+    "score": -1676.989,
+    "venceu_apolo": false,
+    "tempo_s": 14.64,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7202.65,
+    "dano_apolo": 1075.0,
+    "dano_umbra": 1797.35,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 229,
+      "PRISAO": 88,
+      "TELEPORTE": 72
+    }
+  },
+  {
+    "geracao": 100,
+    "score": -2217.493,
+    "venceu_apolo": false,
+    "tempo_s": 11.63,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7442.1,
+    "dano_apolo": 1008.0,
+    "dano_umbra": 1557.9,
+    "hits_sofridos": 45,
+    "acoes_umbra": {
+      "ATAQUE": 182,
+      "DESCARGA_ELETRICA": 10,
+      "TELEPORTE": 19
+    }
+  },
+  {
+    "geracao": 101,
+    "score": -381.339,
+    "venceu_apolo": false,
+    "tempo_s": 18.53,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6780.06,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 2219.94,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 290,
+      "PRISAO": 149,
+      "TELEPORTE_JUKE": 133
+    }
+  },
+  {
+    "geracao": 102,
+    "score": 2238.493,
+    "venceu_apolo": false,
+    "tempo_s": 23.55,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5705.03,
+    "dano_apolo": 1078.0,
+    "dano_umbra": 3294.97,
+    "hits_sofridos": 18,
+    "acoes_umbra": {
+      "ATAQUE": 368,
+      "LASER_SOBRECARGA": 196,
+      "TELEPORTE_JUKE": 209
+    }
+  },
+  {
+    "geracao": 103,
+    "score": 318.751,
+    "venceu_apolo": false,
+    "tempo_s": 19.36,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6467.95,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2532.05,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 303,
+      "TELEPORTE_JUKE": 146,
+      "VORTICE": 115
+    }
+  },
+  {
+    "geracao": 104,
+    "score": -825.701,
+    "venceu_apolo": false,
+    "tempo_s": 16.21,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6935.78,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2064.22,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 254,
+      "CAMINHO_ESPINHOS": 129,
+      "TELEPORTE": 93
+    }
+  },
+  {
+    "geracao": 105,
+    "score": 9752.372,
+    "venceu_apolo": false,
+    "tempo_s": 40.53,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3255.06,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 6169.41,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 634,
+      "CAMINHO_ESPINHOS": 509,
+      "SIFON": 321,
+      "TELEPORTE": 225,
+      "TELEPORTE_JUKE": 477,
+      "TRANSMUTAR_ATRITO": 172
+    }
+  },
+  {
+    "geracao": 106,
+    "score": -1315.544,
+    "venceu_apolo": false,
+    "tempo_s": 16.29,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7078.59,
+    "dano_apolo": 1005.0,
+    "dano_umbra": 1921.41,
+    "hits_sofridos": 13,
+    "acoes_umbra": {
+      "ATAQUE": 255,
+      "TELEPORTE_JUKE": 95,
+      "VORTICE": 67
+    }
+  },
+  {
+    "geracao": 107,
+    "score": 2839.358,
+    "venceu_apolo": false,
+    "tempo_s": 28.19,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5847.06,
+    "dano_apolo": 1060.0,
+    "dano_umbra": 3469.12,
+    "hits_sofridos": 19,
+    "acoes_umbra": {
+      "ATAQUE": 441,
+      "PRISAO": 300,
+      "SIFON": 128,
+      "TELEPORTE_JUKE": 272,
+      "TRANSMUTAR_NECROSE": 33
+    }
+  },
+  {
+    "geracao": 108,
+    "score": 4727.851,
+    "venceu_apolo": false,
+    "tempo_s": 31.22,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5169.53,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4173.6,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 488,
+      "PRAGA_RATOS": 300,
+      "SIFON": 162,
+      "TELEPORTE": 331,
+      "TELEPORTE_JUKE": 173
+    }
+  },
+  {
+    "geracao": 109,
+    "score": 3894.982,
+    "venceu_apolo": false,
+    "tempo_s": 29.44,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5374.81,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 3989.14,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 460,
+      "CAMINHO_ESPINHOS": 335,
+      "SIFON": 147,
+      "TELEPORTE": 271
+    }
+  },
+  {
+    "geracao": 110,
+    "score": 506.265,
+    "venceu_apolo": false,
+    "tempo_s": 24.14,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6600.42,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 2600.85,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 378,
+      "MIASMA": 221,
+      "SIFON": 60,
+      "TELEPORTE_JUKE": 216
+    }
+  },
+  {
+    "geracao": 111,
+    "score": -10.948,
+    "venceu_apolo": false,
+    "tempo_s": 19.86,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6573.99,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2426.01,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 311,
+      "MIASMA": 154,
+      "TELEPORTE": 153
+    }
+  },
+  {
+    "geracao": 112,
+    "score": 727.648,
+    "venceu_apolo": false,
+    "tempo_s": 19.95,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6314.86,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2685.14,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 312,
+      "MIASMA": 155,
+      "TELEPORTE_JUKE": 151
+    }
+  },
+  {
+    "geracao": 113,
+    "score": 6784.489,
+    "venceu_apolo": false,
+    "tempo_s": 39.15,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4222.26,
+    "dano_apolo": 1070.0,
+    "dano_umbra": 5183.48,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 612,
+      "PRAGA_RATOS": 424,
+      "SIFON": 299,
+      "TELEPORTE_JUKE": 454,
+      "TRANSMUTAR_GRAVIDADE": 59
+    }
+  },
+  {
+    "geracao": 114,
+    "score": 8434.72,
+    "venceu_apolo": false,
+    "tempo_s": 36.42,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3387.57,
+    "dano_apolo": 1000.43,
+    "dano_umbra": 5612.43,
+    "hits_sofridos": 22,
+    "acoes_umbra": {
+      "ATAQUE": 569,
+      "LASER_SOBRECARGA": 397,
+      "TELEPORTE": 410,
+      "TRANSMUTAR_RASTRO": 51
+    }
+  },
+  {
+    "geracao": 115,
+    "score": -1300.714,
+    "venceu_apolo": false,
+    "tempo_s": 11.74,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7056.17,
+    "dano_apolo": 1002.0,
+    "dano_umbra": 1943.83,
+    "hits_sofridos": 51,
+    "acoes_umbra": {
+      "ATAQUE": 184,
+      "DESCARGA_ELETRICA": 12,
+      "TELEPORTE": 23
+    }
+  },
+  {
+    "geracao": 116,
+    "score": 623.344,
+    "venceu_apolo": false,
+    "tempo_s": 18.75,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6300.14,
+    "dano_apolo": 1070.0,
+    "dano_umbra": 2717.86,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 293,
+      "PRAGA_RATOS": 105,
+      "TELEPORTE_JUKE": 136
+    }
+  },
+  {
+    "geracao": 117,
+    "score": 2944.336,
+    "venceu_apolo": false,
+    "tempo_s": 34.9,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5742.88,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 3561.27,
+    "hits_sofridos": 13,
+    "acoes_umbra": {
+      "ATAQUE": 546,
+      "CAMINHO_ESPINHOS": 421,
+      "SIFON": 210,
+      "TELEPORTE": 224,
+      "TELEPORTE_JUKE": 386,
+      "TRANSMUTAR_RESSONANCIA": 52
+    }
+  },
+  {
+    "geracao": 118,
+    "score": 2868.041,
+    "venceu_apolo": false,
+    "tempo_s": 26.74,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5846.1,
+    "dano_apolo": 1008.0,
+    "dano_umbra": 3506.08,
+    "hits_sofridos": 32,
+    "acoes_umbra": {
+      "ATAQUE": 418,
+      "DESCARGA_ELETRICA": 246,
+      "SIFON": 105,
+      "TELEPORTE_JUKE": 260
+    }
+  },
+  {
+    "geracao": 119,
+    "score": 7497.202,
+    "venceu_apolo": false,
+    "tempo_s": 39.28,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4045.29,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 5325.11,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 614,
+      "PRAGA_RATOS": 426,
+      "SIFON": 301,
+      "TELEPORTE": 49,
+      "TELEPORTE_JUKE": 456,
+      "TRANSMUTAR_ATRITO": 206
+    }
+  },
+  {
+    "geracao": 120,
+    "score": 9124.266,
+    "venceu_apolo": false,
+    "tempo_s": 40.67,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3427.67,
+    "dano_apolo": 1070.0,
+    "dano_umbra": 6040.26,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 636,
+      "PRAGA_RATOS": 448,
+      "SIFON": 308,
+      "TELEPORTE": 478,
+      "TELEPORTE_JUKE": 318,
+      "TRANSMUTAR_NECROSE": 212
+    }
+  },
+  {
+    "geracao": 121,
+    "score": 4987.158,
+    "venceu_apolo": false,
+    "tempo_s": 37.52,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4986.69,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 4325.79,
+    "hits_sofridos": 13,
+    "acoes_umbra": {
+      "ATAQUE": 587,
+      "CAMINHO_ESPINHOS": 462,
+      "SIFON": 270,
+      "TELEPORTE": 427,
+      "TELEPORTE_JUKE": 174,
+      "TRANSMUTAR_VORTICE": 121
+    }
+  },
+  {
+    "geracao": 122,
+    "score": 1462.036,
+    "venceu_apolo": false,
+    "tempo_s": 19.94,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6035.97,
+    "dano_apolo": 1044.0,
+    "dano_umbra": 2964.03,
+    "hits_sofridos": 35,
+    "acoes_umbra": {
+      "ATAQUE": 312,
+      "DESCARGA_ELETRICA": 140,
+      "TELEPORTE": 152
+    }
+  },
+  {
+    "geracao": 123,
+    "score": 6221.143,
+    "venceu_apolo": false,
+    "tempo_s": 31.62,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4558.33,
+    "dano_apolo": 1025.0,
+    "dano_umbra": 4828.48,
+    "hits_sofridos": 23,
+    "acoes_umbra": {
+      "ATAQUE": 494,
+      "SIFON": 180,
+      "TELEPORTE": 83,
+      "TELEPORTE_JUKE": 337,
+      "VORTICE": 306
+    }
+  },
+  {
+    "geracao": 124,
+    "score": 4845.259,
+    "venceu_apolo": false,
+    "tempo_s": 36.21,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5166.15,
+    "dano_apolo": 1050.0,
+    "dano_umbra": 4152.61,
+    "hits_sofridos": 25,
+    "acoes_umbra": {
+      "ATAQUE": 566,
+      "MIASMA": 409,
+      "SIFON": 236,
+      "TELEPORTE": 407,
+      "TELEPORTE_JUKE": 249,
+      "TRANSMUTAR_HEMORRAGIA": 141
+    }
+  },
+  {
+    "geracao": 125,
+    "score": 8834.508,
+    "venceu_apolo": false,
+    "tempo_s": 39.68,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3550.9,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 5826.96,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 620,
+      "PRAGA_RATOS": 432,
+      "SIFON": 305,
+      "TELEPORTE": 463,
+      "TELEPORTE_JUKE": 51,
+      "TRANSMUTAR_RESSONANCIA": 210
+    }
+  },
+  {
+    "geracao": 126,
+    "score": 3733.104,
+    "venceu_apolo": false,
+    "tempo_s": 28.45,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5547.67,
+    "dano_apolo": 1002.0,
+    "dano_umbra": 3799.89,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 445,
+      "DESCARGA_ELETRICA": 273,
+      "SIFON": 119,
+      "TELEPORTE": 130,
+      "TELEPORTE_JUKE": 287
+    }
+  },
+  {
+    "geracao": 127,
+    "score": -2041.407,
+    "venceu_apolo": false,
+    "tempo_s": 11.74,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7369.24,
+    "dano_apolo": 1002.0,
+    "dano_umbra": 1630.76,
+    "hits_sofridos": 51,
+    "acoes_umbra": {
+      "ATAQUE": 184,
+      "DESCARGA_ELETRICA": 12,
+      "TELEPORTE_JUKE": 26
+    }
+  },
+  {
+    "geracao": 128,
+    "score": 781.596,
+    "venceu_apolo": false,
+    "tempo_s": 18.53,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6258.6,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 2741.4,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 290,
+      "PRISAO": 149,
+      "TELEPORTE": 133
+    }
+  },
+  {
+    "geracao": 129,
+    "score": 6524.154,
+    "venceu_apolo": false,
+    "tempo_s": 38.05,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4382.43,
+    "dano_apolo": 1050.0,
+    "dano_umbra": 5105.04,
+    "hits_sofridos": 11,
+    "acoes_umbra": {
+      "ATAQUE": 595,
+      "PRAGA_RATOS": 407,
+      "SIFON": 280,
+      "TELEPORTE_JUKE": 434,
+      "TRANSMUTAR_ATRITO": 184
+    }
+  },
+  {
+    "geracao": 130,
+    "score": -1538.279,
+    "venceu_apolo": false,
+    "tempo_s": 11.39,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7143.09,
+    "dano_apolo": 1008.0,
+    "dano_umbra": 1856.91,
+    "hits_sofridos": 32,
+    "acoes_umbra": {
+      "ATAQUE": 178,
+      "DESCARGA_ELETRICA": 6,
+      "TELEPORTE_JUKE": 21
+    }
+  },
+  {
+    "geracao": 131,
+    "score": 371.356,
+    "venceu_apolo": false,
+    "tempo_s": 13.98,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6358.76,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2641.24,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 219,
+      "TELEPORTE_JUKE": 62,
+      "VORTICE": 31
+    }
+  },
+  {
+    "geracao": 132,
+    "score": 1881.735,
+    "venceu_apolo": false,
+    "tempo_s": 26.86,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6219.08,
+    "dano_apolo": 1070.0,
+    "dano_umbra": 3095.93,
+    "hits_sofridos": 22,
+    "acoes_umbra": {
+      "ATAQUE": 420,
+      "PRISAO": 279,
+      "SIFON": 104,
+      "TELEPORTE": 263,
+      "TELEPORTE_JUKE": 7
+    }
+  },
+  {
+    "geracao": 133,
+    "score": 11397.46,
+    "venceu_apolo": false,
+    "tempo_s": 43.41,
+    "vida_apolo": 0.0,
+    "vida_umbra": 2595.45,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 6817.95,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 679,
+      "PRAGA_RATOS": 491,
+      "SIFON": 364,
+      "TELEPORTE": 265,
+      "TELEPORTE_JUKE": 521,
+      "TRANSMUTAR_RESSONANCIA": 127
+    }
+  },
+  {
+    "geracao": 134,
+    "score": 16817.242,
+    "venceu_apolo": false,
+    "tempo_s": 61.92,
+    "vida_apolo": 0.0,
+    "vida_umbra": 1304.15,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 8891.31,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 968,
+      "PRAGA_RATOS": 780,
+      "SIFON": 654,
+      "TELEPORTE": 806,
+      "TELEPORTE_JUKE": 401,
+      "TRANSMUTAR_ATRITO": 141,
+      "TRANSMUTAR_HEMORRAGIA": 558
+    }
+  },
+  {
+    "geracao": 135,
+    "score": 5502.755,
+    "venceu_apolo": false,
+    "tempo_s": 29.22,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4816.63,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4635.92,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 457,
+      "SIFON": 122,
+      "TELEPORTE": 141,
+      "TELEPORTE_JUKE": 299,
+      "VORTICE": 269
+    }
+  },
+  {
+    "geracao": 136,
+    "score": 4234.096,
+    "venceu_apolo": false,
+    "tempo_s": 27.34,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4857.55,
+    "dano_apolo": 1056.4,
+    "dano_umbra": 4142.45,
+    "hits_sofridos": 19,
+    "acoes_umbra": {
+      "ATAQUE": 428,
+      "LASER_SOBRECARGA": 256,
+      "TELEPORTE_JUKE": 270
+    }
+  },
+  {
+    "geracao": 137,
+    "score": 7653.722,
+    "venceu_apolo": false,
+    "tempo_s": 38.96,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3956.52,
+    "dano_apolo": 1140.0,
+    "dano_umbra": 5501.08,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 609,
+      "PRAGA_RATOS": 421,
+      "SIFON": 294,
+      "TELEPORTE": 39,
+      "TELEPORTE_JUKE": 452,
+      "TRANSMUTAR_HEMORRAGIA": 199
+    }
+  },
+  {
+    "geracao": 138,
+    "score": 2634.143,
+    "venceu_apolo": false,
+    "tempo_s": 20.02,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5512.26,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 3487.74,
+    "hits_sofridos": 14,
+    "acoes_umbra": {
+      "ATAQUE": 313,
+      "PRISAO": 172,
+      "TELEPORTE_JUKE": 156
+    }
+  },
+  {
+    "geracao": 139,
+    "score": 8360.611,
+    "venceu_apolo": false,
+    "tempo_s": 36.85,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3857.77,
+    "dano_apolo": 1050.0,
+    "dano_umbra": 5605.7,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 576,
+      "PRAGA_RATOS": 388,
+      "SIFON": 250,
+      "TELEPORTE_JUKE": 419,
+      "TRANSMUTAR_RESSONANCIA": 13
+    }
+  },
+  {
+    "geracao": 140,
+    "score": 4943.445,
+    "venceu_apolo": false,
+    "tempo_s": 28.48,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5013.76,
+    "dano_apolo": 1070.0,
+    "dano_umbra": 4396.69,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 445,
+      "PRAGA_RATOS": 257,
+      "SIFON": 132,
+      "TELEPORTE": 34,
+      "TELEPORTE_JUKE": 288
+    }
+  },
+  {
+    "geracao": 141,
+    "score": 170.441,
+    "venceu_apolo": false,
+    "tempo_s": 19.06,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6519.9,
+    "dano_apolo": 1035.0,
+    "dano_umbra": 2480.1,
+    "hits_sofridos": 18,
+    "acoes_umbra": {
+      "ATAQUE": 298,
+      "PRISAO": 157,
+      "TELEPORTE_JUKE": 141
+    }
+  },
+  {
+    "geracao": 142,
+    "score": 4589.328,
+    "venceu_apolo": false,
+    "tempo_s": 29.71,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4834.45,
+    "dano_apolo": 1074.0,
+    "dano_umbra": 4165.55,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 465,
+      "LASER_SOBRECARGA": 293,
+      "TELEPORTE_JUKE": 308
+    }
+  },
+  {
+    "geracao": 143,
+    "score": 3339.854,
+    "venceu_apolo": false,
+    "tempo_s": 33.36,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5578.95,
+    "dano_apolo": 1050.0,
+    "dano_umbra": 3758.38,
+    "hits_sofridos": 25,
+    "acoes_umbra": {
+      "ATAQUE": 522,
+      "MIASMA": 365,
+      "SIFON": 196,
+      "TELEPORTE": 205,
+      "TELEPORTE_JUKE": 362,
+      "TRANSMUTAR_HEMORRAGIA": 101
+    }
+  },
+  {
+    "geracao": 144,
+    "score": -149.502,
+    "venceu_apolo": false,
+    "tempo_s": 15.87,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6596.88,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2403.12,
+    "hits_sofridos": 14,
+    "acoes_umbra": {
+      "ATAQUE": 248,
+      "TELEPORTE": 91,
+      "VORTICE": 60
+    }
+  },
+  {
+    "geracao": 145,
+    "score": 569.599,
+    "venceu_apolo": false,
+    "tempo_s": 16.08,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6288.4,
+    "dano_apolo": 1025.0,
+    "dano_umbra": 2711.6,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 252,
+      "TELEPORTE": 93,
+      "VORTICE": 64
+    }
+  },
+  {
+    "geracao": 146,
+    "score": 748.546,
+    "venceu_apolo": false,
+    "tempo_s": 15.98,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6272.7,
+    "dano_apolo": 1005.0,
+    "dano_umbra": 2727.3,
+    "hits_sofridos": 13,
+    "acoes_umbra": {
+      "ATAQUE": 250,
+      "TELEPORTE": 93,
+      "VORTICE": 62
+    }
+  },
+  {
+    "geracao": 147,
+    "score": -1752.075,
+    "venceu_apolo": false,
+    "tempo_s": 11.39,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7234.69,
+    "dano_apolo": 1008.0,
+    "dano_umbra": 1765.31,
+    "hits_sofridos": 32,
+    "acoes_umbra": {
+      "ATAQUE": 178,
+      "DESCARGA_ELETRICA": 6,
+      "TELEPORTE_JUKE": 19
+    }
+  },
+  {
+    "geracao": 148,
+    "score": 4268.941,
+    "venceu_apolo": false,
+    "tempo_s": 28.42,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5297.74,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4095.77,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 444,
+      "CAMINHO_ESPINHOS": 319,
+      "SIFON": 130,
+      "TELEPORTE": 34,
+      "TELEPORTE_JUKE": 287
+    }
+  },
+  {
+    "geracao": 149,
+    "score": -287.074,
+    "venceu_apolo": false,
+    "tempo_s": 16.08,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6653.32,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2346.68,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 252,
+      "CAMINHO_ESPINHOS": 127,
+      "TELEPORTE": 94
+    }
+  },
+  {
+    "geracao": 150,
+    "score": 5116.565,
+    "venceu_apolo": false,
+    "tempo_s": 26.43,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4464.96,
+    "dano_apolo": 1012.0,
+    "dano_umbra": 4535.04,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 413,
+      "LASER_SOBRECARGA": 241,
+      "TELEPORTE": 255
+    }
+  },
+  {
+    "geracao": 151,
+    "score": 16780.549,
+    "venceu_apolo": false,
+    "tempo_s": 61.58,
+    "vida_apolo": 0.0,
+    "vida_umbra": 1452.18,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 8762.73,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 963,
+      "CAMINHO_ESPINHOS": 838,
+      "SIFON": 630,
+      "TELEPORTE": 803,
+      "TELEPORTE_JUKE": 301,
+      "TRANSMUTAR_GRAVIDADE": 3,
+      "TRANSMUTAR_RASTRO": 475
+    }
+  },
+  {
+    "geracao": 152,
+    "score": -2792.098,
+    "venceu_apolo": false,
+    "tempo_s": 12.27,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7649.58,
+    "dano_apolo": 1038.0,
+    "dano_umbra": 1350.42,
+    "hits_sofridos": 80,
+    "acoes_umbra": {
+      "ATAQUE": 192,
+      "DESCARGA_ELETRICA": 20,
+      "TELEPORTE": 30
+    }
+  },
+  {
+    "geracao": 153,
+    "score": -436.682,
+    "venceu_apolo": false,
+    "tempo_s": 16.37,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6666.34,
+    "dano_apolo": 1077.8,
+    "dano_umbra": 2333.66,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 256,
+      "LASER_SOBRECARGA": 84,
+      "TELEPORTE": 98
+    }
+  },
+  {
+    "geracao": 154,
+    "score": 8689.44,
+    "venceu_apolo": false,
+    "tempo_s": 44.91,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3576.73,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 5778.29,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 702,
+      "SIFON": 389,
+      "TELEPORTE": 9,
+      "TELEPORTE_JUKE": 544,
+      "TRANSMUTAR_GRAVIDADE": 168,
+      "VORTICE": 514
+    }
+  },
+  {
+    "geracao": 155,
+    "score": 20593.974,
+    "venceu_apolo": false,
+    "tempo_s": 91.25,
+    "vida_apolo": 0.0,
+    "vida_umbra": 460.61,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 10424.71,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 1426,
+      "DESCARGA_ELETRICA": 1243,
+      "SIFON": 1085,
+      "TELEPORTE": 1240,
+      "TELEPORTE_JUKE": 987,
+      "TRANSMUTAR_ATRITO": 959,
+      "TRANSMUTAR_RASTRO": 100,
+      "TRANSMUTAR_RESSONANCIA": 518
+    }
+  },
+  {
+    "geracao": 156,
+    "score": 7635.377,
+    "venceu_apolo": false,
+    "tempo_s": 39.46,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4052.78,
+    "dano_apolo": 1050.0,
+    "dano_umbra": 5425.6,
+    "hits_sofridos": 11,
+    "acoes_umbra": {
+      "ATAQUE": 617,
+      "PRAGA_RATOS": 429,
+      "SIFON": 292,
+      "TELEPORTE": 15,
+      "TELEPORTE_JUKE": 460,
+      "TRANSMUTAR_RASTRO": 196
+    }
+  },
+  {
+    "geracao": 157,
+    "score": -636.467,
+    "venceu_apolo": false,
+    "tempo_s": 15.92,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6761.59,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2238.41,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 249,
+      "TELEPORTE": 89,
+      "VORTICE": 61
+    }
+  },
+  {
+    "geracao": 158,
+    "score": 659.869,
+    "venceu_apolo": false,
+    "tempo_s": 19.49,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6316.1,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 2683.9,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 305,
+      "TELEPORTE_JUKE": 147,
+      "VORTICE": 117
+    }
+  },
+  {
+    "geracao": 159,
+    "score": 3244.627,
+    "venceu_apolo": false,
+    "tempo_s": 24.03,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5339.6,
+    "dano_apolo": 1058.0,
+    "dano_umbra": 3660.4,
+    "hits_sofridos": 18,
+    "acoes_umbra": {
+      "ATAQUE": 376,
+      "LASER_SOBRECARGA": 204,
+      "TELEPORTE_JUKE": 218
+    }
+  },
+  {
+    "geracao": 160,
+    "score": -1105.664,
+    "venceu_apolo": false,
+    "tempo_s": 12.42,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6929.24,
+    "dano_apolo": 1086.0,
+    "dano_umbra": 2070.76,
+    "hits_sofridos": 71,
+    "acoes_umbra": {
+      "ATAQUE": 194,
+      "DESCARGA_ELETRICA": 22,
+      "TELEPORTE": 33
+    }
+  },
+  {
+    "geracao": 161,
+    "score": 5239.317,
+    "venceu_apolo": false,
+    "tempo_s": 28.53,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4863.68,
+    "dano_apolo": 1060.0,
+    "dano_umbra": 4553.23,
+    "hits_sofridos": 13,
+    "acoes_umbra": {
+      "ATAQUE": 446,
+      "SIFON": 133,
+      "TELEPORTE_JUKE": 283,
+      "VORTICE": 258
+    }
+  },
+  {
+    "geracao": 162,
+    "score": 6995.363,
+    "venceu_apolo": false,
+    "tempo_s": 39.47,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4244.18,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 5096.11,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 617,
+      "CAMINHO_ESPINHOS": 492,
+      "SIFON": 304,
+      "TELEPORTE": 456,
+      "TELEPORTE_JUKE": 206,
+      "TRANSMUTAR_NECROSE": 155
+    }
+  },
+  {
+    "geracao": 163,
+    "score": 4612.365,
+    "venceu_apolo": false,
+    "tempo_s": 37.44,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5134.39,
+    "dano_apolo": 1050.0,
+    "dano_umbra": 4183.34,
+    "hits_sofridos": 25,
+    "acoes_umbra": {
+      "ATAQUE": 585,
+      "MIASMA": 428,
+      "SIFON": 257,
+      "TELEPORTE": 270,
+      "TELEPORTE_JUKE": 427,
+      "TRANSMUTAR_ATRITO": 162
+    }
+  },
+  {
+    "geracao": 164,
+    "score": -1603.568,
+    "venceu_apolo": false,
+    "tempo_s": 11.5,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7200.19,
+    "dano_apolo": 1002.0,
+    "dano_umbra": 1799.81,
+    "hits_sofridos": 38,
+    "acoes_umbra": {
+      "ATAQUE": 180,
+      "DESCARGA_ELETRICA": 8,
+      "TELEPORTE_JUKE": 22
+    }
+  },
+  {
+    "geracao": 165,
+    "score": 1760.101,
+    "venceu_apolo": false,
+    "tempo_s": 21.94,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5939.95,
+    "dano_apolo": 1060.0,
+    "dano_umbra": 3060.05,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 343,
+      "LASER_SOBRECARGA": 171,
+      "TELEPORTE_JUKE": 184
+    }
+  },
+  {
+    "geracao": 166,
+    "score": 1138.235,
+    "venceu_apolo": false,
+    "tempo_s": 16.85,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6046.03,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2953.97,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 264,
+      "PRAGA_RATOS": 76,
+      "TELEPORTE": 104
+    }
+  },
+  {
+    "geracao": 167,
+    "score": -606.529,
+    "venceu_apolo": false,
+    "tempo_s": 14.37,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6816.03,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2183.97,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 225,
+      "MIASMA": 68,
+      "TELEPORTE": 61
+    }
+  },
+  {
+    "geracao": 168,
+    "score": 6419.658,
+    "venceu_apolo": false,
+    "tempo_s": 33.95,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4485.77,
+    "dano_apolo": 1050.0,
+    "dano_umbra": 4907.72,
+    "hits_sofridos": 25,
+    "acoes_umbra": {
+      "ATAQUE": 531,
+      "MIASMA": 374,
+      "SIFON": 216,
+      "TELEPORTE_JUKE": 371,
+      "TRANSMUTAR_NECROSE": 121
+    }
+  },
+  {
+    "geracao": 169,
+    "score": 6581.716,
+    "venceu_apolo": false,
+    "tempo_s": 40.72,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4470.09,
+    "dano_apolo": 1050.0,
+    "dano_umbra": 4983.89,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 637,
+      "PRAGA_RATOS": 449,
+      "SIFON": 307,
+      "TELEPORTE": 478,
+      "TELEPORTE_JUKE": 318,
+      "TRANSMUTAR_RESSONANCIA": 211
+    }
+  },
+  {
+    "geracao": 170,
+    "score": -479.258,
+    "venceu_apolo": false,
+    "tempo_s": 16.74,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6758.94,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2241.06,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 262,
+      "MIASMA": 105,
+      "TELEPORTE": 104
+    }
+  },
+  {
+    "geracao": 171,
+    "score": 11879.406,
+    "venceu_apolo": false,
+    "tempo_s": 51.41,
+    "vida_apolo": 0.0,
+    "vida_umbra": 2644.56,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 6978.46,
+    "hits_sofridos": 21,
+    "acoes_umbra": {
+      "ATAQUE": 804,
+      "LASER_SOBRECARGA": 625,
+      "SIFON": 270,
+      "TELEPORTE": 636,
+      "TRANSMUTAR_NECROSE": 175
+    }
+  },
+  {
+    "geracao": 172,
+    "score": 3812.986,
+    "venceu_apolo": false,
+    "tempo_s": 21.71,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5031.7,
+    "dano_apolo": 1004.0,
+    "dano_umbra": 3968.3,
+    "hits_sofridos": 19,
+    "acoes_umbra": {
+      "ATAQUE": 340,
+      "LASER_SOBRECARGA": 168,
+      "TELEPORTE": 182
+    }
+  },
+  {
+    "geracao": 173,
+    "score": -1703.537,
+    "venceu_apolo": false,
+    "tempo_s": 12.32,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7235.3,
+    "dano_apolo": 1008.0,
+    "dano_umbra": 1764.7,
+    "hits_sofridos": 58,
+    "acoes_umbra": {
+      "ATAQUE": 193,
+      "DESCARGA_ELETRICA": 14,
+      "TELEPORTE_JUKE": 23
+    }
+  },
+  {
+    "geracao": 174,
+    "score": -698.107,
+    "venceu_apolo": false,
+    "tempo_s": 15.94,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6817.88,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2182.12,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 249,
+      "PRAGA_RATOS": 61,
+      "TELEPORTE": 88
+    }
+  },
+  {
+    "geracao": 175,
+    "score": 796.243,
+    "venceu_apolo": false,
+    "tempo_s": 19.6,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6146.24,
+    "dano_apolo": 1035.0,
+    "dano_umbra": 2853.76,
+    "hits_sofridos": 18,
+    "acoes_umbra": {
+      "ATAQUE": 307,
+      "PRISAO": 166,
+      "TELEPORTE_JUKE": 150
+    }
+  },
+  {
+    "geracao": 176,
+    "score": 3065.264,
+    "venceu_apolo": false,
+    "tempo_s": 28.59,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5814.45,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 3529.46,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 447,
+      "SIFON": 121,
+      "TELEPORTE": 289,
+      "VORTICE": 259
+    }
+  },
+  {
+    "geracao": 177,
+    "score": 4811.156,
+    "venceu_apolo": false,
+    "tempo_s": 28.11,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5059.69,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 4327.85,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 440,
+      "CAMINHO_ESPINHOS": 315,
+      "SIFON": 115,
+      "TELEPORTE": 126,
+      "TELEPORTE_JUKE": 283
+    }
+  },
+  {
+    "geracao": 178,
+    "score": 5976.747,
+    "venceu_apolo": false,
+    "tempo_s": 29.02,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4629.76,
+    "dano_apolo": 1025.0,
+    "dano_umbra": 4801.09,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 454,
+      "SIFON": 141,
+      "TELEPORTE": 46,
+      "TELEPORTE_JUKE": 292,
+      "VORTICE": 266
+    }
+  },
+  {
+    "geracao": 179,
+    "score": -1813.96,
+    "venceu_apolo": false,
+    "tempo_s": 13.39,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7204.49,
+    "dano_apolo": 1075.0,
+    "dano_umbra": 1795.51,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 210,
+      "PRISAO": 69,
+      "TELEPORTE": 51
+    }
+  },
+  {
+    "geracao": 180,
+    "score": -1376.615,
+    "venceu_apolo": false,
+    "tempo_s": 14.35,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7113.3,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 1886.7,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 225,
+      "DESCARGA_ELETRICA": 53,
+      "TELEPORTE_JUKE": 66
+    }
+  },
+  {
+    "geracao": 181,
+    "score": -2203.726,
+    "venceu_apolo": false,
+    "tempo_s": 12.11,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7410.14,
+    "dano_apolo": 1008.0,
+    "dano_umbra": 1589.86,
+    "hits_sofridos": 71,
+    "acoes_umbra": {
+      "ATAQUE": 190,
+      "DESCARGA_ELETRICA": 18,
+      "TELEPORTE": 33
+    }
+  },
+  {
+    "geracao": 182,
+    "score": 729.676,
+    "venceu_apolo": false,
+    "tempo_s": 18.77,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6228.54,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2771.46,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 294,
+      "PRAGA_RATOS": 106,
+      "TELEPORTE": 136
+    }
+  },
+  {
+    "geracao": 183,
+    "score": 1481.272,
+    "venceu_apolo": false,
+    "tempo_s": 20.53,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6051.92,
+    "dano_apolo": 1020.0,
+    "dano_umbra": 2948.08,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 321,
+      "PRISAO": 180,
+      "TELEPORTE": 161
+    }
+  },
+  {
+    "geracao": 184,
+    "score": 1297.028,
+    "venceu_apolo": false,
+    "tempo_s": 17.87,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5997.19,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 3002.81,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 280,
+      "TELEPORTE": 123,
+      "VORTICE": 92
+    }
+  },
+  {
+    "geracao": 185,
+    "score": 8943.705,
+    "venceu_apolo": false,
+    "tempo_s": 40.43,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3494.28,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 5889.52,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 632,
+      "PRAGA_RATOS": 444,
+      "SIFON": 315,
+      "TELEPORTE": 473,
+      "TELEPORTE_JUKE": 217,
+      "TRANSMUTAR_VORTICE": 78
+    }
+  },
+  {
+    "geracao": 186,
+    "score": 7058.241,
+    "venceu_apolo": false,
+    "tempo_s": 54.37,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4681.77,
+    "dano_apolo": 1020.0,
+    "dano_umbra": 5091.43,
+    "hits_sofridos": 30,
+    "acoes_umbra": {
+      "ATAQUE": 850,
+      "MIASMA": 693,
+      "SIFON": 516,
+      "TELEPORTE": 530,
+      "TELEPORTE_JUKE": 688,
+      "TRANSMUTAR_NECROSE": 420
+    }
+  },
+  {
+    "geracao": 187,
+    "score": -1736.901,
+    "venceu_apolo": false,
+    "tempo_s": 11.87,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7260.88,
+    "dano_apolo": 1008.0,
+    "dano_umbra": 1739.12,
+    "hits_sofridos": 58,
+    "acoes_umbra": {
+      "ATAQUE": 186,
+      "DESCARGA_ELETRICA": 14,
+      "TELEPORTE_JUKE": 29
+    }
+  },
+  {
+    "geracao": 188,
+    "score": -276.554,
+    "venceu_apolo": false,
+    "tempo_s": 14.85,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6671.31,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2328.69,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 232,
+      "MIASMA": 75,
+      "TELEPORTE_JUKE": 74
+    }
+  },
+  {
+    "geracao": 189,
+    "score": 474.617,
+    "venceu_apolo": false,
+    "tempo_s": 19.17,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6401.45,
+    "dano_apolo": 1072.0,
+    "dano_umbra": 2598.55,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 300,
+      "LASER_SOBRECARGA": 128,
+      "TELEPORTE_JUKE": 141
+    }
+  },
+  {
+    "geracao": 190,
+    "score": 457.248,
+    "venceu_apolo": false,
+    "tempo_s": 19.66,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6434.21,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2565.79,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 308,
+      "CAMINHO_ESPINHOS": 183,
+      "TELEPORTE": 137
+    }
+  },
+  {
+    "geracao": 191,
+    "score": 11634.262,
+    "venceu_apolo": false,
+    "tempo_s": 45.3,
+    "vida_apolo": 0.0,
+    "vida_umbra": 2666.92,
+    "dano_apolo": 1004.0,
+    "dano_umbra": 7056.88,
+    "hits_sofridos": 19,
+    "acoes_umbra": {
+      "ATAQUE": 708,
+      "LASER_SOBRECARGA": 534,
+      "SIFON": 189,
+      "TELEPORTE": 544,
+      "TRANSMUTAR_NECROSE": 94
+    }
+  },
+  {
+    "geracao": 192,
+    "score": -1326.317,
+    "venceu_apolo": false,
+    "tempo_s": 11.74,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7090.94,
+    "dano_apolo": 1002.0,
+    "dano_umbra": 1909.06,
+    "hits_sofridos": 51,
+    "acoes_umbra": {
+      "ATAQUE": 184,
+      "DESCARGA_ELETRICA": 12,
+      "TELEPORTE": 22
+    }
+  },
+  {
+    "geracao": 193,
+    "score": -1637.286,
+    "venceu_apolo": false,
+    "tempo_s": 13.28,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7245.27,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 1754.73,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 208,
+      "CAMINHO_ESPINHOS": 83,
+      "TELEPORTE": 45
+    }
+  },
+  {
+    "geracao": 194,
+    "score": -1815.996,
+    "venceu_apolo": false,
+    "tempo_s": 12.08,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7282.34,
+    "dano_apolo": 1008.0,
+    "dano_umbra": 1717.66,
+    "hits_sofridos": 58,
+    "acoes_umbra": {
+      "ATAQUE": 189,
+      "DESCARGA_ELETRICA": 17,
+      "TELEPORTE": 30
+    }
+  },
+  {
+    "geracao": 195,
+    "score": 8183.443,
+    "venceu_apolo": false,
+    "tempo_s": 39.38,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3476.01,
+    "dano_apolo": 1016.58,
+    "dano_umbra": 5523.99,
+    "hits_sofridos": 24,
+    "acoes_umbra": {
+      "ATAQUE": 616,
+      "LASER_SOBRECARGA": 443,
+      "TELEPORTE_JUKE": 457,
+      "TRANSMUTAR_RASTRO": 98
+    }
+  },
+  {
+    "geracao": 196,
+    "score": 11638.83,
+    "venceu_apolo": false,
+    "tempo_s": 54.03,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3167.92,
+    "dano_apolo": 1030.0,
+    "dano_umbra": 6797.39,
+    "hits_sofridos": 31,
+    "acoes_umbra": {
+      "ATAQUE": 845,
+      "MIASMA": 688,
+      "SIFON": 530,
+      "TELEPORTE": 686,
+      "TELEPORTE_JUKE": 24,
+      "TRANSMUTAR_VORTICE": 435
+    }
+  },
+  {
+    "geracao": 197,
+    "score": 3105.568,
+    "venceu_apolo": false,
+    "tempo_s": 30.72,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5795.67,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 3542.38,
+    "hits_sofridos": 24,
+    "acoes_umbra": {
+      "ATAQUE": 480,
+      "MIASMA": 323,
+      "SIFON": 160,
+      "TELEPORTE": 322,
+      "TRANSMUTAR_GRAVIDADE": 64
+    }
+  },
+  {
+    "geracao": 198,
+    "score": 737.703,
+    "venceu_apolo": false,
+    "tempo_s": 17.81,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6270.6,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2729.4,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 279,
+      "CAMINHO_ESPINHOS": 154,
+      "TELEPORTE_JUKE": 121
+    }
+  },
+  {
+    "geracao": 199,
+    "score": 2440.111,
+    "venceu_apolo": false,
+    "tempo_s": 19.17,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5547.86,
+    "dano_apolo": 1005.0,
+    "dano_umbra": 3452.14,
+    "hits_sofridos": 13,
+    "acoes_umbra": {
+      "ATAQUE": 300,
+      "TELEPORTE_JUKE": 141,
+      "VORTICE": 112
+    }
+  },
+  {
+    "geracao": 200,
+    "score": -509.255,
+    "venceu_apolo": false,
+    "tempo_s": 17.14,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6778.92,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2221.08,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 268,
+      "CAMINHO_ESPINHOS": 143,
+      "TELEPORTE": 111
+    }
+  },
+  {
+    "geracao": 201,
+    "score": 1597.409,
+    "venceu_apolo": false,
+    "tempo_s": 24.14,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6263.62,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 2964.29,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 378,
+      "MIASMA": 221,
+      "SIFON": 61,
+      "TELEPORTE_JUKE": 219
+    }
+  },
+  {
+    "geracao": 202,
+    "score": 6169.808,
+    "venceu_apolo": false,
+    "tempo_s": 41.41,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4619.03,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4737.06,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 647,
+      "DESCARGA_ELETRICA": 475,
+      "SIFON": 331,
+      "TELEPORTE": 487,
+      "TELEPORTE_JUKE": 227,
+      "TRANSMUTAR_HEMORRAGIA": 207
+    }
+  },
+  {
+    "geracao": 203,
+    "score": 4710.278,
+    "venceu_apolo": false,
+    "tempo_s": 27.33,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5199.61,
+    "dano_apolo": 1070.0,
+    "dano_umbra": 4236.5,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 427,
+      "PRAGA_RATOS": 239,
+      "SIFON": 103,
+      "TELEPORTE": 269,
+      "TELEPORTE_JUKE": 112
+    }
+  },
+  {
+    "geracao": 204,
+    "score": -1484.047,
+    "venceu_apolo": false,
+    "tempo_s": 15.74,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7155.53,
+    "dano_apolo": 1075.0,
+    "dano_umbra": 1844.47,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 246,
+      "PRISAO": 105,
+      "TELEPORTE": 89
+    }
+  },
+  {
+    "geracao": 205,
+    "score": 2260.565,
+    "venceu_apolo": false,
+    "tempo_s": 19.62,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5636.36,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 3363.64,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 307,
+      "TELEPORTE_JUKE": 148,
+      "VORTICE": 119
+    }
+  },
+  {
+    "geracao": 206,
+    "score": -2051.476,
+    "venceu_apolo": false,
+    "tempo_s": 11.5,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7389.13,
+    "dano_apolo": 1002.0,
+    "dano_umbra": 1610.87,
+    "hits_sofridos": 38,
+    "acoes_umbra": {
+      "ATAQUE": 180,
+      "DESCARGA_ELETRICA": 8,
+      "TELEPORTE_JUKE": 23
+    }
+  },
+  {
+    "geracao": 207,
+    "score": 3960.449,
+    "venceu_apolo": false,
+    "tempo_s": 28.77,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5439.57,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 3910.83,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 450,
+      "PRAGA_RATOS": 262,
+      "SIFON": 136,
+      "TELEPORTE": 290
+    }
+  },
+  {
+    "geracao": 208,
+    "score": 2109.854,
+    "venceu_apolo": false,
+    "tempo_s": 26.35,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5625.59,
+    "dano_apolo": 1060.0,
+    "dano_umbra": 3374.41,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 412,
+      "LASER_SOBRECARGA": 239,
+      "TELEPORTE": 250
+    }
+  },
+  {
+    "geracao": 209,
+    "score": 1520.061,
+    "venceu_apolo": false,
+    "tempo_s": 24.14,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6242.57,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 2990.6,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 378,
+      "MIASMA": 221,
+      "SIFON": 63,
+      "TELEPORTE": 217
+    }
+  },
+  {
+    "geracao": 210,
+    "score": 4099.662,
+    "venceu_apolo": false,
+    "tempo_s": 32.83,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5336.32,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4052.09,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 513,
+      "CAMINHO_ESPINHOS": 385,
+      "SIFON": 142,
+      "TELEPORTE": 300,
+      "TELEPORTE_JUKE": 40
+    }
+  },
+  {
+    "geracao": 211,
+    "score": 551.333,
+    "venceu_apolo": false,
+    "tempo_s": 15.38,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6253.37,
+    "dano_apolo": 1048.0,
+    "dano_umbra": 2746.63,
+    "hits_sofridos": 13,
+    "acoes_umbra": {
+      "ATAQUE": 241,
+      "LASER_SOBRECARGA": 69,
+      "TELEPORTE_JUKE": 84
+    }
+  },
+  {
+    "geracao": 212,
+    "score": 4212.675,
+    "venceu_apolo": false,
+    "tempo_s": 33.65,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5283.81,
+    "dano_apolo": 1020.0,
+    "dano_umbra": 4046.31,
+    "hits_sofridos": 22,
+    "acoes_umbra": {
+      "ATAQUE": 526,
+      "MIASMA": 369,
+      "SIFON": 213,
+      "TELEPORTE": 116,
+      "TELEPORTE_JUKE": 364,
+      "TRANSMUTAR_NECROSE": 41
+    }
+  },
+  {
+    "geracao": 213,
+    "score": 6469.682,
+    "venceu_apolo": false,
+    "tempo_s": 34.0,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4433.66,
+    "dano_apolo": 1085.0,
+    "dano_umbra": 4927.67,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 532,
+      "SIFON": 219,
+      "TELEPORTE": 375,
+      "VORTICE": 344
+    }
+  },
+  {
+    "geracao": 214,
+    "score": 3776.613,
+    "venceu_apolo": false,
+    "tempo_s": 26.56,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5498.32,
+    "dano_apolo": 1098.0,
+    "dano_umbra": 3893.05,
+    "hits_sofridos": 33,
+    "acoes_umbra": {
+      "ATAQUE": 415,
+      "DESCARGA_ELETRICA": 243,
+      "SIFON": 101,
+      "TELEPORTE_JUKE": 258
+    }
+  },
+  {
+    "geracao": 215,
+    "score": -404.698,
+    "venceu_apolo": false,
+    "tempo_s": 15.78,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6707.76,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2292.24,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 247,
+      "PRAGA_RATOS": 59,
+      "TELEPORTE": 90
+    }
+  },
+  {
+    "geracao": 216,
+    "score": -572.839,
+    "venceu_apolo": false,
+    "tempo_s": 16.83,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6756.44,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2243.56,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 263,
+      "PRAGA_RATOS": 75,
+      "TELEPORTE": 90
+    }
+  },
+  {
+    "geracao": 217,
+    "score": 2736.754,
+    "venceu_apolo": false,
+    "tempo_s": 19.89,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5421.92,
+    "dano_apolo": 1005.0,
+    "dano_umbra": 3578.08,
+    "hits_sofridos": 13,
+    "acoes_umbra": {
+      "ATAQUE": 311,
+      "TELEPORTE": 153,
+      "VORTICE": 123
+    }
+  },
+  {
+    "geracao": 218,
+    "score": 3588.751,
+    "venceu_apolo": false,
+    "tempo_s": 27.52,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5645.92,
+    "dano_apolo": 1015.0,
+    "dano_umbra": 3723.75,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 430,
+      "PRISAO": 289,
+      "SIFON": 102,
+      "TELEPORTE": 273,
+      "TELEPORTE_JUKE": 114
+    }
+  },
+  {
+    "geracao": 219,
+    "score": 1328.072,
+    "venceu_apolo": false,
+    "tempo_s": 16.96,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5908.23,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 3091.77,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 265,
+      "MIASMA": 108,
+      "TELEPORTE": 106
+    }
+  },
+  {
+    "geracao": 220,
+    "score": -1840.419,
+    "venceu_apolo": false,
+    "tempo_s": 14.27,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7285.09,
+    "dano_apolo": 1075.0,
+    "dano_umbra": 1714.91,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 223,
+      "PRISAO": 82,
+      "TELEPORTE_JUKE": 66
+    }
+  },
+  {
+    "geracao": 221,
+    "score": 3989.308,
+    "venceu_apolo": false,
+    "tempo_s": 26.51,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5007.3,
+    "dano_apolo": 1078.0,
+    "dano_umbra": 3992.7,
+    "hits_sofridos": 18,
+    "acoes_umbra": {
+      "ATAQUE": 415,
+      "LASER_SOBRECARGA": 242
+    }
+  },
+  {
+    "geracao": 222,
+    "score": 226.727,
+    "venceu_apolo": false,
+    "tempo_s": 20.11,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6551.65,
+    "dano_apolo": 1050.0,
+    "dano_umbra": 2448.35,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 315,
+      "MIASMA": 158,
+      "TELEPORTE": 154
+    }
+  },
+  {
+    "geracao": 223,
+    "score": 5786.939,
+    "venceu_apolo": false,
+    "tempo_s": 35.44,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4787.49,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4558.18,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 554,
+      "CAMINHO_ESPINHOS": 429,
+      "SIFON": 241,
+      "TELEPORTE": 397,
+      "TRANSMUTAR_NECROSE": 92
+    }
+  },
+  {
+    "geracao": 224,
+    "score": 9039.307,
+    "venceu_apolo": false,
+    "tempo_s": 55.7,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3516.37,
+    "dano_apolo": 1034.58,
+    "dano_umbra": 5960.77,
+    "hits_sofridos": 25,
+    "acoes_umbra": {
+      "ATAQUE": 871,
+      "LASER_SOBRECARGA": 699,
+      "SIFON": 354,
+      "TELEPORTE_JUKE": 711,
+      "TRANSMUTAR_NECROSE": 259
+    }
+  },
+  {
+    "geracao": 225,
+    "score": 6972.512,
+    "venceu_apolo": false,
+    "tempo_s": 32.34,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4252.66,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 5150.34,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 506,
+      "CAMINHO_ESPINHOS": 381,
+      "SIFON": 193,
+      "TELEPORTE": 348,
+      "TRANSMUTAR_VORTICE": 39
+    }
+  },
+  {
+    "geracao": 226,
+    "score": 4080.134,
+    "venceu_apolo": false,
+    "tempo_s": 29.06,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5001.41,
+    "dano_apolo": 1002.0,
+    "dano_umbra": 3998.59,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 454,
+      "LASER_SOBRECARGA": 282,
+      "TELEPORTE_JUKE": 297
+    }
+  },
+  {
+    "geracao": 227,
+    "score": 2462.608,
+    "venceu_apolo": false,
+    "tempo_s": 26.56,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6006.13,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 3327.92,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 415,
+      "PRISAO": 274,
+      "SIFON": 102,
+      "TELEPORTE": 6,
+      "TELEPORTE_JUKE": 258
+    }
+  },
+  {
+    "geracao": 228,
+    "score": 4282.953,
+    "venceu_apolo": false,
+    "tempo_s": 30.86,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5355.28,
+    "dano_apolo": 1050.0,
+    "dano_umbra": 4001.71,
+    "hits_sofridos": 13,
+    "acoes_umbra": {
+      "ATAQUE": 483,
+      "CAMINHO_ESPINHOS": 358,
+      "SIFON": 151,
+      "TELEPORTE": 165,
+      "TELEPORTE_JUKE": 323
+    }
+  },
+  {
+    "geracao": 229,
+    "score": 207.22,
+    "venceu_apolo": false,
+    "tempo_s": 20.21,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6402.68,
+    "dano_apolo": 1085.0,
+    "dano_umbra": 2628.87,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 316,
+      "PRISAO": 175,
+      "SIFON": 3,
+      "TELEPORTE_JUKE": 158
+    }
+  },
+  {
+    "geracao": 230,
+    "score": 1240.321,
+    "venceu_apolo": false,
+    "tempo_s": 19.92,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6097.25,
+    "dano_apolo": 1015.0,
+    "dano_umbra": 2902.75,
+    "hits_sofridos": 18,
+    "acoes_umbra": {
+      "ATAQUE": 312,
+      "TELEPORTE": 154,
+      "VORTICE": 124
+    }
+  },
+  {
+    "geracao": 231,
+    "score": 2430.284,
+    "venceu_apolo": false,
+    "tempo_s": 19.94,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5632.71,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 3367.29,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 312,
+      "TELEPORTE_JUKE": 152,
+      "VORTICE": 124
+    }
+  },
+  {
+    "geracao": 232,
+    "score": -1472.061,
+    "venceu_apolo": false,
+    "tempo_s": 12.06,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7142.14,
+    "dano_apolo": 1008.0,
+    "dano_umbra": 1857.86,
+    "hits_sofridos": 45,
+    "acoes_umbra": {
+      "ATAQUE": 189,
+      "DESCARGA_ELETRICA": 17,
+      "TELEPORTE": 32
+    }
+  },
+  {
+    "geracao": 233,
+    "score": -173.03,
+    "venceu_apolo": false,
+    "tempo_s": 16.7,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6603.41,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2396.59,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 261,
+      "MIASMA": 104,
+      "TELEPORTE": 103
+    }
+  },
+  {
+    "geracao": 234,
+    "score": 1215.946,
+    "venceu_apolo": false,
+    "tempo_s": 20.53,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6107.62,
+    "dano_apolo": 1020.0,
+    "dano_umbra": 2926.88,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 321,
+      "PRISAO": 180,
+      "SIFON": 8,
+      "TELEPORTE_JUKE": 156
+    }
+  },
+  {
+    "geracao": 235,
+    "score": 2347.584,
+    "venceu_apolo": false,
+    "tempo_s": 21.14,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5750.67,
+    "dano_apolo": 1070.0,
+    "dano_umbra": 3343.77,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 331,
+      "PRAGA_RATOS": 143,
+      "SIFON": 17,
+      "TELEPORTE": 173
+    }
+  },
+  {
+    "geracao": 236,
+    "score": -900.816,
+    "venceu_apolo": false,
+    "tempo_s": 14.83,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6957.53,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 2042.47,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 232,
+      "CAMINHO_ESPINHOS": 107,
+      "TELEPORTE": 75
+    }
+  },
+  {
+    "geracao": 237,
+    "score": 7226.335,
+    "venceu_apolo": false,
+    "tempo_s": 30.16,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4133.26,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 5337.7,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 472,
+      "PRAGA_RATOS": 284,
+      "SIFON": 159,
+      "TELEPORTE": 58,
+      "TELEPORTE_JUKE": 312
+    }
+  },
+  {
+    "geracao": 238,
+    "score": 4122.201,
+    "venceu_apolo": false,
+    "tempo_s": 25.26,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4963.04,
+    "dano_apolo": 1024.4,
+    "dano_umbra": 4036.96,
+    "hits_sofridos": 15,
+    "acoes_umbra": {
+      "ATAQUE": 395,
+      "LASER_SOBRECARGA": 223,
+      "TELEPORTE_JUKE": 237
+    }
+  },
+  {
+    "geracao": 239,
+    "score": 14530.329,
+    "venceu_apolo": false,
+    "tempo_s": 59.01,
+    "vida_apolo": 0.0,
+    "vida_umbra": 1535.9,
+    "dano_apolo": 1054.0,
+    "dano_umbra": 8117.23,
+    "hits_sofridos": 24,
+    "acoes_umbra": {
+      "ATAQUE": 922,
+      "LASER_SOBRECARGA": 750,
+      "SIFON": 405,
+      "TELEPORTE": 765,
+      "TRANSMUTAR_GRAVIDADE": 310
+    }
+  },
+  {
+    "geracao": 240,
+    "score": 8163.423,
+    "venceu_apolo": false,
+    "tempo_s": 42.51,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3768.69,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 5584.81,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 665,
+      "CAMINHO_ESPINHOS": 540,
+      "SIFON": 352,
+      "TELEPORTE": 256,
+      "TELEPORTE_JUKE": 508,
+      "TRANSMUTAR_RASTRO": 203
+    }
+  },
+  {
+    "geracao": 241,
+    "score": 5216.122,
+    "venceu_apolo": false,
+    "tempo_s": 29.12,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4974.61,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4425.28,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 455,
+      "PRAGA_RATOS": 267,
+      "SIFON": 141,
+      "TELEPORTE": 296,
+      "TRANSMUTAR_NECROSE": 36
+    }
+  },
+  {
+    "geracao": 242,
+    "score": -139.291,
+    "venceu_apolo": false,
+    "tempo_s": 18.53,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6697.46,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 2302.54,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 290,
+      "PRISAO": 148,
+      "TELEPORTE": 133
+    }
+  },
+  {
+    "geracao": 243,
+    "score": 575.322,
+    "venceu_apolo": false,
+    "tempo_s": 18.02,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6343.42,
+    "dano_apolo": 1070.0,
+    "dano_umbra": 2674.58,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 282,
+      "PRAGA_RATOS": 94,
+      "TELEPORTE": 125
+    }
+  },
+  {
+    "geracao": 244,
+    "score": 1105.397,
+    "venceu_apolo": false,
+    "tempo_s": 16.78,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6134.45,
+    "dano_apolo": 1055.0,
+    "dano_umbra": 2865.55,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 263,
+      "TELEPORTE": 106,
+      "VORTICE": 75
+    }
+  },
+  {
+    "geracao": 245,
+    "score": 2204.506,
+    "venceu_apolo": false,
+    "tempo_s": 19.9,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5691.04,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 3308.96,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 311,
+      "PRAGA_RATOS": 123,
+      "TELEPORTE_JUKE": 153
+    }
+  },
+  {
+    "geracao": 246,
+    "score": 1399.244,
+    "venceu_apolo": false,
+    "tempo_s": 18.8,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5970.91,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 3029.09,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 294,
+      "TELEPORTE": 133,
+      "VORTICE": 106
+    }
+  },
+  {
+    "geracao": 247,
+    "score": 615.971,
+    "venceu_apolo": false,
+    "tempo_s": 18.16,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6363.89,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 2636.11,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 284,
+      "TELEPORTE": 127,
+      "VORTICE": 96
+    }
+  },
+  {
+    "geracao": 248,
+    "score": 1045.513,
+    "venceu_apolo": false,
+    "tempo_s": 18.62,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6105.57,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 2894.43,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 291,
+      "PRISAO": 150,
+      "TELEPORTE_JUKE": 133
+    }
+  },
+  {
+    "geracao": 249,
+    "score": 3307.47,
+    "venceu_apolo": false,
+    "tempo_s": 24.13,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5293.44,
+    "dano_apolo": 1058.0,
+    "dano_umbra": 3706.56,
+    "hits_sofridos": 18,
+    "acoes_umbra": {
+      "ATAQUE": 377,
+      "LASER_SOBRECARGA": 205,
+      "TELEPORTE": 220
+    }
+  },
+  {
+    "geracao": 250,
+    "score": 237.398,
+    "venceu_apolo": false,
+    "tempo_s": 16.85,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6425.21,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2574.79,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 264,
+      "CAMINHO_ESPINHOS": 139,
+      "TELEPORTE": 105
+    }
+  },
+  {
+    "geracao": 251,
+    "score": 6047.739,
+    "venceu_apolo": false,
+    "tempo_s": 32.64,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4219.97,
+    "dano_apolo": 1026.0,
+    "dano_umbra": 4780.03,
+    "hits_sofridos": 23,
+    "acoes_umbra": {
+      "ATAQUE": 510,
+      "LASER_SOBRECARGA": 338,
+      "TELEPORTE": 352
+    }
+  },
+  {
+    "geracao": 252,
+    "score": 3537.6,
+    "venceu_apolo": false,
+    "tempo_s": 26.54,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5537.1,
+    "dano_apolo": 1035.0,
+    "dano_umbra": 3836.74,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 415,
+      "SIFON": 102,
+      "TELEPORTE": 5,
+      "TELEPORTE_JUKE": 256,
+      "VORTICE": 227
+    }
+  },
+  {
+    "geracao": 253,
+    "score": 2509.219,
+    "venceu_apolo": false,
+    "tempo_s": 27.39,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5853.51,
+    "dano_apolo": 1008.0,
+    "dano_umbra": 3464.42,
+    "hits_sofridos": 32,
+    "acoes_umbra": {
+      "ATAQUE": 428,
+      "DESCARGA_ELETRICA": 256,
+      "SIFON": 101,
+      "TELEPORTE": 113,
+      "TELEPORTE_JUKE": 270
+    }
+  },
+  {
+    "geracao": 254,
+    "score": 8042.169,
+    "venceu_apolo": false,
+    "tempo_s": 41.14,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3802.14,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 5557.5,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 643,
+      "PRAGA_RATOS": 455,
+      "SIFON": 307,
+      "TELEPORTE": 164,
+      "TELEPORTE_JUKE": 485,
+      "TRANSMUTAR_RASTRO": 70
+    }
+  },
+  {
+    "geracao": 255,
+    "score": 1419.283,
+    "venceu_apolo": false,
+    "tempo_s": 18.86,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6036.95,
+    "dano_apolo": 1070.0,
+    "dano_umbra": 2981.05,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 295,
+      "PRAGA_RATOS": 107,
+      "TELEPORTE": 127
+    }
+  },
+  {
+    "geracao": 256,
+    "score": 1771.594,
+    "venceu_apolo": false,
+    "tempo_s": 20.9,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6001.23,
+    "dano_apolo": 1070.0,
+    "dano_umbra": 3089.38,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 327,
+      "PRAGA_RATOS": 139,
+      "SIFON": 12,
+      "TELEPORTE_JUKE": 165
+    }
+  },
+  {
+    "geracao": 257,
+    "score": 5283.205,
+    "venceu_apolo": false,
+    "tempo_s": 26.5,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4963.01,
+    "dano_apolo": 1008.0,
+    "dano_umbra": 4483.74,
+    "hits_sofridos": 32,
+    "acoes_umbra": {
+      "ATAQUE": 414,
+      "DESCARGA_ELETRICA": 242,
+      "SIFON": 101,
+      "TELEPORTE": 257
+    }
+  },
+  {
+    "geracao": 258,
+    "score": 62.588,
+    "venceu_apolo": false,
+    "tempo_s": 18.53,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6573.19,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 2426.81,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 290,
+      "PRISAO": 149,
+      "TELEPORTE": 133
+    }
+  },
+  {
+    "geracao": 259,
+    "score": 263.013,
+    "venceu_apolo": false,
+    "tempo_s": 19.95,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6401.71,
+    "dano_apolo": 1070.0,
+    "dano_umbra": 2616.29,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 312,
+      "PRAGA_RATOS": 124,
+      "TELEPORTE_JUKE": 153
+    }
+  },
+  {
+    "geracao": 260,
+    "score": 1868.723,
+    "venceu_apolo": false,
+    "tempo_s": 20.02,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5848.54,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 3151.46,
+    "hits_sofridos": 14,
+    "acoes_umbra": {
+      "ATAQUE": 313,
+      "PRISAO": 172,
+      "TELEPORTE_JUKE": 153
+    }
+  },
+  {
+    "geracao": 261,
+    "score": -449.879,
+    "venceu_apolo": false,
+    "tempo_s": 15.86,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6751.91,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2248.09,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 248,
+      "MIASMA": 91,
+      "TELEPORTE": 87
+    }
+  },
+  {
+    "geracao": 262,
+    "score": 4209.316,
+    "venceu_apolo": false,
+    "tempo_s": 29.5,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5367.37,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 3997.16,
+    "hits_sofridos": 20,
+    "acoes_umbra": {
+      "ATAQUE": 461,
+      "MIASMA": 304,
+      "SIFON": 148,
+      "TELEPORTE": 301
+    }
+  },
+  {
+    "geracao": 263,
+    "score": 158.967,
+    "venceu_apolo": false,
+    "tempo_s": 15.82,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6466.07,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2533.93,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 248,
+      "CAMINHO_ESPINHOS": 123,
+      "TELEPORTE": 91
+    }
+  },
+  {
+    "geracao": 264,
+    "score": -219.643,
+    "venceu_apolo": false,
+    "tempo_s": 18.93,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6726.07,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2273.93,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 296,
+      "MIASMA": 139,
+      "TELEPORTE_JUKE": 138
+    }
+  },
+  {
+    "geracao": 265,
+    "score": 803.269,
+    "venceu_apolo": false,
+    "tempo_s": 18.19,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6178.1,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2821.9,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 285,
+      "CAMINHO_ESPINHOS": 160,
+      "TELEPORTE": 121
+    }
+  },
+  {
+    "geracao": 266,
+    "score": -639.763,
+    "venceu_apolo": false,
+    "tempo_s": 18.88,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6882.86,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2117.14,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 295,
+      "MIASMA": 138,
+      "TELEPORTE": 137
+    }
+  },
+  {
+    "geracao": 267,
+    "score": -260.987,
+    "venceu_apolo": false,
+    "tempo_s": 19.95,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6747.14,
+    "dano_apolo": 1060.0,
+    "dano_umbra": 2252.86,
+    "hits_sofridos": 19,
+    "acoes_umbra": {
+      "ATAQUE": 312,
+      "PRISAO": 171,
+      "TELEPORTE_JUKE": 150
+    }
+  },
+  {
+    "geracao": 268,
+    "score": -933.399,
+    "venceu_apolo": false,
+    "tempo_s": 16.75,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6960.71,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2039.29,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 262,
+      "CAMINHO_ESPINHOS": 137,
+      "TELEPORTE": 104
+    }
+  },
+  {
+    "geracao": 269,
+    "score": -2015.574,
+    "venceu_apolo": false,
+    "tempo_s": 11.5,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7378.09,
+    "dano_apolo": 1002.0,
+    "dano_umbra": 1621.91,
+    "hits_sofridos": 38,
+    "acoes_umbra": {
+      "ATAQUE": 180,
+      "DESCARGA_ELETRICA": 8,
+      "TELEPORTE_JUKE": 22
+    }
+  },
+  {
+    "geracao": 270,
+    "score": 6511.639,
+    "venceu_apolo": false,
+    "tempo_s": 29.34,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4461.9,
+    "dano_apolo": 1005.0,
+    "dano_umbra": 5003.88,
+    "hits_sofridos": 13,
+    "acoes_umbra": {
+      "ATAQUE": 459,
+      "SIFON": 133,
+      "TELEPORTE": 302,
+      "TELEPORTE_JUKE": 144,
+      "VORTICE": 271
+    }
+  },
+  {
+    "geracao": 271,
+    "score": 1551.409,
+    "venceu_apolo": false,
+    "tempo_s": 23.7,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5985.7,
+    "dano_apolo": 1068.0,
+    "dano_umbra": 3014.3,
+    "hits_sofridos": 18,
+    "acoes_umbra": {
+      "ATAQUE": 371,
+      "LASER_SOBRECARGA": 199,
+      "TELEPORTE": 214
+    }
+  },
+  {
+    "geracao": 272,
+    "score": -1845.68,
+    "venceu_apolo": false,
+    "tempo_s": 11.74,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7304.36,
+    "dano_apolo": 1002.0,
+    "dano_umbra": 1695.64,
+    "hits_sofridos": 51,
+    "acoes_umbra": {
+      "ATAQUE": 184,
+      "DESCARGA_ELETRICA": 12,
+      "TELEPORTE": 27
+    }
+  },
+  {
+    "geracao": 273,
+    "score": 5171.841,
+    "venceu_apolo": false,
+    "tempo_s": 27.41,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4889.57,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4568.24,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 429,
+      "CAMINHO_ESPINHOS": 304,
+      "SIFON": 116,
+      "TELEPORTE": 272
+    }
+  },
+  {
+    "geracao": 274,
+    "score": -1211.415,
+    "venceu_apolo": false,
+    "tempo_s": 14.74,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6953.76,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2046.24,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 231,
+      "PRAGA_RATOS": 43,
+      "TELEPORTE": 73
+    }
+  },
+  {
+    "geracao": 275,
+    "score": 137.566,
+    "venceu_apolo": false,
+    "tempo_s": 16.51,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6493.9,
+    "dano_apolo": 1075.0,
+    "dano_umbra": 2506.1,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 258,
+      "PRISAO": 117,
+      "TELEPORTE_JUKE": 94
+    }
+  },
+  {
+    "geracao": 276,
+    "score": 325.226,
+    "venceu_apolo": false,
+    "tempo_s": 15.66,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6422.62,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2577.38,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 245,
+      "TELEPORTE_JUKE": 88,
+      "VORTICE": 57
+    }
+  },
+  {
+    "geracao": 277,
+    "score": -638.819,
+    "venceu_apolo": false,
+    "tempo_s": 16.74,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6817.35,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 2182.65,
+    "hits_sofridos": 16,
+    "acoes_umbra": {
+      "ATAQUE": 262,
+      "MIASMA": 105,
+      "TELEPORTE_JUKE": 104
+    }
+  },
+  {
+    "geracao": 278,
+    "score": 1047.777,
+    "venceu_apolo": false,
+    "tempo_s": 17.82,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6084.15,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2915.85,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 279,
+      "PRAGA_RATOS": 91,
+      "TELEPORTE": 122
+    }
+  },
+  {
+    "geracao": 279,
+    "score": -679.267,
+    "venceu_apolo": false,
+    "tempo_s": 14.78,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6794.97,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2205.03,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 231,
+      "PRAGA_RATOS": 43,
+      "TELEPORTE": 74
+    }
+  },
+  {
+    "geracao": 280,
+    "score": -322.89,
+    "venceu_apolo": false,
+    "tempo_s": 16.66,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6664.49,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2335.51,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 261,
+      "PRAGA_RATOS": 73,
+      "TELEPORTE": 104
+    }
+  },
+  {
+    "geracao": 281,
+    "score": -1158.221,
+    "venceu_apolo": false,
+    "tempo_s": 12.96,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6990.86,
+    "dano_apolo": 1020.0,
+    "dano_umbra": 2009.14,
+    "hits_sofridos": 14,
+    "acoes_umbra": {
+      "ATAQUE": 203,
+      "MIASMA": 46,
+      "TELEPORTE_JUKE": 45
+    }
+  },
+  {
+    "geracao": 282,
+    "score": 684.541,
+    "venceu_apolo": false,
+    "tempo_s": 17.15,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6213.94,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2786.06,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 268,
+      "CAMINHO_ESPINHOS": 143,
+      "TELEPORTE": 111
+    }
+  },
+  {
+    "geracao": 283,
+    "score": 4508.747,
+    "venceu_apolo": false,
+    "tempo_s": 28.11,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5262.46,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 4121.39,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 440,
+      "CAMINHO_ESPINHOS": 315,
+      "SIFON": 127,
+      "TELEPORTE": 283
+    }
+  },
+  {
+    "geracao": 284,
+    "score": 2075.065,
+    "venceu_apolo": false,
+    "tempo_s": 22.45,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5806.59,
+    "dano_apolo": 1040.0,
+    "dano_umbra": 3193.41,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 351,
+      "CAMINHO_ESPINHOS": 225
+    }
+  },
+  {
+    "geracao": 285,
+    "score": 8396.099,
+    "venceu_apolo": false,
+    "tempo_s": 37.36,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3819.55,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 5614.79,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 584,
+      "PRAGA_RATOS": 396,
+      "SIFON": 250,
+      "TELEPORTE": 263,
+      "TELEPORTE_JUKE": 427,
+      "TRANSMUTAR_RESSONANCIA": 155
+    }
+  },
+  {
+    "geracao": 286,
+    "score": 6338.68,
+    "venceu_apolo": false,
+    "tempo_s": 33.18,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4542.76,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4866.43,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 519,
+      "PRAGA_RATOS": 331,
+      "SIFON": 191,
+      "TELEPORTE": 203,
+      "TELEPORTE_JUKE": 360
+    }
+  },
+  {
+    "geracao": 287,
+    "score": 117.008,
+    "venceu_apolo": false,
+    "tempo_s": 15.66,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6443.73,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2556.27,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 245,
+      "PRAGA_RATOS": 57,
+      "TELEPORTE": 88
+    }
+  },
+  {
+    "geracao": 288,
+    "score": 3190.836,
+    "venceu_apolo": false,
+    "tempo_s": 28.34,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5661.39,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 3705.55,
+    "hits_sofridos": 21,
+    "acoes_umbra": {
+      "ATAQUE": 443,
+      "MIASMA": 286,
+      "SIFON": 128,
+      "TELEPORTE": 285,
+      "TRANSMUTAR_GRAVIDADE": 24
+    }
+  },
+  {
+    "geracao": 289,
+    "score": -1887.503,
+    "venceu_apolo": false,
+    "tempo_s": 11.98,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7309.84,
+    "dano_apolo": 1002.0,
+    "dano_umbra": 1690.16,
+    "hits_sofridos": 64,
+    "acoes_umbra": {
+      "ATAQUE": 188,
+      "DESCARGA_ELETRICA": 16,
+      "TELEPORTE": 31
+    }
+  },
+  {
+    "geracao": 290,
+    "score": 5099.606,
+    "venceu_apolo": false,
+    "tempo_s": 33.71,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5005.47,
+    "dano_apolo": 1070.0,
+    "dano_umbra": 4386.41,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 527,
+      "PRAGA_RATOS": 339,
+      "SIFON": 198,
+      "TELEPORTE": 366,
+      "TRANSMUTAR_HEMORRAGIA": 102
+    }
+  },
+  {
+    "geracao": 291,
+    "score": 6649.49,
+    "venceu_apolo": false,
+    "tempo_s": 32.62,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4440.03,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4956.76,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 510,
+      "PRAGA_RATOS": 322,
+      "SIFON": 185,
+      "TELEPORTE": 195,
+      "TELEPORTE_JUKE": 352
+    }
+  },
+  {
+    "geracao": 292,
+    "score": 5857.187,
+    "venceu_apolo": false,
+    "tempo_s": 30.06,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4305.8,
+    "dano_apolo": 1000.4,
+    "dano_umbra": 4694.2,
+    "hits_sofridos": 21,
+    "acoes_umbra": {
+      "ATAQUE": 470,
+      "LASER_SOBRECARGA": 298,
+      "TELEPORTE_JUKE": 312
+    }
+  },
+  {
+    "geracao": 293,
+    "score": 595.456,
+    "venceu_apolo": false,
+    "tempo_s": 17.73,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6339.17,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 2660.83,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 277,
+      "PRAGA_RATOS": 89,
+      "TELEPORTE_JUKE": 120
+    }
+  },
+  {
+    "geracao": 294,
+    "score": 7784.781,
+    "venceu_apolo": false,
+    "tempo_s": 37.78,
+    "vida_apolo": 0.0,
+    "vida_umbra": 3635.95,
+    "dano_apolo": 1029.15,
+    "dano_umbra": 5364.05,
+    "hits_sofridos": 27,
+    "acoes_umbra": {
+      "ATAQUE": 591,
+      "LASER_SOBRECARGA": 419,
+      "TELEPORTE_JUKE": 434,
+      "TRANSMUTAR_GRAVIDADE": 74
+    }
+  },
+  {
+    "geracao": 295,
+    "score": -584.14,
+    "venceu_apolo": false,
+    "tempo_s": 18.53,
+    "vida_apolo": 0.0,
+    "vida_umbra": 6863.37,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 2136.63,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 290,
+      "PRISAO": 149,
+      "TELEPORTE_JUKE": 130
+    }
+  },
+  {
+    "geracao": 296,
+    "score": -1391.65,
+    "venceu_apolo": false,
+    "tempo_s": 15.15,
+    "vida_apolo": 0.0,
+    "vida_umbra": 7087.89,
+    "dano_apolo": 1000.0,
+    "dano_umbra": 1912.11,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 237,
+      "CAMINHO_ESPINHOS": 112,
+      "TELEPORTE": 80
+    }
+  },
+  {
+    "geracao": 297,
+    "score": 5094.233,
+    "venceu_apolo": false,
+    "tempo_s": 28.45,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4952.39,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4492.14,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 445,
+      "PRAGA_RATOS": 257,
+      "SIFON": 131,
+      "TELEPORTE_JUKE": 288
+    }
+  },
+  {
+    "geracao": 298,
+    "score": 3612.959,
+    "venceu_apolo": false,
+    "tempo_s": 26.78,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5538.12,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 3847.75,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 419,
+      "CAMINHO_ESPINHOS": 294,
+      "SIFON": 103,
+      "TELEPORTE": 6,
+      "TELEPORTE_JUKE": 261
+    }
+  },
+  {
+    "geracao": 299,
+    "score": 6020.248,
+    "venceu_apolo": false,
+    "tempo_s": 37.46,
+    "vida_apolo": 0.0,
+    "vida_umbra": 4630.36,
+    "dano_apolo": 1080.0,
+    "dano_umbra": 4716.28,
+    "hits_sofridos": 12,
+    "acoes_umbra": {
+      "ATAQUE": 586,
+      "DESCARGA_ELETRICA": 414,
+      "SIFON": 254,
+      "TELEPORTE": 429,
+      "TELEPORTE_JUKE": 271,
+      "TRANSMUTAR_ATRITO": 129
+    }
+  },
+  {
+    "geracao": 300,
+    "score": 3868.328,
+    "venceu_apolo": false,
+    "tempo_s": 27.02,
+    "vida_apolo": 0.0,
+    "vida_umbra": 5452.07,
+    "dano_apolo": 1010.0,
+    "dano_umbra": 3928.09,
+    "hits_sofridos": 17,
+    "acoes_umbra": {
+      "ATAQUE": 423,
+      "PRISAO": 282,
+      "SIFON": 110,
+      "TELEPORTE": 262,
+      "TRANSMUTAR_GRAVIDADE": 15
+    }
+  }
+]
